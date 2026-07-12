@@ -258,11 +258,13 @@ def main():
     print()
 
     try:
-        from brokers.dhan.identity.factory import BrokerFactory
+        _root = Path(__file__).resolve().parents[1]
+        sys.path.insert(0, str(_root / "src"))
+        sys.path.insert(0, str(_root / "scripts"))
+        from _connect import bootstrap_or_exit
 
         print("Creating Dhan Gateway...")
-        factory = BrokerFactory()
-        gw = factory.create(load_instruments=True)
+        gw = bootstrap_or_exit("dhan", load_instruments=True)
         print(f"Gateway created. Instruments: {gw.describe().get('instrument_count', '?')}")
 
         # Run all tests

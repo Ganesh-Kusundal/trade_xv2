@@ -63,13 +63,13 @@ class TestGatewayContract:
 
     def test_dhan_gateway_is_subclass(self):
         """Dhan DhanBrokerGateway must extend MarketDataGateway."""
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         assert issubclass(DhanBrokerGateway, MarketDataGateway)
 
     def test_upstox_gateway_is_subclass(self):
         """Upstox UpstoxBrokerGateway must extend MarketDataGateway."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         assert issubclass(UpstoxBrokerGateway, MarketDataGateway)
 

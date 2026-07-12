@@ -31,7 +31,7 @@ class UpstoxNewsExtension(Extension):
 
     @property
     def capabilities(self) -> tuple[Capability, ...]:
-        return (Capability(name="news", supported=True),)
+        return (Capability.NEWS,)
 
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True

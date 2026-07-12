@@ -35,8 +35,9 @@ jobs:
 
       - name: Run unit + contract tests
         run: |
-          pytest -m "not integration and not sandbox and not live_readonly" \
-            --cov=brokers --cov=cli --cov=datalake --cov=analytics \
+          PYTHONPATH=src pytest -m "not integration and not sandbox and not live_readonly" \
+            --cov=brokers --cov=interface --cov=datalake --cov=analytics \
+            --cov=application --cov=domain --cov=infrastructure --cov=runtime \
             --cov-branch --cov-report=term-missing --cov-report=xml \
             --junitxml=junit.xml -v
 
@@ -106,7 +107,7 @@ jobs:
 
       - name: Run memory leak tests
         run: |
-          pytest tests/regression/test_memory_leaks.py -v --tb=short
+          PYTHONPATH=src pytest tests/architecture/regression_invariants/test_memory_leaks.py -v --tb=short
 
   # ── Phase 4: Security Scan ──────────────────────────────────────────
   security-scan:
@@ -127,7 +128,7 @@ jobs:
 
       - name: Bandit security scan (HIGH severity = FAIL)
         run: |
-          bandit -r brokers/ cli/ datalake/ analytics/ -ll -f json -o bandit-results.json || true
+          bandit -r src/ -ll -f json -o bandit-results.json || true
           # Check for HIGH severity issues
           HIGH_COUNT=$(python3 -c "
           import json
@@ -187,18 +188,47 @@ jobs:
         run: |
           ruff format --check .
 
-      - name: MyPy type check
+      - name: MyPy (domain + OMS core — ERROR gate)
+        # DR-T3: same ERROR-mode gate as ci.yml — fails on any type error in the
+        # clean domain/OMS submodules (verified 0 errors). Brokers remain advisory
+        # below (full repo flip deferred to P7).
+        run: |
+          set -e
+          MYPY_CLEAN=(
+            src/domain/aggregates src/domain/analytics src/domain/backtest
+            src/domain/capability_manifest src/domain/constants src/domain/market
+            src/domain/models src/domain/primitives src/domain/providers src/domain/quotes
+            src/domain/repositories src/domain/risk src/domain/scanners src/domain/sessions
+            src/domain/value_objects
+            src/application/oms/reconciliation
+            src/application/oms/__init__.py src/application/oms/composition.py
+            src/application/oms/daily_pnl_reset_scheduler.py src/application/oms/errors.py
+            src/application/oms/factory.py src/application/oms/idempotency_guard.py
+            src/application/oms/ledger_outbox.py src/application/oms/ledger_shadow.py
+            src/application/oms/order_audit_logger.py src/application/oms/order_position_updater.py
+            src/application/oms/order_repository_adapter.py src/application/oms/order_state_validator.py
+            src/application/oms/order_validator.py src/application/oms/position_repository_adapter.py
+            src/application/oms/process_context.py src/application/oms/protocols.py
+            src/application/oms/recon_heal_policy.py src/application/oms/risk_manager.py
+            src/application/oms/square_off_service.py
+          )
+          PYTHONPATH=src mypy "${MYPY_CLEAN[@]}"
+          echo "::notice title=MyPy::domain + OMS core type checks passed (0 errors)"
+
+      - name: MyPy (brokers — advisory until P7)
+        # Brokers still carry ~499 errors (full flip deferred to P7). Tracked as a
+        # warning only; surfaced, not silent.
         run: |
           set +e
-          mypy brokers/ 2>&1 | tee /tmp/mypy-output.txt
+          mypy src/brokers/ 2>&1 | tee /tmp/mypy-output.txt
           EXIT_CODE=$?
           set -e
           ERROR_COUNT=$(grep -oP 'Found \K\d+(?= errors)' /tmp/mypy-output.txt || echo "0")
-          echo "MyPy errors: $ERROR_COUNT"
+          echo "MyPy (brokers) errors: $ERROR_COUNT"
           if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "::warning title=MyPy::Found $ERROR_COUNT type errors (tracked, non-blocking)"
+            echo "::warning title=MyPy::brokers: Found $ERROR_COUNT type errors (tracked, non-blocking)"
           else
-            echo "✅ All type checks passed!"
+            echo "✅ brokers: All type checks passed!"
           fi
 
   # ── Phase 6: Replay Determinism ─────────────────────────────────────
@@ -220,7 +250,7 @@ jobs:
 
       - name: Run replay determinism verifier
         run: |
-          python -m scripts.verify_event_replay
+          PYTHONPATH=src pytest tests/integration/test_event_replay_determinism.py -q --tb=short
 
       - name: Pre-prod live auth regression (PRE_PROD_GATE=1)
         if: env.PRE_PROD_GATE == '1'
@@ -228,7 +258,7 @@ jobs:
           PRE_PROD_GATE: "1"
         run: |
           pytest -m "auth_integration" tests/integration/test_auth_totp_live.py -v --tb=short
-          pytest brokers/upstox/tests/integration/test_ws_parity.py -v --tb=short
+          PYTHONPATH=src pytest tests/integration/brokers/upstox/test_ws_parity.py -v --tb=short
 
   # ── Phase 7: Production Certification Gate ──────────────────────────
   certification-gate:
@@ -255,10 +285,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: API readiness + ledger outbox gates
+        run: |
+          PYTHONPATH=src pytest \
+            tests/unit/application/services/test_api_readiness.py \
+            tests/unit/application/oms/test_ledger_outbox.py \
+            tests/architecture/test_ledger_outbox_boundary.py \
+            tests/architecture/test_shadow_parity_gate.py \
+            tests/integration/api/test_health.py \
+            -q --tb=short
+
       - name: Run production certification
         id: certification
         run: |
-          python scripts/production_certification.py --verbose --json > certification-report.json || true
+          python scripts/audit/production_certification.py --verbose --json > certification-report.json || true
           cat certification-report.json
 
       - name: Check certification result

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxBrokerGateway
 from domain import (
     Balance,
     DepthLevel,

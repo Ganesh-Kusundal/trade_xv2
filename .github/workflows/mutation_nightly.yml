@@ -1,14 +1,25 @@
-name: Mutation Testing (Nightly)
+# Mutation Testing — single, honest, ADVISORY nightly job.
+#
+# Truthfulness note (DR-T2): this job previously existed twice (mutation_testing.yml
+# + mutation_nightly.yml, both on the same cron) and masked its result with `|| true`
+# / `continue-on-error`, so CI was green even when mutants survived. That duplication
+# is removed. This survivor reports the REAL mutation score:
+#   - `mutmut run` keeps its real exit code (job turns red if the score drops below
+#     the configured `fail_under`), so the regression is visible.
+#   - It is intentionally NOT a required status check in branch protection, so it
+#     stays advisory and does not block merges.
+#   - No `|| true`, no `continue-on-error`.
+name: Mutation Testing (Nightly, Advisory)
 
 on:
   schedule:
-    - cron: "0 2 * * *"
+    - cron: '0 3 * * *' # offset from other nightlies (dhan-regression 02/04, load-test Mon 02)
   workflow_dispatch:
 
 jobs:
-  mutmut:
+  mutation-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,7 +30,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]" mutmut
-      - name: Run mutation tests on domain and OMS
+      - name: Run mutation tests (domain + brokers/common + OMS)
+        # Real exit code is preserved — do NOT add `|| true`.
         run: |
-          mutmut run --paths-to-mutate domain/,brokers/common/oms/ --runner "python -m pytest -x -q" || true
+          mutmut run --paths-to-mutate src/domain/,src/brokers/common/,src/application/oms/ --runner "PYTHONPATH=src python -m pytest -x -q"
           mutmut results
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-results
+          path: |
+            /tmp/mutmut_results_*.txt
+            htmlcov/

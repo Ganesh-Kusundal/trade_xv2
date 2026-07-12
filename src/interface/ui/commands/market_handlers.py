@@ -9,7 +9,6 @@ and lifecycle.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
 from typing import Any
 
 from rich.console import Console
@@ -22,7 +21,9 @@ from interface.ui.commands import validate_history as cmd_validate_history
 from interface.ui.commands import validate_option_chain as cmd_validate_option_chain
 from interface.ui.commands.argparse_helpers import parse_flag, require_symbol
 from interface.ui.commands.registry import CommandResult
+from interface.ui.services.broker_ops import fetch_depth, fetch_history, fetch_quote
 from interface.ui.services.broker_service import BrokerService
+from interface.ui.services.renderers import render_depth, render_quote
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 
@@ -33,21 +34,14 @@ def handle_quote(
     result = require_symbol(args, broker_service, console, usage="tradex quote <symbol>")
     if isinstance(result, CommandResult):
         return result
-    symbol, gw = result
-    quote = gw.quote(symbol)
+    symbol, _gw = result
+    try:
+        quote = fetch_quote(broker_service, symbol)
+    except Exception as exc:
+        return CommandResult(success=False, error=str(exc))
     if quote is None:
         return CommandResult(success=False, error=f"No quote data for {symbol}")
-    table = Table(title=f"Quote: {normalize_symbol(symbol)}", header_style="bold green")
-    table.add_column("Metric", style="bold white")
-    table.add_column("Value", justify="right")
-    table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
-    table.add_row("Open", f"\u20b9{quote.open:,.2f}")
-    table.add_row("High", f"\u20b9{quote.high:,.2f}")
-    table.add_row("Low", f"\u20b9{quote.low:,.2f}")
-    table.add_row("Close", f"\u20b9{quote.close:,.2f}")
-    table.add_row("Volume", f"{quote.volume:,}")
-    table.add_row("Change", f"\u20b9{quote.change:,.2f}")
-    console.print(table)
+    render_quote(console, symbol, quote)
     return CommandResult(
         success=True,
         data={
@@ -69,8 +63,11 @@ def handle_depth(
     result = require_symbol(args, broker_service, console, usage="tradex depth <symbol>")
     if isinstance(result, CommandResult):
         return result
-    symbol, gw = result
-    depth_obj: Any = gw.depth(symbol)
+    symbol, _gw = result
+    try:
+        depth_obj = fetch_depth(broker_service, symbol)
+    except Exception as exc:
+        return CommandResult(success=False, error=str(exc))
     if depth_obj is None:
         return CommandResult(success=False, error=f"No depth data for {symbol}")
     depth: MarketDepth = depth_obj
@@ -78,22 +75,7 @@ def handle_depth(
     asks: list[DepthLevel] = list(depth.asks) if depth.asks else []
     if not bids and not asks:
         return CommandResult(success=False, error=f"No depth data for {symbol}")
-    table = Table(title=f"Market Depth: {normalize_symbol(symbol)}", header_style="bold magenta")
-    table.add_column("Bid Qty", style="green", justify="right")
-    table.add_column("Bid Price", style="bold green", justify="right")
-    table.add_column("Ask Price", style="bold red", justify="right")
-    table.add_column("Ask Qty", style="red", justify="right")
-    levels = max(len(bids), len(asks))
-    for i in range(levels):
-        bid: DepthLevel | None = bids[i] if i < len(bids) else None
-        ask: DepthLevel | None = asks[i] if i < len(asks) else None
-        table.add_row(
-            f"{bid.quantity:,}" if bid else "-",
-            f"\u20b9{bid.price:,.2f}" if bid else "-",
-            f"\u20b9{ask.price:,.2f}" if ask else "-",
-            f"{ask.quantity:,}" if ask else "-",
-        )
-    console.print(table)
+    render_depth(console, symbol, depth_obj)
     return CommandResult(success=True)
 
 
@@ -103,24 +85,42 @@ def handle_history(
     result = require_symbol(args, broker_service, console, usage="tradex history <symbol>")
     if isinstance(result, CommandResult):
         return result
-    symbol, gw = result
-    if not hasattr(gw, "history"):
-        return CommandResult(
-            success=False,
-            error=f"Broker '{broker_service.active_broker_name}' does not support historical data",
-        )
-    history_fn: Any = getattr(getattr(gw, "historical", None), "history", gw.history)
-    to_date = date.today()
-    from_date = to_date - timedelta(days=10)
-    df = history_fn(
-        symbol,
-        "NSE",
-        from_date=from_date.strftime("%Y-%m-%d"),
-        to_date=to_date.strftime("%Y-%m-%d"),
-        timeframe="1D",
-    )
-    if df is None or df.empty:
-        return CommandResult(success=False, error=f"No history data for {symbol}")
+    symbol, _gw = result
+    try:
+        series = fetch_history(broker_service, symbol, days=10)
+    except Exception as exc:
+        return CommandResult(success=False, error=str(exc))
+    bars = getattr(series, "bars", None)
+    if bars is None and hasattr(series, "to_dataframe"):
+        df = series.to_dataframe()
+    elif hasattr(series, "empty"):
+        df = series
+    else:
+        # HistoricalSeries — convert via dataframe helper if present
+        df = getattr(series, "df", None)
+        if df is None and bars is not None:
+            import pandas as pd
+
+            df = pd.DataFrame(
+                [
+                    {
+                        "timestamp": getattr(b, "timestamp", None),
+                        "open": float(getattr(b, "open", 0)),
+                        "high": float(getattr(b, "high", 0)),
+                        "low": float(getattr(b, "low", 0)),
+                        "close": float(getattr(b, "close", 0)),
+                        "volume": int(getattr(b, "volume", 0)),
+                    }
+                    for b in bars
+                ]
+            )
+    if df is None or getattr(df, "empty", True):
+        n = getattr(series, "bar_count", 0)
+        if not n:
+            return CommandResult(success=False, error=f"No history data for {symbol}")
+        # bar_count only — print count
+        console.print(f"[green]{n} candles for {normalize_symbol(symbol)}[/green]")
+        return CommandResult(success=True, data={"symbol": symbol, "candles": n})
     table = Table(title=f"History: {normalize_symbol(symbol)} (last 5 days)", header_style="bold magenta")
     table.add_column("Date", style="bold white")
     table.add_column("Open", justify="right")

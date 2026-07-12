@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 from domain.ports.broker_gateway import QuotaToken
 from domain.extensions.broker_bundle import ExtensionBundle
+from domain.extensions.extended_order import ExtendedOrderExecutor
 from domain.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
@@ -164,11 +166,77 @@ class UpstoxGttForeverOrderStrategy(ForeverOrderProvider):
         return ForeverOrderResult(success=False, message="not implemented")
 
 
+class UpstoxExtendedOrderExecutor(ExtendedOrderExecutor):
+    """Sync executor for Upstox extended order types (DR-B1).
+
+    Encapsulates exactly the operations Upstox supports through its broker
+    adapters (``gtt``, ``alert``, ``cover``, ``slice``, ``kill_switch``,
+    ``exit_all``). Upstox does not expose native super orders through this
+    surface, so ``place_super_order`` falls through to the base
+    ``UnsupportedExtensionError``.
+    """
+
+    broker_id = "upstox"
+
+    def __init__(self, gateway: MarketDataGateway) -> None:
+        self._gateway = gateway
+
+    @property
+    def _broker(self) -> Any:
+        broker = getattr(self._gateway, "_broker", None)
+        if broker is None:
+            raise RuntimeError("Upstox gateway missing _broker reference")
+        return broker
+
+    def place_forever_order(self, payload: dict[str, Any]) -> Any:
+        return self._broker.gtt.place_forever_order(payload)
+
+    def place_trigger(self, payload: dict[str, Any]) -> Any:
+        broker = self._broker
+        if not hasattr(broker, "alert"):
+            raise self._unsupported("conditional triggers")
+        return broker.alert.place_alert(payload)
+
+    def exit_all(self) -> Any:
+        return self._broker.exit_all.exit_all()
+
+    def place_gtt(self, payload: dict[str, Any]) -> Any:
+        return self._broker.gtt.place_gtt_single(payload)
+
+    def place_cover_order(self, payload: dict[str, Any]) -> Any:
+        from domain import OrderRequest, OrderType, ProductType, Side, Validity
+
+        req = OrderRequest(
+            symbol=payload.get("symbol", ""),
+            exchange=payload.get("exchange", "NSE"),
+            transaction_type=Side(payload.get("side", "BUY")),
+            quantity=int(payload.get("quantity", 0)),
+            order_type=OrderType(payload.get("order_type", "MARKET")),
+            product_type=ProductType(payload.get("product_type", "INTRADAY")),
+            validity=Validity(payload.get("validity", "DAY")),
+            price=Decimal(str(payload.get("price", "0"))),
+        )
+        return self._broker.cover.place_cover_order(
+            req, Decimal(str(payload.get("stop_loss_price", "0")))
+        )
+
+    def place_slice_order(self, payload: dict[str, Any]) -> Any:
+        from domain.orders.requests import SliceOrderRequest
+
+        req = SliceOrderRequest(**payload)
+        return self._broker.slice.place_slice_order(req)
+
+    def set_kill_switch(self, payload: dict[str, Any]) -> Any:
+        updates = payload.get("updates", [])
+        return self._broker.kill_switch.set_status(updates)
+
+
 def register_upstox_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle = ExtensionBundle("upstox")
     bundle.register(NewsProvider, UpstoxNewsExtension(gateway))
     bundle.register(FundamentalsProvider, UpstoxFundamentalsExtension(gateway))
     bundle.register(ForeverOrderProvider, UpstoxGttForeverOrderStrategy(gateway))
+    bundle.register(ExtendedOrderExecutor, UpstoxExtendedOrderExecutor(gateway))
     return bundle
 
 

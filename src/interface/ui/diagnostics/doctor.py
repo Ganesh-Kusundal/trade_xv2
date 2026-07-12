@@ -1,73 +1,58 @@
-"""Diagnostics runner for doctor check commands — broker-agnostic version."""
+"""Diagnostics runner for doctor check commands — domain session API."""
 
 from __future__ import annotations
 
-from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
+from interface.ui.services.active_session import get_active_session
 from interface.ui.services.broker_service import BrokerService
+from interface.ui.services.market_access import fetch_funds, refresh_quote
 
 
 class DoctorDiagnostics:
     """Runs connectivity, authentication, and API sanity checks on any broker."""
 
-    def __init__(self, broker_service: BrokerService, gateway: MarketDataGateway | None = None):
+    def __init__(self, broker_service: BrokerService, gateway=None):
         self._broker_service = broker_service
         self._gw = gateway
 
     def run_all_checks(self) -> list[tuple[str, str, str]]:
-        """Run all diagnostics checks.
+        checks: list[tuple[str, str, str]] = []
 
-        Returns:
-            List of tuples: (check_name, status, details)
-            Status can be: "PASS", "FAIL", "WARNING"
-        """
-        checks = []
-
-        if self._gw is None:
-            detail = "No broker gateway available — configure broker credentials."
-            checks.append(("Broker Backend", "FAIL", detail))
+        if self._gw is None and self._broker_service.active_broker is None:
+            checks.append(("Broker Backend", "FAIL", "No broker gateway available — configure credentials."))
             return checks
 
-        gw = self._gw
-
-        # 1. Authentication Check
+        session = get_active_session(self._broker_service)
         try:
-            balance = gw.funds()
-            if isinstance(balance, dict):
-                available = balance.get("available_balance", balance.get("available_margin", 0))
-            else:
-                available = getattr(
-                    balance, "available_balance", getattr(balance, "available_margin", 0)
+            # 1. Authentication Check
+            try:
+                balance = fetch_funds(session)
+                if isinstance(balance, dict):
+                    available = balance.get("available_balance", balance.get("available_margin", 0))
+                else:
+                    available = getattr(
+                        balance, "available_balance", getattr(balance, "available_margin", 0)
+                    )
+                checks.append(
+                    (
+                        "Authentication Check",
+                        "PASS",
+                        f"Connected and authenticated. Available balance: {float(available):,.2f}",
+                    )
                 )
-            checks.append(
-                (
-                    "Authentication Check",
-                    "PASS",
-                    f"Connected and authenticated. Available balance: {float(available):,.2f}",
+            except NotImplementedError:
+                checks.append(
+                    ("Authentication Check", "WARNING", "Funds check not implemented for this broker")
                 )
-            )
-        except NotImplementedError:
-            checks.append(
-                (
-                    "Authentication Check",
-                    "WARNING",
-                    "Funds check not implemented for this broker",
+            except Exception as e:
+                checks.append(
+                    ("Authentication Check", "FAIL", f"Authentication check failed: {type(e).__name__}: {e}")
                 )
-            )
-        except Exception as e:
-            checks.append(
-                (
-                    "Authentication Check",
-                    "FAIL",
-                    f"Authentication check failed: {type(e).__name__}: {e}",
-                )
-            )
 
-        # 2. Quote Check
-        try:
-            symbol = "RELIANCE"
-            quote = gw.quote(symbol)
-            if quote and isinstance(quote, dict):
-                ltp = quote.get("ltp", 0)
+            # 2. Quote Check
+            try:
+                symbol = "RELIANCE"
+                quote = refresh_quote(session, symbol)
+                ltp = getattr(quote, "ltp", None) or (quote.get("ltp") if isinstance(quote, dict) else 0)
                 if ltp and float(ltp) > 0:
                     checks.append(
                         (
@@ -77,151 +62,10 @@ class DoctorDiagnostics:
                         )
                     )
                 else:
-                    checks.append(
-                        (
-                            "Quote Check",
-                            "FAIL",
-                            f"Quote endpoint returned no data for symbol {symbol}",
-                        )
-                    )
-            else:
-                checks.append(
-                    (
-                        "Quote Check",
-                        "FAIL",
-                        f"Quote endpoint returned invalid data for {symbol}",
-                    )
-                )
-        except NotImplementedError:
-            checks.append(
-                (
-                    "Quote Check",
-                    "WARNING",
-                    "Quote check not implemented for this broker",
-                )
-            )
-        except Exception as e:
-            checks.append(
-                (
-                    "Quote Check",
-                    "FAIL",
-                    f"Quote API verification failed: {type(e).__name__}: {e}",
-                )
-            )
-
-        # 3. Historical Data Check
-        try:
-            symbol = "RELIANCE"
-            df = gw.history(symbol, timeframe="1D", lookback_days=7)
-            if df is not None and not df.empty:
-                rows = len(df)
-                latest = df["timestamp"].max() if "timestamp" in df.columns else "N/A"
-                checks.append(
-                    (
-                        "Historical Data Check",
-                        "PASS",
-                        f"Retrieved {rows} candles for {symbol}, latest: {latest}",
-                    )
-                )
-            else:
-                checks.append(
-                    (
-                        "Historical Data Check",
-                        "FAIL",
-                        f"No historical data returned for {symbol}",
-                    )
-                )
-        except NotImplementedError:
-            checks.append(
-                (
-                    "Historical Data Check",
-                    "WARNING",
-                    "Historical data check not implemented for this broker",
-                )
-            )
-        except Exception as e:
-            checks.append(
-                (
-                    "Historical Data Check",
-                    "FAIL",
-                    f"Historical data check failed: {type(e).__name__}: {e}",
-                )
-            )
-
-        # 4. Capabilities Check
-        try:
-            caps = gw.capabilities()
-            supported_tfs = getattr(caps, "supported_timeframes", ())
-            checks.append(
-                (
-                    "Capabilities Check",
-                    "PASS",
-                    f"Supported timeframes: {', '.join(supported_tfs) if supported_tfs else 'N/A'}",
-                )
-            )
-        except Exception as e:
-            checks.append(
-                (
-                    "Capabilities Check",
-                    "FAIL",
-                    f"Capabilities check failed: {type(e).__name__}: {e}",
-                )
-            )
-
-        # 5. Instrument Search Check
-        try:
-            results = gw.search("RELIANCE")
-            if results and len(results) > 0:
-                checks.append(
-                    (
-                        "Instrument Search Check",
-                        "PASS",
-                        f"Found {len(results)} instruments for RELIANCE",
-                    )
-                )
-            else:
-                checks.append(
-                    (
-                        "Instrument Search Check",
-                        "WARNING",
-                        "No instruments found for RELIANCE",
-                    )
-                )
-        except NotImplementedError:
-            checks.append(
-                (
-                    "Instrument Search Check",
-                    "WARNING",
-                    "Instrument search not implemented for this broker",
-                )
-            )
-        except Exception as e:
-            checks.append(
-                (
-                    "Instrument Search Check",
-                    "FAIL",
-                    f"Instrument search failed: {type(e).__name__}: {e}",
-                )
-            )
-
-        # 6. Describe Check
-        try:
-            desc = gw.describe()
-            broker_name = desc.get("broker", desc.get("name", "Unknown"))
-            checks.append(
-                (
-                    "Broker Identity Check",
-                    "PASS",
-                    f"Broker: {broker_name}",
-                )
-            )
-        except Exception as e:
-            checks.append(
-                (
-                    "Broker Identity Check",
-                    "FAIL",
-                    f"Describe failed: {type(e).__name__}: {e}",
-                )
-            )
+                    checks.append(("Quote Check", "FAIL", f"No valid LTP for {symbol}"))
+            except Exception as e:
+                checks.append(("Quote Check", "FAIL", f"Quote check failed: {type(e).__name__}: {e}"))
+        finally:
+            session.close()
 
         return checks

@@ -62,7 +62,10 @@ class TickTranslatorAdapter:
             unchanged so no data is silently dropped.
         """
         try:
-            payload = raw.get("payload") if isinstance(raw, dict) else raw
+            if isinstance(raw, dict):
+                payload = raw.get("payload") if "payload" in raw else raw
+            else:
+                payload = raw
             if payload is None:
                 return raw
 

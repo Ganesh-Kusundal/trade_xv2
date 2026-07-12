@@ -73,8 +73,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -88,8 +88,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -103,8 +103,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -118,8 +118,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
         ],
     )
     def test_place_order_signature(self, gw_module, gw_class):
@@ -144,8 +144,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -159,8 +159,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -174,8 +174,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "DhanBrokerGateway"),
-            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanBrokerGateway"),
+            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -213,7 +213,7 @@ class TestDhanGatewayReturnTypes:
         inst.canonical_symbol = "RELIANCE"
         conn.instruments.resolve.return_value = inst
 
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         gw = DhanBrokerGateway(conn)
         return gw
@@ -363,7 +363,7 @@ class TestUpstoxGatewayReturnTypes:
         broker.instrument_resolver = MagicMock()
         broker.instrument_resolver.is_loaded.return_value = True
 
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         gw = UpstoxBrokerGateway(broker)
         return gw
@@ -539,7 +539,7 @@ class TestObservabilityProvider:
     pytestmark = pytest.mark.skip(reason="ObservabilityProvider was part of deleted MarketDataGateway ABC")
 
     def test_dhan_get_connection_status(self):
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -553,7 +553,7 @@ class TestObservabilityProvider:
         assert isinstance(result, dict)
 
     def test_dhan_get_circuit_breaker_states(self):
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -568,7 +568,7 @@ class TestObservabilityProvider:
         assert isinstance(result, dict)
 
     def test_dhan_get_token_refresh_metrics(self):
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -591,7 +591,7 @@ class TestUpstoxObservabilityProvider:
     """Upstox gateway must implement ObservabilityProvider methods."""
 
     def test_upstox_get_connection_status(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         broker.market_data_websocket = MagicMock()
@@ -604,7 +604,7 @@ class TestUpstoxObservabilityProvider:
         assert isinstance(result, dict)
 
     def test_upstox_get_circuit_breaker_states(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         broker.context.http_client._read_circuit_breaker = None
@@ -619,7 +619,7 @@ class TestUpstoxObservabilityProvider:
         assert "admin" in result
 
     def test_upstox_get_token_refresh_metrics(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         broker.context.token_manager.refresh_count = 0
@@ -632,7 +632,7 @@ class TestUpstoxObservabilityProvider:
 
     def test_upstox_get_rate_limiter_metrics(self):
         from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         rl = MultiBucketRateLimiter({
             "quotes": RateLimitConfig(rate_per_second=1, capacity=1),

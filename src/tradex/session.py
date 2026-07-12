@@ -136,6 +136,54 @@ def _normalize_mode(broker_id: str, mode: str | None) -> str:
     return resolved
 
 
+def _broker_selftest_enabled() -> bool:
+    raw = (os.environ.get("TRADEX_BROKER_SELFTEST") or "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _run_broker_selftest(session: DomainSession, broker_id: str) -> None:
+    """Fail-fast startup validation when TRADEX_BROKER_SELFTEST=1."""
+    from brokers.services.core import VerifyReport
+
+    report = VerifyReport(broker_id=broker_id)
+    report.add("Configuration", True, f"broker={broker_id}")
+    st = getattr(session, "status", None)
+    report.add("Authentication", bool(getattr(st, "authenticated", False)), getattr(st, "mode", "?"))
+    try:
+        stock = session.universe.equity("RELIANCE")
+        caps = stock.capabilities()
+        report.add("Capabilities", True, f"{len(caps)} reported")
+        if stock.id.underlying.upper() != "RELIANCE":
+            report.add("Mappings", False, "symbol mismatch")
+        else:
+            report.add("Mappings", True)
+        q = stock.refresh()
+        report.add("Sample Quote", q is not None)
+        hist = stock.history(timeframe="1D", days=1)
+        report.add("Historical", bool(getattr(hist, "bar_count", 0)))
+        handle = stock.subscribe()
+        report.add("WebSocket", handle is not None)
+        if handle is not None:
+            stock.unsubscribe()
+    except Exception as exc:  # noqa: BLE001
+        report.add("SelfTest", False, f"{type(exc).__name__}: {exc}")
+        raise ConnectError(
+            f"Broker self-test failed for {broker_id!r}.",
+            code=GATEWAY_FAILED,
+            broker_id=broker_id,
+            remediation="Run: broker verify " + broker_id,
+            details={"error": str(exc)},
+        ) from exc
+    if not all(s.passed for s in report.steps):
+        failed = [s.name for s in report.steps if not s.passed]
+        raise ConnectError(
+            f"Broker self-test failed: {', '.join(failed)}",
+            code=GATEWAY_FAILED,
+            broker_id=broker_id,
+            remediation="Run: broker verify " + broker_id,
+        )
+
+
 def open_session(
     broker: str = "paper",
     *,
@@ -145,10 +193,12 @@ def open_session(
     gateway: Any | None = None,
     execution_provider: Any | None = None,
     order_service: Any | None = None,
+    broker_service: Any | None = None,
     use_oms: bool = True,
     env_path: str | Path | None = None,
     load_instruments: bool = True,
     profile: str | None = None,  # reserved for future config profiles
+    run_selftest: bool | None = None,
 ) -> DomainSession:
     """Create a domain ``Session`` bound to a broker or injected provider.
 
@@ -270,12 +320,11 @@ def open_session(
             )
 
     # ── Data provider ─────────────────────────────────────────────────
+    # Paper is self-registered in infrastructure.adapter_factory (via
+    # ensure_broker_module above), so it resolves through the same registry
+    # path as dhan/upstox — no concrete broker import by name.
     if data is None:
-        if broker_id == "paper":
-            from brokers.paper.data_provider import PaperDataProvider
-
-            data = PaperDataProvider(gw)
-        elif gw is not None:
+        if gw is not None:
             from infrastructure.adapter_factory import create_data_adapter
 
             data = create_data_adapter(gw, broker_id=broker_id)
@@ -292,19 +341,17 @@ def open_session(
     orders_wanted = resolved_mode in {MODE_SIM, MODE_TRADE}
 
     # ── Execution provider ────────────────────────────────────────────
+    # Paper is self-registered in infrastructure.adapter_factory (via
+    # ensure_broker_module above), so it resolves through the same registry
+    # path as dhan/upstox — no concrete broker import by name.
     if executor is None and gw is not None and broker_id != "datalake":
-        if broker_id == "paper":
-            from brokers.paper.execution_provider import PaperExecutionProvider
+        from infrastructure.adapter_factory import create_execution_provider
 
-            executor = PaperExecutionProvider(gw)
-        else:
-            from infrastructure.adapter_factory import create_execution_provider
+        executor = create_execution_provider(gw, broker_id=broker_id)
+        if executor is None:
+            from infrastructure.gateway.execution import GatewayExecutionProvider
 
-            executor = create_execution_provider(gw, broker_id=broker_id)
-            if executor is None:
-                from infrastructure.gateway.execution import GatewayExecutionProvider
-
-                executor = GatewayExecutionProvider(gw, broker_id=broker_id)
+            executor = GatewayExecutionProvider(gw, broker_id=broker_id)
 
     # ── OMS spine ─────────────────────────────────────────────────────
     if not use_oms and live and executor is not None and orders_wanted:
@@ -317,37 +364,58 @@ def open_session(
             remediation="Orders must pass OrderIntent → Risk → OMS. (ENG-011)",
         )
 
-    if oms is None and use_oms and executor is not None and orders_wanted:
-        from application.oms.session_bridge import build_oms_service
+    if oms is None and use_oms and orders_wanted:
+        # ADR-017: trade mode with process BrokerService uses runtime.factory.build.
+        if (
+            resolved_mode == MODE_TRADE
+            and broker_service is not None
+            and executor is not None
+        ):
+            from runtime.factory import build as build_runtime
 
-        try:
-            oms = build_oms_service(
-                executor,
-                event_bus=event_bus,
-                broker_id=broker_id,
+            runtime = build_runtime(
+                broker_service,
+                mode="trade",
+                broker=broker_id,
+                skip_parity_gate=True,
             )
-        except RuntimeError as exc:
-            msg = str(exc)
-            if live and resolved_mode == MODE_TRADE:
+            oms = runtime.oms_service
+            if event_bus is None:
+                event_bus = runtime.event_bus
+            if gw is None:
+                gw = runtime.gateway
+            setattr(runtime, "_tradex_session_delegate", True)
+        elif executor is not None:
+            from application.oms.session_bridge import build_oms_service
+
+            try:
+                oms = build_oms_service(
+                    executor,
+                    event_bus=event_bus,
+                    broker_id=broker_id,
+                )
+            except RuntimeError as exc:
+                msg = str(exc)
+                if live and resolved_mode == MODE_TRADE:
+                    raise ConnectError(
+                        "Process OMS composition root required for live trade mode.",
+                        code=OMS_REQUIRED,
+                        broker_id=broker_id,
+                        mode=resolved_mode,
+                        trace_id=trace_id,
+                        remediation=(
+                            "Start CLI/API TradingContext first, or use mode='market' "
+                            "for data-only."
+                        ),
+                        details={"original": msg},
+                    ) from exc
                 raise ConnectError(
-                    "Process OMS composition root required for live trade mode.",
-                    code=OMS_REQUIRED,
+                    msg,
+                    code=OMS_REQUIRED if "ENG-001" in msg or "phantom" in msg.lower() else "OMS_FAILED",
                     broker_id=broker_id,
                     mode=resolved_mode,
                     trace_id=trace_id,
-                    remediation=(
-                        "Start CLI/API TradingContext first, or use mode='market' "
-                        "for data-only."
-                    ),
-                    details={"original": msg},
                 ) from exc
-            raise ConnectError(
-                msg,
-                code=OMS_REQUIRED if "ENG-001" in msg or "phantom" in msg.lower() else "OMS_FAILED",
-                broker_id=broker_id,
-                mode=resolved_mode,
-                trace_id=trace_id,
-            ) from exc
 
     orders_enabled = oms is not None and orders_wanted
     phase = PHASE_READY_TRADE if orders_enabled else PHASE_READY_MARKET
@@ -375,6 +443,85 @@ def open_session(
     if _session_kernel is not None:
         setattr(session, "kernel", _session_kernel)
 
+    # ── CQRS dispatchers (ADR-012) ───────────────────────────────────
+    # Build the CommandDispatcher / QueryDispatcher at the composition root so
+    # SDK/CLI/API/UI all route intent + reads through one seam. The command
+    # dispatcher wraps the OMS; the query dispatcher reads from the position
+    # manager / analytics query executor. Both are optional (data-only mode).
+    # (Dispatcher construction lives here, not in domain/application, to keep
+    # the domain layer independent and avoid an application->runtime cycle.)
+    from runtime.commands import (
+        CommandDispatcher,
+        HistoryCommandHandler,
+        OrderCommandHandler,
+        SubscribeCommandHandler,
+    )
+    from runtime.queries import (
+        CandleQueryHandler,
+        PortfolioQueryHandler,
+        QueryDispatcher,
+    )
+
+    command_dispatcher = CommandDispatcher(event_bus=event_bus)
+    if oms is not None:
+        order_manager = getattr(oms, "order_manager", None)
+        submit_fn = getattr(oms, "_submit_fn", None)
+        if order_manager is not None:
+            command_dispatcher.register_handler(
+                OrderCommandHandler(order_manager, submit_fn=submit_fn)
+            )
+    # Subscribe / history route through the session's DataProvider when present.
+    if data is not None:
+        command_dispatcher.register_handler(SubscribeCommandHandler(data))
+        command_dispatcher.register_handler(HistoryCommandHandler(data))
+
+    query_dispatcher = QueryDispatcher()
+    position_manager = getattr(oms, "order_manager", None) if oms is not None else None
+    if position_manager is None:
+        from application.oms import PositionManager
+
+        position_manager = PositionManager(event_bus=event_bus)
+    query_dispatcher.register_handler(PortfolioQueryHandler(position_manager))
+    try:
+        from analytics.views.query_executor import QueryExecutor
+
+        # Only register if the executor actually exposes a candle reader; the
+        # analytics QueryExecutor is SQL-based and may not have get_candles.
+        if hasattr(QueryExecutor, "get_candles"):
+            query_dispatcher.register_handler(CandleQueryHandler(QueryExecutor))
+        else:
+            logger.debug("QueryDispatcher: analytics QueryExecutor has no get_candles; candles read-only skipped")
+    except Exception:  # pragma: no cover - analytics optional at SDK layer
+        logger.debug("QueryDispatcher: analytics QueryExecutor not wired (candles read-only)")
+
+    session.attach_command_dispatcher(command_dispatcher)
+    session.attach_query_dispatcher(query_dispatcher)
+
+    # ADR-012: wire Session.place() through the dispatcher via a closure built
+    # here (composition root) so domain stays independent of runtime.commands.
+    from domain.ports import OrderResult as PortOrderResult
+    from runtime.commands import PlaceOrderCommand
+
+    def _order_command_fn(intent: Any) -> Any:
+        cmd = PlaceOrderCommand(
+            correlation_id=intent.correlation_id,
+            symbol=intent.symbol,
+            exchange=intent.exchange,
+            side=intent.side,
+            quantity=intent.quantity,
+            price=intent.price,
+            order_type=intent.order_type,
+            product_type=intent.product_type,
+        )
+        result = command_dispatcher.dispatch(cmd)
+        return PortOrderResult(
+            success=result.success,
+            order=result.data,
+            error=result.error or "",
+        )
+
+    session.attach_order_command_fn(_order_command_fn)
+
     # Light resolver for doctor / resolve_name
     from domain.instruments.resolver import InstrumentResolver
 
@@ -395,6 +542,11 @@ def open_session(
     )
     # Opt-in SessionRecording (TRADEX_SESSION_RECORD=1); never blocks connect.
     _maybe_start_session_recorder(session, event_bus, session_id=trace_id)
+
+    should_selftest = run_selftest if run_selftest is not None else _broker_selftest_enabled()
+    if should_selftest and broker_id not in {"datalake"}:
+        _run_broker_selftest(session, broker_id)
+
     return session
 
 
@@ -452,18 +604,17 @@ def _collect_gateway_extensions(gateway: Any, *, broker_id: str = "") -> list[An
 
 
 def _ensure_broker_registered(broker_id: str) -> None:
-    """Import broker package so self-registration runs."""
-    if broker_id == "dhan":
-        import brokers.dhan  # noqa: F401
-    elif broker_id == "upstox":
-        import brokers.upstox  # noqa: F401
-    elif broker_id == "paper":
-        import brokers.paper  # noqa: F401
-    elif broker_id == "datalake":
-        pass
-    else:
-        # Still try import path for unknown — gateway_factory will raise
-        pass
+    """Import broker package so self-registration runs.
+
+    Routes through the composition root's entry-point discovery
+    (``runtime.broker_discovery``) rather than naming a concrete broker module,
+    so no layer above ``infrastructure``/``brokers`` imports a broker by name.
+    """
+    if broker_id in ("datalake",):
+        return
+    from runtime.broker_discovery import ensure_broker_module
+
+    ensure_broker_module(broker_id)
 
 
 # Public aliases

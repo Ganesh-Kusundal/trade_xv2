@@ -32,7 +32,7 @@ from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.dhan.identity.account_registry import AccountConnectionRegistry
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.streaming.session_manager import DhanSessionManager
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.config.settings import DhanConnectionSettings, DhanSettingsLoader
 logger = logging.getLogger(__name__)
@@ -348,25 +348,6 @@ def _refresh_via_auth(
         return None
     finally:
         refresh_lock.release()
-
-
-def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
-    """Compute token expiry aligned to the next trading session end."""
-    from datetime import timedelta, timezone
-
-    try:
-        utc_now = (
-            datetime.now(timezone.utc)
-            if getattr(now, "tzinfo", None) is None
-            else now.astimezone(timezone.utc)
-        )
-        session_end_today = utc_now.replace(hour=0, minute=30, second=0, microsecond=0)
-        if utc_now < session_end_today:
-            return session_end_today
-        return session_end_today + timedelta(days=1)
-    except (ValueError, TypeError, AttributeError) as exc:
-        logger.warning("token_expiry_fallback", extra={"error": str(exc)})
-        return now + timedelta(seconds=lifetime_seconds)
 
 
 def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:

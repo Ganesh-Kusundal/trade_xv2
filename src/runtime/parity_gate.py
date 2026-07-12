@@ -27,11 +27,21 @@ def assert_runtime_parity_or_raise() -> None:
 
     failures: list[str] = []
 
-    replay_script = _PROJECT_ROOT / "scripts" / "verify_event_replay.py"
-    if replay_script.exists():
+    replay_test = _PROJECT_ROOT / "tests" / "integration" / "test_event_replay_determinism.py"
+    if replay_test.exists():
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(_PROJECT_ROOT / "src")
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.verify_event_replay"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(replay_test),
+                "-q",
+                "--tb=short",
+            ],
             cwd=_PROJECT_ROOT,
+            env=env,
             capture_output=True,
             text=True,
             timeout=120,
@@ -39,7 +49,7 @@ def assert_runtime_parity_or_raise() -> None:
         if result.returncode != 0:
             failures.append(f"event_replay_verifier: {result.stderr or result.stdout}")
 
-    quant_script = _PROJECT_ROOT / "scripts" / "baseline_quant_parity.py"
+    quant_script = _PROJECT_ROOT / "scripts" / "verify" / "baseline_quant_parity.py"
     if quant_script.exists():
         result = subprocess.run(
             [sys.executable, str(quant_script), "--mode", "verify"],
@@ -50,6 +60,31 @@ def assert_runtime_parity_or_raise() -> None:
         )
         if result.returncode != 0:
             failures.append(f"quant_parity_baseline: {result.stderr or result.stdout}")
+
+    shadow_test = (
+        _PROJECT_ROOT / "tests" / "architecture" / "test_shadow_parity_gate.py"
+    )
+    if shadow_test.exists():
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(_PROJECT_ROOT / "src")
+        env["TRADEX_LEDGER_AUTHORITY"] = "1"
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(shadow_test),
+                "-q",
+                "--tb=short",
+            ],
+            cwd=_PROJECT_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            failures.append(f"shadow_parity_gate: {result.stderr or result.stdout}")
 
     if failures:
         msg = "Runtime parity gate failed:\n" + "\n".join(failures)

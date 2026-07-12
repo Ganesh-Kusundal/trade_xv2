@@ -103,7 +103,7 @@ class TestUpstoxNotImplementedErrors:
     def upstox_gateway(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
         gw._broker = MagicMock()
@@ -156,14 +156,14 @@ class TestMarketDataGatewayContract:
         return set(MarketDataGateway.__abstractmethods__)
 
     def test_dhan_gateway_implements_all_abstract(self, abstract_methods):
-        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
 
         dhan_methods = set(dir(DhanGateway))
         missing = abstract_methods - dhan_methods
         assert not missing, f"Dhan gateway missing abstract methods: {missing}"
 
     def test_upstox_gateway_implements_all_abstract(self, abstract_methods):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         upstox_methods = set(dir(UpstoxBrokerGateway))
         missing = abstract_methods - upstox_methods
@@ -177,7 +177,7 @@ class TestDhanGatewaySegmentMapping:
     def dhan_gateway(self):
         from unittest.mock import MagicMock
 
-        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
         from brokers.dhan.resolver import SymbolResolver
 
         resolver = SymbolResolver()
@@ -228,61 +228,61 @@ class TestGatewayTypeSafety:
         return None
 
     def test_dhan_quote_returns_quote_type(self):
-        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "quote")
         assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
 
     def test_dhan_positions_returns_list_position(self):
-        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "positions")
         assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
 
     def test_dhan_funds_returns_balance(self):
-        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "funds")
         assert ret == "Balance", f"Expected 'Balance', got {ret!r}"
 
     def test_upstox_quote_returns_quote_type(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "quote")
         assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
 
     def test_upstox_depth_returns_market_depth_type(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "depth")
         assert ret == "MarketDepth", f"Expected 'MarketDepth', got {ret!r}"
 
     def test_upstox_funds_returns_balance(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "funds")
         assert ret == "Balance", f"Expected 'Balance', got {ret!r}"
 
     def test_upstox_positions_returns_list_position(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "positions")
         assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
 
     def test_upstox_holdings_returns_list_holding(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "holdings")
         assert ret == "list[Holding]", f"Expected 'list[Holding]', got {ret!r}"
 
     def test_upstox_trades_returns_list_trade(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "trades")
         assert ret == "list[Trade]", f"Expected 'list[Trade]', got {ret!r}"
 
     def test_upstox_get_orderbook_returns_list_order(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         ret = self._get_method_return_annotation(UpstoxBrokerGateway, "get_orderbook")
         assert ret == "list[Order]", f"Expected 'list[Order]', got {ret!r}"

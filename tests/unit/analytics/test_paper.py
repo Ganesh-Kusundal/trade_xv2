@@ -21,7 +21,7 @@ from analytics.paper.models import (
     PositionSide,
 )
 from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.replay.models import Bar
+from domain.candles.historical import HistoricalBar
 from domain.enums import Side
 from domain.orders.sizing import compute_order_quantity
 
@@ -190,13 +190,15 @@ class TestPaperSession:
 
     def test_with_positions(self):
         s = PaperSession(capital=80_000)
-        s.positions["T"] = PaperPosition(
-            symbol="T",
-            side=PositionSide.LONG,
-            entry_price=100.0,
-            quantity=100,
-            entry_time=datetime.now(timezone.utc),
-            current_price=110.0,
+        s.bootstrap_position(
+            PaperPosition(
+                symbol="T",
+                side=PositionSide.LONG,
+                entry_price=100.0,
+                quantity=100,
+                entry_time=datetime.now(timezone.utc),
+                current_price=110.0,
+            )
         )
         # capital is cash; total_equity = cash + market_value (110 * 100)
         assert s.total_equity == 91_000
@@ -302,7 +304,7 @@ class TestOnBar:
         session = PaperSession(capital=100_000)
         session.peak_equity = 100_000
         for i in range(5):
-            bar = Bar(
+            bar = HistoricalBar.from_replay(
                 symbol="T",
                 timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=i),
                 open=100.0 + i,
@@ -322,7 +324,7 @@ class TestOnBar:
         session = PaperSession(capital=100_000)
         session.peak_equity = 100_000
         for i in range(5):
-            bar = Bar(
+            bar = HistoricalBar.from_replay(
                 symbol="T",
                 timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=i),
                 open=100.0,
@@ -372,14 +374,16 @@ class TestPositionManagement:
             oms_adapter=mock_oms_adapter,
         )
         session = PaperSession(capital=100_000)
-        session.positions["T"] = PaperPosition(
-            symbol="T",
-            side=PositionSide.LONG,
-            entry_price=100.0,
-            quantity=10,
-            entry_time=datetime.now(timezone.utc),
-            current_price=100.0,
-            strategy="test",
+        session.bootstrap_position(
+            PaperPosition(
+                symbol="T",
+                side=PositionSide.LONG,
+                entry_price=100.0,
+                quantity=10,
+                entry_time=datetime.now(timezone.utc),
+                current_price=100.0,
+                strategy="test",
+            )
         )
         assert session.daily_pnl == 0.0
         engine._close_position(

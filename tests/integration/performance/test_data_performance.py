@@ -230,7 +230,7 @@ class TestBatchOperationPerformance:
     """Benchmark batch operations with increasing symbol counts."""
 
     def _make_dhan_gw_with_mock(self):
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -316,7 +316,7 @@ class TestRESTEndpointLatency:
     """Regression tests for REST endpoint processing latency (client-side)."""
 
     def _make_dhan_gw(self):
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"

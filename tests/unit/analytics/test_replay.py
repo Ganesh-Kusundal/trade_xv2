@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -11,7 +12,7 @@ import pytest
 
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
 from analytics.replay import (
-    Bar,
+    HistoricalBar,
     ReplayConfig,
     ReplayEngine,
     ReplayMode,
@@ -20,6 +21,9 @@ from analytics.replay import (
     SimulatedPosition,
     SimulatedTrade,
 )
+from analytics.replay.models import FillModel
+from analytics.scanner.models import Candidate
+from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
 
 # ---------------------------------------------------------------------------
@@ -96,7 +100,7 @@ def default_config() -> ReplayConfig:
 
 class TestBar:
     def test_bar_creation(self) -> None:
-        bar = Bar(
+        bar = HistoricalBar.from_replay(
             symbol="TCS",
             timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
             open=100,
@@ -109,7 +113,7 @@ class TestBar:
         assert bar.close == 103
 
     def test_bar_to_dict(self) -> None:
-        bar = Bar(
+        bar = HistoricalBar.from_replay(
             symbol="TCS",
             timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
             open=100,
@@ -124,7 +128,7 @@ class TestBar:
         assert "open" in d
 
     def test_bar_frozen(self) -> None:
-        bar = Bar(
+        bar = HistoricalBar.from_replay(
             symbol="TCS",
             timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
             open=100,
@@ -320,6 +324,69 @@ class TestReplayEngine:
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120
+
+    def test_multi_symbol_shared_capital(self) -> None:
+        """Multi-symbol replay must share one capital pool across symbols."""
+
+        @dataclass
+        class AlwaysBuyStrategy:
+            @property
+            def name(self) -> str:
+                return "AlwaysBuy"
+
+            def evaluate(self, candidate: Candidate, features: pd.DataFrame) -> Signal:
+                return Signal(
+                    symbol=candidate.symbol,
+                    signal_type=SignalType.BUY,
+                    confidence=0.9,
+                    strategy=self.name,
+                )
+
+        ts = pd.Timestamp("2026-01-01")
+        data = pd.DataFrame(
+            [
+                {
+                    "symbol": "AAA",
+                    "timestamp": ts,
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.0,
+                    "volume": 100_000.0,
+                },
+                {
+                    "symbol": "BBB",
+                    "timestamp": ts,
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.0,
+                    "volume": 100_000.0,
+                },
+            ]
+        )
+        config = ReplayConfig(
+            initial_capital=100_000,
+            warmup_bars=0,
+            max_position_pct=60.0,
+            fill_model=FillModel.CURRENT_CLOSE,
+        )
+        engine = ReplayEngine(
+            FeaturePipeline(),
+            StrategyPipeline(strategies=[AlwaysBuyStrategy()]),
+            config=config,
+            allow_simulate_without_oms=True,
+        )
+        result = engine.run(data)
+
+        initial_capital = 100_000.0
+        # Both symbols traded; quantities reflect one shared 100k pool.
+        assert len(result.session.trades) == 2
+        qty_by_symbol = {t.symbol: t.quantity for t in result.session.trades}
+        assert qty_by_symbol["AAA"] == 600  # 60% of 100k at price 100
+        assert qty_by_symbol["BBB"] == 400  # only ~40k cash left for second buy
+        # Final equity cannot exceed initial (no phantom 2x capital).
+        assert result.session.current_equity <= initial_capital + 1.0
 
     def test_multi_symbol(self, default_pipeline: FeaturePipeline) -> None:
         np.random.seed(42)

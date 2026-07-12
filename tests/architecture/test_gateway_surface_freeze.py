@@ -131,7 +131,7 @@ def _class_body_public_methods(cls: type) -> set[str]:
 
 
 def test_dhan_gateway_public_surface_frozen():
-    from brokers.dhan.gateway import DhanBrokerGateway
+    from brokers.dhan.wire import DhanBrokerGateway
 
     actual = _class_body_public_methods(DhanBrokerGateway)
     extra = actual - _DHAN_PUBLIC
@@ -146,7 +146,7 @@ def test_dhan_gateway_public_surface_frozen():
 
 
 def test_upstox_gateway_public_surface_frozen():
-    from brokers.upstox.gateway import UpstoxBrokerGateway
+    from brokers.upstox.wire import UpstoxBrokerGateway
 
     actual = _class_body_public_methods(UpstoxBrokerGateway)
     extra = actual - _UPSTOX_PUBLIC
@@ -168,6 +168,6 @@ def test_paper_gateway_public_surface_frozen():
 
 
 def test_dhan_broker_gateway_alias():
-    from brokers.dhan.gateway import DhanBrokerGateway
+    from brokers.dhan.wire import DhanBrokerGateway
 
     assert DhanBrokerGateway is DhanBrokerGateway

@@ -229,34 +229,21 @@ class HistoricalDataService:
         try:
             import pandas as pd
 
-            from domain import HistoricalCandle
+            from domain.candles.historical import HistoricalSeries, InstrumentRef
 
             df = pd.read_parquet(path)
-            out: list[HistoricalCandle] = []
-
-            def to_timestamp(ts):
-                return ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
-
-            out = [
-                HistoricalCandle(
-                    timestamp=to_timestamp(ts),
-                    open=float(open_val),
-                    high=float(high_val),
-                    low=float(low_val),
-                    close=float(close_val),
-                    volume=int(volume),
-                )
-                for ts, open_val, high_val, low_val, close_val, volume in zip(
-                    df["timestamp"],
-                    df["open"],
-                    df["high"],
-                    df["low"],
-                    df["close"],
-                    df["volume"],
-                    strict=False,
-                )
-            ]
-            return out
+            if df.empty:
+                return []
+            symbol = str(df["symbol"].iloc[0]) if "symbol" in df.columns else ""
+            exchange = str(df["exchange"].iloc[0]) if "exchange" in df.columns else "NSE"
+            timeframe = str(df["timeframe"].iloc[0]) if "timeframe" in df.columns else "1D"
+            series = HistoricalSeries.from_datalake_df(
+                df,
+                InstrumentRef(symbol=symbol, exchange=exchange),
+                timeframe,
+                request_id=str(path),
+            )
+            return series.bars
         except Exception as exc:
             logger.warning("load_from_parquet failed: %s", exc)
             return []

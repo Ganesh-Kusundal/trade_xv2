@@ -1,0 +1,67 @@
+name: web
+
+# Frontend CI (DR-F4 / DR-F5). Isolated from the Python CI so web changes
+# don't require the heavy backend build. Builds, type-checks, unit-tests the
+# SPA, and runs a real Playwright smoke test that boots the built app.
+
+on:
+  push:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  web:
+    name: build · lint · test · e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and type-check (tsc --noEmit + vite build)
+        # `build` also type-checks src/api/generated.ts produced by
+        # `npm run api:generate` (DR-F5), so a drifted SDK fails CI.
+        run: npm run build
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end smoke test (Playwright)
+        # Self-contained: playwright.config.ts starts the dev server.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7

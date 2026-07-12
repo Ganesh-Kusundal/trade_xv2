@@ -251,3 +251,25 @@ Drop: `common/broker_capabilities.py` (shim), dhan top-level `resolver/loader/sy
 - **Paper `MarginProvider`:** confirm sim margin in-scope or intentionally omitted (REF-9).
 - **Object model:** confirm kernel's domain entities are the ones the `Instrument`/`Session` object layer (OBJECT_MODEL_PLAN) wraps, so we don't build a second object model.
 - **Dhan MCX options support:** confirm Upstox API supports OPTIONS@MCX before declaring that surface for Upstox (REF-3b probe table).
+
+---
+
+## Status log (2026-07-11 — kernel strangler execution)
+
+- REF-0/0.5/0b/3: **Done** — `BrokerContractSuite`, `MarketCoverageContract`, `MarketSurface`, test import repair, paper enrolled.
+- REF-1/2/4/5: **Partial** — kernel modules in `brokers/common/` (`transport`, `acl`, `margin_provider`, `auth/TokenLifecycle` re-export); Upstox margin unified; Dhan WS reconnect still inline in places.
+- REF-6: **Done** — use-case layer (`place_bracket`, `exit_all`, `gtt`, `pnl_exit`, `depth`).
+- REF-7/8: **Done** — full surface moved to `dhan/wire.py`, `upstox/wire.py`; factories return wire adapters.
+- REF-4b gateway deletion: **Done** — `gateway.py` removed; ~55 imports retargeted to `wire`.
+- REF-9 paper: **Done** — paper certifies 32/32; contract + market coverage enrolled.
+- REF-10/11: **Partial** — ADR-014/README updated, graphify refreshed; physical `plugins/` file move not done (500+ internal imports); import-linter `broker_facade → wire` updated.
+- Live cert: paper **CERTIFIED**; dhan **30/32** (historical 5m/1D empty off-hours); upstox **HTTP 423** (account lockout — env, not code).
+
+## Status log (2026-07-11 — standard connect flow enforcement)
+
+- **Done** — `_create_transport_gateway` private; deprecated `create_gateway` shim; `connect_live` / `connect_analytics` / `try_connect_live` in `interface.ui.services.connect`.
+- **Done** — 8 UI validation commands + `auth_live_probe` + `broker_manager` datalake migrated off raw transport.
+- **Done** — integration conftest/contract fixtures use `bootstrap_gateway(require_authenticated=True)`.
+- **Done** — `scripts/_connect.py`; verify/debug/migration scripts use `bootstrap_or_exit`.
+- **Done** — import-linter contract `UI commands use connect shims not raw factory`; ruff banned-api for `create_gateway`; `test_connect_flow_compliance.py`.
+- **Done** — removed unused `brokers/dhan/auth/wire_lifecycle.py`; README + ADR-014 connect contract section.

@@ -46,7 +46,7 @@ def _lookup(symbol: str, broker_service, console: Console) -> None:
         if inst:
             table.add_row(
                 f"Match ({exch})",
-                f"{inst.symbol} | sid={inst.security_id} | type={inst.instrument_type.value}",
+                f"{inst.symbol} | type={inst.instrument_type.value}",
             )
             if inst.expiry:
                 table.add_row("  Expiry", inst.expiry)

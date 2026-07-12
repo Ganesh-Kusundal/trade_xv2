@@ -38,7 +38,7 @@ class TestCompleteDepthSnapshot:
     """gateway._complete_depth_snapshot merges REST fallback when a side is empty."""
 
     def _make_gateway(self):
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
         from brokers.dhan.resolver import SymbolResolver
 
         resolver = SymbolResolver()
@@ -416,7 +416,7 @@ class TestAuditLeakAndMultiplexingFixes:
 
     def test_broker_gateway_callback_leak_prevention(self):
         """DhanBrokerGateway unstream removes wrapper callback from feed."""
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
         from brokers.dhan.data.subscription_engine import SubscriptionEngine
 
         feed = mock.MagicMock()

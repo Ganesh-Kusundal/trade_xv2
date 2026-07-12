@@ -33,7 +33,7 @@ class DhanSuperOrderExtension(Extension):
 
     @property
     def capabilities(self) -> tuple[Capability, ...]:
-        return (Capability(name="super_order", supported=True),)
+        return ()
 
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from analytics.replay.models import (
+from domain.trading_costs import (
     CommissionModel,
     IndianMarketFees,
-    ReplayConfig,
     compute_indian_equity_fees,
     compute_indian_fno_fees,
 )
+from analytics.replay.models import ReplayConfig
 
 # ── Flat Commission Tests ───────────────────────────────────────────────
 

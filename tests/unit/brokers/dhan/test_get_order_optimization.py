@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from domain import Order, OrderStatus, OrderType, Side
 
 

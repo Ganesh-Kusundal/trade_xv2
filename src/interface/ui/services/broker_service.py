@@ -38,7 +38,7 @@ from interface.ui.services.broker_registry import (
 PaperGateway = get_paper_gateway_class()
 MockBroker = get_mock_broker_class()
 
-from interface.ui.services.broker_registry import bootstrap_gateway, create_gateway, resolve_env_path
+from interface.ui.services.broker_registry import bootstrap_gateway, resolve_env_path
 from domain.errors import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
 from interface.ui.services.broker_observability import (
@@ -70,12 +70,12 @@ class BrokerService:
     -------------------
     The service owns a :class:`LifecycleManager` (Phase A / A5) so every
     ``ManagedService`` produced downstream — the ``TokenRefreshScheduler``
-    registered by ``BrokerFactory.create``, the ``ReconciliationService``
+    registered by broker factory bootstrap, the ``ReconciliationService``
     attached by ``TradingContext``, and any future scheduler — is drained
     cleanly on ``close()``.
 
     Previously the ``TokenRefreshScheduler`` was started as a bare daemon
-    thread by    ``BrokerFactory().create()``'s daemon-thread path and never
+    thread by factory daemon-thread path and never
     stopped; the CLI's ``close()`` only called
     ``TradingContext.stop_reconciliation()`` and ``gateway.close()``. This
     left the scheduler thread to be reaped at process exit. See
@@ -86,6 +86,7 @@ class BrokerService:
         self,
         *,
         authorize_risk_fail_open: bool = False,
+        event_bus: Any | None = None,
     ) -> None:
         """Build the broker service.
 
@@ -137,6 +138,12 @@ class BrokerService:
         # M-7 / Phase 1.2: production readiness gate result.
         self._live_actionable: bool = False
         self._readiness_report: Any = None
+        if event_bus is None:
+            from infrastructure.bootstrap import build_production_event_bus
+            from runtime.resilience import ResilienceConfig
+
+            event_bus = build_production_event_bus(resilience=ResilienceConfig.from_env())
+        self._event_bus = event_bus
 
         # ── Compose the three focused modules ──────────────────────────
         self._oms = OmsBootstrap(self)

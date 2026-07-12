@@ -2,6 +2,11 @@
 
 All order-modifying endpoints must go through ExtendedOrderService
 for kill switch checks and event publishing.
+
+Broker-agnostic (DR-B1): the service resolves an
+:class:`~domain.extensions.extended_order.ExtendedOrderExecutor` via the
+extension registry and delegates to it. These tests inject a stub registry /
+executor rather than probing gateway internals.
 """
 
 from __future__ import annotations
@@ -11,6 +16,7 @@ from unittest.mock import MagicMock
 from application.oms.extended_order_service import (
     ExtendedOrderService,
 )
+from domain.extensions.extended_order import ExtendedOrderExecutor
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -31,23 +37,42 @@ def _make_broker_service(name: str = "dhan") -> MagicMock:
     return svc
 
 
+def _make_registry(executor: object | None) -> MagicMock | None:
+    """Build a BrokerExtensionRegistry stub whose ``require`` returns *executor*.
+
+    Returns ``None`` when no executor is supplied, so the service behaves as if
+    no registry were configured (extended features unavailable).
+    """
+    if executor is None:
+        return None
+    registry = MagicMock()
+    registry.require.return_value = executor
+    return registry
+
+
 def _make_extended_order_service(
     kill_switch_active: bool = False,
     broker_name: str = "dhan",
+    executor: object | None = None,
 ) -> ExtendedOrderService:
     return ExtendedOrderService(
         risk_manager=_make_risk_manager(kill_switch_active),
         event_bus=_make_event_bus(),
         broker_service=_make_broker_service(broker_name),
+        extension_registry=_make_registry(executor),
     )
 
 
 def _make_gateway(broker_name: str = "dhan") -> MagicMock:
-    gw = MagicMock()
-    gw.extended = MagicMock()
-    gw._broker = MagicMock()
-    gw._conn = MagicMock()
-    return gw
+    """A gateway object — no longer probed by the service, kept for call sig."""
+    return MagicMock()
+
+
+class _UnsupportingExecutor(ExtendedOrderExecutor):
+    """Executor with only base (unsupported) behaviour, for reject paths."""
+
+    def __init__(self, broker_id: str) -> None:
+        self.broker_id = broker_id
 
 
 # ── Kill Switch Tests ───────────────────────────────────────────────────
@@ -107,40 +132,40 @@ class TestEventPublishing:
     """Verify that successful operations publish ORDER_PLACED events."""
 
     def test_super_order_publishes_event_on_success(self):
-        svc = _make_extended_order_service()
-        gw = _make_gateway("dhan")
-        gw.extended.place_super_order.return_value = {"orderId": "123"}
+        executor = MagicMock()
+        executor.place_super_order.return_value = {"orderId": "123"}
+        svc = _make_extended_order_service(executor=executor)
 
-        svc.place_super_order(gw, {"symbol": "RELIANCE"})
+        svc.place_super_order(_make_gateway(), {"symbol": "RELIANCE"})
 
         svc._events.publish.assert_called_once()
         event = svc._events.publish.call_args[0][0]
         assert event.event_type == "ORDER_PLACED"
 
     def test_forever_order_publishes_event_on_success(self):
-        svc = _make_extended_order_service(broker_name="dhan")
-        gw = _make_gateway("dhan")
-        gw.extended.place_forever_order.return_value = {"orderId": "456"}
+        executor = MagicMock()
+        executor.place_forever_order.return_value = {"orderId": "456"}
+        svc = _make_extended_order_service(executor=executor)
 
-        svc.place_forever_order(gw, {"symbol": "RELIANCE"})
+        svc.place_forever_order(_make_gateway(), {"symbol": "RELIANCE"})
 
         svc._events.publish.assert_called_once()
 
     def test_exit_all_publishes_event_on_success(self):
-        svc = _make_extended_order_service()
-        gw = _make_gateway()
-        gw.extended.exit_all.return_value = {"status": "ok"}
+        executor = MagicMock()
+        executor.exit_all.return_value = {"status": "ok"}
+        svc = _make_extended_order_service(executor=executor)
 
-        svc.exit_all(gw)
+        svc.exit_all(_make_gateway())
 
         svc._events.publish.assert_called_once()
 
     def test_no_event_on_failure(self):
-        svc = _make_extended_order_service()
-        gw = _make_gateway("dhan")
-        gw.extended.place_super_order.side_effect = Exception("API error")
+        executor = MagicMock()
+        executor.place_super_order.side_effect = Exception("API error")
+        svc = _make_extended_order_service(executor=executor)
 
-        svc.place_super_order(gw, {"symbol": "RELIANCE"})
+        svc.place_super_order(_make_gateway(), {"symbol": "RELIANCE"})
 
         svc._events.publish.assert_not_called()
 
@@ -149,50 +174,52 @@ class TestEventPublishing:
 
 
 class TestBrokerRouting:
-    """Verify correct broker adapter is called for each feature."""
+    """Verify the service delegates to the resolved executor (no name branching)."""
 
-    def test_dhan_super_order_calls_extended(self):
-        svc = _make_extended_order_service(broker_name="dhan")
-        gw = _make_gateway("dhan")
-        gw.extended.place_super_order.return_value = {"orderId": "123"}
+    def test_dhan_super_order_delegates_to_executor(self):
+        executor = MagicMock()
+        executor.place_super_order.return_value = {"orderId": "123"}
+        svc = _make_extended_order_service(broker_name="dhan", executor=executor)
 
-        result = svc.place_super_order(gw, {"symbol": "RELIANCE"})
-
-        assert result.success
-        gw.extended.place_super_order.assert_called_once_with(symbol="RELIANCE")
-
-    def test_dhan_forever_order_calls_extended(self):
-        svc = _make_extended_order_service(broker_name="dhan")
-        gw = _make_gateway("dhan")
-        gw.extended.place_forever_order.return_value = {"orderId": "456"}
-
-        result = svc.place_forever_order(gw, {"symbol": "RELIANCE"})
+        result = svc.place_super_order(_make_gateway(), {"symbol": "RELIANCE"})
 
         assert result.success
-        gw.extended.place_forever_order.assert_called_once()
+        executor.place_super_order.assert_called_once_with({"symbol": "RELIANCE"})
 
-    def test_upstox_forever_order_calls_broker_gtt(self):
-        svc = _make_extended_order_service(broker_name="upstox")
-        gw = _make_gateway("upstox")
-        gw._broker.gtt.place_forever_order.return_value = {"orderId": "789"}
+    def test_dhan_forever_order_delegates_to_executor(self):
+        executor = MagicMock()
+        executor.place_forever_order.return_value = {"orderId": "456"}
+        svc = _make_extended_order_service(broker_name="dhan", executor=executor)
 
-        result = svc.place_forever_order(gw, {"symbol": "RELIANCE"})
+        result = svc.place_forever_order(_make_gateway(), {"symbol": "RELIANCE"})
 
         assert result.success
-        gw._broker.gtt.place_forever_order.assert_called_once()
+        executor.place_forever_order.assert_called_once()
+
+    def test_upstox_forever_order_delegates_to_executor(self):
+        executor = MagicMock()
+        executor.place_forever_order.return_value = {"orderId": "789"}
+        svc = _make_extended_order_service(broker_name="upstox", executor=executor)
+
+        result = svc.place_forever_order(_make_gateway(), {"symbol": "RELIANCE"})
+
+        assert result.success
+        executor.place_forever_order.assert_called_once()
 
     def test_wrong_broker_rejected(self):
-        svc = _make_extended_order_service(broker_name="upstox")
-        gw = _make_gateway("upstox")
-        # Super order is dhan-only
-        result = svc.place_super_order(gw, {"symbol": "RELIANCE"})
+        # Super order is not supported by an executor that lacks it (e.g. upstox).
+        svc = _make_extended_order_service(
+            broker_name="upstox", executor=_UnsupportingExecutor("upstox")
+        )
+        result = svc.place_super_order(_make_gateway(), {"symbol": "RELIANCE"})
         assert not result.success
 
     def test_gtt_upstox_only(self):
-        svc = _make_extended_order_service(broker_name="dhan")
-        gw = _make_gateway("dhan")
-        # GTT is upstox-only
-        result = svc.place_gtt(gw, {"symbol": "RELIANCE"})
+        # GTT is not supported by an executor that lacks it (e.g. dhan).
+        svc = _make_extended_order_service(
+            broker_name="dhan", executor=_UnsupportingExecutor("dhan")
+        )
+        result = svc.place_gtt(_make_gateway(), {"symbol": "RELIANCE"})
         assert not result.success
 
 
@@ -203,20 +230,20 @@ class TestKillSwitchSync:
     """Verify kill switch syncs OMS and broker."""
 
     def test_kill_switch_updates_oms_risk_manager(self):
-        svc = _make_extended_order_service(broker_name="upstox")
-        gw = _make_gateway("upstox")
-        gw._broker.kill_switch.set_status.return_value = {"status": "updated"}
+        executor = MagicMock()
+        executor.set_kill_switch.return_value = {"status": "updated"}
+        svc = _make_extended_order_service(broker_name="upstox", executor=executor)
 
-        svc.set_kill_switch(gw, {"updates": [{"enabled": True}]})
+        svc.set_kill_switch(_make_gateway(), {"updates": [{"enabled": True}]})
 
         svc._risk.set_kill_switch.assert_called_once_with(True)
 
     def test_kill_switch_disables_oms_when_disabled(self):
-        svc = _make_extended_order_service(broker_name="upstox")
-        gw = _make_gateway("upstox")
-        gw._broker.kill_switch.set_status.return_value = {"status": "updated"}
+        executor = MagicMock()
+        executor.set_kill_switch.return_value = {"status": "updated"}
+        svc = _make_extended_order_service(broker_name="upstox", executor=executor)
 
-        svc.set_kill_switch(gw, {"updates": [{"enabled": False}]})
+        svc.set_kill_switch(_make_gateway(), {"updates": [{"enabled": False}]})
 
         svc._risk.set_kill_switch.assert_called_once_with(False)
 
@@ -229,9 +256,6 @@ class TestReadOnlyEndpoints:
 
     def test_margin_calculation_still_works_directly(self):
         """Margin is read-only — should call broker directly, not via service."""
-        gw = _make_gateway("dhan")
-        gw._conn.margin.calculate.return_value = {"margin": 50000}
-
         # This test verifies the endpoint still works without ExtendedOrderService
         from interface.api.routers.live.extended import live_margin
 

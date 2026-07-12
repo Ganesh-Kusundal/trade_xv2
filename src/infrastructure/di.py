@@ -28,6 +28,7 @@ from typing import Any
 
 from domain.exceptions import TradeXV2Error
 from infrastructure.di_scopes import ScopeManager
+from infrastructure.time_service import time_service
 
 logger = logging.getLogger(__name__)
 
@@ -255,3 +256,8 @@ class Container:
 
 # Module-level singleton container
 container = Container()
+
+# The shared clock (real wall clock by default). Domain events read the
+# active clock via domain.ports.time_service.get_current_clock(); tests
+# and replay override it with a VirtualClock through use_clock/set_current_clock.
+container.register_instance("clock", time_service)

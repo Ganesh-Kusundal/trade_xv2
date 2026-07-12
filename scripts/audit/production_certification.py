@@ -90,11 +90,17 @@ def run_command(
     capture_output: bool = True,
 ) -> subprocess.CompletedProcess:
     """Run a subprocess and return the result."""
+    root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    src = str(root / "src")
+    env["PYTHONPATH"] = src if not env.get("PYTHONPATH") else f"{src}{os.pathsep}{env['PYTHONPATH']}"
     return subprocess.run(
         cmd,
         timeout=timeout,
         capture_output=capture_output,
         text=True,
+        cwd=root,
+        env=env,
     )
 
 
@@ -211,7 +217,7 @@ def check_memory_tests() -> CheckResult:
                 "-x",
                 "--tb=short",
                 "-q",
-                "tests/regression/test_memory_leaks.py",
+                "tests/architecture/regression_invariants/test_memory_leaks.py",
             ],
             timeout=180,
         )
@@ -260,9 +266,13 @@ def check_test_coverage() -> CheckResult:
                 "-m",
                 "not integration and not sandbox and not live_readonly",
                 "--cov=brokers",
-                "--cov=cli",
+                "--cov=interface",
                 "--cov=datalake",
                 "--cov=analytics",
+                "--cov=application",
+                "--cov=domain",
+                "--cov=infrastructure",
+                "--cov=runtime",
                 "--cov-report=term",
                 "--cov-fail-under=90",
                 "-q",
@@ -319,10 +329,13 @@ def check_security_scan() -> CheckResult:
                 "-m",
                 "bandit",
                 "-r",
-                "brokers/",
-                "cli/",
-                "datalake/",
-                "analytics/",
+                "src/brokers/",
+                "src/interface/",
+                "src/datalake/",
+                "src/analytics/",
+                "src/application/",
+                "src/domain/",
+                "src/infrastructure/",
                 "-ll",  # high severity only
                 "-f",
                 "json",
@@ -480,7 +493,7 @@ def check_mypy() -> CheckResult:
     start = time.monotonic()
     try:
         result = run_command(
-            [sys.executable, "-m", "mypy", "brokers/"],
+            [sys.executable, "-m", "mypy", "src/brokers/"],
             timeout=120,
         )
         duration = time.monotonic() - start
@@ -527,7 +540,14 @@ def check_replay_determinism() -> CheckResult:
     start = time.monotonic()
     try:
         result = run_command(
-            [sys.executable, "-m", "scripts.verify_event_replay"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "tests/integration/test_event_replay_determinism.py",
+                "-q",
+                "--tb=short",
+            ],
             timeout=120,
         )
         duration = time.monotonic() - start
@@ -570,6 +590,36 @@ def check_replay_determinism() -> CheckResult:
         )
 
 
+def check_broker_certification() -> CheckResult:
+    """Run ``broker verify paper`` — Trading OS broker layer gate."""
+    start = time.monotonic()
+    try:
+        result = run_command(
+            [sys.executable, "-m", "brokers.cli.broker", "--broker", "paper", "verify"],
+            timeout=120,
+        )
+        if result.returncode == 0:
+            return CheckResult(
+                name="broker_certification",
+                status=CheckStatus.PASS,
+                duration_seconds=time.monotonic() - start,
+                message="broker verify paper passed",
+            )
+        return CheckResult(
+            name="broker_certification",
+            status=CheckStatus.FAIL,
+            duration_seconds=time.monotonic() - start,
+            message=f"broker verify paper failed: {result.stderr or result.stdout}",
+        )
+    except Exception as e:
+        return CheckResult(
+            name="broker_certification",
+            status=CheckStatus.FAIL,
+            duration_seconds=time.monotonic() - start,
+            message=f"broker certification check failed: {e}",
+        )
+
+
 def run_certification(verbose: bool = False, json_output: bool = False) -> CertificationReport:
     """Run all certification checks and return the report."""
     report = CertificationReport(
@@ -586,6 +636,7 @@ def run_certification(verbose: bool = False, json_output: bool = False) -> Certi
         ("Formatting (Ruff)", check_formatting),
         ("Type Checking (MyPy)", check_mypy),
         ("Replay Determinism", check_replay_determinism),
+        ("Broker Certification (paper)", check_broker_certification),
     ]
 
     total_start = time.monotonic()
@@ -649,7 +700,7 @@ def main():
     json_output = "--json" in sys.argv
 
     # Ensure we're in the project root
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     os.chdir(project_root)
 
     print("🔒 Production Certification Gate")

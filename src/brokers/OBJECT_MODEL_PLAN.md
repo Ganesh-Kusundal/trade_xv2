@@ -2,6 +2,12 @@
 
 **Status:** SUPERSEDED (2026-07-09) · Keep for historical context only.
 
+**Replaced by (2026-07-10):** the `brokers/session` + `brokers/runtime` +
+`brokers/extensions` layout described in `README.md`. The decorator-stacked
+instrument approach was dropped in favor of capability query +
+`DataProvider`/`ExecutionProvider` ports (ENG-041), and the public surface is
+now `BrokerSession` over the existing rich `domain` objects.
+
 > **Architecture board decision (ENG-041):** Do **not** implement decorator-stacked
 > instruments (`DhanDepth20(Instrument)` wrappers). Use capability query +
 > `DataProvider`/`ExecutionProvider` ports. Prefer `tradex.connect` + domain

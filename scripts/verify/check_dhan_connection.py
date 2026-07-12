@@ -45,15 +45,13 @@ def main():
         sys.exit(1)
 
     # ── 2. Create gateway via factory ─────────────────────────────
-    print("\n[2/6] Creating Dhan gateway (factory) ...")
+    print("\n[2/6] Creating Dhan gateway (bootstrap) ...")
     t0 = time.monotonic()
     try:
-        from brokers.dhan.identity.factory import BrokerFactory
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from _connect import bootstrap_or_exit
 
-        gateway = BrokerFactory().create(
-            env_path=env_path,
-            load_instruments=True,
-        )
+        gateway = bootstrap_or_exit("dhan", env_path=env_path, load_instruments=True)
         elapsed = time.monotonic() - t0
         print(f"  Gateway created in {elapsed:.1f}s")
     except Exception as e:

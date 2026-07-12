@@ -6,6 +6,8 @@ import json
 
 import click
 
+from brokers.services import run_certify
+
 
 @click.command()
 @click.argument("broker_id", type=click.Choice(["dhan", "upstox", "paper"]))
@@ -22,9 +24,7 @@ def certify(broker_id: str, live: bool, json_output: bool) -> None:
         tradex certify upstox --live
         tradex certify paper --json
     """
-    from tests.unit.brokers.common.certify_broker import run_certification
-
-    report = run_certification(broker_id, live_mode=live)
+    report = run_certify(broker_id, live=live)
 
     if json_output:
         click.echo(json.dumps(report.to_dict(), indent=2, default=str))
@@ -34,5 +34,4 @@ def certify(broker_id: str, live: bool, json_output: bool) -> None:
     if not report.is_certified:
         click.echo("Certification FAILED. Review the report above for details.", err=True)
         raise SystemExit(1)
-    else:
-        click.echo("Certification PASSED. Broker meets all contract requirements.")
+    click.echo("Certification PASSED. Broker meets all contract requirements.")

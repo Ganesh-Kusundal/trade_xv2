@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 import pandas as pd
 
-from domain.candles.historical import InstrumentRef
+from domain.candles.historical import DateRange, HistoricalBar, HistoricalSeries, InstrumentRef
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -94,6 +94,24 @@ class UpstoxDataProvider(DataProvider):
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
+    ) -> list[HistoricalBar]:
+        """Return canonical domain bars (export view of ``get_history_series``)."""
+        return self.get_history_series(
+            instrument_id,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        ).bars
+
+    def _history_dataframe(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
     ) -> pd.DataFrame:
         try:
             hist = getattr(self._gw, "history", None)
@@ -109,6 +127,52 @@ class UpstoxDataProvider(DataProvider):
             )
         except Exception:
             return pd.DataFrame()
+
+    def get_history_series(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> HistoricalSeries:
+        ref = InstrumentRef(
+            symbol=instrument_id.underlying, exchange=instrument_id.exchange
+        )
+        series_fn = getattr(self._gw, "get_history_series", None)
+        if callable(series_fn):
+            raw = series_fn(
+                instrument_id.underlying,
+                instrument_id.exchange,
+                timeframe,
+                lookback_days,
+                from_date,
+                to_date,
+            )
+            if isinstance(raw, HistoricalSeries):
+                return raw
+        df = self._history_dataframe(
+            instrument_id,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        if df is None or getattr(df, "empty", True):
+            return HistoricalSeries(
+                bars=[],
+                coverage=DateRange(date.today(), date.today()),
+                instrument=ref,
+                timeframe=timeframe,
+            )
+        return HistoricalSeries.from_broker_df(
+            df,
+            ref,
+            timeframe,
+            broker_id=self._broker_id,
+            request_id="upstox.history",
+        )
 
     def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
         try:

@@ -25,7 +25,7 @@ from decimal import Decimal
 import pytest
 
 from domain.capabilities.broker_capabilities import BrokerCapabilities
-from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxBrokerGateway
 from domain import (
     Balance,
     MarketDepth,

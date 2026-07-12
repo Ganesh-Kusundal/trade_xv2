@@ -13,6 +13,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
@@ -26,6 +27,7 @@ from domain.reconciliation import ReconciliationReport
 from domain.ports import EventBusPort
 from domain.lifecycle_health import HealthState, build_health
 from domain.ports.lifecycle import ManagedServicePort
+from application.observability import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +128,7 @@ class ReconciliationService(ManagedServicePort):
 
     # ── Public API ───────────────────────────────────────────────────────
 
+    @trace_operation("reconciliation.run_now")
     def run_now(self) -> ReconciliationReport | None:
         """Run reconciliation immediately."""
         return self._run_once()
@@ -154,13 +157,33 @@ class ReconciliationService(ManagedServicePort):
                 self._last_error = f"{type(exc).__name__}: {exc}"
                 logger.error("Reconciliation loop error: %s", exc)
 
+    def _run_ledger_shadow_compare(self) -> None:
+        lifecycle = getattr(self._order_manager, "_lifecycle", None)
+        ledger = getattr(lifecycle, "_execution_ledger", None)
+        if ledger is None:
+            recorder = getattr(self._order_manager, "_trade_recorder", None)
+            ledger = getattr(recorder, "_execution_ledger", None)
+        try:
+            from application.oms.ledger_shadow import compare_ledger_vs_positions
+
+            shadow = compare_ledger_vs_positions(ledger, self._position_manager)
+            if shadow.enabled and shadow.has_drift:
+                logger.warning(
+                    "ledger_shadow_parity_failed drifts=%d compared=%d",
+                    len(shadow.drifts),
+                    shadow.compared_symbols,
+                )
+        except Exception as exc:
+            logger.debug("ledger_shadow_compare_skipped: %s", exc)
+
     def _run_once(self) -> ReconciliationReport | None:
         report = None
         try:
             report = self._reconciliation_service.reconcile(
-                local_orders=self._order_manager.get_all_orders(),
-                local_positions=self._position_manager.get_positions_as_dicts(),
+                local_orders=self._order_manager.get_orders(),
+                local_positions=self._position_manager.get_positions(),
             )
+            self._run_ledger_shadow_compare()
             if hasattr(report, "has_drift") and report.has_drift:
                 self._last_drift_count = len(getattr(report, "drift_items", []))
                 logger.warning(
@@ -171,7 +194,8 @@ class ReconciliationService(ManagedServicePort):
             else:
                 self._last_drift_count = 0
             self._last_error = None
-            self._notify_first_success()
+            if self._is_clean_for_trading(report):
+                self._notify_first_success()
         except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"
             logger.error("Reconciliation failed: %s", exc)
@@ -207,6 +231,17 @@ class ReconciliationService(ManagedServicePort):
                 except Exception:
                     logger.exception("Failed to publish RECONCILIATION_COMPLETED")
         return report
+
+    @staticmethod
+    def _is_clean_for_trading(report: ReconciliationReport | Any) -> bool:
+        """Trading is enabled only after a drift-free reconciliation run."""
+        if report is None:
+            return False
+        if getattr(report, "has_drift", False):
+            return False
+        if getattr(report, "high_severity_count", 0) > 0:
+            return False
+        return True
 
     def _notify_first_success(self) -> None:
         if self._first_success_notified or self._on_first_success is None:

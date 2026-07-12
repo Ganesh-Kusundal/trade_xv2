@@ -106,7 +106,7 @@ def test_fetch_profile_returns_token_expiry_epoch_ms():
     assert exp_ms > 0
 
 
-def test_fetch_profile_returns_minus_one_on_missing_token_expiry():
+def test_fetch_profile_returns_zero_on_missing_token_expiry():
     session = MagicMock()
     resp = MagicMock()
     resp.status_code = 200
@@ -114,7 +114,19 @@ def test_fetch_profile_returns_minus_one_on_missing_token_expiry():
     session.get.return_value = resp
     client = UpstoxOAuthClient(base_url="https://api.upstox.com")
     client._session = session
-    assert client.fetch_profile("at") == -1
+    assert client.fetch_profile("at") == 0
+
+
+def test_fetch_profile_raises_on_401():
+    session = MagicMock()
+    resp = MagicMock()
+    resp.status_code = 401
+    resp.text = "unauthorized"
+    session.get.return_value = resp
+    client = UpstoxOAuthClient(base_url="https://api.upstox.com")
+    client._session = session
+    with pytest.raises(UpstoxAuthError):
+        client.fetch_profile("at")
 
 
 def test_validate_read_only_token_returns_true_on_200():

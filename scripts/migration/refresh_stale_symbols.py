@@ -128,12 +128,10 @@ def main():
     try:
         from pathlib import Path
 
-        from interface.ui.services.broker_registry import create_gateway
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from _connect import bootstrap_or_exit
 
-        gateway = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
-        if not gateway:
-            print("\n✗ Failed to create Dhan gateway. Check .env.local configuration.")
-            return
+        gateway = bootstrap_or_exit("dhan", env_path=Path(".env.local"), load_instruments=True)
     except Exception as e:
         print(f"\n✗ Failed to create gateway: {e}")
         print("  Make sure .env.local is configured with Dhan credentials.")

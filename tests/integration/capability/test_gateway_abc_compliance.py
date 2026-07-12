@@ -38,7 +38,7 @@ class TestGatewayImplementationContract:
     """Gateway classes declare ABC methods (structural check via MRO)."""
 
     def test_dhan_gateway_implements_abc_methods(self) -> None:
-        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
 
         abstract = _abstract_methods()
         for method in abstract:
@@ -47,7 +47,7 @@ class TestGatewayImplementationContract:
             assert getattr(impl, "__isabstractmethod__", False) is False
 
     def test_upstox_gateway_implements_abc_methods(self) -> None:
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         abstract = _abstract_methods()
         for method in abstract:
@@ -65,7 +65,7 @@ class TestUpstoxFutureChain:
     """Upstox future_chain returns FutureChain via futures adapter."""
 
     def test_upstox_future_chain_returns_chain(self) -> None:
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from domain import FutureChain
         from tests.integration.fixtures.upstox import make_mock_broker
 

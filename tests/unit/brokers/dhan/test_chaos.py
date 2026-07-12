@@ -35,7 +35,7 @@ from infrastructure.resilience.rate_limiter import (
     RateLimitConfig,
 )
 from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from brokers.dhan.resilience.circuit_breaker import (
     DhanCircuitBreakerFactory,
     create_circuit_breakers,

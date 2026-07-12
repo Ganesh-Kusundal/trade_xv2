@@ -9,8 +9,10 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any  # Only for signal handler frame type
 
+from application.oms.event_log_replay import EventLogReplayService
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
+from application.oms.shutdown_coordinator import ShutdownCoordinator
 
 # The concrete TradingOrchestrator was previously imported here (guarded by
 # a try/except "to avoid circular dependency") but was dead code: neither
@@ -304,6 +306,19 @@ class TradingContext:
             )
             self._order_manager.set_placement_gate(self._reconciliation_placement_gate)
 
+        self._shutdown_coordinator = ShutdownCoordinator(
+            risk_manager=self._risk_manager,
+            order_manager=self._order_manager,
+            event_bus=self._event_bus,
+            event_log=self._event_log,
+        )
+        self._replay_service = EventLogReplayService(
+            event_bus=self._event_bus,
+            event_log=self._event_log,
+            order_manager=self._order_manager,
+            position_manager=self._position_manager,
+        )
+
         if replay_events and self._event_log is not None:
             self._replay_log_into_oms()
 
@@ -491,46 +506,15 @@ class TradingContext:
     def _replay_log_into_oms(self) -> None:
         """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state.
 
-        Replay invokes the OMS handlers directly, which in turn publishes
-        ``TRADE_APPLIED`` for accepted trades. During replay, the event bus
-        suppresses handler dispatch (via ``replay_mode``), so we must
-        directly invoke the position manager to ensure positions are rebuilt.
+        Delegates to :class:`EventLogReplayService` which handles bus
+        replay-mode toggling and direct position-manager invocation.
         """
         if self._event_log is None:
             return
-        # Defensive check — event_bus should always be initialized
         if self._event_bus is None:
             logger.warning("Event bus is None, skipping replay mode setup")
             return
-        logger.info("Replaying event log into OMS")
-        count = 0
-        # Enable replay mode to prevent TRADE_APPLIED dispatch during replay
-        # (which would cause PositionManager to double-count trades)
-        replay_was_enabled = self._event_bus.replay_mode
-        self._event_bus.set_replay_mode(True)
-        # Prevent re-logging events while rebuilding state.
-        logging_was_enabled = self._event_bus.logging_enabled
-        self._event_bus.set_logging_enabled(False)
-        try:
-            for event in self._event_log.replay(
-                event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}
-            ):
-                if event.event_type == EventType.ORDER_UPDATED.value:
-                    self._order_manager.on_order_update(event)
-                elif event.event_type == EventType.TRADE.value:
-                    # ENG-006: only rebuild positions for trades OMS accepted.
-                    # Rejected/duplicate/unknown-order trades must not mutate
-                    # the position book during crash recovery.
-                    accepted = self._order_manager.on_trade(event)
-                    if accepted:
-                        # During replay, TRADE_APPLIED bus dispatch is suppressed
-                        # (replay_mode=True), so invoke PositionManager directly.
-                        self._position_manager.on_trade_applied(event)
-                count += 1
-        finally:
-            self._event_bus.set_logging_enabled(logging_was_enabled)
-            self._event_bus.set_replay_mode(replay_was_enabled)
-        logger.info("Replayed %d events into OMS", count)
+        self._replay_service.replay()
 
     # ── Graceful shutdown (B2 fix) ──────────────────────────────────────
 
@@ -580,69 +564,12 @@ class TradingContext:
         cancel_orders: bool = True,
         gateway: IBrokerGateway | None = None,
     ) -> dict:
-        """Shared shutdown steps used by both async and sync shutdown paths.
-
-        Steps:
-            1. Activate kill switch to halt new order placement.
-            2. Cancel all open orders (optionally via broker gateway).
-            3. Flush and close the event log.
-            4. Publish a SYSTEM_SHUTDOWN event.
-        """
-        result = {
-            "orders_cancelled": 0,
-            "orders_failed": 0,
-            "event_log_flushed": False,
-            "connections_closed": 0,
-        }
-
-        # Step 1: Halt new order placement
-        try:
-            self._risk_manager.set_kill_switch(True)
-            logger.info("TradingContext: kill switch activated")
-        except Exception as exc:
-            logger.warning("TradingContext: kill_switch activation failed: %s", exc)
-
-        # Step 2: Cancel all open orders
-        if cancel_orders:
-            effective_gateway = gateway or self._shutdown_gateway
-            cancel_result = self.cancel_all_open_orders(gateway=effective_gateway)
-            result["orders_cancelled"] = cancel_result["orders_cancelled"]
-            result["orders_failed"] = cancel_result["orders_failed"]
-            logger.info(
-                "TradingContext: order cancellation complete — cancelled=%d, failed=%d",
-                result["orders_cancelled"],
-                result["orders_failed"],
-            )
-
-        # Step 3: Flush event log to disk
-        if self._event_log is not None:
-            try:
-                if hasattr(self._event_log, "flush"):
-                    self._event_log.flush()
-                self._event_log.close()
-                result["event_log_flushed"] = True
-                logger.info("TradingContext: event log flushed and closed")
-            except Exception as exc:
-                logger.warning("TradingContext: event_log flush/close failed: %s", exc)
-
-        # Step 4: Emit SYSTEM_SHUTDOWN event
-        try:
-            self._event_bus.publish(
-                DomainEvent.now(
-                    EventType.SYSTEM_SHUTDOWN.value,
-                    payload={
-                        "service_name": self.name,
-                        "detail": "shutdown_complete",
-                        "orders_cancelled": result["orders_cancelled"],
-                        "orders_failed": result["orders_failed"],
-                    },
-                    source="TradingContext",
-                )
-            )
-        except Exception as exc:
-            logger.warning("TradingContext: SYSTEM_SHUTDOWN event publish failed: %s", exc)
-
-        return result
+        """Shared shutdown steps — delegates to :class:`ShutdownCoordinator`."""
+        effective_gateway = gateway or self._shutdown_gateway
+        return self._shutdown_coordinator.execute(
+            cancel_orders=cancel_orders,
+            gateway=effective_gateway,
+        )
 
     def cancel_all_open_orders(
         self,
@@ -658,72 +585,13 @@ class TradingContext:
         Args:
             gateway: MarketDataGateway with cancel_order() method.
         """
-        from domain import OrderStatus
-
-        cancelled = 0
-        failed = 0
-        failed_ids: list[str] = []
-
-        open_orders = [order for order in self._order_manager.get_orders() if order.status == OrderStatus.OPEN]
-
-        if not open_orders:
-            logger.debug("TradingContext: no open orders to cancel")
-            return CancellationResult()
-
-        logger.info("TradingContext: cancelling %d open orders", len(open_orders))
-
-        for order in open_orders:
-            try:
-                if gateway is not None:
-                    try:
-                        cancel_response = gateway.cancel_order(order.order_id)
-                        if not getattr(cancel_response, "success", False):
-                            msg = getattr(cancel_response, "message", "unknown")
-                            logger.error(
-                                "TradingContext: broker cancel failed for %s: %s",
-                                order.order_id,
-                                msg,
-                            )
-                            failed += 1
-                            failed_ids.append(order.order_id)
-                            continue
-                    except Exception as exc:
-                        logger.error(
-                            "TradingContext: gateway.cancel_order(%s) raised: %s: %s",
-                            order.order_id,
-                            type(exc).__name__,
-                            exc,
-                        )
-                        failed += 1
-                        failed_ids.append(order.order_id)
-                        continue
-
-                cancel_result = self._order_manager.cancel_order(order.order_id)
-                if cancel_result.success:
-                    cancelled += 1
-                else:
-                    logger.warning(
-                        "TradingContext: local cancel failed for %s: %s",
-                        order.order_id,
-                        cancel_result.error,
-                    )
-                    failed += 1
-                    failed_ids.append(order.order_id)
-
-            except Exception as exc:
-                logger.error(
-                    "TradingContext: unexpected error cancelling %s: %s: %s",
-                    order.order_id,
-                    type(exc).__name__,
-                    exc,
-                )
-                failed += 1
-                failed_ids.append(order.order_id)
-
+        cancelled, failed, failed_ids = self._shutdown_coordinator.cancel_all(
+            gateway=gateway,
+        )
         return CancellationResult(
             orders_cancelled=cancelled,
             orders_failed=failed,
-            failed_order_ids=tuple(failed_ids),
+            failed_order_ids=failed_ids,
         )
 
     # ── ManagedService protocol implementation ──────────────────────────

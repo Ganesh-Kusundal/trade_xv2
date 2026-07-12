@@ -13,8 +13,90 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
+from typing import Any, Mapping
+from zoneinfo import ZoneInfo
 
-from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+from domain.provenance import DataProvenance, ProvenanceConfidence
+
+_IST = ZoneInfo("Asia/Kolkata")
+_TIMESTAMP_COLUMNS = ("timestamp", "date", "datetime", "time")
+
+
+def _coerce_decimal(value: Decimal | float | int | str) -> Decimal:
+    return value if isinstance(value, Decimal) else Decimal(str(value))
+
+
+def _coerce_event_time(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts
+
+
+def _find_timestamp_column(columns) -> str:
+    for candidate in _TIMESTAMP_COLUMNS:
+        if candidate in columns:
+            return candidate
+    raise ValueError(
+        f"DataFrame missing timestamp column (expected one of {_TIMESTAMP_COLUMNS})"
+    )
+
+
+def _parse_broker_timestamp(value: object) -> datetime:
+    import pandas as pd
+
+    ts = value if isinstance(value, datetime) else pd.Timestamp(value).to_pydatetime()
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
+def _parse_datalake_timestamp(value: object) -> datetime:
+    """Parquet lake stores naive IST; convert to UTC for domain ``event_time``."""
+    import pandas as pd
+
+    ts = value if isinstance(value, datetime) else pd.Timestamp(value).to_pydatetime()
+    if ts.tzinfo is None:
+        local = ts.replace(tzinfo=_IST)
+    else:
+        local = ts.astimezone(_IST)
+    return local.astimezone(timezone.utc)
+
+
+def _ohlcv_from_row(row) -> tuple[Decimal, Decimal, Decimal, Decimal, int, int]:
+    """Extract OHLCV from a DataFrame row; reject NaN/missing OHLC."""
+    import pandas as pd
+
+    def _cell(*keys: str):
+        for key in keys:
+            if key not in row:
+                continue
+            val = row[key]
+            if val is not None and not (isinstance(val, float) and pd.isna(val)):
+                return val
+        raise ValueError("NaN or missing OHLCV field in historical row")
+
+    open_val = _cell("open", "Open")
+    high_val = _cell("high", "High")
+    low_val = _cell("low", "Low")
+    close_val = _cell("close", "Close")
+    volume_val = _cell("volume", "Volume")
+    oi_raw = row.get("oi", row.get("open_interest", 0))
+    if oi_raw is None or (isinstance(oi_raw, float) and pd.isna(oi_raw)):
+        oi_raw = 0
+    return (
+        _coerce_decimal(open_val),
+        _coerce_decimal(high_val),
+        _coerce_decimal(low_val),
+        _coerce_decimal(close_val),
+        int(volume_val or 0),
+        int(oi_raw or 0),
+    )
+
+
+def _coverage_from_bars(bars: list[HistoricalBar]) -> DateRange:
+    if bars:
+        return DateRange(bars[0].event_time.date(), bars[-1].event_time.date())
+    return DateRange(date.today(), date.today())
 
 
 class BarLabelConvention(str, Enum):
@@ -77,6 +159,120 @@ class HistoricalBar:
     bar_index: int = 0
     is_partial: bool = False
     label_convention: BarLabelConvention = BarLabelConvention.LEFT
+    close_time: datetime | None = None
+    tick_count: int = 0
+    extras: tuple[tuple[str, Any], ...] = ()
+
+    # -- replay / streaming compatibility (symbol + timestamp aliases) ---------
+
+    @property
+    def symbol(self) -> str:
+        return self.instrument.symbol
+
+    @property
+    def exchange(self) -> str:
+        return self.instrument.exchange
+
+    @property
+    def timestamp(self) -> datetime:
+        return self.event_time
+
+    @property
+    def open_time(self) -> datetime:
+        return self.event_time
+
+    def to_dict(self) -> dict[str, Any]:
+        """Dict view for legacy strategy ``on_bar()`` hooks."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+            "timestamp": self.timestamp,
+            "open": float(self.open),
+            "high": float(self.high),
+            "low": float(self.low),
+            "close": float(self.close),
+            "volume": float(self.volume),
+        }
+        if self.extras:
+            payload.update(dict(self.extras))
+        return payload
+
+    @classmethod
+    def from_replay(
+        cls,
+        *,
+        symbol: str,
+        timestamp: datetime,
+        open: Decimal | float | int | str,
+        high: Decimal | float | int | str,
+        low: Decimal | float | int | str,
+        close: Decimal | float | int | str,
+        volume: Decimal | float | int = 0,
+        exchange: str = "NSE",
+        timeframe: str = "1D",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> HistoricalBar:
+        """Build a bar for replay / paper engines from OHLCV scalars."""
+        event_time = _coerce_event_time(timestamp)
+        return cls(
+            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
+            timeframe=timeframe,
+            event_time=event_time,
+            open=_coerce_decimal(open),
+            high=_coerce_decimal(high),
+            low=_coerce_decimal(low),
+            close=_coerce_decimal(close),
+            volume=int(volume),
+            provenance=DataProvenance.now(
+                broker_id="replay",
+                request_id=f"replay:{symbol}:{timeframe}",
+                confidence=ProvenanceConfidence.DERIVED,
+                provider_timestamp=event_time,
+                transformation_chain=("replay.bar",),
+            ),
+            extras=tuple(metadata.items()) if metadata else (),
+        )
+
+    @classmethod
+    def from_live_bucket(
+        cls,
+        *,
+        symbol: str,
+        exchange: str,
+        timeframe: str,
+        open_time: datetime,
+        close_time: datetime,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: float,
+        tick_count: int,
+        broker_id: str = "stream",
+        session_id: str = "",
+    ) -> HistoricalBar:
+        """Build a closed live candle from an aggregator bucket."""
+        event_time = _coerce_event_time(open_time)
+        bucket_close = _coerce_event_time(close_time)
+        return cls(
+            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
+            timeframe=timeframe,
+            event_time=event_time,
+            close_time=bucket_close,
+            open=_coerce_decimal(open),
+            high=_coerce_decimal(high),
+            low=_coerce_decimal(low),
+            close=_coerce_decimal(close),
+            volume=int(volume),
+            tick_count=tick_count,
+            provenance=DataProvenance.now(
+                broker_id=broker_id,
+                request_id=f"agg:{session_id}:{symbol}:{timeframe}",
+                confidence=ProvenanceConfidence.DERIVED,
+                connection_id=session_id or None,
+                provider_timestamp=event_time,
+                transformation_chain=("stream.tick", "aggregate.ohlcv.v1"),
+            ),
+        )
 
 
 @dataclass(frozen=False)
@@ -236,7 +432,7 @@ class HistoricalSeries:
     def append(self, bar: HistoricalBar) -> HistoricalSeries:
         """Return a new series with ``bar`` appended (input is unchanged)."""
         return HistoricalSeries(
-            bars=self.bars + [bar],
+            bars=[*self.bars, bar],
             coverage=self.coverage,
             instrument=self.instrument,
             timeframe=self.timeframe,
@@ -375,66 +571,130 @@ class HistoricalSeries:
         return SeriesIndicators(self)
 
     # ------------------------------------------------------------------
-    # Constructors.
+    # Constructors (single ingress family — ADR-020).
     # ------------------------------------------------------------------
+    @classmethod
+    def from_broker_df(
+        cls,
+        df: pd.DataFrame,  # noqa: F821
+        instrument: InstrumentRef,
+        timeframe: str,
+        *,
+        broker_id: str,
+        request_id: str,
+        transformation_chain: tuple[str, ...] = ("market_data.history", "normalize.ohlcv.v1"),
+    ) -> HistoricalSeries:
+        """Build a series from a broker-normalized OHLCV DataFrame (UTC ingress)."""
+        if df is None or df.empty:
+            return cls(
+                bars=[],
+                coverage=DateRange(date.today(), date.today()),
+                instrument=instrument,
+                timeframe=timeframe,
+            )
+
+        ts_col = _find_timestamp_column(df.columns)
+        bars: list[HistoricalBar] = []
+        for idx, row in df.iterrows():
+            event_time = _parse_broker_timestamp(row[ts_col])
+            open_d, high_d, low_d, close_d, volume, oi = _ohlcv_from_row(row)
+            bars.append(
+                HistoricalBar(
+                    instrument=instrument,
+                    timeframe=timeframe,
+                    event_time=event_time,
+                    open=open_d,
+                    high=high_d,
+                    low=low_d,
+                    close=close_d,
+                    volume=volume,
+                    open_interest=oi,
+                    bar_index=int(idx) if isinstance(idx, int) else len(bars),
+                    provenance=DataProvenance.now(
+                        broker_id=broker_id,
+                        request_id=request_id,
+                        provider_timestamp=event_time,
+                        transformation_chain=transformation_chain,
+                    ),
+                    label_convention=BarLabelConvention.LEFT,
+                )
+            )
+        bars.sort(key=lambda b: b.event_time)
+        return cls(
+            bars=bars,
+            coverage=_coverage_from_bars(bars),
+            instrument=instrument,
+            timeframe=timeframe,
+        )
+
+    @classmethod
+    def from_datalake_df(
+        cls,
+        df: pd.DataFrame,  # noqa: F821
+        instrument: InstrumentRef,
+        timeframe: str,
+        *,
+        request_id: str = "datalake",
+    ) -> HistoricalSeries:
+        """Build a series from datalake parquet (naive IST timestamps → UTC)."""
+        if df is None or df.empty:
+            return cls(
+                bars=[],
+                coverage=DateRange(date.today(), date.today()),
+                instrument=instrument,
+                timeframe=timeframe,
+            )
+
+        ts_col = _find_timestamp_column(df.columns)
+        bars: list[HistoricalBar] = []
+        for idx, row in df.iterrows():
+            event_time = _parse_datalake_timestamp(row[ts_col])
+            open_d, high_d, low_d, close_d, volume, oi = _ohlcv_from_row(row)
+            bars.append(
+                HistoricalBar(
+                    instrument=instrument,
+                    timeframe=timeframe,
+                    event_time=event_time,
+                    open=open_d,
+                    high=high_d,
+                    low=low_d,
+                    close=close_d,
+                    volume=volume,
+                    open_interest=oi,
+                    bar_index=int(idx) if isinstance(idx, int) else len(bars),
+                    provenance=DataProvenance.now(
+                        broker_id="datalake",
+                        request_id=request_id,
+                        confidence=ProvenanceConfidence.DERIVED,
+                        provider_timestamp=event_time,
+                        transformation_chain=("datalake.parquet", "normalize.ohlcv.ist_to_utc"),
+                    ),
+                    label_convention=BarLabelConvention.LEFT,
+                )
+            )
+        bars.sort(key=lambda b: b.event_time)
+        return cls(
+            bars=bars,
+            coverage=_coverage_from_bars(bars),
+            instrument=instrument,
+            timeframe=timeframe,
+        )
+
     @classmethod
     def from_dataframe(
         cls,
-        df: "pd.DataFrame",
+        df: pd.DataFrame,  # noqa: F821
         instrument: InstrumentRef,
         timeframe: str,
     ) -> HistoricalSeries:
-        """Build a ``HistoricalSeries`` from a DataFrame in the canonical shape.
-
-        Required columns: ``timestamp``, ``open``, ``high``, ``low``, ``close``,
-        ``volume``. Optional: ``oi``. For each row a DERIVED provenance is
-        attached (use this for replay / backtest / cached sources).
-        """
-        import pandas as pd
-
-        required = ["timestamp", "open", "high", "low", "close", "volume"]
-        missing = [c for c in required if c not in df.columns]
-        if missing:
-            raise ValueError(f"DataFrame missing required columns: {missing}")
-
-        derived = DataProvenance(
-            source=SourceIdentity(broker_id="replay"),
-            fetched_at=datetime.now(tz=timezone.utc),
+        """Replay/backtest ingress — delegates to :meth:`from_broker_df`."""
+        return cls.from_broker_df(
+            df,
+            instrument,
+            timeframe,
+            broker_id="replay",
             request_id="from_dataframe",
-            confidence=ProvenanceConfidence.DERIVED,
-        )
-
-        bars: list[HistoricalBar] = []
-        for _, row in df.iterrows():
-            ts = row["timestamp"]
-            if not isinstance(ts, datetime):
-                ts = pd.Timestamp(ts).to_pydatetime()
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            bars.append(HistoricalBar(
-                instrument=instrument,
-                timeframe=timeframe,
-                event_time=ts,
-                open=Decimal(str(row["open"])),
-                high=Decimal(str(row["high"])),
-                low=Decimal(str(row["low"])),
-                close=Decimal(str(row["close"])),
-                volume=int(row["volume"]),
-                provenance=derived,
-                open_interest=int(row["oi"]) if "oi" in df.columns else 0,
-            ))
-        bars.sort(key=lambda b: b.event_time)
-
-        if bars:
-            start = bars[0].event_time.date()
-            end = bars[-1].event_time.date()
-        else:
-            start = end = date.today()
-        return cls(
-            bars=bars,
-            coverage=DateRange(start, end),
-            instrument=instrument,
-            timeframe=timeframe,
+            transformation_chain=("replay.bar",),
         )
 
     # ------------------------------------------------------------------
@@ -481,17 +741,17 @@ class SeriesIndicators:
         vals = [float(b.close) for b in self._series.bars]
         return pd.Series(vals, index=pd.DatetimeIndex(idx, tz="UTC"), name="close")
 
-    def sma(self, period: int) -> "pd.Series":
+    def sma(self, period: int) -> pd.Series:  # noqa: F821
         """Simple moving average of close over ``period`` bars."""
         s = self._close_series()
         return s.rolling(window=period, min_periods=period).mean().rename(f"sma_{period}")
 
-    def ema(self, period: int) -> "pd.Series":
+    def ema(self, period: int) -> pd.Series:  # noqa: F821
         """Exponential moving average of close over ``period`` bars."""
         s = self._close_series()
         return s.ewm(span=period, adjust=False).mean().rename(f"ema_{period}")
 
-    def rsi(self, period: int = 14) -> "pd.Series":
+    def rsi(self, period: int = 14) -> pd.Series:  # noqa: F821
         """Relative Strength Index of close (Wilder-style smoothing)."""
         import pandas as pd
 
@@ -504,3 +764,26 @@ class SeriesIndicators:
         rs = avg_gain / avg_loss.replace(0, pd.NA)
         rsi = 100 - (100 / (1 + rs))
         return rsi.rename(f"rsi_{period}")
+
+    def patterns(self) -> pd.DataFrame:  # noqa: F821
+        """Candlestick + swing pattern columns for this series.
+
+        Returns a DataFrame indexed by ``event_time`` with the same columns as
+        :class:`domain.indicators.patterns.CandlestickPatterns` (boolean flags
+        plus the ``cdl_direction`` enum). Mirrors ``rsi()`` accessor style.
+        """
+        import pandas as pd
+
+        from domain.indicators.patterns import CandlestickPatterns
+
+        idx = [b.event_time for b in self._series.bars]
+        df = pd.DataFrame({
+            "open": [float(b.open) for b in self._series.bars],
+            "high": [float(b.high) for b in self._series.bars],
+            "low": [float(b.low) for b in self._series.bars],
+            "close": [float(b.close) for b in self._series.bars],
+            "volume": [float(b.volume) for b in self._series.bars],
+        })
+        out = CandlestickPatterns().compute(df)
+        out.index = pd.DatetimeIndex(idx, tz="UTC")
+        return out

@@ -12,7 +12,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from application.oms.order_manager import OmsOrderCommand, OrderResult
+    from application.oms.order_manager import OrderResult
     from domain.entities import Order
 
 
@@ -42,11 +42,24 @@ class IdempotencyGuard:
         order is a duplicate or already in-flight.
         """
         from application.oms.order_manager import OrderResult
+        from domain.execution_contracts import SubmissionState
+        from domain.types import OrderStatus
 
         with lock:
             existing = orders_by_correlation.get(correlation_id)
             if existing is not None:
-                return "", OrderResult(success=True, order=existing)
+                if existing.status is OrderStatus.UNKNOWN:
+                    return "", OrderResult(
+                        success=False,
+                        order=existing,
+                        error="Order submission outcome is unknown; reconcile before retry",
+                        state=SubmissionState.UNKNOWN,
+                    )
+                return "", OrderResult(
+                    success=True,
+                    order=existing,
+                    state=SubmissionState.ACCEPTED,
+                )
             if correlation_id in self._pending_correlation:
                 return "", OrderResult(success=False, error="Order already in-flight")
             self._pending_correlation.add(correlation_id)

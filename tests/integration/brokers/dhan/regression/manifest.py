@@ -17,7 +17,7 @@ import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 
 Tier = str  # "off_market_safe" | "market_hours" | "pre_prod" | "sandbox"
 

@@ -8,13 +8,12 @@ modification payloads — all shared across futures and options flows.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from domain import (
     DepthLevel,
-    HistoricalCandle,
     MarketDepth,
     Order,
     OrderRequest,
@@ -24,6 +23,8 @@ from domain import (
     Side,
     Validity,
 )
+from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.provenance import DataProvenance, ProvenanceConfidence
 from domain.status_mapper import UnmappedBrokerStatusError
 
 from ._base import (
@@ -172,21 +173,45 @@ def to_order_response(payload: Any) -> OrderResponse:
     )
 
 
-def to_historical_candle(payload: Any) -> HistoricalCandle:
+def to_historical_candle(
+    payload: Any,
+    *,
+    symbol: str = "",
+    exchange: str = "NSE",
+    timeframe: str = "1D",
+) -> HistoricalBar:
     if not isinstance(payload, dict):
-        return HistoricalCandle()
-    return HistoricalCandle(
-        timestamp=parse_iso(payload.get("timestamp") or payload.get("time")) or datetime.now(),
+        raise ValueError("expected dict candle payload")
+    ts = parse_iso(payload.get("timestamp") or payload.get("time")) or datetime.now(tz=timezone.utc)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return HistoricalBar(
+        instrument=InstrumentRef(symbol=symbol or str(payload.get("symbol", "")), exchange=exchange),
+        timeframe=timeframe,
+        event_time=ts,
         open=UpstoxPriceParser.parse(payload.get("open") or 0),
         high=UpstoxPriceParser.parse(payload.get("high") or 0),
         low=UpstoxPriceParser.parse(payload.get("low") or 0),
         close=UpstoxPriceParser.parse(payload.get("close") or 0),
         volume=to_int(payload.get("volume")),
+        open_interest=to_int(payload.get("open_interest") or payload.get("oi")),
+        provenance=DataProvenance.now(
+            broker_id="upstox",
+            request_id="wire.historical_candle",
+            provider_timestamp=ts,
+            transformation_chain=("upstox.historical.v1",),
+        ),
     )
 
 
-def to_historical_candles(payload: Any) -> list[HistoricalCandle]:
-    candles: list[HistoricalCandle] = []
+def to_historical_candles(
+    payload: Any,
+    *,
+    symbol: str = "",
+    exchange: str = "NSE",
+    timeframe: str = "1D",
+) -> list[HistoricalBar]:
+    candles: list[HistoricalBar] = []
     if not isinstance(payload, dict):
         return candles
     data = payload.get("data") or payload
@@ -198,18 +223,29 @@ def to_historical_candles(payload: Any) -> list[HistoricalCandle]:
         return candles
     for row in rows:
         if isinstance(row, list) and len(row) >= 5:
+            ts = parse_iso(row[0]) or datetime.now(tz=timezone.utc)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
             candles.append(
-                HistoricalCandle(
-                    timestamp=parse_iso(row[0]) or datetime.now(),
+                HistoricalBar(
+                    instrument=InstrumentRef(symbol=symbol, exchange=exchange),
+                    timeframe=timeframe,
+                    event_time=ts,
                     open=UpstoxPriceParser.parse(row[1]),
                     high=UpstoxPriceParser.parse(row[2]),
                     low=UpstoxPriceParser.parse(row[3]),
                     close=UpstoxPriceParser.parse(row[4]),
                     volume=to_int(row[5]) if len(row) > 5 else 0,
+                    provenance=DataProvenance.now(
+                        broker_id="upstox",
+                        request_id="wire.historical_candles",
+                        provider_timestamp=ts,
+                        transformation_chain=("upstox.historical.v1",),
+                    ),
                 )
             )
         elif isinstance(row, dict):
-            candles.append(to_historical_candle(row))
+            candles.append(to_historical_candle(row, symbol=symbol, exchange=exchange, timeframe=timeframe))
     return candles
 
 

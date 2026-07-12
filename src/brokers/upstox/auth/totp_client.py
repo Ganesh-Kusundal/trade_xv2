@@ -43,6 +43,12 @@ class UpstoxTotpClient:
     def _initialize_client(self) -> None:
         """Initialize the upstox-totp client with explicit credentials."""
         try:
+            # ponytail: belt-and-suspenders — curl_cffi<0.14 eagerly imports eventlet,
+            # which monkey-patches select before dnspython/httpcore can import trio.
+            try:
+                import trio  # noqa: F401
+            except ImportError:
+                pass
             from pydantic import SecretStr
             from upstox_totp import UpstoxTOTP
 

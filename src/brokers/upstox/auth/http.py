@@ -19,9 +19,14 @@ from infrastructure.resilience.backoff import ExponentialBackoff
 from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 
-from .exceptions import UpstoxApiError, UpstoxAuthError
+from .exceptions import UpstoxApiError, UpstoxAuthError, UpstoxFundsMaintenanceError
 
 logger = logging.getLogger(__name__)
+
+
+def _is_ambiguous_write(method: str, url: str) -> bool:
+    """Order writes must not be auto-retried after ambiguous transport failure."""
+    return _categorize_upstox_url(url, method) == "write"
 
 
 def _categorize_upstox_url(url: str, method: str) -> str:
@@ -198,12 +203,14 @@ class UpstoxHttpClient:
             for name, cb in mapping.items()
         }
 
-    def _headers(self, algo_name: str | None = None) -> dict[str, str]:
+    def _headers(self, algo_name: str | None = None, *, url: str = "") -> dict[str, str]:
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._token_provider()}",
         }
+        if "/v3/" in url:
+            headers["Api-Version"] = "3.0"
         algo = algo_name or getattr(self._settings, "algo_name", "")
         if algo:
             headers["X-Algo-Name"] = algo
@@ -302,8 +309,11 @@ class UpstoxHttpClient:
         last_exc: UpstoxApiError | None = None
         auth_refreshed = False
 
-        # One slot for the token-refresh path plus `max_retries` transient slots.
-        total_attempts = self._max_retries + 2
+        if _is_ambiguous_write(method, url):
+            total_attempts = 1
+        else:
+            # One slot for the token-refresh path plus `max_retries` transient slots.
+            total_attempts = self._max_retries + 2
 
         for attempt in range(total_attempts):
             if not self._rate_limiter.acquire(bucket, timeout=self._rate_limit_timeout):
@@ -320,7 +330,7 @@ class UpstoxHttpClient:
                     json=json,
                     params=params,
                     timeout=self._timeout_seconds,
-                    headers=self._headers(algo_name=algo_name),
+                    headers=self._headers(algo_name=algo_name, url=url),
                 )
             except requests.exceptions.RequestException as exc:
                 # Transient network/transport failure — backoff and retry.
@@ -369,6 +379,13 @@ class UpstoxHttpClient:
                         AuthMetrics.api_rate_limit("upstox")
                     except Exception:
                         pass
+                if resp.status_code == 423:
+                    raise UpstoxFundsMaintenanceError(
+                        "Upstox funds service is down for maintenance (12:00 AM–5:30 AM IST)",
+                        resp.status_code,
+                        resp.text,
+                    )
+
                 if is_transient and attempt < total_attempts - 1:
                     retry_after = self._parse_retry_after(resp)
                     last_exc = UpstoxApiError(

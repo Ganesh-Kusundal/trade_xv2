@@ -9,13 +9,32 @@ from __future__ import annotations
 from datetime import timedelta, timezone
 from decimal import Decimal
 
-# ── Market data defaults ───────────────────────────────────────────────────
+from market_data.market_surface import DEFAULT_MARKET_SURFACE
+
+# ── Market data defaults (sourced from the default MarketSurface) ──────────
+#
+# These constants previously hardcoded NSE/INR/paisa assumptions inline. They
+# now read their values from ``DEFAULT_MARKET_SURFACE`` (configured in
+# ``config.profiles.market_surface``) so the conventions live in one place.
+# The values are identical to the historical literals and are asserted equal
+# by the test-suite.
 
 #: Default tick size for FNO contracts (INR). **REQUIRES DOMAIN
 #: VERIFICATION** — NSE FNO tick size can change. Both
 #: ``core.Instrument.tick_size`` and ``services.CanonicalInstrument.tick_size``
 #: should reference this.
-DEFAULT_TICK_SIZE: Decimal = Decimal("0.05")
+DEFAULT_TICK_SIZE: Decimal = DEFAULT_MARKET_SURFACE.price_tick
+
+#: Default trading currency (ISO-style code). Sourced from the surface.
+DEFAULT_CURRENCY: str = DEFAULT_MARKET_SURFACE.currency
+
+#: Default paisa-per-rupee price scale (sub-unit divisor) for the
+#: paisa<->rupee convention. Sourced from the surface.
+DEFAULT_PRICE_SCALE: int = DEFAULT_MARKET_SURFACE.price_scale
+
+#: Default annual risk-free rate used by derivatives/P&L math. Sourced from
+#: the surface.
+DEFAULT_RISK_FREE_RATE: float = DEFAULT_MARKET_SURFACE.risk_free_rate
 
 #: Default exchange segment for fall-through when EXCHANGE_TO_SEGMENT misses.
 #: Broker-specific — the canonical canonical "NSE_EQ" wire code is owned by
@@ -26,7 +45,7 @@ DEFAULT_EXCHANGE_SEGMENT_FALLBACK: str = "NSE_EQ"
 
 #: Default exchange identifier (no wire suffix) used in helpers that do not
 #: know the broker. Same caveat as above.
-DEFAULT_EXCHANGE: str = "NSE"
+DEFAULT_EXCHANGE: str = DEFAULT_MARKET_SURFACE.exchange
 
 #: Default derivatives exchange short code (NFO segment).
 DEFAULT_DERIVATIVES_EXCHANGE: str = "NFO"
@@ -79,9 +98,12 @@ IST_OFFSET = timezone(timedelta(hours=5, minutes=30))
 
 __all__ = [
     "ATR_PERIOD_DEFAULT",
+    "DEFAULT_CURRENCY",
     "DEFAULT_DERIVATIVES_EXCHANGE",
     "DEFAULT_EXCHANGE",
     "DEFAULT_EXCHANGE_SEGMENT_FALLBACK",
+    "DEFAULT_PRICE_SCALE",
+    "DEFAULT_RISK_FREE_RATE",
     "DEFAULT_TICK_SIZE",
     "IST_OFFSET",
     "MCX_CLOSE_HOUR_IST",

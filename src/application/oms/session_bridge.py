@@ -211,7 +211,15 @@ class OmsOrderService:
         return OrderResult.fail(oms_result.error or "OMS modify failed")
 
 
-_LIVE_BROKER_IDS = frozenset({"dhan", "upstox"})
+# Synthetic (non-live) brokers that are safe to run with an in-memory OMS
+# and fixed simulation capital. Everything NOT in this set is treated as a
+# live broker and must supply a real composition root (fail-closed).
+#
+# This is deliberately an allowlist of *synthetic* brokers rather than a
+# hardcoded list of live broker names (DR-B1): adding a new live broker needs
+# no edit here, and an unknown/misspelled broker id is treated as live and
+# refused rather than silently granted phantom capital (ENG-001).
+_NON_LIVE_BROKER_IDS = frozenset({"paper", "datalake"})
 
 
 def build_oms_service(
@@ -248,7 +256,7 @@ def build_oms_service(
         )
 
     bid = (broker_id or "paper").lower().strip()
-    is_live = bid in _LIVE_BROKER_IDS
+    is_live = bid not in _NON_LIVE_BROKER_IDS
     if is_live and not allow_unsafe_standalone:
         raise RuntimeError(
             f"Live broker {bid!r} requires a process OMS composition root "

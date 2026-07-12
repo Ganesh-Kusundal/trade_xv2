@@ -102,7 +102,7 @@ class RSI:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close"])
-        from domain.indicators.rsi import RSI as WilderRSI
+        from domain.indicators.rsi import RSI as WilderRSI  # noqa: N811
 
         df[self.name] = WilderRSI(period=self.period).calculate_frame(df)
         return df
@@ -252,29 +252,70 @@ class Momentum:
 
 @dataclass(frozen=True)
 class SwingHighLow:
-    """Swing high/low detection.
+    """Confirmed swing high/low without centered-window look-ahead.
 
-    WARNING: Uses centered rolling window (center=True), which introduces
-    look-ahead bias. The swing classification at bar i depends on bars
-    i-lookback//2 to i+lookback//2. This is appropriate for offline
-    analysis but NOT for real-time signal generation.
-
-    For real-time swing detection without look-ahead, use
-    analytics.indicators.market_structure.MarketStructureAnalyzer which
-    uses confirmed-swing detection.
+    Boolean ``swing_high`` / ``swing_low`` mark confirmed pivots. Price
+    levels ``last_swing_high`` / ``last_swing_low`` are forward-filled for
+    breakout comparisons at bar close.
     """
 
     swing_high: str = "swing_high"
     swing_low: str = "swing_low"
+    last_swing_high: str = "last_swing_high"
+    last_swing_low: str = "last_swing_low"
     lookback: int = 5
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
-        _ensure_columns(df, ["high", "low"])
-        rolled_high = df["high"].rolling(window=self.lookback, center=True).max()
-        rolled_low = df["low"].rolling(window=self.lookback, center=True).min()
-        df[self.swing_high] = df["high"] == rolled_high
-        df[self.swing_low] = df["low"] == rolled_low
+        _ensure_columns(df, ["high", "low", "close"])
+        from domain.indicators.market_structure import MarketStructureAnalyzer
+
+        left = max(1, self.lookback // 2)
+        right = max(1, self.lookback - left)
+        swings = MarketStructureAnalyzer(swing_left=left, swing_right=right).analyze(df)
+        df[self.swing_high] = swings["swing_high"]
+        df[self.swing_low] = swings["swing_low"]
+        df[self.last_swing_high] = (
+            df["high"].where(df[self.swing_high]).ffill().fillna(df["high"].expanding().max())
+        )
+        df[self.last_swing_low] = (
+            df["low"].where(df[self.swing_low]).ffill().fillna(df["low"].expanding().min())
+        )
         return df
+
+
+@dataclass(frozen=True)
+class CandlestickPattern:
+    """Candlestick + swing pattern detection as pipeline columns.
+
+    Appends boolean pattern columns (``cdl_doji``, ``cdl_hammer``,
+    ``cdl_shooting_star``, ``cdl_engulfing_bull/bear``, ``cdl_harami_bull/bear``)
+    plus ``swing_continuation`` / ``swing_breakdown`` and the enum summary
+    ``cdl_direction`` (BULL / BEAR / NEUTRAL). Mirrors ``SwingHighLow``: pure
+    domain detection wrapped behind a feature so patterns become columns in any
+    ``FeaturePipeline``.
+    """
+
+    name: str = "candlestick_pattern"
+    doji_body_ratio: float = 0.1
+    hammer_lower_wick_mult: float = 2.0
+    hammer_upper_wick_mult: float = 0.3
+    hammer_max_body_ratio: float = 0.4
+    swing_left: int = 2
+    swing_right: int = 2
+
+    def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        _ensure_columns(df, ["open", "high", "low", "close"])
+        from domain.indicators.patterns import CandlestickPatterns
+
+        detector = CandlestickPatterns(
+            doji_body_ratio=self.doji_body_ratio,
+            hammer_lower_wick_mult=self.hammer_lower_wick_mult,
+            hammer_upper_wick_mult=self.hammer_upper_wick_mult,
+            hammer_max_body_ratio=self.hammer_max_body_ratio,
+            swing_left=self.swing_left,
+            swing_right=self.swing_right,
+        )
+        return detector.compute(df)
 
 
 @dataclass(frozen=True)

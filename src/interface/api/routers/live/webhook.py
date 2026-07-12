@@ -1,6 +1,7 @@
 """FastAPI router for receiving Upstox webhook callbacks.
 
 Exposes public callback endpoint for receiving daily generated access tokens.
+Production requires HMAC signature verification via UPSTOX_WEBHOOK_SECRET.
 """
 
 from __future__ import annotations
@@ -8,9 +9,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from infrastructure.security.webhook_auth import WebhookAuthError, verify_webhook_signature
 from interface.api.deps import get_broker_service
 
 logger = logging.getLogger(__name__)
@@ -39,12 +41,7 @@ class UpstoxTokenWebhookPayload(BaseModel):
 def get_upstox_token_manager(
     broker_service: Any = Depends(get_broker_service),
 ) -> _WebhookTokenUpgrader:
-    """Resolve the active broker's token manager without importing broker packages.
-
-    Raises:
-        HTTPException: 503 if broker service or gateway is not initialized,
-                       400 if the active broker is not Upstox.
-    """
+    """Resolve the active broker's token manager without importing broker packages."""
     if broker_service is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -65,7 +62,6 @@ def get_upstox_token_manager(
             detail="Active broker is not initialized",
         )
 
-    # Resolve inner broker facade from gateway wrapper
     broker = getattr(gateway, "_broker", None)
     if broker is None:
         raise HTTPException(
@@ -85,13 +81,39 @@ def get_upstox_token_manager(
 
 @router.post("/upstox/token-callback")
 async def upstox_token_callback(
-    payload: UpstoxTokenWebhookPayload,
+    request: Request,
     token_manager: _WebhookTokenUpgrader = Depends(get_upstox_token_manager),
 ) -> dict[str, str]:
-    """Public webhook callback for Upstox daily access token delivery.
+    """Public webhook callback for Upstox daily access token delivery."""
+    body = await request.body()
+    try:
+        payload = UpstoxTokenWebhookPayload.model_validate_json(body)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid webhook payload: {exc}",
+        ) from exc
 
-    Bypasses standard X-API-Key auth since requests originate from Upstox.
-    """
+    issued_at_ms: int | None = None
+    if payload.issued_at:
+        try:
+            issued_at_ms = int(payload.issued_at)
+        except (ValueError, TypeError):
+            issued_at_ms = None
+
+    try:
+        verify_webhook_signature(
+            body,
+            request.headers.get("X-Webhook-Signature"),
+            issued_at_ms=issued_at_ms,
+        )
+    except WebhookAuthError as exc:
+        logger.warning("Upstox webhook rejected: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+
     if payload.message_type != "access_token":
         logger.warning("Upstox token callback received invalid message_type: %s", payload.message_type)
         raise HTTPException(
@@ -106,7 +128,7 @@ async def upstox_token_callback(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid expires_at timestamp: {exc}",
-        )
+        ) from exc
 
     try:
         success = token_manager.upgrade_from_webhook(
@@ -118,11 +140,10 @@ async def upstox_token_callback(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
-        )
+        ) from exc
 
     if success:
         logger.info("Upstox access token successfully upgraded via webhook")
         return {"status": "success", "detail": "token_upgraded"}
-    else:
-        logger.debug("Upstox token upgrade via webhook skipped (token is older than current)")
-        return {"status": "skipped", "detail": "token_is_stale"}
+    logger.debug("Upstox token upgrade via webhook skipped (token is older than current)")
+    return {"status": "skipped", "detail": "token_is_stale"}

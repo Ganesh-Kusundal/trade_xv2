@@ -26,6 +26,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from domain.constants.market import DEFAULT_EXCHANGE
 from domain.enums import OrderType, ProductType, Side
 from domain.instruments.instrument import (
     Commodity,
@@ -107,7 +108,7 @@ class Universe:
                     instrument._extensions.register(str(name), ext)
         return instrument
 
-    def equity(self, symbol: str, exchange: str = "NSE") -> Equity:
+    def equity(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Equity:
         return self._stamp(
             Equity(
                 symbol,
@@ -117,7 +118,7 @@ class Universe:
             )
         )
 
-    def etf(self, symbol: str, exchange: str = "NSE") -> ETF:
+    def etf(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> ETF:
         return self._stamp(
             ETF(
                 symbol,
@@ -137,7 +138,7 @@ class Universe:
             )
         )
 
-    def currency(self, symbol: str, exchange: str = "NSE") -> Currency:
+    def currency(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Currency:
         return self._stamp(
             Currency(
                 symbol,
@@ -147,7 +148,7 @@ class Universe:
             )
         )
 
-    def index(self, name: str, exchange: str = "NSE") -> Index:
+    def index(self, name: str, exchange: str = DEFAULT_EXCHANGE) -> Index:
         return self._stamp(
             Index(
                 name,
@@ -314,6 +315,46 @@ class Session:
 
         self._universe._broker_facade = BrokerFacade(broker_id, extensions)
 
+    def attach_command_dispatcher(self, dispatcher: Any) -> None:
+        """Attach the CQRS CommandDispatcher (ADR-012).
+
+        The dispatcher is the single seam for order/subscribe/history intent.
+        Strategies and application code route through it rather than calling
+        the OMS or brokers directly. The composition root is responsible for
+        also wiring ``Session.attach_order_command_fn`` so ``Session.place``
+        routes through the dispatcher without ``domain`` importing
+        ``runtime.commands`` (keeps the domain layer independent).
+        """
+        self._command_dispatcher = dispatcher
+
+    def attach_order_command_fn(self, fn: Any) -> None:
+        """Attach the order-command closure built by the composition root (ADR-012).
+
+        The closure converts an ``OrderIntent`` into a ``PlaceOrderCommand`` and
+        adapts the ``CommandResult`` back to an ``OrderResult``. Keeping it in
+        the composition root (``tradex.session``) avoids a ``domain -> runtime``
+        dependency.
+        """
+        self._order_command_fn = fn
+
+    def attach_query_dispatcher(self, dispatcher: Any) -> None:
+        """Attach the CQRS QueryDispatcher (ADR-012).
+
+        Read-only queries (portfolio, candles) route through this seam. Handlers
+        never mutate state or publish events.
+        """
+        self._query_dispatcher = dispatcher
+
+    @property
+    def command_dispatcher(self) -> Any | None:
+        """The CQRS CommandDispatcher, if wired at the composition root."""
+        return getattr(self, "_command_dispatcher", None)
+
+    @property
+    def query_dispatcher(self) -> Any | None:
+        """The CQRS QueryDispatcher, if wired at the composition root."""
+        return getattr(self, "_query_dispatcher", None)
+
     def intent(
         self,
         instrument: Instrument,
@@ -347,8 +388,19 @@ class Session:
             )
 
     def place(self, intent: OrderIntent) -> "OrderResult":
-        """Submit an intent via OMS (preferred) or legacy ExecutionProvider (tests)."""
+        """Submit an intent via the injected order-command fn or OMS (fallback).
+
+        ADR-012: when the composition root attaches an ``order_command_fn``
+        (built from the CommandDispatcher), the intent is routed through the
+        CQRS seam. The closure keeps ``runtime.commands`` knowledge in the
+        composition root, so ``domain`` stays independent. The legacy
+        OMS/ExecutionProvider paths remain as a fallback for tests.
+        """
         self._assert_orders_enabled()
+
+        fn = getattr(self, "_order_command_fn", None)
+        if callable(fn):
+            return fn(intent)
 
         if self._order_service is not None:
             return place_via_order_service(self._order_service, intent)
@@ -557,7 +609,7 @@ class Session:
         self,
         name: str,
         *,
-        default_exchange: str = "NSE",
+        default_exchange: str = DEFAULT_EXCHANGE,
         default_year: int | None = None,
     ) -> Instrument:
         """Resolve a display or canonical name to a stamped :class:`Instrument`.
@@ -593,7 +645,7 @@ class Session:
         self,
         name: str,
         *,
-        default_exchange: str = "NSE",
+        default_exchange: str = DEFAULT_EXCHANGE,
         default_year: int | None = None,
     ) -> Instrument:
         """Alias for :meth:`resolve` — instrument-first entry by friendly name."""
@@ -605,7 +657,7 @@ class Session:
         self,
         names: list[str] | tuple[str, ...],
         *,
-        default_exchange: str = "NSE",
+        default_exchange: str = DEFAULT_EXCHANGE,
     ) -> dict[str, Any]:
         """Refresh quotes for many display names → ``{name: QuoteSnapshot|None}``.
 
@@ -643,7 +695,7 @@ class Session:
         self,
         names: list[str] | tuple[str, ...],
         *,
-        default_exchange: str = "NSE",
+        default_exchange: str = DEFAULT_EXCHANGE,
     ) -> dict[str, Decimal | None]:
         """Last-traded prices for friendly names → ``{name: Decimal|None}``."""
         quotes = self.quote_many(names, default_exchange=default_exchange)
@@ -664,7 +716,7 @@ class Session:
         underlying: str,
         *,
         expiry: date | int | str | None = None,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
     ):
         """Convenience: ``universe.index(underlying).option_chain(expiry=…)``.
 

@@ -1,16 +1,41 @@
 """Portfolio service for P&L, holdings, and tradebook calculations.
 
 Extracts business logic from API route handlers into testable services.
+
+Typed against the canonical domain value objects (``Position``, ``Trade``,
+``Balance``) so the portfolio context never depends on loosely-typed
+``Any`` managers. The position/trade sources are expressed as structural
+:class:`Protocol` types (``PositionStore`` / ``TradeStore``), which keeps this
+module decoupled from the OMS implementation while remaining fully typed.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Protocol
+
+from domain import Position, Trade
 
 logger = logging.getLogger(__name__)
+
+
+class PositionStore(Protocol):
+    """Structural type for anything that can supply the current positions."""
+
+    def get_positions(self) -> Sequence[Position]:
+        """Return the current open/closed positions."""
+        ...
+
+
+class TradeStore(Protocol):
+    """Structural type for anything that can supply the tradebook."""
+
+    def get_trades(self, symbol: str | None = None) -> Sequence[Trade]:
+        """Return trades, optionally filtered by symbol."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -57,7 +82,7 @@ class HoldingsSummary:
 
 @dataclass(frozen=True)
 class TradeSummary:
-    trades: list[Any]
+    trades: list[Trade]
     total_pnl: float
     winning_trades: int
     losing_trades: int
@@ -73,11 +98,11 @@ class PortfolioService:
 
     def __init__(
         self,
-        position_manager: Any,
-        order_manager: Any | None = None,
+        position_manager: PositionStore,
+        order_manager: TradeStore | None = None,
     ) -> None:
-        self._positions = position_manager
-        self._oms = order_manager
+        self._positions: PositionStore = position_manager
+        self._oms: TradeStore | None = order_manager
 
     def get_positions(self, status_filter: str | None = None) -> PortfolioSummary:
         """Get positions with P&L calculations.
@@ -92,7 +117,7 @@ class PortfolioService:
         PortfolioSummary
             Positions with calculated P&L.
         """
-        positions = self._positions.get_positions()
+        positions: Sequence[Position] = self._positions.get_positions()
 
         if status_filter and status_filter != "all":
             positions = [p for p in positions if (status_filter == "open") == (p.quantity != 0)]
@@ -108,7 +133,7 @@ class PortfolioService:
 
             avg_price = float(p.avg_price)
             quantity = abs(p.quantity)
-            current_price = float(getattr(p, "ltp", Decimal("0")))
+            current_price = float(p.ltp)
 
             pnl_pct = (
                 float((p.unrealized_pnl + p.realized_pnl) / (abs(p.avg_price) * abs(p.quantity)) * 100)
@@ -146,7 +171,7 @@ class PortfolioService:
         HoldingsSummary
             Holdings with P&L calculations.
         """
-        positions = self._positions.get_positions()
+        positions: Sequence[Position] = self._positions.get_positions()
 
         holdings = []
         total_value = 0.0
@@ -155,7 +180,7 @@ class PortfolioService:
 
         for p in positions:
             if p.quantity != 0:
-                current_price = float(getattr(p, "ltp", Decimal("0")))
+                current_price = float(p.ltp)
                 avg_price = float(p.avg_price)
                 quantity = abs(p.quantity)
 
@@ -215,13 +240,13 @@ class PortfolioService:
                 winning_trades=0, losing_trades=0, win_rate=0.0,
             )
 
-        trades = self._oms.get_trades(symbol=symbol)
+        trades: Sequence[Trade] = self._oms.get_trades(symbol=symbol)
         total_pnl = sum(float(getattr(t, "pnl", 0) or 0) for t in trades)
         winning = [t for t in trades if getattr(t, "pnl", 0) and float(t.pnl) > 0]
         losing = [t for t in trades if getattr(t, "pnl", 0) and float(t.pnl) < 0]
 
         return TradeSummary(
-            trades=trades,
+            trades=list(trades),
             total_pnl=total_pnl,
             winning_trades=len(winning),
             losing_trades=len(losing),

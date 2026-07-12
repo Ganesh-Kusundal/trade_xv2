@@ -19,15 +19,11 @@ is fully deterministic and independent of wall-clock time.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Mapping
 
-# Alias to keep callers reading this module independent of the orchestrator's
-# normalized tick type. We import lazily inside update() to avoid a hard import
-# edge at module load (the runtime package may not be importable in some test
-# sandboxes), but type the input structurally via ``MarketTick`` below.
-from application.streaming.orchestrator import MarketTick  # noqa: F401  (type only)
+from domain.candles.historical import HistoricalBar
+from domain.entities.market import MarketTick  # noqa: F401  (type only)
 
 # --- timeframe parsing -------------------------------------------------------
 
@@ -82,26 +78,6 @@ def parse_timeframe(tf: str) -> int:
     return n * _SUFFIX_SECONDS[unit]
 
 
-# --- candle model ------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class Candle:
-    """A completed OHLCV candle for one ``(symbol, exchange, timeframe)``."""
-
-    symbol: str
-    exchange: str
-    timeframe: str
-    open_time: datetime
-    close_time: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    tick_count: int
-
-
 # --- aggregator --------------------------------------------------------------
 
 
@@ -113,14 +89,14 @@ class CandleAggregator:
         agg = CandleAggregator(on_candle=my_callback, timeframes=("1m", "5m"))
         agg.update(tick)  # called per normalized tick
 
-    ``on_candle`` is invoked synchronously with each completed :class:`Candle`.
+    ``on_candle`` is invoked synchronously with each completed :class:`HistoricalBar`.
     The aggregator holds bounded per-``(symbol, timeframe)`` state (a single open
     bucket each), so steady-state memory is ``O(symbols * timeframes)``.
     """
 
     def __init__(
         self,
-        on_candle: Callable[[Candle], None],
+        on_candle: Callable[[HistoricalBar], None],
         timeframes: Iterable[str] = ("1m", "5m", "15m", "1h"),
     ) -> None:
         if on_candle is None:
@@ -214,7 +190,7 @@ class CandleAggregator:
     # -- internals ------------------------------------------------------------
 
     def _emit(self, bucket: dict, tf: str, dur: int) -> None:
-        candle = Candle(
+        candle = HistoricalBar.from_live_bucket(
             symbol=bucket["symbol"],
             exchange=bucket["exchange"],
             timeframe=tf,

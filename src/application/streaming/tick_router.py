@@ -16,8 +16,8 @@ import logging
 from datetime import datetime
 
 from domain.candles.historical import InstrumentRef
+from domain.ports.time_service import get_current_clock
 from domain.stream_health import FreshnessState
-from infrastructure.time.clock import time_service
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class TickRouter:
         # Update freshness on valid tick
         session = self._sessions.get(session_id)
         if session:
-            now = time_service.now()
+            now = get_current_clock().now()
             session.record_message(now)
             prev = session.health.freshness
             session.update_freshness(FreshnessState.FRESH, at=now)
@@ -150,7 +150,7 @@ class TickRouter:
 
         Returns ``True`` when the tick should be *dropped* (already seen).
         """
-        now_ts = time_service.now().timestamp()
+        now_ts = get_current_clock().now().timestamp()
         primary_key = (instrument_key, event_time, sequence)
         if primary_key in self._dedup_seen:
             logger.debug(
@@ -188,7 +188,7 @@ class TickRouter:
         if session is None:
             return
 
-        now = time_service.now()
+        now = get_current_clock().now()
         session.record_message(now)
 
         if stream_kind == "market":
@@ -224,8 +224,11 @@ class TickRouter:
 
     @staticmethod
     def _normalize_tick(frame, session_id: str, broker_id: str, now: datetime):
-        """Map a raw broker frame to a ``MarketTick``, or ``None``."""
-        from application.streaming.orchestrator import MarketTick
+        """Map a raw broker frame to a domain ``MarketTick``, or ``None``."""
+        from decimal import Decimal
+
+        from domain.entities.market import MarketTick
+        from domain.provenance import DataProvenance
 
         if not isinstance(frame, dict):
             return None
@@ -236,19 +239,27 @@ class TickRouter:
         event_time = _parse_exchange_time(
             frame.get("timestamp") or frame.get("exchange_timestamp"), now
         )
+
+        def _dec(key: str) -> Decimal | None:
+            if key not in frame or frame[key] is None:
+                return None
+            return Decimal(str(frame[key]))
+
+        ltp_raw = frame.get("ltp") or frame.get("last_price") or 0
         return MarketTick(
             instrument=InstrumentRef(symbol=symbol, exchange=exchange),
-            ltp=float(frame.get("ltp") or frame.get("last_price") or 0),
+            ltp=Decimal(str(ltp_raw)),
+            event_time=event_time,
+            provenance=DataProvenance.now(broker_id, "stream"),
             volume=int(frame.get("volume") or 0),
-            bid=float(frame["bid"]) if "bid" in frame else None,
-            ask=float(frame["ask"]) if "ask" in frame else None,
+            bid=_dec("bid"),
+            ask=_dec("ask"),
             broker_id=broker_id,
             session_id=session_id,
-            event_time=event_time,
             sequence=frame.get("sequence"),
-            open=float(frame["open"]) if "open" in frame else None,
-            high=float(frame["high"]) if "high" in frame else None,
-            low=float(frame["low"]) if "low" in frame else None,
+            open=_dec("open"),
+            high=_dec("high"),
+            low=_dec("low"),
         )
 
     @staticmethod

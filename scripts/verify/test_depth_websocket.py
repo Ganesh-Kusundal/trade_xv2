@@ -10,9 +10,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from brokers.dhan.identity.factory import BrokerFactory
+sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root / "scripts"))
+from _connect import bootstrap_or_exit
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.logging_config import configure_logging
@@ -30,7 +30,8 @@ def test_depth_20_websocket():
     lifecycle = LifecycleManager()
     event_bus = EventBus()
 
-    gateway = BrokerFactory().create(
+    gateway = bootstrap_or_exit(
+        "dhan",
         lifecycle=lifecycle,
         event_bus=event_bus,
     )
@@ -88,7 +89,8 @@ def test_depth_200_websocket():
     lifecycle = LifecycleManager()
     event_bus = EventBus()
 
-    gateway = BrokerFactory().create(
+    gateway = bootstrap_or_exit(
+        "dhan",
         lifecycle=lifecycle,
         event_bus=event_bus,
     )

@@ -17,16 +17,21 @@ Usage::
     b = gw.funds()
 """
 
+from brokers.paper.data_provider import PaperDataProvider
 from brokers.paper.execution_provider import PaperExecutionProvider
 from brokers.paper.paper_gateway import PaperGateway
 from brokers.paper.paper_market_data import PaperMarketData
 from brokers.paper.paper_orders import PaperOrders
 from brokers.paper.paper_portfolio import PaperPortfolio
 
-# Self-register execution adapter (ADR-007)
-from infrastructure.adapter_factory import register_execution_provider
+# Self-register data + execution adapters (ADR-007)
+from infrastructure.adapter_factory import (
+    register_data_adapter,
+    register_execution_provider,
+)
 from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
+register_data_adapter("paper", PaperDataProvider)
 register_execution_provider("paper", PaperExecutionProvider)
 register_broker_plugin(
     BrokerPlugin(
@@ -37,6 +42,11 @@ register_broker_plugin(
         is_live=False,
     )
 )
+
+from domain.market.segment_registry import register_segment_mapper
+from brokers.paper.segment_mapper import PaperSegmentMapper
+
+register_segment_mapper("paper", PaperSegmentMapper)
 
 __all__ = [
     "PaperExecutionProvider",

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from interface.api.config import APIConfig
 from interface.api.deps import reset_container
 from interface.api.main import create_app
-from tests.api.conftest import StubLiveGateway
+from tests.integration.api.conftest import StubLiveGateway
 
 
 def test_super_order_returns_501_on_non_dhan_broker() -> None:

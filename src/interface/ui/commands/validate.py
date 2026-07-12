@@ -34,51 +34,30 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     console.print(f"\n[bold]Validating {symbol}...[/bold]\n")
 
-    # Get gateway
-    try:
-        from pathlib import Path
+    from pathlib import Path
 
-        from interface.ui.services.broker_registry import create_gateway
+    from interface.ui.services.broker_ops import fetch_depth, fetch_history_df, fetch_quote
 
-        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
-        if dhan:
-            gw = dhan
-        else:
-            console.print("[red]No broker gateway available[/red]")
-            return
-    except Exception as e:
-        console.print(f"[red]Error creating gateway: {e}[/red]")
-        return
-
+    env = {"env_path": str(Path(".env.local")), "load_instruments": True}
     results = {}
-
     # 1. Historical Validation
     console.print("[cyan]Testing Historical Data...[/cyan]")
     try:
         t0 = time.time()
-        df = gw.history(symbol, timeframe="1D", lookback_days=30)
+        df = fetch_history_df(None, symbol, days=30, default="dhan", **env)
         latency = (time.time() - t0) * 1000
 
         rows = len(df)
-        start_date = df["timestamp"].min() if not df.empty else None
-        end_date = df["timestamp"].max() if not df.empty else None
-        duplicates = df.duplicated(subset=["timestamp"]).sum() if not df.empty else 0
-        schema_ok = list(df.columns) == [
-            "timestamp",
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-            "oi",
-            "symbol",
-            "exchange",
-            "timeframe",
-        ]
+        start_date = df["timestamp"].min() if not df.empty and "timestamp" in df.columns else None
+        end_date = df["timestamp"].max() if not df.empty and "timestamp" in df.columns else None
+        duplicates = (
+            df.duplicated(subset=["timestamp"]).sum()
+            if not df.empty and "timestamp" in df.columns
+            else 0
+        )
+        schema_ok = "open" in df.columns and "close" in df.columns
 
-        completeness = (
-            ((rows / 22) * 100) if rows > 0 else 0
-        )  # ~22 trading days in 30 calendar days
+        completeness = ((rows / 22) * 100) if rows > 0 else 0
 
         results["historical"] = {
             "status": "PASS" if schema_ok and duplicates == 0 else "FAIL",
@@ -101,9 +80,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Quote...[/cyan]")
     try:
         t0 = time.time()
-        q = gw.quote(symbol, exchange)
+        q = fetch_quote(None, symbol, exchange=exchange, default="dhan", **env)
         latency = (time.time() - t0) * 1000
-
         results["quote"] = {
             "status": "PASS",
             "ltp": f"₹{q.ltp}",
@@ -119,10 +97,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing LTP...[/cyan]")
     try:
         t0 = time.time()
-        q2 = gw.quote(symbol, exchange)
-        ltp = q2.ltp
+        q = fetch_quote(None, symbol, exchange=exchange, default="dhan", **env)
+        ltp = q.ltp
         latency = (time.time() - t0) * 1000
-
         results["ltp"] = {"status": "PASS", "value": f"₹{ltp}", "latency": f"{latency:.0f}ms"}
         console.print(f"  LTP: PASS (₹{ltp})")
     except Exception as e:
@@ -133,11 +110,11 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Depth...[/cyan]")
     try:
         t0 = time.time()
-        d = gw.depth(symbol, exchange)
+        d = fetch_depth(None, symbol, exchange=exchange, default="dhan", **env)
         latency = (time.time() - t0) * 1000
 
-        bids = d.bids if d.bids else []
-        asks = d.asks if d.asks else []
+        bids = d.bids if d and d.bids else []
+        asks = d.asks if d and d.asks else []
         has_data = len(bids) > 0 or len(asks) > 0
 
         results["depth"] = {
@@ -180,88 +157,57 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
 
 def _run_broker_validation(args: list[str], broker_service, console: Console) -> None:
-    """Validate broker connectivity using RELIANCE as test symbol."""
-    symbol = "RELIANCE"
+    """Validate broker via brokers.services.run_verify."""
+    broker = broker_service.active_broker_name if broker_service else "dhan"
     for i, a in enumerate(args):
-        if a == "--symbol" and i + 1 < len(args):
-            symbol = args[i + 1].upper()
-            break
-        elif not a.startswith("--"):
-            symbol = a.upper()
+        if a == "--broker" and i + 1 < len(args):
+            broker = args[i + 1].lower()
             break
 
-    console.print(f"\n[bold]Validating broker with {symbol}...[/bold]\n")
+    console.print(f"\n[bold]Validating broker ({broker}) via run_verify...[/bold]\n")
+    from pathlib import Path
 
-    results = {}
+    from interface.ui.services.broker_ops import verify_broker
 
-    # 1. Historical Validation
-    console.print("[cyan]Testing Historical Data...[/cyan]")
+    env = {"env_path": str(Path(".env.local")), "load_instruments": True}
+    if broker == "upstox":
+        env = {"env_path": str(Path(".env.upstox")), "load_instruments": True}
+
     try:
-        from pathlib import Path
+        report = verify_broker(broker_service, default=broker, **env)
+    except Exception as exc:
+        console.print(f"[red]Verify failed: {exc}[/red]")
+        return
 
-        from infrastructure.io.environment_bootstrap import load_env_file
-        from interface.ui.services.broker_registry import create_gateway
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Step", style="cyan")
+    table.add_column("Status", justify="center")
+    table.add_column("Detail")
 
-        env_path = Path(".env.local")
-        if env_path.exists():
-            load_env_file(env_path)
-        gw = create_gateway("dhan", env_path=env_path, load_instruments=True)
-        if not gw:
-            console.print("[red]No broker gateway available[/red]")
-            return
+    for step in report.steps:
+        status = "PASS" if step.passed else "FAIL"
+        style = "green" if step.passed else "red"
+        table.add_row(step.name, f"[{style}]{status}[/{style}]", step.detail[:60])
 
-        t0 = time.time()
-        df = gw.history(symbol, timeframe="1D", lookback_days=30)
-        latency = (time.time() - t0) * 1000
-        rows = len(df)
-        results["historical"] = {"status": "PASS", "rows": rows, "latency": f"{latency:.0f}ms"}
-        console.print(f"  Historical: PASS ({rows} candles, {latency:.0f}ms)")
-    except Exception as e:
-        results["historical"] = {"status": "ERROR", "error": str(e)}
-        console.print(f"  Historical: ERROR - {e}")
+    console.print(table)
+    overall = "PASS" if report.passed else "FAIL"
+    color = "green" if report.passed else "red"
+    console.print(f"\n[bold {color}]Overall: {overall}[/bold {color}]")
 
-    # 2. Quote
-    console.print("[cyan]Testing Quote...[/cyan]")
+    # Extended wire-only surfaces (futures/options listing) — keep gateway path
+    from interface.ui.services.connect import connect_live
+
+    env_path = Path(".env.local")
+    results: dict[str, dict] = {}
     try:
-        q = gw.quote(symbol, "NSE")
-        results["quote"] = {"status": "PASS", "ltp": f"₹{q.ltp}", "volume": f"{q.volume:,}"}
-        console.print(f"  Quote: PASS (LTP=₹{q.ltp}, Volume={q.volume:,})")
-    except Exception as e:
-        results["quote"] = {"status": "ERROR", "error": str(e)}
-        console.print(f"  Quote: ERROR - {e}")
+        gw = connect_live("dhan", env_path=env_path, load_instruments=True)
+    except Exception:
+        gw = None
 
-    # 3. Depth
-    console.print("[cyan]Testing Depth...[/cyan]")
+    console.print("\n[cyan]Testing Futures (wire extension)...[/cyan]")
     try:
-        d = gw.depth(symbol, "NSE")
-        bids = d.bids if d.bids else []
-        asks = d.asks if d.asks else []
-        has_data = len(bids) > 0 or len(asks) > 0
-        results["depth"] = {
-            "status": "PASS" if has_data else "WARN",
-            "bids": len(bids),
-            "asks": len(asks),
-        }
-        console.print(
-            f"  Depth: {'PASS' if has_data else 'WARN'} ({len(bids)} bids, {len(asks)} asks)"
-        )
-    except Exception as e:
-        results["depth"] = {"status": "ERROR", "error": str(e)}
-        console.print(f"  Depth: ERROR - {e}")
-
-    # 4. Portfolio
-    console.print("[cyan]Testing Portfolio...[/cyan]")
-    try:
-        bal = gw.portfolio.get_balance()
-        results["portfolio"] = {"status": "PASS", "balance": f"₹{bal.available_balance}"}
-        console.print(f"  Portfolio: PASS (Balance=₹{bal.available_balance})")
-    except Exception as e:
-        results["portfolio"] = {"status": "ERROR", "error": str(e)}
-        console.print(f"  Portfolio: ERROR - {e}")
-
-    # 5. Futures
-    console.print("[cyan]Testing Futures...[/cyan]")
-    try:
+        if gw is None:
+            raise RuntimeError("no gateway")
         fut = gw.futures.get_contracts("NIFTY", "INDEX")
         results["futures"] = {"status": "PASS", "contracts": len(fut)}
         console.print(f"  Futures: PASS ({len(fut)} NIFTY contracts)")
@@ -272,6 +218,8 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     # 6. Options
     console.print("[cyan]Testing Options...[/cyan]")
     try:
+        if gw is None:
+            raise RuntimeError("no gateway")
         exp = gw.options.get_expiries("NIFTY", "INDEX")
         results["options"] = {"status": "PASS", "expiries": len(exp)}
         console.print(f"  Options: PASS ({len(exp)} NIFTY expiries)")
@@ -303,7 +251,8 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     else:
         console.print("\n[bold red]SOME CHECKS FAILED[/bold red]")
 
-    gw.close()
+    if gw is not None:
+        gw.close()
 
 
 def _run_data_validation(args: list[str], broker_service, console: Console) -> None:

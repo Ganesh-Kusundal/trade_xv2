@@ -28,11 +28,13 @@ def record(test: str, segment: str, status: str, detail: str = ""):
 
 
 def test_live_feed_and_depth():
-    from brokers.dhan.identity.factory import BrokerFactory
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(_root, "src"))
+    sys.path.insert(0, os.path.join(_root, "scripts"))
+    from _connect import bootstrap_or_exit
 
     print("=== Creating Dhan Gateway ===")
-    factory = BrokerFactory()
-    gw = factory.create(load_instruments=True)
+    gw = bootstrap_or_exit("dhan", load_instruments=True)
     conn = gw._conn
     print(f"Instruments: {conn.instruments.stats().get('total', '?')}")
 

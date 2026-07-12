@@ -341,11 +341,16 @@ def main():
     try:
         import asyncio
 
-        from brokers.dhan.identity.factory import BrokerFactory
+        import sys
+        from pathlib import Path
+
+        _root = Path(__file__).resolve().parents[1]
+        sys.path.insert(0, str(_root / "src"))
+        sys.path.insert(0, str(_root / "scripts"))
+        from _connect import bootstrap_or_exit
 
         print("Creating Dhan Gateway...")
-        factory = BrokerFactory()
-        dhan_gw = factory.create(load_instruments=True)
+        dhan_gw = bootstrap_or_exit("dhan", load_instruments=True)
         print(f"Dhan Gateway created. Instruments: {dhan_gw.describe().get('instrument_count', '?')}")
         print()
 

@@ -15,6 +15,7 @@ extensions constructed at ``tradex.connect`` time.
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Callable
 
 
@@ -35,6 +36,19 @@ _CAPABILITY_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _capability_label(cap: Any) -> str | None:
+    """Normalize a capability token to a shell-filterable name (prefer enum value)."""
+    if isinstance(cap, str):
+        return cap
+    if isinstance(cap, Enum):
+        return str(cap.value)
+    value = getattr(cap, "value", None)
+    if value is not None:
+        return str(value)
+    name = getattr(cap, "name", None)
+    return str(name) if name else None
+
+
 class BrokerFacade:
     """Session-level catalog of broker extensions (unbound to a single instrument)."""
 
@@ -53,13 +67,19 @@ class BrokerFacade:
     def capability_names(self) -> list[str]:
         names: list[str] = []
         for ext in self._exts:
-            n = getattr(ext, "name", None)
-            if n:
-                names.append(str(n))
-            for cap in getattr(ext, "capabilities", ()) or ():
-                cname = getattr(cap, "name", None) or (cap if isinstance(cap, str) else None)
-                if cname and cname not in names:
-                    names.append(str(cname))
+            try:
+                n = getattr(ext, "name", None)
+                if n:
+                    names.append(str(n))
+                caps = getattr(ext, "capabilities", ())
+                if callable(caps):
+                    caps = caps()
+                for cap in caps or ():
+                    cname = _capability_label(cap)
+                    if cname and cname not in names:
+                        names.append(cname)
+            except Exception:
+                continue
         return names
 
     def get_extension(self, name: str) -> Any | None:

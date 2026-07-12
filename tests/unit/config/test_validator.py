@@ -160,6 +160,7 @@ class TestProdProfileValidation:
         env = {
             "DHAN_CLIENT_ID": "test123",
             "DHAN_ACCESS_TOKEN": "token123",
+            "SECRET_ENCRYPTION_KEY": "test-key-placeholder",
         }
         validator = ConfigValidator(profile=ValidationProfile.PROD, env=env)
         result = validator.validate()
@@ -169,13 +170,14 @@ class TestProdProfileValidation:
         env = {
             "DHAN_CLIENT_ID": "test123",
             "DHAN_ACCESS_TOKEN": "token123",
+            "SECRET_ENCRYPTION_KEY": "test-key-placeholder",
             "AUTH_MODE": "none",
         }
         validator = ConfigValidator(profile=ValidationProfile.PROD, env=env)
         result = validator.validate()
         assert any("AUTH_MODE" in w for w in result.warnings)
 
-    def test_prod_warns_on_no_encryption(self):
+    def test_prod_warns_when_encryption_key_missing(self):
         env = {
             "DHAN_CLIENT_ID": "test123",
             "DHAN_ACCESS_TOKEN": "token123",
@@ -183,6 +185,7 @@ class TestProdProfileValidation:
         validator = ConfigValidator(profile=ValidationProfile.PROD, env=env)
         result = validator.validate()
         assert any("SECRET_ENCRYPTION_KEY" in w for w in result.warnings)
+        assert not any("SECRET_ENCRYPTION_KEY" in e for e in result.errors)
 
     def test_prod_invalid_live_orders_value(self):
         env = {
@@ -315,6 +318,7 @@ class TestValidateOrRaise:
         env = {
             "DHAN_CLIENT_ID": "test123",
             "DHAN_ACCESS_TOKEN": "token123",
+            "SECRET_ENCRYPTION_KEY": "test-key-placeholder",
         }
         validator = ConfigValidator(profile=ValidationProfile.PROD, env=env)
         result = validator.validate_or_raise()
@@ -346,6 +350,7 @@ class TestValidateConfigFunction:
         # Use monkeypatch to temporarily set env vars
         monkeypatch.setenv("DHAN_CLIENT_ID", "test123")
         monkeypatch.setenv("DHAN_ACCESS_TOKEN", "token123")
+        monkeypatch.setenv("SECRET_ENCRYPTION_KEY", "test-key-placeholder")
         result = validate_config(profile=ValidationProfile.PROD, raise_on_error=False)
         assert result.valid is True
 

@@ -23,10 +23,10 @@ def run(args: list[str], broker_service, console: Console) -> None:
         from pathlib import Path
         from types import SimpleNamespace
 
-        from interface.ui.services.broker_registry import create_gateway
+        from interface.ui.services.connect import try_connect_live
 
-        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
+        dhan = try_connect_live("dhan", env_path=Path(".env.local"), load_instruments=True)
+        upstox = try_connect_live("upstox", env_path=Path(".env.upstox"), load_instruments=True)
         if not dhan and not upstox:
             console.print("[red]No broker gateways available[/red]")
             return

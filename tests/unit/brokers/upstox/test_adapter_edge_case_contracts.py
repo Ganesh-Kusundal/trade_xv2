@@ -10,7 +10,7 @@ class TestHistoricalIntervalMapping:
     """Verify 1M key collision fix — 1m should map to minutes, not months."""
 
     def _get_interval_map(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         UpstoxBrokerGateway(broker)
@@ -59,7 +59,7 @@ class TestGetOrderbook:
     """Verify get_orderbook uses get_order_list() not _parse_order."""
 
     def test_get_orderbook_calls_get_order_list(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         broker.order_query.get_order_list.return_value = []
@@ -73,7 +73,7 @@ class TestDepthResponseParsing:
     """Verify get_depth parses the nested quotes response format."""
 
     def test_depth_parses_nested_format(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from domain import MarketDepth
 
         broker = MagicMock()
@@ -99,7 +99,7 @@ class TestDepthResponseParsing:
         assert depth.asks[0].price == Decimal("101.0")
 
     def test_depth_handles_empty_data(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         broker.instrument_resolver.resolve.return_value = MagicMock(
@@ -116,14 +116,14 @@ class TestHistoricalProperty:
     """Verify historical access works via extended or direct history() method."""
 
     def test_history_method_exists(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         gw = UpstoxBrokerGateway(broker)
         assert hasattr(gw, "history")
 
     def test_history_callable(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         gw = UpstoxBrokerGateway(broker)
@@ -170,7 +170,7 @@ class TestGatewayClose:
     """Verify gateway has a close method."""
 
     def test_gateway_close_exists(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         gw = UpstoxBrokerGateway(broker)

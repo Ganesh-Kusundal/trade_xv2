@@ -12,6 +12,7 @@ from domain import Order, OrderStatus
 from domain.entities import OrderResponse
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.execution_context import oms_managed
+from application.observability import trace_operation
 
 
 def order_from_response(command: OmsOrderCommand, response: OrderResponse) -> Order:
@@ -44,6 +45,7 @@ def make_gateway_submit_fn(
     their own boundary checks without needing a transport policy flag.
     """
 
+    @trace_operation("gateway_submit")
     def submit(command: OmsOrderCommand) -> Order:
         with oms_managed():
             response = gateway.place_order(

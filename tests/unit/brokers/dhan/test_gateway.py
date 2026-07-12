@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import Position
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from tests.support.brokers.dhan.fixtures import FakeHttpClient
 from domain import Balance, OrderRequest, Quote
 

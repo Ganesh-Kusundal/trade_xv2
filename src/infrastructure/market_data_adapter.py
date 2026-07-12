@@ -7,17 +7,10 @@ so the domain protocol stays free of pandas.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from decimal import Decimal
+from datetime import date
 from typing import Any
 
-from domain.candles.historical import (
-    DateRange,
-    HistoricalBar,
-    HistoricalSeries,
-    InstrumentRef,
-)
-from domain.provenance import DataProvenance
+from domain.candles.historical import HistoricalSeries, InstrumentRef
 from domain.symbols import make_instrument_key
 
 
@@ -28,6 +21,9 @@ def _df_to_historical_series(
     interval: str,
     start: date,
     end: date,
+    *,
+    broker_id: str = "adapter",
+    request_id: str = "adapter-history",
 ) -> HistoricalSeries | None:
     """Convert a pandas DataFrame of OHLCV bars to a HistoricalSeries."""
     import pandas as pd
@@ -36,43 +32,16 @@ def _df_to_historical_series(
         return None
 
     instrument = InstrumentRef(symbol=symbol, exchange=exchange)
-    provenance = DataProvenance.now(broker_id="adapter", request_id="adapter-history")
-
-    bars: list[HistoricalBar] = []
-    for _idx, row in df.iterrows():
-        ts_raw = row.get("date", row.name if hasattr(row, "name") else None)
-        if ts_raw is None:
-            event_time = datetime.now(timezone.utc)
-        elif isinstance(ts_raw, datetime):
-            event_time = ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=timezone.utc)
-        elif isinstance(ts_raw, date):
-            event_time = datetime(ts_raw.year, ts_raw.month, ts_raw.day, tzinfo=timezone.utc)
-        else:
-            event_time = datetime.now(timezone.utc)
-
-        bars.append(
-            HistoricalBar(
-                instrument=instrument,
-                timeframe=interval,
-                event_time=event_time,
-                open=Decimal(str(row.get("open", row.get("close", 0)))),
-                high=Decimal(str(row.get("high", row.get("close", 0)))),
-                low=Decimal(str(row.get("low", row.get("close", 0)))),
-                close=Decimal(str(row.get("close", 0))),
-                volume=int(row.get("volume", 0)),
-                provenance=provenance,
-            )
-        )
-
-    if not bars:
-        return None
-
-    return HistoricalSeries(
-        bars=bars,
-        coverage=DateRange(start=start, end=end),
-        instrument=instrument,
-        timeframe=interval,
+    series = HistoricalSeries.from_broker_df(
+        df,
+        instrument,
+        interval,
+        broker_id=broker_id,
+        request_id=request_id,
     )
+    if not series.bars:
+        return None
+    return series
 
 
 class GatewayMarketDataAdapter:

@@ -19,6 +19,7 @@ from domain.extensions.broker_bundle import (
     get_extension_factory,
     register_extension_factory,
 )
+from domain.extensions.order_capability import OrderCapabilityPort
 from domain.extensions.registry import ExtensionRegistry
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "Extension",
     "ExtensionBundle",
     "ExtensionRegistry",
+    "OrderCapabilityPort",
     "get_extension_factory",
     "register_extension_factory",
 ]

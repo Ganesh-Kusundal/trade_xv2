@@ -18,6 +18,8 @@ def test_deferred_init_uses_fallback():
 def test_fail_closed_on_funds_error():
     gw = MagicMock()
     gw.funds.side_effect = RuntimeError("broker down")
+    # Wire-style gateway: no ExecutionProvider.get_funds(); prefers .funds().
+    del gw.get_funds
     cp = GatewayCapitalProvider(gw, fail_closed=True)
     with pytest.raises(RuntimeError, match="ENG-039"):
         cp.get_available_balance()
@@ -26,6 +28,7 @@ def test_fail_closed_on_funds_error():
 def test_fail_open_on_funds_error():
     gw = MagicMock()
     gw.funds.side_effect = RuntimeError("broker down")
+    del gw.get_funds
     cp = GatewayCapitalProvider(gw, fallback_balance=Decimal("7"), fail_closed=False)
     assert cp.get_available_balance() == Decimal("7")
 
@@ -33,5 +36,6 @@ def test_fail_open_on_funds_error():
 def test_funds_ok():
     gw = MagicMock()
     gw.funds.return_value = MagicMock(available_balance=Decimal("1000"))
+    del gw.get_funds
     cp = GatewayCapitalProvider(gw, fail_closed=True)
     assert cp.get_available_balance() == Decimal("1000")

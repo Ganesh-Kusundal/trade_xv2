@@ -15,28 +15,46 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 
+_PRICE = st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"))
+
+
+@st.composite
+def quote_prices(draw: st.DrawFn) -> dict:
+    """Draw self-consistent quote prices.
+
+    ``high`` is drawn first, ``low`` is constrained to ``[0.01, high]`` so the
+    invariant ``low <= high`` always holds, then ``ltp`` and ``open`` are
+    drawn within the ``[low, high]`` band.
+    """
+    high = draw(_PRICE)
+    low = draw(st.decimals(min_value=Decimal("0.01"), max_value=high))
+    ltp = draw(st.decimals(min_value=low, max_value=high))
+    open_ = draw(st.decimals(min_value=low, max_value=high))
+    return {"ltp": ltp, "open": open_, "high": high, "low": low}
+
+
 class TestMarketDataProperties:
     """Invariants for market data processing."""
 
-    @given(
-        ltp=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000")),
-        open=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000")),
-        high=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000")),
-        low=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000")),
-    )
+    @given(prices=quote_prices())
     @settings(max_examples=100)
-    def test_quote_price_relationships(self, ltp: Decimal, open: Decimal, high: Decimal, low: Decimal):
+    def test_quote_price_relationships(self, prices: dict):
         """Quote prices must satisfy logical relationships."""
+        ltp: Decimal = prices["ltp"]
+        open_: Decimal = prices["open"]
+        high: Decimal = prices["high"]
+        low: Decimal = prices["low"]
+
         # Invariant: low <= high (low is always <= high)
         assert low <= high, f"Low ({low}) must be <= high ({high})"
 
-        # Invariant: ltp should be within [low, high] range
-        # Note: This may not always hold in real markets due to timing,
-        # but it's a reasonable invariant for most cases
-        if low <= high:
-            assert low <= ltp or ltp <= high, (
-                f"LTP ({ltp}) should typically be within [{low}, {high}] range"
-            )
+        # Invariant: ltp and open should be within [low, high] range
+        assert low <= ltp <= high, (
+            f"LTP ({ltp}) should be within [{low}, {high}] range"
+        )
+        assert low <= open_ <= high, (
+            f"Open ({open_}) should be within [{low}, {high}] range"
+        )
 
     @given(
         volume=st.integers(min_value=0, max_value=10000000),

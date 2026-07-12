@@ -23,6 +23,18 @@ class UpstoxPortfolioAdapter(PortfolioProvider):
 
         funds = self._client.get_funds()
         data = funds.get("data", {}) if isinstance(funds, dict) else {}
+        if isinstance(data, dict):
+            from brokers.upstox.mappers.equity_mapper import _v3_fund_totals
+
+            v3 = _v3_fund_totals(data)
+            if v3 is not None:
+                available, used, total = v3
+                return Balance(
+                    available_balance=Decimal(str(available)),
+                    used_margin=Decimal(str(used)),
+                    total_margin=Decimal(str(total)),
+                )
+
         equity = data.get("equity", {}) if isinstance(data, dict) else {}
 
         available = equity.get("available_margin", equity.get("available_cash", 0))

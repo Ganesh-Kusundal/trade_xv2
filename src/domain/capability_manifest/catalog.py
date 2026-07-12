@@ -20,12 +20,13 @@ CAPABILITY_SURFACES = (
         cli=(
             ("historical", "src/interface/ui/commands/market_handlers.py"),
             ("history", "src/interface/ui/commands/market_handlers.py"),
+            ("history", "src/brokers/cli/broker.py"),
         ),
         rest=(
             ("GET", "/api/v1/market/candles", "src/interface/api/routers/market.py", "datalake"),
             ("GET", "/api/v1/live/candles", "src/interface/api/routers/live/market.py", "live_broker"),
         ),
-        notes="Dual API: datalake candles + /live/candles broker history",
+        notes="Dual API + MCP broker_history; services: get_history",
     ),
     surface(
         "market_data.quote",
@@ -34,7 +35,11 @@ CAPABILITY_SURFACES = (
         abc_required=True,
         dhan="market_data.get_quote",
         upstox="market_data.get_quote",
-        cli=(("quote", "src/interface/ui/commands/market_handlers.py"),),
+        cli=(
+            ("quote", "src/interface/ui/commands/market_handlers.py"),
+            ("quote", "src/brokers/cli/broker.py"),
+        ),
+        notes="MCP: broker_quote; services: get_quote",
         rest=(
             ("GET", "/api/v1/market/quote/{symbol}", "src/interface/api/routers/market.py", "datalake"),
             ("GET", "/api/v1/live/quote/{symbol}", "src/interface/api/routers/live/market.py", "live_broker"),
@@ -57,8 +62,12 @@ CAPABILITY_SURFACES = (
         abc_required=True,
         dhan="market_data.get_depth",
         upstox="market_data.get_depth",
-        cli=(("depth", "src/interface/ui/commands/market_handlers.py"),),
+        cli=(
+            ("depth", "src/interface/ui/commands/market_handlers.py"),
+            ("depth", "src/brokers/cli/broker.py"),
+        ),
         rest=(("GET", "/api/v1/live/depth/{symbol}", "src/interface/api/routers/live/market.py", "live_broker"),),
+        notes="MCP: broker_market_depth; services: get_depth, probe_depth_ws",
     ),
     surface(
         "derivatives.option_chain",
@@ -306,7 +315,11 @@ CAPABILITY_SURFACES = (
         "lifecycle.capabilities",
         gateway_method="capabilities",
         abc_required=True,
-        cli=(("doctor", "src/interface/ui/commands/doctor/strategies/active_broker.py"),),
+        cli=(
+            ("doctor", "src/interface/ui/commands/doctor/strategies/active_broker.py"),
+            ("capability", "src/brokers/cli/broker.py"),
+        ),
+        notes="MCP: broker_capabilities; services: get_capabilities",
         tier="broker_only",
         broker_only_reason="Metadata; doctor reports flags",
         severity_if_gap="P3",
@@ -347,6 +360,7 @@ CAPABILITY_SURFACES = (
         extended_only=True,
         dhan="super_orders.place_super_order",
         cli=(("super-order", "src/interface/ui/commands/extended_orders.py"),),
+        notes="services: list_super_orders; MCP: via broker extended when wired",
         rest=(
             ("POST", "/api/v1/live/orders/super", "src/interface/api/routers/live/extended.py", "live_broker"),
         ),
@@ -360,6 +374,7 @@ CAPABILITY_SURFACES = (
         dhan="forever_orders.place_forever_order",
         upstox="gtt.place_forever_order",
         cli=(("forever-order", "src/interface/ui/commands/extended_orders.py"),),
+        notes="services: list_forever_orders",
         rest=(
             ("POST", "/api/v1/live/orders/forever", "src/interface/api/routers/live/extended.py", "live_broker"),
         ),
@@ -560,6 +575,7 @@ CAPABILITY_SURFACES = (
         capability=Capability.NEWS,
         upstox="news.get_news",
         cli=(("news", "src/interface/ui/commands/news.py"),),
+        notes="MCP: broker_news; services: get_news",
         tier="extended",
     ),
     surface(
@@ -867,7 +883,8 @@ CAPABILITY_SURFACES = (
     surface(
         "interface.api.symbols",
         capability=Capability.INSTRUMENTS,
-        cli=(("instrument", "src/interface/ui/commands/instrument_info.py"),),
+        cli=(("instrument", "src/interface/ui/commands/instrument.py"), ("instrument", "src/brokers/cli/broker.py"),),
+        notes="MCP: broker_instrument_lookup; services: lookup_instrument",
         rest=(
             ("GET", "/api/v1/symbols/{symbol}", "src/interface/api/routers/symbols.py", "datalake"),
             ("GET", "/api/v1/symbols/universe/{name}", "src/interface/api/routers/symbols.py", "datalake"),

@@ -1,13 +1,13 @@
 """Analytics Replay Engine — bar-by-bar historical replay.
 
 Public API:
-    Bar, ReplayConfig, ReplayMode, ReplaySession, ReplayResult,
+    HistoricalBar, ReplayConfig, ReplayMode, ReplaySession, ReplayResult,
     SimulatedTrade, SimulatedPosition, ReplayEngine
 """
 
 from analytics.replay.engine import ReplayEngine
 from analytics.replay.models import (
-    Bar,
+    HistoricalBar,
     ReplayConfig,
     ReplayMode,
     ReplayResult,
@@ -17,7 +17,7 @@ from analytics.replay.models import (
 )
 
 __all__ = [
-    "Bar",
+    "HistoricalBar",
     "ReplayConfig",
     "ReplayEngine",
     "ReplayMode",

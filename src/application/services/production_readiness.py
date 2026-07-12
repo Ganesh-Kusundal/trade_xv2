@@ -33,6 +33,11 @@ from domain.exceptions import TradeXV2Error
 logger = logging.getLogger(__name__)
 
 
+def _is_production_env() -> bool:
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    return env in ("production", "staging")
+
+
 @dataclass(frozen=True)
 class ReadinessCheck:
     name: str
@@ -146,6 +151,14 @@ class ProductionReadinessChecker:
                     ("upstox_credentials_present", self._check_upstox_credentials),
                     ("upstox_token_present", self._check_upstox_token),
                     ("upstox_websocket_lifecycle", self._check_upstox_websocket_lifecycle),
+                    ("upstox_webhook_secret", self._check_upstox_webhook_secret),
+                ]
+            )
+        if _is_production_env():
+            checks.extend(
+                [
+                    ("secret_encryption_configured", self._check_secret_encryption),
+                    ("api_key_explicitly_set", self._check_api_key_explicit),
                 ]
             )
         return checks
@@ -359,6 +372,29 @@ class ProductionReadinessChecker:
         if not snap:
             return False, "LifecycleManager has no services registered"
         return True, f"LifecycleManager has {len(snap)} service(s) registered"
+
+    def _check_secret_encryption(self) -> tuple[bool, str]:
+        if not os.environ.get("SECRET_ENCRYPTION_KEY", "").strip():
+            return True, (
+                "SECRET_ENCRYPTION_KEY unset — using plaintext token stores (default)"
+            )
+        return True, "SECRET_ENCRYPTION_KEY is configured"
+
+    def _check_api_key_explicit(self) -> tuple[bool, str]:
+        if not os.environ.get("API_KEY", "").strip():
+            return False, (
+                "API_KEY must be explicitly set in production — ephemeral keys are forbidden"
+            )
+        return True, "API_KEY is explicitly configured"
+
+    def _check_upstox_webhook_secret(self) -> tuple[bool, str]:
+        if not _is_production_env():
+            return True, "webhook secret check skipped outside production/staging"
+        if not os.environ.get("UPSTOX_WEBHOOK_SECRET", "").strip():
+            return False, (
+                "UPSTOX_WEBHOOK_SECRET is required in production when Upstox is active"
+            )
+        return True, "UPSTOX_WEBHOOK_SECRET is configured"
 
     def _check_ssl_hardening(self) -> tuple[bool, str]:
         """REF-38: every outbound HTTP session in the live path MUST be

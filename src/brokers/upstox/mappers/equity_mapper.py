@@ -185,12 +185,34 @@ def to_trade(payload: Any) -> Trade:
     )
 
 
+def _v3_fund_totals(data: dict) -> tuple[float, float, float] | None:
+    """Parse v3 funds payload; return (available, used, total) or None."""
+    avail = data.get("available_to_trade")
+    if not isinstance(avail, dict) or "total" not in avail:
+        return None
+    available = float(avail.get("total") or 0)
+    cash = avail.get("cash_available_to_trade") or {}
+    pledge = avail.get("pledge_available_to_trade") or {}
+    cash_used = float((cash.get("margin_used") or {}).get("total") or 0)
+    pledge_used = float((pledge.get("margin_used") or {}).get("total") or 0)
+    used = cash_used + pledge_used
+    return available, used, available + used
+
+
 def to_fund_limits(payload: Any) -> FundLimits:
     if not isinstance(payload, dict):
         return FundLimits()
     data = payload.get("data") if "data" in payload else payload
     if not isinstance(data, dict):
         return FundLimits()
+    v3 = _v3_fund_totals(data)
+    if v3 is not None:
+        available, used, total = v3
+        return FundLimits(
+            available_balance=UpstoxPriceParser.parse(available),
+            used_margin=UpstoxPriceParser.parse(used),
+            total_margin=UpstoxPriceParser.parse(total),
+        )
     equity = data.get("equity") or {}
     return FundLimits(
         available_balance=UpstoxPriceParser.parse(

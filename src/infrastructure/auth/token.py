@@ -6,20 +6,14 @@ Patterns replicated from Trade_J:
 - ``TokenStateStore``: abstract persistent storage interface
 - ``AuthManager``: token lifecycle management (acquire, validate, refresh, revoke)
 - ``TokenManager``: alias for ``AuthManager`` for backward compatibility
-- ``TotpGenerator``: TOTP code generation for Dhan authentication
 """
 
 from __future__ import annotations
 
-import base64
 import contextlib
-import hashlib
-import hmac
 import json
 import logging
 import os
-import struct
-import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -84,7 +78,10 @@ class TokenState:
         # Handle both naive and aware expires_at for backward compatibility
         expires = self.expires_at
         if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
+            # Naive timestamp: interpret it as local system time, then
+            # convert to UTC. Using replace() would treat local wall-clock
+            # as UTC and inflate the remaining lifetime on non-UTC boxes.
+            expires = expires.astimezone(timezone.utc)
         return (expires - now).total_seconds()
 
     def refresh_recommended(
@@ -216,80 +213,6 @@ class JsonTokenStateStore(TokenStateStore):
         with contextlib.suppress(OSError):
             os.chmod(self._path, 0o600)
             # Best effort - file already written securely by default umask
-
-
-class TotpGenerator:
-    """Generate TOTP codes for Dhan authentication.
-
-    Maps to Trade_J's DhanTotpGenerator. Uses HMAC-SHA1 with 30-second
-    time steps and 6-digit output, matching Dhan's requirements.
-    """
-
-    _BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-    _DIGITS = 6
-    _TIME_STEP_SECONDS = 30
-
-    def current_code(self, shared_secret: str) -> str:
-        """Generate the current TOTP code from a Base32 shared secret.
-
-        Args:
-            shared_secret: Base32-encoded secret from Dhan.
-
-        Returns:
-            6-digit TOTP code as string.
-        """
-        return self.code_at(shared_secret, time.time())
-
-    def code_at(self, shared_secret: str, timestamp: float) -> str:
-        """Generate TOTP code at a specific timestamp.
-
-        Args:
-            shared_secret: Base32-encoded secret.
-            timestamp: Unix timestamp.
-
-        Returns:
-            6-digit TOTP code as string.
-        """
-        if not shared_secret or not shared_secret.strip():
-            raise ValueError("Dhan TOTP secret is blank")
-
-        secret_bytes = self._decode_base32(shared_secret)
-        counter = int(timestamp) // self._TIME_STEP_SECONDS
-
-        # HMAC-SHA1
-        counter_bytes = struct.pack(">Q", counter)
-        hmac_hash = hmac.new(secret_bytes, counter_bytes, hashlib.sha1).digest()
-
-        # Dynamic truncation
-        offset = hmac_hash[-1] & 0x0F
-        truncated = (
-            ((hmac_hash[offset] & 0x7F) << 24)
-            | ((hmac_hash[offset + 1] & 0xFF) << 16)
-            | ((hmac_hash[offset + 2] & 0xFF) << 8)
-            | (hmac_hash[offset + 3] & 0xFF)
-        )
-
-        otp = truncated % (10**self._DIGITS)
-        return f"{otp:0{self._DIGITS}d}"
-
-    def _decode_base32(self, value: str) -> bytes:
-        """Decode Base32-encoded string to bytes.
-
-        Normalizes input (strips spaces, dashes, uppercases) and handles
-        both standard and padded Base32.
-        """
-        normalized = value.replace(" ", "").replace("-", "").strip().upper()
-        if not normalized:
-            raise ValueError("Dhan TOTP secret is blank")
-
-        # Add padding if needed
-        padding_needed = (8 - len(normalized) % 8) % 8
-        normalized += "=" * padding_needed
-
-        try:
-            return base64.b32decode(normalized)
-        except Exception as e:
-            raise ValueError(f"Invalid Base32 in Dhan TOTP secret: {e}") from e
 
 
 class AuthManager:

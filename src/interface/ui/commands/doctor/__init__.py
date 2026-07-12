@@ -1,6 +1,6 @@
 """Unified broker diagnostics dashboard.
 
-Phase 5: Uses :func:`cli.services.broker_registry.create_gateway` and
+Phase 5: Uses :func:`bootstrap_gateway` via
 :func:`cli.services.broker_registry.list_available_brokers` to produce a
 comprehensive, broker-agnostic diagnostics report.
 
@@ -14,7 +14,7 @@ and executed in parallel.
 The doctor checks:
 
   1. Broker registration & env file status (all registered brokers)
-  2. Gateway creation smoke test (uses ``create_gateway()`` per broker)
+  2. Gateway creation smoke test (uses ``bootstrap_gateway()`` per broker)
   3. Active broker identity & capabilities matrix
   4. Instrument catalog health
   5. Market data (quote, depth, historical)
@@ -41,15 +41,12 @@ from interface.ui.commands.doctor.strategies import (
     AuthLiveProbeCheck,
     AuthenticatedReadinessCheck,
     BrokerRegistryCheck,
-    GatewayCreationCheck,
     HTTPObservabilityCheck,
     InstrumentCatalogCheck,
     LifecycleCheck,
-    MarketDataCheck,
     OMSRiskManagerCheck,
-    OrderAPICheck,
-    PortfolioCheck,
 )
+from interface.ui.services.broker_ops import doctor_broker
 from interface.ui.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
@@ -59,18 +56,13 @@ __all__ = [
     "CheckOrchestrator",
     "CheckResult",
     "CheckStrategy",
-    "CheckStrategy",
     "ResultRenderer",
     "_check_active_broker",
     "_check_broker_registry",
-    "_check_gateway_creation",
     "_check_http_observability",
     "_check_instrument_catalog",
     "_check_lifecycle",
-    "_check_market_data",
     "_check_oms_risk_manager",
-    "_check_order_api",
-    "_check_portfolio",
     "_render_table",
     "_run_checks_in_parallel",
     "_status_str",
@@ -125,14 +117,22 @@ def _run_checks_in_parallel(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _services_doctor_results(broker_service: BrokerService) -> list[CheckResult]:
+    """Map brokers.services.run_doctor output to UI CheckResult rows."""
+    report = doctor_broker(broker_service)
+    out: list[CheckResult] = []
+    for c in getattr(report, "checks", []) or []:
+        status_val = getattr(getattr(c, "status", None), "value", str(getattr(c, "status", "INFO")))
+        ui_status = status_val.upper()
+        if ui_status == "WARNING":
+            ui_status = "WARN"
+        out.append(CheckResult(getattr(c, "name", "?"), ui_status, getattr(c, "detail", "")))
+    return out
+
+
 def _check_broker_registry() -> list[CheckResult]:
     """Check all registered brokers and their env file status."""
     return BrokerRegistryCheck().execute(None)
-
-
-def _check_gateway_creation() -> list[CheckResult]:
-    """Attempt gateway creation via ``create_gateway()`` for each registered broker."""
-    return GatewayCreationCheck().execute(None)
 
 
 def _check_active_broker(broker_service: BrokerService) -> list[CheckResult]:
@@ -143,24 +143,6 @@ def _check_active_broker(broker_service: BrokerService) -> list[CheckResult]:
 def _check_instrument_catalog(broker_service: BrokerService) -> list[CheckResult]:
     """Check instrument catalog loading and stats."""
     return InstrumentCatalogCheck().execute(broker_service)
-
-
-def _check_market_data(
-    broker_service: BrokerService,
-    quick_mode: bool = False,
-) -> list[CheckResult]:
-    """Test quote, depth, and historical data endpoints."""
-    return MarketDataCheck(quick_mode=quick_mode).execute(broker_service)
-
-
-def _check_order_api(broker_service: BrokerService) -> list[CheckResult]:
-    """Check order book and trade book API endpoints."""
-    return OrderAPICheck().execute(broker_service)
-
-
-def _check_portfolio(broker_service: BrokerService) -> list[CheckResult]:
-    """Check positions, holdings, and funds balance."""
-    return PortfolioCheck().execute(broker_service)
 
 
 def _check_lifecycle(broker_service: BrokerService) -> list[CheckResult]:
@@ -226,14 +208,14 @@ def run_doctor(
     auth_results = AuthenticatedReadinessCheck().execute(broker_service)
     renderer.render_section("🔐 Authenticated Readiness", auth_results)
 
-    # Define independent checks with their display titles
+    # Section 2: Broker layer checks via brokers.services (single code path)
+    services_results = _services_doctor_results(broker_service)
+    renderer.render_section("📡 Broker Layer (services)", services_results)
+
+    # UI-only checks (OMS, lifecycle, HTTP observability)
     check_strategies: list[tuple[str, str, Any]] = [
-        ("Gateway Creation", "🔧 Gateway Creation (create_gateway)", GatewayCreationCheck()),
         ("Active Broker", "🔌 Active Broker Identity", ActiveBrokerCheck()),
         ("Instrument Catalog", "📚 Instrument Catalog", InstrumentCatalogCheck()),
-        ("Market Data", "📊 Market Data Endpoints", MarketDataCheck(quick_mode=quick_mode)),
-        ("Order API", "📝 Order & Trade API", OrderAPICheck()),
-        ("Portfolio", "💰 Portfolio Sync", PortfolioCheck()),
         ("Lifecycle", "🔋 Lifecycle Health", LifecycleCheck()),
         ("Risk Manager", "🛡️  OMS RiskManager", OMSRiskManagerCheck()),
         ("HTTP Observability", "🌐 HTTP Observability", HTTPObservabilityCheck()),
@@ -253,35 +235,28 @@ def run_doctor(
                 renderer.render_section(title, parallel_results[key].results)
 
         # Collect all results for summary
-        gw_results = parallel_results.get("Gateway Creation", SectionResult("", [])).results
+        gw_results: list[CheckResult] = []
         active_results = parallel_results.get("Active Broker", SectionResult("", [])).results
         inst_results = parallel_results.get("Instrument Catalog", SectionResult("", [])).results
-        md_results = parallel_results.get("Market Data", SectionResult("", [])).results
-        order_results = parallel_results.get("Order API", SectionResult("", [])).results
-        portfolio_results = parallel_results.get("Portfolio", SectionResult("", [])).results
         lifecycle_results = parallel_results.get("Lifecycle", SectionResult("", [])).results
         risk_results = parallel_results.get("Risk Manager", SectionResult("", [])).results
         http_results = parallel_results.get("HTTP Observability", SectionResult("", [])).results
+        md_results: list[CheckResult] = []
+        order_results: list[CheckResult] = []
+        portfolio_results: list[CheckResult] = []
 
     else:
         # Sequential execution (original behavior)
-        gw_results = GatewayCreationCheck().execute(None)
-        renderer.render_section("🔧 Gateway Creation (create_gateway)", gw_results)
-
         active_results = ActiveBrokerCheck().execute(broker_service)
         renderer.render_section("🔌 Active Broker Identity", active_results)
 
         inst_results = InstrumentCatalogCheck().execute(broker_service)
         renderer.render_section("📚 Instrument Catalog", inst_results)
 
-        md_results = MarketDataCheck(quick_mode=quick_mode).execute(broker_service)
-        renderer.render_section("📊 Market Data Endpoints", md_results)
-
-        order_results = OrderAPICheck().execute(broker_service)
-        renderer.render_section("📝 Order & Trade API", order_results)
-
-        portfolio_results = PortfolioCheck().execute(broker_service)
-        renderer.render_section("💰 Portfolio Sync", portfolio_results)
+        gw_results = []
+        md_results = []
+        order_results = []
+        portfolio_results = []
 
         lifecycle_results = LifecycleCheck().execute(broker_service)
         renderer.render_section("🔋 Lifecycle Health", lifecycle_results)
@@ -296,6 +271,7 @@ def run_doctor(
     all_results = (
         broker_results
         + auth_results
+        + services_results
         + gw_results
         + active_results
         + inst_results

@@ -12,7 +12,7 @@ from interface.api.deps import reset_container
 from interface.api.main import create_app
 from application.services.production_readiness import ProductionReadinessChecker
 from interface.ui.diagnostics.doctor import DoctorDiagnostics
-from tests.api.conftest import StubLiveGateway
+from tests.integration.api.conftest import StubLiveGateway
 
 
 def test_readyz_check_names_are_structured_like_doctor() -> None:

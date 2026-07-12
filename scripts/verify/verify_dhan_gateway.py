@@ -9,9 +9,10 @@ from pathlib import Path
 import pandas as pd
 
 # Add repo to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from brokers.dhan.identity.factory import BrokerFactory
+_REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO / "src"))
+sys.path.insert(0, str(_REPO / "scripts"))
+from _connect import bootstrap_or_exit
 from brokers.dhan.config.settings import DhanSettingsLoader
 
 
@@ -39,9 +40,8 @@ def main():
 
     # Create gateway
     try:
-        factory = BrokerFactory()
         print(f"\n   Creating Dhan gateway (loading instruments, this may take a moment)...")
-        gateway = factory.create(load_instruments=True)  # Load instruments needed for symbol resolution
+        gateway = bootstrap_or_exit("dhan", env_path=env_path, load_instruments=True)
         print(f"✅ Created Dhan gateway and loaded instruments")
     except Exception as e:
         print(f"❌ Failed to create gateway: {e}")

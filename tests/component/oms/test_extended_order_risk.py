@@ -43,12 +43,22 @@ def _make_risk_manager(trip_loss: bool) -> RiskManager:
     return rm
 
 
-def _make_service(risk_manager: RiskManager) -> ExtendedOrderService:
+def _make_service(
+    risk_manager: RiskManager, extension_registry: MagicMock | None = None
+) -> ExtendedOrderService:
     return ExtendedOrderService(
         risk_manager=risk_manager,
         event_bus=MagicMock(),
         broker_service=MagicMock(active_broker_name="upstox"),
+        extension_registry=extension_registry,
     )
+
+
+def _registry_returning(executor: MagicMock) -> MagicMock:
+    """A BrokerExtensionRegistry stub whose ``require`` returns *executor*."""
+    registry = MagicMock()
+    registry.require.return_value = executor
+    return registry
 
 
 def _cover_payload() -> dict:
@@ -137,14 +147,20 @@ def test_slice_order_rejected_when_daily_loss_exceeded() -> None:
 
 
 def test_cover_order_placed_when_risk_allows() -> None:
-    """When the loss CB is below threshold the order proceeds to the broker."""
-    service = _make_service(_make_risk_manager(trip_loss=False))
-    gw = _fake_gw()
-    result = service.place_cover_order(gw, _cover_payload())
+    """When the loss CB is below threshold the order proceeds to the executor."""
+    executor = MagicMock()
+    executor.place_cover_order.return_value = {"status": "success"}
+    service = _make_service(
+        _make_risk_manager(trip_loss=False),
+        extension_registry=_registry_returning(executor),
+    )
+    result = service.place_cover_order(_fake_gw(), _cover_payload())
 
     assert result.success is True
     assert result.risk_rejected is False
-    assert gw._broker.cover.place_cover_order.called is True
+    # Broker-agnostic: execution is delegated to the resolved executor,
+    # not resolved by probing the gateway object.
+    assert executor.place_cover_order.called is True
 
 
 # ── Kill-switch protection still intact ──────────────────────────────────────

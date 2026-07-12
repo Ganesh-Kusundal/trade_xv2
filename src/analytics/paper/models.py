@@ -12,7 +12,12 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from domain import Side as DomainSide
 from domain.enums import OrderStatus, Side
+from domain.entities import Trade
+from domain.portfolio_projection import PortfolioProjector
+from domain.simulation_fill_pipeline import SimulationFillPipeline
+from domain.simulation_position_meta import PositionMeta
 
 OrderSide = Side  # backward-compat alias (canonical Side)
 
@@ -69,6 +74,7 @@ class PaperConfig:
     stop_loss_pct: float = 2.0
     take_profit_pct: float = 0.0
     max_daily_loss_pct: float = 0.0
+    fail_closed_features: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +228,8 @@ class PaperSession:
     """Tracks state during a paper trading session."""
 
     capital: float
-    positions: dict[str, PaperPosition] = field(default_factory=dict)
+    fill_pipeline: SimulationFillPipeline = field(default_factory=SimulationFillPipeline)
+    position_meta: dict[str, PositionMeta] = field(default_factory=dict)
     trades: list[PaperTrade] = field(default_factory=list)
     orders: list[PaperOrder] = field(default_factory=list)
     equity_curve: list[tuple[datetime, float]] = field(default_factory=list)
@@ -230,6 +237,85 @@ class PaperSession:
     peak_equity: float = 0.0
     daily_pnl: float = 0.0
     daily_bars: int = 0
+
+    @property
+    def projector(self) -> PortfolioProjector:
+        return self.fill_pipeline.projector
+
+    def has_position(self, symbol: str, exchange: str = "NSE") -> bool:
+        pos = self.fill_pipeline.projector.get_position(symbol, exchange)
+        return pos is not None and pos.quantity != 0
+
+    def open_symbols(self) -> list[str]:
+        return [
+            p.symbol
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        ]
+
+    def mark_symbol(self, symbol: str, price: float, exchange: str = "NSE") -> None:
+        self.fill_pipeline.projector.mark_ltp(symbol, exchange, Decimal(str(price)))
+
+    def bootstrap_position(
+        self,
+        position: PaperPosition,
+        *,
+        exchange: str = "NSE",
+    ) -> None:
+        """Seed projector + meta (tests / recovery)."""
+        side = DomainSide.BUY if position.side == PositionSide.LONG else DomainSide.SELL
+        order_id = f"bootstrap:{position.symbol}"
+        trade = Trade(
+            trade_id=f"{order_id}:{position.quantity}",
+            order_id=order_id,
+            symbol=position.symbol,
+            exchange=exchange,
+            side=side,
+            quantity=position.quantity,
+            price=Decimal(str(position.entry_price)),
+            trade_value=Decimal(str(position.entry_price)) * position.quantity,
+            timestamp=position.entry_time,
+        )
+        self.fill_pipeline.apply_trade(trade, order_quantity=position.quantity)
+        mark = position.current_price if position.current_price > 0 else position.entry_price
+        self.fill_pipeline.projector.mark_ltp(position.symbol, exchange, Decimal(str(mark)))
+        self.position_meta[position.symbol] = PositionMeta(
+            entry_time=position.entry_time,
+            stop_loss=position.stop_loss,
+            target=position.take_profit,
+            strategy=position.strategy,
+        )
+
+    def clear_position(self, symbol: str) -> None:
+        self.position_meta.pop(symbol, None)
+
+    def _domain_position(self, symbol: str, exchange: str = "NSE"):
+        pos = self.fill_pipeline.projector.get_position(symbol, exchange)
+        if pos is None or pos.quantity == 0:
+            return None
+        return pos
+
+    def _to_paper_position(self, symbol: str, exchange: str = "NSE") -> PaperPosition | None:
+        pos = self._domain_position(symbol, exchange)
+        if pos is None:
+            return None
+        meta = self.position_meta.get(symbol)
+        side = PositionSide.LONG if pos.quantity > 0 else PositionSide.SHORT
+        return PaperPosition(
+            symbol=symbol,
+            side=side,
+            entry_price=float(pos.avg_price),
+            quantity=abs(pos.quantity),
+            entry_time=meta.entry_time if meta else datetime.now(),
+            current_price=float(pos.ltp),
+            stop_loss=meta.stop_loss if meta else None,
+            take_profit=meta.take_profit if meta else None,
+            strategy=meta.strategy if meta else "",
+        )
+
+    @property
+    def positions(self) -> dict[str, PaperPosition]:
+        return {sym: view for sym in self.open_symbols() if (view := self._to_paper_position(sym))}
 
     @property
     def total_trades(self) -> int:
@@ -241,16 +327,24 @@ class PaperSession:
 
     @property
     def position_count(self) -> int:
-        return len(self.positions)
+        return len(self.open_symbols())
 
     @property
     def total_equity(self) -> float:
-        pos_value = sum(p.market_value for p in self.positions.values())
+        pos_value = sum(
+            float(p.ltp) * p.quantity
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        )
         return self.capital + pos_value
 
     @property
     def total_invested(self) -> float:
-        return sum(p.notional for p in self.positions.values())
+        return sum(
+            float(p.avg_price) * abs(p.quantity)
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        )
 
     @property
     def available_capital(self) -> float:
@@ -259,7 +353,11 @@ class PaperSession:
     @property
     def total_pnl(self) -> float:
         realized = sum(t.pnl for t in self.trades)
-        unrealized = sum(p.unrealized_pnl for p in self.positions.values())
+        unrealized = sum(
+            float(p.unrealized_pnl)
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        )
         return realized + unrealized
 
     @property
@@ -268,7 +366,11 @@ class PaperSession:
 
     @property
     def total_unrealized_pnl(self) -> float:
-        return sum(p.unrealized_pnl for p in self.positions.values())
+        return sum(
+            float(p.unrealized_pnl)
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        )
 
     @property
     def total_commission(self) -> float:

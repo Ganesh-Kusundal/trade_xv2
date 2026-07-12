@@ -6,7 +6,7 @@ import pytest
 
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from domain import OrderStatus
 
 SAMPLE_ROWS = [

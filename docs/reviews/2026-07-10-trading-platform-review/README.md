@@ -19,6 +19,10 @@ This package is a source-based architecture and production-readiness review. It 
 - [Production readiness scorecard](production-readiness-scorecard.md)
 - [Prioritized action plan](prioritized-action-plan.md)
 
+## Target design
+
+- [Design and flow redesign](design/README.md)
+
 ## Review conclusion
 
 The platform has substantial domain, OMS, broker, analytics, replay, and test infrastructure. It is not yet safe to treat it as a production-grade real-money platform because the critical guarantees are mode-dependent and failure paths often degrade to empty, zero, stale, or apparently successful states. The first strategic requirement is one authoritative execution and state spine shared by live, paper, replay, and backtest, with explicit failure semantics and broker-side reconciliation.

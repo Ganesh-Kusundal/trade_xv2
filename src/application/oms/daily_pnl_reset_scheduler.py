@@ -43,6 +43,7 @@ from domain.constants import (
 )
 from domain.lifecycle_health import HealthState, HealthStatus
 from domain.ports.lifecycle import ManagedServicePort
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class DailyPnlResetScheduler(ManagedServicePort):
         # Initialise _last_reset_unix to the last rollover moment so
         # the first reset fires the first time we cross the boundary
         # after start.
-        self._last_reset_unix = self._last_rollover_unix(_time.time())
+        self._last_reset_unix = self._last_rollover_unix(get_current_clock().timestamp())
         self._thread = threading.Thread(
             target=self._run,
             name="daily-pnl-reset",
@@ -141,7 +142,7 @@ class DailyPnlResetScheduler(ManagedServicePort):
             return HealthStatus(
                 state=HealthState.FAILED,
                 service=self.name,
-                last_check=datetime.now(_IST),
+                last_check=get_current_clock().now().astimezone(_IST),
                 detail=self._last_error,
                 metrics=self._metrics(),
             )
@@ -154,7 +155,7 @@ class DailyPnlResetScheduler(ManagedServicePort):
         return HealthStatus(
             state=state,
             service=self.name,
-            last_check=datetime.now(_IST),
+            last_check=get_current_clock().now().astimezone(_IST),
             detail=detail,
             metrics=self._metrics(),
         )
@@ -194,7 +195,7 @@ class DailyPnlResetScheduler(ManagedServicePort):
 
     def _maybe_reset(self) -> None:
         """If a new rollover moment has passed, reset the daily PnL."""
-        now_unix = _time.time()
+        now_unix = get_current_clock().timestamp()
         last_rollover = self._last_rollover_unix(now_unix)
         if last_rollover > self._last_reset_unix:
             # The boundary has been crossed since the last reset.

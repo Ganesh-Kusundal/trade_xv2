@@ -18,8 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.identity.factory import BrokerFactory
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from tests.market_hours import skip_off_market
 
 pytestmark = [pytest.mark.dhan, pytest.mark.market_hours, pytest.mark.regression]

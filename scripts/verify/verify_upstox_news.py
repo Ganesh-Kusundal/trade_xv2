@@ -25,11 +25,13 @@ def record(endpoint: str, segment: str, status: str, detail: str = ""):
 
 
 def test_upstox_news():
-    from brokers.upstox.factory import UpstoxBrokerFactory
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(_root, "src"))
+    sys.path.insert(0, os.path.join(_root, "scripts"))
+    from _connect import bootstrap_or_exit
 
     print("=== Creating Upstox Gateway ===")
-    factory = UpstoxBrokerFactory()
-    gw = factory.create(load_instruments=True)
+    gw = bootstrap_or_exit("upstox", load_instruments=True)
     print(f"Gateway created. Instruments loaded: {gw.describe().get('instrument_count', '?')}")
     print()
 

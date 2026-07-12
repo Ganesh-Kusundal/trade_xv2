@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from analytics.pipeline.errors import FeaturePipelineError
 from analytics.pipeline.features import Feature
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class FeaturePipeline:
     """
 
     features: list[Feature] = field(default_factory=list, repr=False)
+    fail_closed: bool = False
 
     def add(self, feature: Feature) -> FeaturePipeline:
         """Append a feature to the pipeline. Returns self for chaining."""
@@ -68,7 +70,10 @@ class FeaturePipeline:
                     feature.name if hasattr(feature, "name") else type(feature).__name__,
                 )
             except Exception as exc:
-                logger.warning("Feature %s failed: %s", type(feature).__name__, exc)
+                name = feature.name if hasattr(feature, "name") else type(feature).__name__
+                if self.fail_closed:
+                    raise FeaturePipelineError(name, exc) from exc
+                logger.warning("Feature %s failed: %s", name, exc)
 
         return result
 

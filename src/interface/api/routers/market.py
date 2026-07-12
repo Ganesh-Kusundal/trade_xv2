@@ -17,8 +17,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from interface.api.auth import require_auth
 from interface.api.deps import get_datalake_gateway, get_market_data_composer
 from interface.api.freshness import check_data_freshness
-from interface.api.schemas import Candle, CandlesResponse, QuoteResponse
-from domain.candles.historical import InstrumentRef
+from interface.api.candle_mapper import series_to_api_candles
+from interface.api.schemas import CandlesResponse, QuoteResponse
+from domain.candles.historical import HistoricalSeries, InstrumentRef
+from domain.instruments.timeframes import normalize_timeframe
 from domain.universe import Session
 
 logger = logging.getLogger(__name__)
@@ -89,11 +91,11 @@ def build_cache_control_header(max_age: int, stale_while_revalidate: int | None 
 @router.get("/candles", response_model=CandlesResponse)
 async def get_candles(
     symbol: str = Query(..., description="Symbol to fetch"),
+    exchange: str = Query("NSE", description="Exchange (NSE, BSE, NFO, etc.)"),
     timeframe: str = Query(..., description="Timeframe (1m, 3m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)"),
     from_ts: int | None = Query(None, description="Start timestamp (ms)"),
     to_ts: int | None = Query(None, description="End timestamp (ms)"),
     limit: int = Query(200, ge=1, le=5000, description="Max candles"),
-    response: Response = None,
 ):
     """Get historical OHLCV candles from the data lake.
 
@@ -135,42 +137,17 @@ async def get_candles(
                 detail=f"No candle data found for {symbol}/{timeframe}",
             )
 
-        # Check data freshness
         freshness = check_data_freshness(df, timeframe)
-        if response:
-            response.headers["X-Data-Stale"] = str(freshness.is_stale).lower()
-            if freshness.last_update:
-                response.headers["X-Data-Last-Update"] = freshness.last_update.isoformat()
-            response.headers["X-Data-Days-Old"] = str(freshness.days_old)
 
-        # Ensure timestamp column exists
-        if "timestamp" not in df.columns:
-            df["timestamp"] = df.index
+        instrument = InstrumentRef(symbol=symbol, exchange=exchange)
+        series = HistoricalSeries.from_datalake_df(
+            df,
+            instrument,
+            normalize_timeframe(timeframe),
+            request_id=f"lake:{symbol}:{timeframe}",
+        )
+        candles = series_to_api_candles(series, limit=limit)
 
-        # Vectorized conversion — use df.to_dict('records') to avoid iterrows overhead
-        # P0.8: Replaced df.iterrows() with vectorized list comprehension
-        rows = df.to_dict(orient="records")
-        ts_col = df["timestamp"]
-        if len(ts_col) > 0 and isinstance(ts_col.iloc[0], pd.Timestamp):
-            # Convert to milliseconds: pandas 3.0 uses datetime64[us], so cast to datetime64[ms] first
-            ts_ms = ts_col.astype("datetime64[ms]").astype("int64").tolist()
-        else:
-            ts_ms = ts_col.astype("int64").tolist()
-
-        candles = [
-            Candle(
-                t=ts_ms[i],
-                o=float(r["open"]) if pd.notna(r.get("open")) else 0.0,
-                h=float(r["high"]) if pd.notna(r.get("high")) else 0.0,
-                l=float(r["low"]) if pd.notna(r.get("low")) else 0.0,
-                c=float(r["close"]) if pd.notna(r.get("close")) else 0.0,
-                v=float(r["volume"]) if pd.notna(r.get("volume")) else 0.0,
-                oi=float(r.get("oi", 0)) if pd.notna(r.get("oi", 0)) else 0.0,
-            )
-            for i, r in enumerate(rows)
-        ]
-
-        # Get most recent candle timestamp for X-Data-Freshness header
         latest_timestamp = None
         if candles:
             latest_ts_ms = candles[-1].t
@@ -180,11 +157,16 @@ async def get_candles(
             content={
                 "symbol": symbol,
                 "timeframe": timeframe,
-                "exchange": "NSE",
+                "exchange": exchange,
                 "candles": [c.model_dump() for c in candles],
                 "count": len(candles),
             }
         )
+
+        response.headers["X-Data-Stale"] = str(freshness.is_stale).lower()
+        if freshness.last_update:
+            response.headers["X-Data-Last-Update"] = freshness.last_update.isoformat()
+        response.headers["X-Data-Days-Old"] = str(freshness.days_old)
 
         # P0.7: Add Cache-Control headers with timeframe-aware TTL
         max_age = get_cache_ttl_for_timeframe(timeframe)
@@ -246,27 +228,19 @@ async def get_live_candles(
 
         series, ledger = await composer.fetch_historical(query)
 
+        if series.bar_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No candle data found for {symbol}/{timeframe}",
+            )
+
         if series.is_degraded:
             logger.warning(
                 "Live candle data degraded: %s", ledger.issues
             )
 
         # Convert to candles
-        candles = [
-            Candle(
-                t=int(bar.timestamp.timestamp() * 1000),
-                o=float(bar.open),
-                h=float(bar.high),
-                l=float(bar.low),
-                c=float(bar.close),
-                v=float(bar.volume),
-                oi=float(bar.open_interest) if hasattr(bar, 'open_interest') and bar.open_interest else 0.0,
-            )
-            for bar in series.bars
-        ]
-
-        # Apply limit
-        candles = candles[-limit:]
+        candles = series_to_api_candles(series, limit=limit)
 
         response = JSONResponse(
             content={

@@ -18,7 +18,7 @@ from brokers.common.capabilities_validator import (
     enforce_gateway_capabilities,
     validate_gateway_capabilities,
 )
-from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxBrokerGateway
 
 
 # ── TASK B: history() surfaces errors ──
@@ -77,7 +77,7 @@ def test_history_success_path_unaffected() -> None:
 def test_gateway_construct_runs_capability_check() -> None:
     broker = MagicMock()
     with patch(
-        "brokers.upstox.gateway.enforce_gateway_capabilities",
+        "brokers.upstox.wire.enforce_gateway_capabilities",
         wraps=enforce_gateway_capabilities,
     ) as spy:
         gw = UpstoxBrokerGateway(broker)

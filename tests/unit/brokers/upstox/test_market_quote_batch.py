@@ -221,7 +221,7 @@ class TestMarketDataAdapterBatch:
 
 class TestGatewayNativeBatch:
     def test_quote_batch_maps_back_to_symbols(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
         gw = object.__new__(UpstoxBrokerGateway)
@@ -248,7 +248,7 @@ class TestGatewayNativeBatch:
         assert set(called_keys) == {"NSE_EQ|INE002A01018", "NSE_EQ|INE467B01029"}
 
     def test_ltp_batch_empty(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         gw = object.__new__(UpstoxBrokerGateway)
         assert UpstoxBrokerGateway.ltp_batch(gw, [], "NSE") == {}
@@ -275,6 +275,99 @@ class TestDataProviderBatch:
         assert out[0] is not None
         assert out[0].ltp == Decimal("99")
         gw.quote_batch.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# History series (domain SSOT)
+# ---------------------------------------------------------------------------
+
+
+class TestUpstoxHistorySeries:
+    def test_adapter_get_history_series_returns_domain_series(self):
+        from unittest.mock import MagicMock
+
+        from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter
+        from domain.candles.historical import HistoricalSeries
+
+        v2 = MagicMock()
+        v3 = MagicMock()
+        hist = MagicMock()
+        hist.get_candles.return_value = {
+            "data": {
+                "candles": [
+                    ["2026-01-15T03:45:00+00:00", 100, 101, 99, 100.5, 1000],
+                ]
+            }
+        }
+        adapter = UpstoxMarketDataAdapter(v2, v3, hist)
+        series = adapter.get_history_series(
+            "RELIANCE",
+            "NSE",
+            "1m",
+            lookback_days=1,
+            from_date="2026-01-15",
+            to_date="2026-01-15",
+        )
+        assert isinstance(series, HistoricalSeries)
+        assert len(series.bars) == 1
+        assert float(series.bars[0].close) == pytest.approx(100.5)
+
+    def test_adapter_history_is_dataframe_export(self):
+        from unittest.mock import MagicMock
+
+        import pandas as pd
+
+        from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter
+
+        v2 = MagicMock()
+        v3 = MagicMock()
+        hist = MagicMock()
+        hist.get_candles.return_value = {
+            "data": {
+                "candles": [
+                    ["2026-01-15T03:45:00+00:00", 100, 101, 99, 100.5, 1000],
+                ]
+            }
+        }
+        adapter = UpstoxMarketDataAdapter(v2, v3, hist)
+        df = adapter.history(
+            "RELIANCE",
+            "NSE",
+            "1m",
+            from_date="2026-01-15",
+            to_date="2026-01-15",
+        )
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 1
+        assert float(df.iloc[0]["close"]) == pytest.approx(100.5)
+
+    def test_data_provider_get_history_returns_bars(self):
+        from unittest.mock import MagicMock
+
+        import pandas as pd
+
+        from brokers.upstox.data_provider import UpstoxDataProvider
+        from domain.candles.historical import HistoricalBar
+        from domain.instruments.instrument_id import InstrumentId
+
+        gw = MagicMock()
+        gw.history.return_value = pd.DataFrame(
+            {
+                "timestamp": [pd.Timestamp("2026-01-15T03:45:00Z")],
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [1000],
+            }
+        )
+        provider = UpstoxDataProvider(gw)
+        iid = InstrumentId.equity("NSE", "RELIANCE")
+        bars = provider.get_history(iid, timeframe="1m")
+        assert isinstance(bars, list)
+        assert len(bars) == 1
+        assert isinstance(bars[0], HistoricalBar)
+        assert float(bars[0].close) == pytest.approx(100.5)
 
 
 # ---------------------------------------------------------------------------

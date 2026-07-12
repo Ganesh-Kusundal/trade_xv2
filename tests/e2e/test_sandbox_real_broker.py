@@ -29,7 +29,7 @@ class TestDhanSandboxE2E:
         from dotenv import load_dotenv
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -271,7 +271,7 @@ class TestUpstoxSandboxE2E:
         from dotenv import load_dotenv
 
         from brokers.upstox.broker import UpstoxBroker
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -348,7 +348,7 @@ class TestCrossBrokerParity:
         from dotenv import load_dotenv
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -379,7 +379,7 @@ class TestCrossBrokerParity:
         from dotenv import load_dotenv
 
         from brokers.upstox.broker import UpstoxBroker
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
 

@@ -72,6 +72,9 @@ def test_candidate_generated_increments_orchestrator_counter(mock_broker_service
     orch._strategy_evaluator = StrategyPipelineEvaluator(
         StrategyPipeline(strategies=[_AlwaysBuyStrategy()])
     )
+    # Also update the evaluator delegate so on_candidate uses the new references.
+    orch._evaluator._feature_fetcher = orch._feature_fetcher
+    orch._evaluator._strategy_evaluator = orch._strategy_evaluator
 
     event = DomainEvent.now(
         EventType.CANDIDATE_GENERATED.value,

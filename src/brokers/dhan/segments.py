@@ -162,3 +162,20 @@ def from_sdk_int(code: int) -> ExchangeSegment:
 def segment_to_exchange(segment: str, default: str = "NSE") -> Exchange:
     exch_str = SEGMENT_TO_EXCHANGE.get(segment, default)
     return Exchange(exch_str)
+
+
+class DhanSegmentMapper:
+    """SegmentMapper protocol implementation for Dhan."""
+
+    broker_id = "dhan"
+
+    def to_wire(self, segment: ExchangeSegment) -> str:
+        return to_dhan_wire(segment)
+
+    def from_wire(self, wire: str) -> ExchangeSegment:
+        parsed = parse_segment(wire)
+        return parsed or ExchangeSegment.NSE
+
+    def from_exchange(self, exchange: str) -> ExchangeSegment:
+        wire = EXCHANGE_TO_SEGMENT.get(str(exchange or "NSE").upper(), DEFAULT_SEGMENT)
+        return self.from_wire(wire)

@@ -243,8 +243,26 @@ class TestSwingHighLow:
         result = feature.compute(sample_df)
         assert "swing_high" in result.columns
         assert "swing_low" in result.columns
+        assert "last_swing_high" in result.columns
+        assert "last_swing_low" in result.columns
         assert result["swing_high"].dtype == bool
         assert result["swing_low"].dtype == bool
+
+    def test_no_lookahead_on_truncated_series(self, sample_df: pd.DataFrame) -> None:
+        """Confirmed swings at bar i must not change when future bars are added."""
+        feature = SwingHighLow(lookback=5)
+        full = feature.compute(sample_df.copy())
+        cut = len(sample_df) // 2
+        partial = feature.compute(sample_df.iloc[:cut].copy())
+        check_idx = cut - 6
+        if check_idx < 0:
+            pytest.skip("sample too short")
+        assert full["last_swing_high"].iloc[check_idx] == pytest.approx(
+            partial["last_swing_high"].iloc[check_idx]
+        )
+        assert full["last_swing_low"].iloc[check_idx] == pytest.approx(
+            partial["last_swing_low"].iloc[check_idx]
+        )
 
 
 class TestHistoricalVolatility:

@@ -6,7 +6,7 @@ Usage:
     from interface.ui.utils.error_formatter import format_error, display_error
 
     try:
-        quote = gw.quote("RELIANCE")
+        quote = session.stock(symbol).refresh()
     except Exception as exc:
         msg = format_error(exc)
         console.print(f"[red]{msg}[/red]")

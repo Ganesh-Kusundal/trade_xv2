@@ -46,7 +46,7 @@ class UpstoxDepth30Extension(Extension):
 
     @property
     def capabilities(self) -> tuple[Capability, ...]:
-        return (Capability(name="depth_30", supported=True),)
+        return (Capability.DEPTH_30,)
 
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return instrument_id.exchange in self._NSE_SEGMENTS

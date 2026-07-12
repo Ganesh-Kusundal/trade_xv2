@@ -1,6 +1,6 @@
 """Gateway creation smoke test strategy.
 
-Tests that ``create_gateway()`` can instantiate a gateway for each
+Tests that ``bootstrap_gateway()`` can instantiate a gateway for each
 registered broker.
 """
 
@@ -13,7 +13,7 @@ from interface.ui.services.broker_service import BrokerService
 
 
 class GatewayCreationCheck(CheckStrategy):
-    """Smoke-test gateway creation via ``create_gateway()`` for each broker.
+    """Smoke-test gateway bootstrap via ``bootstrap_gateway()`` for each broker.
 
     This is a lightweight check — it validates the factory can create
     a gateway without full initialization (load_instruments=False).

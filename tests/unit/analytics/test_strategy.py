@@ -127,8 +127,8 @@ def breakout_features() -> pd.DataFrame:
             "roc": np.full(n, 0.0),
             "atr": np.full(n, 3.0),
             "sma_20": close - 10,
-            "swing_high": close - 5,  # Close > swing_high
-            "swing_low": close - 20,
+            "last_swing_high": close - 5,  # Close > last confirmed swing high
+            "last_swing_low": close - 20,
             "volume_sma": volume * 0.3,  # Volume > 1.5x avg
         }
     )

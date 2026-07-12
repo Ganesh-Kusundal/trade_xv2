@@ -65,4 +65,31 @@ def discover_broker_plugins() -> list[str]:
     return discovered
 
 
-__all__ = ["discover_broker_plugins"]
+def ensure_broker_module(broker_id: str) -> bool:
+    """Import a single broker package by id via the ``tradex.brokers`` entry-point group.
+
+    Triggers the package's self-registration side effects (each broker package
+    calls ``register_broker_plugin()`` at import time) without any layer above
+    ``infrastructure``/``brokers`` naming the concrete module.
+
+    This is the sanctioned composition-root import path for layers that only
+    need a broker package imported for its registration side effects (e.g.
+    ``tradex.Session`` ensuring a broker is registered before use). Returns
+    ``True`` if the broker was found and imported, ``False`` otherwise.
+    """
+    for ep in entry_points(group=_ENTRY_POINT_GROUP):
+        if ep.name == broker_id:
+            try:
+                importlib.import_module(ep.value)
+            except Exception:
+                logger.warning(
+                    "broker_plugin_import_failed",
+                    extra={"broker_id": broker_id, "broker_module": ep.value},
+                    exc_info=True,
+                )
+                return False
+            return True
+    return False
+
+
+__all__ = ["discover_broker_plugins", "ensure_broker_module"]

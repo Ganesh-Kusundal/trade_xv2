@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Lazy SDK loaders — avoid importing dhanhq at module-import time so that
-# ``import brokers.dhan.gateway`` works even when the SDK is not installed.
+# ``import brokers.dhan.wire`` works even when the SDK is not installed.
 # ---------------------------------------------------------------------------
 
 def _sdk_market_feed_class() -> type:
-    """Lazy import so ``import brokers.dhan.gateway`` does not require dhanhq at import time."""
+    """Lazy import so ``import brokers.dhan.wire`` does not require dhanhq at import time."""
     from dhanhq.marketfeed import MarketFeed
 
     return MarketFeed
@@ -142,7 +142,6 @@ def _transform_quote(data: dict, resolver: Any = None) -> dict:
     symbol = _resolve_security_symbol(security_id, resolver)
     return {
         "symbol": symbol,
-        "security_id": security_id,
         "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
         "open": Decimal(str(data["open"])) if data.get("open") else None,
         "high": Decimal(str(data["high"])) if data.get("high") else None,
@@ -160,7 +159,6 @@ def _transform_depth(data: dict, resolver: Any = None) -> dict:
     symbol = _resolve_security_symbol(security_id, resolver)
     return {
         "symbol": symbol,
-        "security_id": security_id,
         "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
         "depth": _normalize_sdk_depth(data.get("depth", [])),
     }

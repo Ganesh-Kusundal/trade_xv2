@@ -1,0 +1,59 @@
+{
+  "version": "1.1",
+  "updated": "2026-07-11",
+  "notes": "expected_instrument_id is the canonical InstrumentId string; expected_security_id is optional live-broker wire id filled on symbol-master refresh.",
+  "cases": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "expected_exchange": "NSE",
+      "expected_tick_size": "0.05",
+      "expected_lot_size": 1,
+      "expected_instrument_id": "NSE:RELIANCE",
+      "asset": "equity"
+    },
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "expected_exchange": "NSE",
+      "expected_tick_size": "0.05",
+      "expected_lot_size": 1,
+      "expected_instrument_id": "NSE:INFY",
+      "asset": "equity"
+    },
+    {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "expected_exchange": "NSE",
+      "expected_tick_size": "0.05",
+      "expected_lot_size": 1,
+      "expected_instrument_id": "NSE:TCS",
+      "asset": "equity"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE",
+      "expected_exchange": "NSE",
+      "expected_instrument_id": "NSE:NIFTY",
+      "asset": "index"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NFO",
+      "expected_exchange": "NFO",
+      "asset": "future"
+    },
+    {
+      "symbol": "USDINR",
+      "exchange": "NSE",
+      "expected_exchange": "NSE",
+      "asset": "currency"
+    },
+    {
+      "symbol": "GOLD",
+      "exchange": "MCX",
+      "expected_exchange": "MCX",
+      "asset": "commodity"
+    }
+  ]
+}

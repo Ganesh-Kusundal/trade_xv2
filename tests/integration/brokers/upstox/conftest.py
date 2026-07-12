@@ -62,27 +62,22 @@ _live_env_loaded = _has_live_credentials()
 # Skip guards
 # ---------------------------------------------------------------------------
 def _should_skip_live() -> bool:
-    """Skip unless TOTP/static creds, UPSTOX_INTEGRATION=1, valid env, market open."""
+    """Skip only when credentials/integration flags are missing.
+
+    Token mint/refresh is handled by broker factories (TOTP/401-retry); do not
+    pre-check JWT expiry here. Market-hours gating applies only to stream/depth.
+    """
     if not _has_live_credentials():
         return True
     if os.environ.get("UPSTOX_INTEGRATION") != "1":
         return True
     env = os.environ.get("UPSTOX_ENVIRONMENT", "LIVE").strip().upper()
-    if env not in ("LIVE", "SANDBOX"):
+    return env not in ("LIVE", "SANDBOX")
+
+
+def _should_skip_live_market_hours() -> bool:
+    if _should_skip_live():
         return True
-
-    auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
-    if auth_mode != "TOTP":
-        token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
-        try:
-            from infrastructure.auth.jwt_expiry import JwtExpiry
-
-            exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
-            if exp_ms > 0 and exp_ms < time.time() * 1000:
-                return True
-        except Exception:
-            pass
-
     if os.environ.get("FORCE_MARKET_OPEN") == "1":
         return False
     try:
@@ -103,8 +98,15 @@ skip_live = pytest.mark.skipif(
     _should_skip_live(),
     reason=(
         "Live API tests require UPSTOX_INTEGRATION=1, .env.upstox or .env.local "
-        "credentials (TOTP or valid token), UPSTOX_ENVIRONMENT=LIVE|SANDBOX, "
-        "and open market hours"
+        "credentials (TOTP or access token), UPSTOX_ENVIRONMENT=LIVE|SANDBOX"
+    ),
+)
+
+skip_live_market_hours = pytest.mark.skipif(
+    _should_skip_live_market_hours(),
+    reason=(
+        "Live stream/depth tests require NSE market hours (09:15–15:30 IST) "
+        "or FORCE_MARKET_OPEN=1"
     ),
 )
 
@@ -120,9 +122,17 @@ requires_pre_prod = pytest.mark.skipif(
 @pytest.fixture(scope="session")
 def gateway():
     """Session-scoped live gateway — TOTP bootstrap runs at connect."""
-    from brokers.upstox.factory import UpstoxBrokerFactory
+    from infrastructure.gateway.factory import bootstrap_gateway
 
-    gw = UpstoxBrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
+    result = bootstrap_gateway(
+        "upstox",
+        env_path=ENV_PATH,
+        load_instruments=True,
+        require_authenticated=True,
+    )
+    if not result.live_ready or result.gateway is None:
+        pytest.skip(f"Upstox bootstrap failed: {result.error or result.status.value}")
+    gw = result.gateway
     yield gw
     gw.close()
 

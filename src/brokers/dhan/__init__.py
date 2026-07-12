@@ -4,7 +4,7 @@ Canonical domain types (Order, Position, Holding, Trade, Side, OrderStatus,
 OrderType, ProductType, Validity, FundLimits) live in ``domain``::
 
     from domain import Order, Side, OrderStatus
-    from brokers.dhan import Exchange, DhanInstrument, DhanBrokerGateway
+    from brokers.dhan import Exchange, DhanInstrument
 """
 
 # ── Dhan-specific domain types ──────────────────────────────────────────────
@@ -26,9 +26,6 @@ from brokers.dhan.exceptions import (
     OrderError,
     RateLimitError,
 )
-from brokers.dhan.identity.factory import BrokerFactory
-from brokers.dhan.gateway import DhanBrokerGateway
-from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import (
     DHAN_SEGMENTS,
     DhanIdentityError,
@@ -52,8 +49,6 @@ __all__ = [
     "AuthenticationError",
     # Domain — Dhan-specific types
     "Balance",
-    "BrokerFactory",
-    "DhanBrokerGateway",
     "ConfigurationError",
     "DepthLevel",
     "DhanConnection",
@@ -122,5 +117,12 @@ register_broker_plugin(
         default_mode="market",
         supported_modes=frozenset({"market", "trade"}),
         is_live=True,
+        capabilities_module="brokers.dhan.config.capabilities",
+        capabilities_fn="dhan_capabilities",
     )
 )
+
+from domain.market.segment_registry import register_segment_mapper
+from brokers.dhan.segments import DhanSegmentMapper
+
+register_segment_mapper("dhan", DhanSegmentMapper)

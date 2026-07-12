@@ -1,11 +1,9 @@
 """Market data check strategy.
 
-Tests quote, depth, and historical data endpoints.
+Tests quote, depth, and historical data endpoints via domain session.
 """
 
 from __future__ import annotations
-
-from datetime import date, timedelta
 
 from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
 from interface.ui.services.broker_service import BrokerService
@@ -31,91 +29,92 @@ class MarketDataCheck(CheckStrategy):
             results.append(CheckResult("Market Data", "FAIL", "No broker service available"))
             return results
 
-        gw = broker_service.active_broker
+        from interface.ui.services.active_session import get_active_session
+        from interface.ui.services.market_access import fetch_depth, fetch_history, refresh_quote
 
-        # Quote check
+        session = get_active_session(broker_service)
         try:
             symbol = "RELIANCE"
-            q = gw.quote(symbol)
-            if q is not None and q.ltp > 0:
-                results.append(
-                    CheckResult(
-                        "Quote",
-                        "PASS",
-                        f"{symbol}: LTP={q.ltp:.2f} | O={q.open:.2f} H={q.high:.2f} "
-                        f"L={q.low:.2f} C={q.close:.2f} Vol={q.volume:,}",
-                    )
-                )
-            else:
-                results.append(
-                    CheckResult(
-                        "Quote",
-                        "WARN",
-                        f"{symbol} returned quote with LTP=0 (paper/mock?)",
-                    )
-                )
-        except Exception as exc:
-            results.append(CheckResult("Quote", "FAIL", f"Quote failed: {exc}"))
-
-        # Depth check (skipped in quick mode)
-        if self.quick_mode:
-            results.append(CheckResult("Market Depth", "INFO", "Skipped (--quick mode)"))
-        else:
             try:
-                symbol = "RELIANCE"
-                depth = gw.depth(symbol)
-                if depth is not None:
-                    n_bids = len(depth.bids)
-                    n_asks = len(depth.asks)
-                    if n_bids > 0 or n_asks > 0:
+                q = refresh_quote(session, symbol)
+                if q is not None and q.ltp > 0:
+                    results.append(
+                        CheckResult(
+                            "Quote",
+                            "PASS",
+                            f"{symbol}: LTP={q.ltp:.2f} | O={q.open:.2f} H={q.high:.2f} "
+                            f"L={q.low:.2f} C={q.close:.2f} Vol={q.volume:,}",
+                        )
+                    )
+                else:
+                    results.append(
+                        CheckResult(
+                            "Quote",
+                            "WARN",
+                            f"{symbol} returned quote with LTP=0 (paper/mock?)",
+                        )
+                    )
+            except Exception as exc:
+                results.append(CheckResult("Quote", "FAIL", f"Quote failed: {exc}"))
+
+            if self.quick_mode:
+                results.append(CheckResult("Market Depth", "INFO", "Skipped (--quick mode)"))
+            else:
+                try:
+                    depth = fetch_depth(session, symbol)
+                    if depth is not None:
+                        n_bids = len(depth.bids or [])
+                        n_asks = len(depth.asks or [])
+                        if n_bids > 0 or n_asks > 0:
+                            results.append(
+                                CheckResult(
+                                    "Market Depth",
+                                    "PASS",
+                                    f"{symbol}: {n_bids} bid(s), {n_asks} ask(s)",
+                                )
+                            )
+                        else:
+                            results.append(
+                                CheckResult(
+                                    "Market Depth",
+                                    "WARN",
+                                    f"{symbol}: depth returned empty levels",
+                                )
+                            )
+                    else:
+                        results.append(
+                            CheckResult("Market Depth", "WARN", f"{symbol}: depth returned None")
+                        )
+                except Exception as exc:
+                    results.append(CheckResult("Market Depth", "FAIL", f"Depth failed: {exc}"))
+
+            if self.quick_mode:
+                results.append(CheckResult("Historical Data", "INFO", "Skipped (--quick mode)"))
+            else:
+                try:
+                    hist = fetch_history(session, symbol, days=5)
+                    n = getattr(hist, "bar_count", None)
+                    if n is None and hasattr(hist, "__len__"):
+                        n = len(hist)
+                    if n:
                         results.append(
                             CheckResult(
-                                "Market Depth",
+                                "Historical Data",
                                 "PASS",
-                                f"{symbol}: {n_bids} bid(s), {n_asks} ask(s)",
+                                f"{symbol}: {n} candles",
                             )
                         )
                     else:
                         results.append(
                             CheckResult(
-                                "Market Depth",
+                                "Historical Data",
                                 "WARN",
-                                f"{symbol}: depth returned empty levels",
+                                f"{symbol}: empty history returned",
                             )
                         )
-                else:
-                    results.append(
-                        CheckResult("Market Depth", "WARN", f"{symbol}: depth returned None")
-                    )
-            except Exception as exc:
-                results.append(CheckResult("Market Depth", "FAIL", f"Depth failed: {exc}"))
-
-        # Historical data check (skipped in quick mode)
-        if self.quick_mode:
-            results.append(CheckResult("Historical Data", "INFO", "Skipped (--quick mode)"))
-        else:
-            try:
-                symbol = "RELIANCE"
-                to_dt = date.today().isoformat()
-                from_dt = (date.today() - timedelta(days=5)).isoformat()
-                hist = gw.history(symbol, timeframe="1D", from_date=from_dt, to_date=to_dt)
-                if hist is not None and not hist.empty:
-                    results.append(
-                        CheckResult(
-                            "Historical Data",
-                            "PASS",
-                            f"{symbol}: {len(hist)} candles ({from_dt} to {to_dt})",
-                        )
-                    )
-                else:
-                    results.append(
-                        CheckResult(
-                            "Historical Data",
-                            "WARN",
-                            f"{symbol}: empty DataFrame returned",
-                        )
-                    )
-            except Exception as exc:
-                results.append(CheckResult("Historical Data", "FAIL", f"History failed: {exc}"))
+                except Exception as exc:
+                    results.append(CheckResult("Historical Data", "FAIL", f"History failed: {exc}"))
+        finally:
+            session.close()
 
         return results

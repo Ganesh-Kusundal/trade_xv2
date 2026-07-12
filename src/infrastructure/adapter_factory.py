@@ -67,7 +67,11 @@ def create_data_adapter(gateway: Any, *, broker_id: str) -> Any:
     """
     cls = _DATA_ADAPTERS.get(broker_id)
     if cls is not None:
-        return cls(gateway, broker_id=broker_id)
+        try:
+            return cls(gateway, broker_id=broker_id)
+        except TypeError:
+            # Providers whose constructor only takes ``gateway`` (e.g. paper).
+            return cls(gateway)
     return gateway
 
 

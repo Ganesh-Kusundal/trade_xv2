@@ -62,6 +62,20 @@ def _get_tracer() -> Any:
     return None
 
 
+def _safe_get_tracer() -> Any:
+    """Like :func:`_get_tracer` but never raises.
+
+    Any failure while obtaining the tracer (missing provider, misconfigured
+    SDK, …) is swallowed so the decorator always degrades to log-only tracing
+    instead of breaking the wrapped business call.
+    """
+    try:
+        return _get_tracer()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.warning("Failed to obtain tracer; degrading to log-only", exc_info=True)
+        return None
+
+
 def trace_operation(operation_name: str) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator that traces function execution with timing and correlation ID.
 
@@ -88,7 +102,8 @@ def trace_operation(operation_name: str) -> Callable[[Callable[..., T]], Callabl
             start_time = time.perf_counter()
 
             logger.debug(
-                f"Operation started: {operation_name}",
+                "Operation started: %s",
+                operation_name,
                 extra={
                     "operation": operation_name,
                     "function": func.__name__,
@@ -96,12 +111,19 @@ def trace_operation(operation_name: str) -> Callable[[Callable[..., T]], Callabl
                 },
             )
 
-            tracer = _get_tracer()
+            tracer = _safe_get_tracer()
             if tracer is not None:
-                with tracer.start_as_current_span(operation_name) as span:
-                    span.set_attribute("correlation_id", correlation_id)
-                    span.set_attribute("function", func.__name__)
-                    return _execute_traced(span, func, args, kwargs, operation_name, correlation_id, start_time)
+                try:
+                    with tracer.start_as_current_span(operation_name) as span:
+                        span.set_attribute("correlation_id", correlation_id)
+                        span.set_attribute("function", func.__name__)
+                        return _execute_traced(span, func, args, kwargs, operation_name, correlation_id, start_time)
+                except Exception:  # pragma: no cover - defensive: never break the call
+                    logger.warning(
+                        "Span start failed for %s; degrading to log-only",
+                        operation_name,
+                        exc_info=True,
+                    )
             return _execute_traced(None, func, args, kwargs, operation_name, correlation_id, start_time)
 
         return wrapper
@@ -135,7 +157,8 @@ def trace_event_handler(event_type: str) -> Callable[[Callable[..., T]], Callabl
             start_time = time.perf_counter()
 
             logger.debug(
-                f"Event handler started: {event_type}",
+                "Event handler started: %s",
+                event_type,
                 extra={
                     "event_type": event_type,
                     "handler": func.__name__,
@@ -143,14 +166,21 @@ def trace_event_handler(event_type: str) -> Callable[[Callable[..., T]], Callabl
                 },
             )
 
-            tracer = _get_tracer()
+            tracer = _safe_get_tracer()
             span_name = f"event_handler.{event_type}"
             if tracer is not None:
-                with tracer.start_as_current_span(span_name) as span:
-                    span.set_attribute("event_type", event_type)
-                    span.set_attribute("correlation_id", correlation_id)
-                    span.set_attribute("function", func.__name__)
-                    return _execute_traced(span, func, args, kwargs, event_type, correlation_id, start_time)
+                try:
+                    with tracer.start_as_current_span(span_name) as span:
+                        span.set_attribute("event_type", event_type)
+                        span.set_attribute("correlation_id", correlation_id)
+                        span.set_attribute("function", func.__name__)
+                        return _execute_traced(span, func, args, kwargs, event_type, correlation_id, start_time)
+                except Exception:  # pragma: no cover - defensive: never break the call
+                    logger.warning(
+                        "Span start failed for %s; degrading to log-only",
+                        span_name,
+                        exc_info=True,
+                    )
             return _execute_traced(None, func, args, kwargs, event_type, correlation_id, start_time)
 
         return wrapper
@@ -173,7 +203,8 @@ def _execute_traced(
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         logger.debug(
-            f"Operation completed: {operation_name}",
+            "Operation completed: %s",
+            operation_name,
             extra={
                 "operation": operation_name,
                 "function": func.__name__,
@@ -192,8 +223,9 @@ def _execute_traced(
     except Exception as exc:
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        logger.error(
-            f"Operation failed: {operation_name}",
+        logger.exception(
+            "Operation failed: %s",
+            operation_name,
             extra={
                 "operation": operation_name,
                 "function": func.__name__,
@@ -203,7 +235,6 @@ def _execute_traced(
                 "error_message": str(exc),
                 "correlation_id": correlation_id,
             },
-            exc_info=True,
         )
 
         if span is not None:
@@ -236,7 +267,8 @@ class TraceContext:
         self.start_time = time.perf_counter()
 
         logger.debug(
-            f"Trace block started: {self.operation_name}",
+            "Trace block started: %s",
+            self.operation_name,
             extra={
                 "operation": self.operation_name,
                 "correlation_id": self.correlation_id,
@@ -250,8 +282,9 @@ class TraceContext:
         duration_ms = (time.perf_counter() - self.start_time) * 1000
 
         if exc_type is not None:
-            logger.error(
-                f"Trace block failed: {self.operation_name}",
+            logger.exception(
+                "Trace block failed: %s",
+                self.operation_name,
                 extra={
                     "operation": self.operation_name,
                     "duration_ms": round(duration_ms, 2),
@@ -261,11 +294,11 @@ class TraceContext:
                     "correlation_id": self.correlation_id,
                     **self.extra_context,
                 },
-                exc_info=(exc_type, exc_value, traceback),
             )
         else:
             logger.debug(
-                f"Trace block completed: {self.operation_name}",
+                "Trace block completed: %s",
+                self.operation_name,
                 extra={
                     "operation": self.operation_name,
                     "duration_ms": round(duration_ms, 2),

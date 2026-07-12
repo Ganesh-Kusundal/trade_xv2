@@ -107,7 +107,7 @@ class TestDhanGatewayCancelVerification:
     def mock_dhan_gateway(self):
         """Create Dhan gateway with mocked connection."""
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         mock_conn = MagicMock(spec=DhanConnection)
         mock_conn.orders = MagicMock()
@@ -189,7 +189,7 @@ class TestUpstoxGatewayCancelVerification:
     def mock_upstox_gateway(self):
         """Create Upstox gateway with mocked broker and order command."""
         from brokers.upstox.broker import UpstoxBroker
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         # Mock settings directly
         mock_settings = MagicMock()

@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.dhan.execution.orders import OrdersAdapter
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from domain import Order, OrderStatus, Side
 
 

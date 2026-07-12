@@ -76,8 +76,15 @@ class GatewayCapitalProvider(CapitalProvider):
             return self._fallback
 
         try:
-            balance = self._gateway.funds()
-            return balance.available_balance
+            # Prefer ExecutionProvider.get_funds(); fall back to wire .funds().
+            getter = getattr(self._gateway, "get_funds", None)
+            balance = getter() if callable(getter) else self._gateway.funds()
+            avail = getattr(balance, "available_balance", None)
+            if avail is None and isinstance(balance, dict):
+                avail = balance.get("available_balance", balance.get("available_margin"))
+            if avail is None:
+                raise RuntimeError("funds response missing available_balance")
+            return Decimal(str(avail))
         except Exception as exc:
             if self._fail_closed:
                 raise RuntimeError(

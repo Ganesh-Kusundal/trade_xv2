@@ -11,7 +11,7 @@ from typing import Any
 from .auth.config import UpstoxConnectionSettings, UpstoxSettingsLoader
 from .broker import UpstoxBroker as _UpstoxBroker
 from .factory import UpstoxBrokerFactory
-from .gateway import UpstoxBrokerGateway
+from .wire import UpstoxBrokerGateway
 
 
 class UpstoxBroker:
@@ -70,5 +70,12 @@ register_broker_plugin(
         default_mode="market",
         supported_modes=frozenset({"market", "trade"}),
         is_live=True,
+        capabilities_module="brokers.upstox.capabilities.snapshot",
+        capabilities_fn="upstox_capabilities",
     )
 )
+
+from domain.market.segment_registry import register_segment_mapper
+from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+
+register_segment_mapper("upstox", UpstoxSegmentMapper)

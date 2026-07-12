@@ -1,31 +1,28 @@
-"""TradeXV2 Brokers Package — adapter implementations (transport layer).
+"""TradeXV2 Brokers Package — Trading OS market-access layer.
 
-**Product API (preferred)** — use the object model, not gateway classes::
+**Public API (use this)**::
 
-    import tradex
-    session = tradex.connect("paper")  # or "dhan" / "upstox" with process OMS
-    reliance = session.universe.equity("RELIANCE")
-    reliance.quote
-    session.buy(reliance, 10)
+    from brokers.session import BrokerSession
 
-**Transport (ops / legacy)** — concrete gateways live in broker packages::
+    session = BrokerSession.connect("paper")  # or "dhan" / "upstox"
+    stock = session.stock("RELIANCE")
+    stock.refresh()
 
-    from brokers.dhan.gateway import DhanBrokerGateway
-    from brokers.upstox.gateway import UpstoxBrokerGateway
-    from brokers.paper import PaperGateway
+Or via CLI / MCP (same ``brokers.services`` core)::
 
-Import Direction Rule
----------------------
-    domain.ports → protocols (DataProvider, ExecutionProvider, BrokerAdapter)
-    tradex.runtime → platform kernel
-    brokers.dhan / upstox / paper → broker-specific adapters only
-    brokers.common → residual shared contracts/capabilities (no re-export shims)
+    broker quote RELIANCE --broker paper
+    broker verify paper
 
-Never import broker-specific types from ``brokers`` top-level.
-See ``reports/BROKERS_EVOLUTION_PLAN.md``.
+Gateways under ``brokers.dhan.wire`` / ``brokers.upstox.wire`` are
+**private transport shims** — do not import them from product code.
+See ADR-014 and ``brokers/README.md``.
 """
 
 from __future__ import annotations
+
+from brokers._bootstrap import ensure_repo_src
+
+ensure_repo_src()
 
 # Ensure ``src/`` is on sys.path so ``import domain`` resolves (src-layout).
 import sys
@@ -35,4 +32,12 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-__all__: list[str] = []
+__all__ = ["BrokerSession", "available_brokers", "create_session"]
+
+
+def __getattr__(name: str):
+    if name in __all__:
+        from brokers import session as _session
+
+        return getattr(_session, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

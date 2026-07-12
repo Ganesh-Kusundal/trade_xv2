@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
 from domain.entities.order import OrderResponse
 from domain.enums import OrderStatus, OrderType, Side
 from domain.models.dtos import BrokerOrderPayload

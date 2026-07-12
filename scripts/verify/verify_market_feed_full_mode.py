@@ -7,9 +7,9 @@ import time
 from pathlib import Path
 
 repo_root = Path(__file__).parent.parent
-sys.path.insert(0, str(repo_root))
-
-from brokers.dhan.identity.factory import BrokerFactory
+sys.path.insert(0, str(repo_root / "src"))
+sys.path.insert(0, str(repo_root / "scripts"))
+from _connect import bootstrap_or_exit
 
 
 async def main():
@@ -17,9 +17,7 @@ async def main():
     print("DHAN MARKET FEED — FULL MODE VERIFICATION")
     print("=" * 80)
 
-    factory = BrokerFactory()
-    print("\n📦 Creating gateway and loading instruments...")
-    gateway = factory.create(load_instruments=True)
+    gateway = bootstrap_or_exit("dhan", load_instruments=True)
     print("✅ Gateway ready")
 
     test_cases = [

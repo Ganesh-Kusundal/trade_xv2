@@ -12,6 +12,7 @@ from application.oms.risk_manager import RiskConfig
 from infrastructure.bootstrap import (
     build_dead_letter_queue,
     build_event_bus,
+    build_execution_ledger,
     build_order_store,
     build_processed_trade_repository,
 )
@@ -51,6 +52,14 @@ def build_trading_context(
         processed_trade_repository = build_processed_trade_repository()
     if "durable_order_store" not in kwargs:
         kwargs["durable_order_store"] = build_order_store()
+    if "execution_ledger" not in kwargs:
+        from runtime.ledger_policy import resolve_execution_ledger
+
+        ledger = resolve_execution_ledger(builder=build_execution_ledger)
+        from runtime.ledger_policy import require_execution_ledger
+
+        require_execution_ledger(ledger)
+        kwargs["execution_ledger"] = ledger
     if "metrics" not in kwargs:
         from infrastructure.observability.event_metrics import EventMetrics
 

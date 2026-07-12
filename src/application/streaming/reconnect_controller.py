@@ -13,12 +13,12 @@ import uuid
 
 from domain.models.routing import OperationKind, RoutingRequest
 from domain.ports.broker_gateway import BrokerStreamPlan
+from domain.ports.time_service import get_current_clock
 from domain.stream_health import (
     FreshnessState,
     SubscriptionState,
     TransportState,
 )
-from infrastructure.time.clock import time_service
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ class ReconnectController:
         """Periodic heartbeat: detect stale sessions and trigger failover."""
         while self._running():
             await asyncio.sleep(self._HEARTBEAT_INTERVAL_S)
-            now = time_service.now()
+            now = get_current_clock().now()
             for session_id, session in list(self._sessions.items()):
                 self._check_freshness(session_id, session, now)
 
@@ -270,4 +270,6 @@ class ReconnectController:
                 FreshnessState.STALE.value,
                 f"no_valid_data_for_{elapsed:.0f}s",
             )
-            asyncio.create_task(self._notify_health_change(session_id, session.health))
+            self._tasks.append(
+                asyncio.create_task(self._notify_health_change(session_id, session.health))
+            )

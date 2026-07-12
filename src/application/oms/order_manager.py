@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from application.observability import get_logger, trace_operation
+from application.observability import get_logger
 from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_lifecycle import OrderLifecycle, order_as_recon_dict
 from application.oms._internal.order_position_updater import OrderPositionUpdater
@@ -41,16 +41,19 @@ from application.oms.order_validator import OrderValidator as OmsOrderValidator
 from application.oms.risk_manager import RiskManager
 from application.oms.trade_recorder import TradeRecorder
 from domain.entities import Order, Trade
-from domain.events.types import DomainEvent, EventType
+from domain.events.types import DomainEvent
+from domain.execution_contracts import SubmissionState
 from domain.ports import (
     EventBusPort,
     EventMetricsPort,
+    ExecutionLedgerPort,
     MetricsRegistryPort,
     OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
 from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
+from application.observability import trace_operation
 
 if TYPE_CHECKING:
     pass
@@ -102,6 +105,7 @@ class OrderResult:
     success: bool
     order: Order | None = None
     error: str | None = None
+    state: SubmissionState | None = None
 
 
 class OrderManager:
@@ -124,6 +128,7 @@ class OrderManager:
         audit_logger: OrderAuditLogger | None = None,
         position_updater: OrderPositionUpdater | None = None,
         order_store: OrderStorePort | None = None,
+        execution_ledger: ExecutionLedgerPort | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}
@@ -176,6 +181,7 @@ class OrderManager:
             audit_logger=self._audit_logger,
             position_updater=self._position_updater,
             publish_callback=self._publish,
+            execution_ledger=execution_ledger,
         )
         self._lifecycle = OrderLifecycle(
             state_validator=self._state_validator,
@@ -185,6 +191,7 @@ class OrderManager:
             risk_manager=risk_manager,
             publish=self._publish,
             active_orders=self._active_orders,
+            execution_ledger=execution_ledger,
         )
 
     @property
@@ -202,6 +209,12 @@ class OrderManager:
     def set_placement_gate(self, gate_fn: Callable[[], tuple[bool, str | None]]) -> None:
         """Set a callable that gates order placement."""
         self._order_validator.set_placement_gate(gate_fn)
+
+    def _release_pending(self, correlation_id: str | None) -> None:
+        """Release idempotency + risk pending reservations."""
+        self._idempotency_guard.release_pending(self._lock, correlation_id)
+        if self._risk_manager is not None:
+            self._risk_manager.release_pending(correlation_id)
 
     @trace_operation("order_manager.place_order")
     def place_order(
@@ -227,7 +240,7 @@ class OrderManager:
             try:
                 order, rejection = self._order_validator.build_and_validate(order_id, request)
                 if rejection is not None:
-                    self._idempotency_guard.release_pending(self._lock, request.correlation_id)
+                    self._release_pending(request.correlation_id)
                     return rejection
 
                 order, rejection = self._lifecycle.submit_to_broker(
@@ -239,10 +252,10 @@ class OrderManager:
                     submit_fn,
                 )
                 if rejection is not None:
-                    self._idempotency_guard.release_pending(self._lock, request.correlation_id)
+                    self._release_pending(request.correlation_id)
                     return rejection
             except Exception:
-                self._idempotency_guard.release_pending(self._lock, request.correlation_id)
+                self._release_pending(request.correlation_id)
                 raise
 
             self._lifecycle.record_and_publish(
@@ -254,7 +267,7 @@ class OrderManager:
             )
             if self._orders_total is not None:
                 self._orders_total.inc()
-            return OrderResult(success=True, order=order)
+            return OrderResult(success=True, order=order, state=SubmissionState.ACCEPTED)
         finally:
             if self._order_latency is not None:
                 self._order_latency.observe(time.monotonic() - _start)
@@ -264,6 +277,8 @@ class OrderManager:
         self._lifecycle.upsert_order(
             self._lock, self._orders, self._orders_by_correlation, order
         )
+        if self._risk_manager is not None and order.status.is_terminal:
+            self._risk_manager.release_pending(order.correlation_id)
 
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade and update the parent order (idempotent on trade_id)."""
@@ -297,6 +312,7 @@ class OrderManager:
         with self._lock:
             return [order_as_recon_dict(order) for order in self._orders.values()]
 
+    @trace_operation("order_manager.cancel_order")
     def cancel_order(
         self,
         order_id: str,
@@ -341,6 +357,7 @@ class OrderManager:
                     exc,
                 )
 
+    @trace_operation("order_manager.on_trade")
     def on_trade(self, event: DomainEvent) -> bool:
         """Handle broker trade events from the bus."""
         with self._reentrancy_guard() as guard:

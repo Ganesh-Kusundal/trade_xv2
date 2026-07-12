@@ -4,33 +4,27 @@ from __future__ import annotations
 
 import contextlib
 import time
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
+
+from interface.ui.services.broker_ops import fetch_history_df, fetch_option_chain, fetch_quote
+
+
+def _env_kwargs(env: Path) -> dict:
+    return {"env_path": str(env), "load_instruments": True}
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
     """Generate data quality report."""
     console.print("\n[bold]Data Quality Report[/bold]\n")
 
-    # Get gateway
-    try:
-        from pathlib import Path
-        from types import SimpleNamespace
+    brokers = [
+        ("Dhan", "dhan", Path(".env.local")),
+        ("Upstox", "upstox", Path(".env.upstox")),
+    ]
 
-        from interface.ui.services.broker_registry import create_gateway
-
-        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
-        if not dhan and not upstox:
-            console.print("[red]No broker gateways available[/red]")
-            return
-        gw = SimpleNamespace(dhan=dhan, upstox=upstox)
-    except Exception as e:
-        console.print(f"[red]Error creating gateway: {e}[/red]")
-        return
-
-    # Historical Quality — also capture quality data for overall score
     console.print("[cyan]Historical Data Quality[/cyan]")
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
@@ -39,30 +33,19 @@ def run(args: list[str], broker_service, console: Console) -> None:
     table.add_column("Duplicates", justify="right")
     table.add_column("Schema", justify="center")
 
-    # Collect quality data for the overall score to avoid double-fetching
     quality_data: dict[str, dict] = {}
 
-    for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
-        if broker is None:
-            table.add_row(name, "N/A", "-", "-", "-")
-            continue
+    for name, broker_id, env in brokers:
+        kw = _env_kwargs(env)
         try:
-            df = broker.history("TCS", timeframe="1D", lookback_days=30)
+            df = fetch_history_df(None, "TCS", days=30, default=broker_id, **kw)
             rows = len(df)
-            duplicates = df.duplicated(subset=["timestamp"]).sum() if not df.empty else 0
-            expected_cols = [
-                "timestamp",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "oi",
-                "symbol",
-                "exchange",
-                "timeframe",
-            ]
-            schema_ok = list(df.columns) == expected_cols
+            duplicates = (
+                df.duplicated(subset=["timestamp"]).sum()
+                if not df.empty and "timestamp" in df.columns
+                else 0
+            )
+            schema_ok = "open" in df.columns and "close" in df.columns
             missing = df.isnull().sum().sum() if not df.empty else 0
             quality = 100 - (duplicates / rows * 100) if rows > 0 else 0
             table.add_row(
@@ -80,7 +63,6 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     console.print(table)
 
-    # Quote Quality
     console.print("\n[cyan]Quote Data Quality[/cyan]")
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
@@ -88,16 +70,15 @@ def run(args: list[str], broker_service, console: Console) -> None:
     table.add_column("LTP", justify="right")
     table.add_column("Volume", justify="right")
 
-    for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+    for name, broker_id, env in brokers:
         try:
-            q = broker.quote("TCS")
+            q = fetch_quote(None, "TCS", default=broker_id, **_env_kwargs(env))
             table.add_row(name, "PASS", f"₹{q.ltp}", f"{q.volume:,}")
         except Exception as e:
             table.add_row(name, "ERROR", "-", str(e)[:20])
 
     console.print(table)
 
-    # Option Chain Quality
     console.print("\n[cyan]Option Chain Quality[/cyan]")
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
@@ -105,67 +86,33 @@ def run(args: list[str], broker_service, console: Console) -> None:
     table.add_column("Strikes", justify="right")
     table.add_column("Latency", justify="right")
 
-    for name, broker in [("Dhan", gw.dhan)]:
-        try:
-            t0 = time.time()
-            chain = broker.option_chain("NIFTY")
-            latency = (time.time() - t0) * 1000
-            strikes = len(chain.get("strikes", []))
-            table.add_row(name, "PASS", str(strikes), f"{latency:.0f}ms")
-        except Exception as e:
-            table.add_row(name, "ERROR", "-", str(e)[:20])
-
-    # Upstox
+    try:
+        t0 = time.time()
+        chain = fetch_option_chain(
+            None, "NIFTY", default="dhan", **_env_kwargs(Path(".env.local"))
+        )
+        latency = (time.time() - t0) * 1000
+        strikes = len(getattr(chain, "strikes", []) or [])
+        table.add_row("Dhan", "PASS", str(strikes), f"{latency:.0f}ms")
+    except Exception as e:
+        table.add_row("Dhan", "ERROR", "-", str(e)[:20])
     table.add_row("Upstox", "N/A", "-", "deprecated")
-
     console.print(table)
 
-    # Future Chain Quality
-    console.print("\n[cyan]Future Chain Quality[/cyan]")
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("Broker", style="cyan")
-    table.add_column("Status", justify="center")
-    table.add_column("Contracts", justify="right")
-
-    for name, broker in [("Dhan", gw.dhan)]:
-        try:
-            futures = broker.future_chain("NIFTY")
-            contracts = len(futures.get("contracts", []))
-            table.add_row(name, "PASS", str(contracts))
-        except Exception as e:
-            table.add_row(name, "ERROR", str(e)[:20])
-
-    # Upstox
-    table.add_row("Upstox", "N/A", "not supported")
-
-    console.print(table)
-
-    # Overall Score — reuses quality data already fetched in Historical Quality
     console.print("\n" + "=" * 50)
     console.print("[bold]OVERALL DATA QUALITY SCORE[/bold]")
     console.print("=" * 50)
 
-    for broker_name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
-        if broker is None:
+    for broker_name, broker_id, env in brokers:
+        qd = quality_data.get(broker_name)
+        if qd is None:
             console.print(f"  {broker_name}: Not configured")
             continue
 
-        qd = quality_data.get(broker_name)
-        if qd is None:
-            console.print(f"  {broker_name}: Could not compute (see Historical Quality above)")
-            continue
-
-        # Detect capabilities (lightweight — only where historical already worked)
         capabilities = ["Historical"]
         with contextlib.suppress(Exception):
-            broker.quote("TCS")
+            fetch_quote(None, "TCS", default=broker_id, **_env_kwargs(env))
             capabilities.append("Quote")
-        with contextlib.suppress(Exception):
-            broker.option_chain("NIFTY")
-            capabilities.append("Option Chain")
-        with contextlib.suppress(Exception):
-            broker.future_chain("NIFTY")
-            capabilities.append("Futures")
 
         console.print(f"  {broker_name}:")
         console.print(

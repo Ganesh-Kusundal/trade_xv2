@@ -20,11 +20,20 @@ class PortfolioCheck(CheckStrategy):
             results.append(CheckResult("Portfolio", "FAIL", "No broker service available"))
             return results
 
-        gw = broker_service.active_broker
+        from interface.ui.services.active_session import get_active_session
+        from interface.ui.services.market_access import refresh_account
+
+        session = get_active_session(broker_service)
+        try:
+            acct = refresh_account(session)
+            positions = acct.positions
+            holdings = acct.holdings
+            balance = acct.funds
+        finally:
+            session.close()
 
         # Positions
         try:
-            positions = gw.positions()
             results.append(
                 CheckResult(
                     "Positions",
@@ -37,7 +46,6 @@ class PortfolioCheck(CheckStrategy):
 
         # Holdings
         try:
-            holdings = gw.holdings()
             results.append(
                 CheckResult(
                     "Holdings",
@@ -50,7 +58,6 @@ class PortfolioCheck(CheckStrategy):
 
         # Balance / Funds
         try:
-            balance = gw.funds()
             available = getattr(balance, "available_balance", None)
             sod = getattr(balance, "sod_limit", None)
             if available is not None:

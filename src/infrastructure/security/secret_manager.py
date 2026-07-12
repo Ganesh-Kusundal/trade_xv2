@@ -76,11 +76,7 @@ class SecretManager:
                 self._fernet = None
                 self._key = None
         else:
-            logger.warning(
-                "SECRET_ENCRYPTION_KEY not set - token state files will be unencrypted. "
-                "Generate a key with: python -c 'from cryptography.fernet import Fernet; "
-                "print(Fernet.generate_key().decode())'"
-            )
+            logger.debug("SECRET_ENCRYPTION_KEY not set — token stores use plaintext JSON")
 
     @property
     def is_encryption_enabled(self) -> bool:

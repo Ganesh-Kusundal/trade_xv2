@@ -141,8 +141,8 @@ def test_paper_execution_provider_registered():
     assert ep.name == "paper"
 
 
-def test_cli_broker_registry_reexports_create_gateway():
-    from interface.ui.services.broker_registry import create_gateway as cli_cg
-    from infrastructure.gateway.factory import create_gateway as runtime_cg
+def test_cli_broker_registry_reexports_require_gateway():
+    from interface.ui.services.broker_registry import require_gateway as cli_rg
+    from infrastructure.gateway.factory import require_gateway as runtime_rg
 
-    assert cli_cg is runtime_cg
+    assert cli_rg is runtime_rg

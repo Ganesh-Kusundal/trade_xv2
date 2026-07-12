@@ -20,11 +20,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
 from domain.constants import DEFAULT_STOP_TIMEOUT_SECONDS
 from domain.lifecycle_health import HealthState, HealthStatus
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class LifecycleManager:
             self._last_health[name] = HealthStatus(
                 state=HealthState.STOPPED,
                 service=name,
-                last_check=datetime.now(timezone.utc),
+                last_check=get_current_clock().now(),
                 detail="registered",
             )
             start_all_invoked = self._start_all_invoked
@@ -199,7 +199,7 @@ class LifecycleManager:
                     HealthStatus(
                         state=HealthState.FAILED,
                         service=name,
-                        last_check=datetime.now(timezone.utc),
+                        last_check=get_current_clock().now(),
                         detail="start failed",
                     ),
                 ).to_dict()
@@ -208,7 +208,7 @@ class LifecycleManager:
                 status = HealthStatus(
                     state=HealthState.STOPPED,
                     service=name,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=get_current_clock().now(),
                     detail="not started",
                 )
                 with self._lock:
@@ -221,7 +221,7 @@ class LifecycleManager:
                 status = HealthStatus(
                     state=HealthState.FAILED,
                     service=name,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=get_current_clock().now(),
                     detail=f"health() raised: {type(exc).__name__}: {exc}",
                 )
             with self._lock:
@@ -265,7 +265,7 @@ class LifecycleManager:
                 self._last_health[name] = HealthStatus(
                     state=HealthState.FAILED,
                     service=name,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=get_current_clock().now(),
                     detail=f"start raised: {type(exc).__name__}: {exc}",
                 )
 
@@ -300,7 +300,7 @@ class LifecycleManager:
                 self._last_health[name] = HealthStatus(
                     state=HealthState.FAILED,
                     service=name,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=get_current_clock().now(),
                     detail=f"stop did not return within {timeout:.1f}s",
                 )
             return
@@ -315,7 +315,7 @@ class LifecycleManager:
                 self._last_health[name] = HealthStatus(
                     state=HealthState.FAILED,
                     service=name,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=get_current_clock().now(),
                     detail=f"stop raised: {container['err']}",
                 )
             return
@@ -333,7 +333,7 @@ class LifecycleManager:
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
-from domain.lifecycle_health import build_health  # noqa: F401 — re-export for backward compat
+from domain.lifecycle_health import build_health  # noqa: F401, E402 — re-export for backward compat
 
 
 def now_monotonic() -> float:

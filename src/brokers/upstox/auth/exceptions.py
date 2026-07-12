@@ -25,6 +25,10 @@ class UpstoxApiError(BrokerError):
         return f"UpstoxApiError(message={self._message!r}, status_code={self.status_code!r})"
 
 
+class UpstoxFundsMaintenanceError(UpstoxApiError):
+    """Raised when Upstox funds API returns HTTP 423 (overnight maintenance window)."""
+
+
 class UpstoxAuthError(UpstoxApiError):
     """Raised during Upstox OAuth / token lifecycle errors."""
 

@@ -300,7 +300,7 @@ class _UpstoxUrls:
         return f"{self._v2()}/portfolio/long-term-holdings"
 
     def funds_url(self) -> str:
-        return f"{self._v2()}/user/get-funds-and-margin"
+        return self.user_fund_margin_v3_url()
 
     def convert_position_url(self) -> str:
         return f"{self._v2()}/portfolio/convert-position"
@@ -393,7 +393,7 @@ class _UpstoxUrls:
         return f"{self._v2()}/user/ip"
 
     def user_fund_margin_v3_url(self) -> str:
-        return f"{self._v3()}/user/fund-margin"
+        return f"{self._v3()}/user/get-funds-and-margin"
 
     # ── Payments (v2) ───────────────────────────────────────────────────
     def payouts_url(self) -> str:

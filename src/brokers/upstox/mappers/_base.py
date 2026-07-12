@@ -137,8 +137,9 @@ def segment_from_wire(segment: str) -> ExchangeSegment:
 
 
 def segment_to_wire(segment: ExchangeSegment) -> str:
-    from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
-    return UpstoxSegmentMapper.to_wire(segment)
+    from brokers.upstox.instruments.segment_mapper import _to_wire
+
+    return _to_wire(segment)
 
 
 def instrument_type_from_wire(raw: str) -> InstrumentType:

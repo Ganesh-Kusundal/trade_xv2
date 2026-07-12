@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.exceptions import UpstoxApiError
+from brokers.upstox.auth.exceptions import UpstoxApiError, UpstoxFundsMaintenanceError
 from brokers.upstox.auth.http import UpstoxHttpClient
 
 
@@ -148,4 +148,38 @@ def test_rate_limit_bucket_mapping():
     assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/long-term-holdings") == "holdings"
     assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/short-term-positions") == "positions"
     assert _rate_limit_bucket("https://api.upstox.com/v2/user/get-funds-and-margin") == "funds"
+    assert _rate_limit_bucket("https://api.upstox.com/v3/user/get-funds-and-margin") == "funds"
     assert _rate_limit_bucket("https://api.upstox.com/v2/user/profile") == "admin"
+
+
+def test_http_client_injects_api_version_for_v3():
+    session = MagicMock()
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.text = '{"status": "success", "data": {}}'
+    session.request.return_value = resp
+    settings = UpstoxConnectionSettings(client_id="CID")
+    client = UpstoxHttpClient(token_provider=lambda: "TOK", settings=settings, session=session)
+    client.get_json("https://api.upstox.com/v3/user/get-funds-and-margin")
+    headers = session.request.call_args.kwargs["headers"]
+    assert headers["Api-Version"] == "3.0"
+
+
+def test_http_client_raises_funds_maintenance_on_423():
+    session = MagicMock()
+    resp = MagicMock()
+    resp.status_code = 423
+    resp.text = "Locked"
+    session.request.return_value = resp
+    settings = UpstoxConnectionSettings(client_id="CID")
+    client = UpstoxHttpClient(token_provider=lambda: "TOK", settings=settings, session=session)
+    with pytest.raises(UpstoxFundsMaintenanceError) as excinfo:
+        client.get_json("https://api.upstox.com/v3/user/get-funds-and-margin")
+    assert excinfo.value.status_code == 423
+
+
+def test_funds_url_points_to_v3():
+    from config.endpoints import Upstox
+
+    urls = Upstox.production()
+    assert urls.funds_url() == "https://api.upstox.com/v3/user/get-funds-and-margin"

@@ -34,68 +34,58 @@ async def health_check():
     )
 
 
-@router.get("/readyz", response_model=ReadinessResponse, summary="Readiness probe")
-async def readiness_check():
-    """Check if the API server is ready to serve traffic.
-
-    Verifies container services and, when live broker intent is set,
-    production readiness checks aligned with the CLI live path.
-    Returns 503 if any critical service is unavailable.
-    """
+async def _readiness_probe() -> ReadinessResponse:
+    """Shared readiness logic for ``/readyz`` and ``/ready``."""
+    from application.services.api_readiness import evaluate_api_readiness
     from interface.api.deps import get_container
-
-    checks = {}
-    all_ready = False
 
     try:
         container = get_container()
-        checks["datalake_gateway"] = container.datalake_gateway is not None
-        checks["view_manager"] = container.view_manager is not None
-        checks["data_catalog"] = container.data_catalog is not None
-        checks["event_bus"] = container.event_bus is not None
-        all_ready = all(checks.values())
-
-        broker_service = getattr(container, "broker_service", None)
-        live_intent = broker_service is not None and getattr(broker_service, "_live_intent", False)
-        if live_intent and broker_service is not None:
-            from application.services.production_readiness import (
-                ProductionReadinessChecker,
-            )
-
-            report = ProductionReadinessChecker(broker_service).run()
-            checks["production_readiness"] = report.passed
-            checks["production_readiness_summary"] = report.summary()
-            if not report.passed:
-                checks["production_readiness_failed"] = report.failed
-            all_ready = all_ready and report.passed
-        elif broker_service is not None:
-            checks["live_broker"] = getattr(broker_service, "live_actionable", False)
-
-        if not all_ready:
-            failed = [k for k, v in checks.items() if v is False]
-            logger.warning("Readiness check failed: %s", failed)
-
+        report = evaluate_api_readiness(container)
     except Exception as exc:
         logger.exception("Readiness check failed with exception")
-        checks["error"] = str(exc)
-        checks["container_initialized"] = False
-        all_ready = False
-
-    if not all_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "ready": False,
-                "checks": checks,
+                "checks": [{"id": "container", "status": "failed", "message": str(exc)}],
+                "message": "Service not ready for traffic",
+            },
+        ) from exc
+
+    if not report.ready:
+        failed = [c.id for c in report.checks if c.status != "passed"]
+        logger.warning("Readiness check failed: %s", failed)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "ready": False,
+                "checks": report.to_dict()["checks"],
                 "message": "Service not ready for traffic",
             },
         )
 
     return ReadinessResponse(
-        ready=all_ready,
-        checks=checks,
+        ready=report.ready,
+        checks=report.as_bool_map(),
         timestamp=datetime.now(timezone.utc),
     )
+
+
+@router.get("/readyz", response_model=ReadinessResponse, summary="Readiness probe")
+async def readiness_check():
+    """Check if the API server is ready to serve traffic.
+
+    Verifies event bus, OMS context, reconciliation gate, and broker session.
+    Returns 503 if any critical gate is unavailable.
+    """
+    return await _readiness_probe()
+
+
+@router.get("/ready", response_model=ReadinessResponse, summary="Readiness probe (alias)")
+async def readiness_alias():
+    """Alias for ``/readyz`` (DEVELOPER-PLATFORM §health endpoints)."""
+    return await _readiness_probe()
 
 
 @router.get("/metrics", response_model=dict)

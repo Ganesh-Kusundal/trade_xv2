@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_ROOT / "src"))
+sys.path.insert(0, str(_ROOT))
 
 from rich.console import Console
 
@@ -19,16 +21,28 @@ from infrastructure.config.env_loader import load_env_file
 console = Console()
 
 
+def _bootstrap_gateway(broker: str, env_path: Path):
+    from infrastructure.gateway.factory import bootstrap_gateway
+
+    result = bootstrap_gateway(
+        broker,
+        env_path=env_path,
+        load_instruments=True,
+        require_authenticated=True,
+    )
+    if not result.live_ready or result.gateway is None:
+        return None
+    return result.gateway
+
+
 def test_instrument_key_resolution():
     """Test that symbol resolver returns correct instrument keys."""
-    from interface.ui.services.broker_registry import create_gateway
-
     env_path = Path(".env.upstox")
     load_env_file(env_path)
 
     console.print("\n[bold]Test 1: Instrument Key Resolution[/bold]\n")
 
-    gw = create_gateway("upstox", env_path=env_path, load_instruments=True)
+    gw = _bootstrap_gateway("upstox", env_path)
     if not gw:
         console.print("[red]✗ Gateway creation failed[/red]")
         return False
@@ -69,14 +83,12 @@ def test_instrument_key_resolution():
 
 def test_historical_api():
     """Test historical API with resolved instrument keys."""
-    from interface.ui.services.broker_registry import create_gateway
-
     env_path = Path(".env.upstox")
     load_env_file(env_path)
 
     console.print("\n[bold]Test 2: Historical API Calls[/bold]\n")
 
-    gw = create_gateway("upstox", env_path=env_path, load_instruments=True)
+    gw = _bootstrap_gateway("upstox", env_path)
     if not gw:
         console.print("[red]✗ Gateway creation failed[/red]")
         return False
@@ -107,14 +119,12 @@ def test_historical_api():
 
 def test_edge_cases():
     """Test edge cases that should produce warnings."""
-    from interface.ui.services.broker_registry import create_gateway
-
     env_path = Path(".env.upstox")
     load_env_file(env_path)
 
     console.print("\n[bold]Test 3: Edge Cases (Should Warn)[/bold]\n")
 
-    gw = create_gateway("upstox", env_path=env_path, load_instruments=True)
+    gw = _bootstrap_gateway("upstox", env_path)
     if not gw:
         console.print("[red]✗ Gateway creation failed[/red]")
         return False

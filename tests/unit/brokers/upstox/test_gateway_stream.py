@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
-from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxBrokerGateway
 from domain import Quote, MarketDepth
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 """Upstox reconciliation: drift detection between local OMS and Upstox state.
 
-Mirrors Trade_J ``UpstoxReconciliationService``.
+Uses shared :class:`domain.reconciliation_engine.ReconciliationEngine` (parity
+with Dhan). Broker fetch + repair remain Upstox-specific.
 """
 
 from __future__ import annotations
@@ -10,81 +11,14 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from brokers.common.recon_local import local_orders_as_domain, local_positions_as_domain
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
+from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from domain import DriftItem, OrderStatus, ReconciliationReport
+from domain import DriftItem, ReconciliationReport
+from domain.reconciliation_engine import ReconciliationEngine
 
 logger = logging.getLogger(__name__)
-
-
-class ReconciliationDrift:
-    def __init__(self) -> None:
-        self.items: list[DriftItem] = []
-
-    def compare_orders(self, local: list[dict[str, Any]], upstox: list[dict[str, Any]]) -> None:
-        local_by_id = {str(o.get("order_id")): o for o in local}
-        upstox_by_id = {str(o.get("order_id")): o for o in upstox}
-        for oid, order in upstox_by_id.items():
-            if oid not in local_by_id:
-                self.items.append(
-                    DriftItem(
-                        kind="missing_local_order",
-                        severity="HIGH",
-                        details=f"Upstox order {oid} not present in local OMS",
-                        payload=order,
-                    )
-                )
-        for oid, order in local_by_id.items():
-            if oid not in upstox_by_id:
-                status = str(order.get("status", "")).upper()
-                if status in (OrderStatus.OPEN.value, "PENDING", "TRIGGER_PENDING"):
-                    continue
-                self.items.append(
-                    DriftItem(
-                        kind="missing_upstox_order",
-                        severity="MEDIUM",
-                        details=f"Local order {oid} not present in Upstox state",
-                        payload=order,
-                    )
-                )
-
-    def compare_positions(
-        self,
-        local: list[dict[str, Any]],
-        upstox: list[dict[str, Any]],
-    ) -> None:
-        local_by_key = {
-            (str(p.get("exchange_segment")), str(p.get("trading_symbol"))): p for p in local
-        }
-        upstox_by_key = {
-            (str(p.get("exchange_segment")), str(p.get("trading_symbol"))): p for p in upstox
-        }
-        for key, pos in upstox_by_key.items():
-            local_pos = local_by_key.get(key)
-            if local_pos is None:
-                self.items.append(
-                    DriftItem(
-                        kind="missing_local_position",
-                        severity="HIGH",
-                        details=f"Upstox position {key} not present locally",
-                        payload=pos,
-                    )
-                )
-                continue
-            try:
-                local_qty = int(local_pos.get("net_quantity") or local_pos.get("quantity") or 0)
-                upstox_qty = int(pos.get("net_quantity") or pos.get("quantity") or 0)
-            except (TypeError, ValueError):
-                continue
-            if local_qty != upstox_qty:
-                self.items.append(
-                    DriftItem(
-                        kind="position_quantity_mismatch",
-                        severity="HIGH",
-                        details=f"Position {key}: local={local_qty} upstox={upstox_qty}",
-                        payload={"local": local_pos, "upstox": pos},
-                    )
-                )
 
 
 def create_reconciliation_service(
@@ -103,9 +37,7 @@ def create_reconciliation_service(
 
 
 class UpstoxReconciliationService:
-    """Run on boot, every 5 min, and on WS reconnect. Compares OMS state
-    to Upstox's authoritative state and repairs drift (with safety guards).
-    """
+    """Compare OMS state to Upstox authoritative state via ReconciliationEngine."""
 
     def __init__(
         self,
@@ -122,44 +54,80 @@ class UpstoxReconciliationService:
 
     def reconcile(
         self,
+        local_orders: list[Any] | None = None,
+        local_positions: list[Any] | None = None,
         *,
         on_drift: Callable[[ReconciliationReport], None] | None = None,
     ) -> ReconciliationReport:
-        drift = ReconciliationDrift()
         report = ReconciliationReport(timestamp_ms=int(time.time() * 1000))
+        drift: list[DriftItem] = []
 
         try:
-            upstox_orders = self._order_client.get_order_list()
+            broker_orders = [
+                UpstoxDomainMapper.to_order(row)
+                for row in self._order_client.get_order_list()
+                if isinstance(row, dict)
+            ]
+            report.broker_orders = len(broker_orders)
         except Exception as exc:
             logger.warning("Reconciliation: could not fetch Upstox orders: %s", exc)
-            upstox_orders = []
+            broker_orders = []
+            drift.append(
+                DriftItem(
+                    kind="fetch_error",
+                    severity="HIGH",
+                    details=f"Failed to fetch Upstox orders: {exc}",
+                )
+            )
+
         try:
-            upstox_positions = self._portfolio_client.get_short_term_positions()
+            broker_positions = [
+                UpstoxDomainMapper.to_position(row)
+                for row in self._portfolio_client.get_short_term_positions()
+                if isinstance(row, dict)
+            ]
+            report.broker_positions = len(broker_positions)
         except Exception as exc:
             logger.warning("Reconciliation: could not fetch Upstox positions: %s", exc)
-            upstox_positions = []
+            broker_positions = []
+            drift.append(
+                DriftItem(
+                    kind="fetch_error",
+                    severity="HIGH",
+                    details=f"Failed to fetch Upstox positions: {exc}",
+                )
+            )
 
-        local_orders = self._oms_orders() if self._oms is not None else []
-        local_positions = self._oms_positions() if self._oms is not None else []
+        if local_orders is None:
+            local_orders = self._oms_orders() if self._oms is not None else []
+        if local_positions is None:
+            local_positions = self._oms_positions() if self._oms is not None else []
 
-        drift.compare_orders(local_orders, upstox_orders)
-        drift.compare_positions(local_positions, upstox_positions)
+        local_order_domain = local_orders_as_domain(local_orders)
+        local_position_domain = local_positions_as_domain(local_positions)
 
-        report.drift_items = list(drift.items)
+        engine = ReconciliationEngine()
+        if local_order_domain is not None:
+            drift += engine.compare_orders(local_order_domain, broker_orders)
+        if local_position_domain is not None:
+            drift += engine.compare_positions(local_position_domain, broker_positions)
+
+        report.drift_items = drift
         orders_repaired = 0
         positions_repaired = 0
         if self._auto_repair:
-            for item in drift.items:
+            for item in drift:
                 if item.severity != "HIGH":
                     continue
                 if item.kind == "missing_local_order":
-                    orders_repaired += self._repair_missing_order(item.payload)
+                    orders_repaired += self._repair_missing_order(item.payload or {})
                 elif item.kind == "position_quantity_mismatch":
-                    positions_repaired += self._repair_position_drift(item.payload)
+                    positions_repaired += self._repair_position_drift(item.payload or {})
+
         report.orders_repaired = orders_repaired
         report.positions_repaired = positions_repaired
 
-        if on_drift is not None and drift.items:
+        if on_drift is not None and drift:
             try:
                 on_drift(report)
             except (ValueError, KeyError, ConnectionError, TimeoutError) as exc:
@@ -167,47 +135,31 @@ class UpstoxReconciliationService:
 
         return report
 
-    def _oms_orders(self) -> list[dict[str, Any]]:
+    def _oms_orders(self) -> list[Any]:
         if self._oms is None:
             return []
-        method = getattr(self._oms, "get_all_orders", None)
-        if method is None:
-            return []
-        try:
-            return method()
-        except (ValueError, KeyError, ConnectionError, TimeoutError):
-            return []
+        for name in ("get_orders", "get_all_orders"):
+            method = getattr(self._oms, name, None)
+            if method is None:
+                continue
+            try:
+                return method()
+            except (ValueError, KeyError, ConnectionError, TimeoutError):
+                return []
+        return []
 
-    def _oms_positions(self) -> list[dict[str, Any]]:
+    def _oms_positions(self) -> list[Any]:
         if self._oms is None:
             return []
-        # Prefer get_positions_as_dicts() for dict-compatible format
-        method = getattr(self._oms, "get_positions_as_dicts", None)
-        if method is not None:
+        for name in ("get_positions", "get_positions_as_dicts"):
+            method = getattr(self._oms, name, None)
+            if method is None:
+                continue
             try:
                 return method()
             except Exception as exc:
-                logger.debug("oms_get_positions_as_dicts_failed: %s", exc)
-        # Fallback to get_positions()
-        method = getattr(self._oms, "get_positions", None)
-        if method is None:
-            return []
-        try:
-            result = method()
-            # Convert Position objects to dicts if needed
-            if result and not isinstance(result[0], dict):
-                return [
-                    {
-                        "exchange_segment": getattr(p, "exchange", ""),
-                        "trading_symbol": getattr(p, "symbol", ""),
-                        "net_quantity": getattr(p, "quantity", 0),
-                        "avg_price": str(getattr(p, "avg_price", "0")),
-                    }
-                    for p in result
-                ]
-            return result
-        except (ValueError, KeyError, ConnectionError, TimeoutError):
-            return []
+                logger.debug("oms_get_positions_failed via %s: %s", name, exc)
+        return []
 
     def _repair_missing_order(self, payload: dict[str, Any]) -> int:
         if self._oms is None:
@@ -228,8 +180,8 @@ class UpstoxReconciliationService:
         if method is None:
             return 0
         try:
-            upstox = payload.get("upstox") or {}
-            method(upstox)
+            broker_pos = payload.get("broker") or payload.get("upstox") or payload
+            method(broker_pos)
             return 1
         except (ValueError, KeyError, ConnectionError, TimeoutError):
             return 0

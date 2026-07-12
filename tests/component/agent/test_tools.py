@@ -212,3 +212,73 @@ def test_no_allowlist_configured_permits_any_symbol():
     tools = AgentTools(session)  # default guardrails, no allowlist
 
     tools.get_quote("ANYTHING")  # must not raise
+
+
+# ── Self-diagnosis tools (DR-F3) wire to the existing doctor/diagnostics ─────
+
+
+def test_diagnose_returns_structured_report(monkeypatch):
+    import brokers.diagnostics.doctor as doctor_mod
+    from types import SimpleNamespace
+
+    fake_report = SimpleNamespace(
+        broker_id="paper",
+        overall="PASS",
+        checks=[SimpleNamespace(name="Auth", status=SimpleNamespace(value="PASS"), detail="ok")],
+    )
+    monkeypatch.setattr(doctor_mod, "run_doctor", lambda broker: fake_report)
+
+    session, _ = _fake_session()
+    tools = AgentTools(session)
+
+    result = tools.diagnose("paper")
+
+    assert result["broker"] == "paper"
+    assert result["overall"] == "PASS"
+    assert result["checks"][0]["name"] == "Auth"
+    assert result["checks"][0]["status"] == "PASS"
+
+
+def test_diagnose_stream_reports_subscription_status(monkeypatch):
+    import brokers.diagnostics.core as core_mod
+    import brokers.session as session_mod
+    from types import SimpleNamespace
+
+    fake_session = SimpleNamespace(close=lambda: None, broker_id="paper")
+    monkeypatch.setattr(session_mod, "BrokerSession", lambda broker: fake_session)
+
+    sub_check = SimpleNamespace(
+        name="Subscription", status=SimpleNamespace(value="PASS"), detail="sub active"
+    )
+    report = SimpleNamespace(checks=[sub_check])
+    monkeypatch.setattr(
+        core_mod,
+        "BrokerDiagnostics",
+        lambda s: SimpleNamespace(run_all_checks=lambda: report),
+    )
+
+    session, _ = _fake_session()
+    tools = AgentTools(session)
+
+    result = tools.diagnose_stream("paper")
+
+    assert result["ok"] is True
+    assert result["check"]["name"] == "Subscription"
+    assert result["broker"] == "paper"
+
+
+def test_check_readiness_reports_not_ready_when_container_missing(monkeypatch):
+    import interface.api.deps as deps_mod
+
+    def _boom() -> None:
+        raise RuntimeError("not initialized")
+
+    monkeypatch.setattr(deps_mod, "get_container", _boom)
+
+    session, _ = _fake_session()
+    tools = AgentTools(session)
+
+    result = tools.check_readiness()
+
+    assert result["ready"] is False
+    assert "error" in result

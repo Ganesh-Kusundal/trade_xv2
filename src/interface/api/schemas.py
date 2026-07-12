@@ -210,7 +210,14 @@ class ScannerSnapshot(BaseModel):
     intraday_score: float
     signal: str  # BUY, SELL, BREAKOUT, NEUTRAL
     trend: str  # Bullish, Bearish, Neutral
-    rsi_14: float | None = None
+    momentum_5d_pct: float | None = Field(
+        default=None,
+        description="5-day price change %; not RSI.",
+    )
+    rsi_14: float | None = Field(
+        default=None,
+        description="True RSI(14) when sourced from feature views; absent on intraday snapshot.",
+    )
     roc_5: float | None = None
     relative_volume: float | None = None
     day_high: float | None = None
@@ -433,6 +440,8 @@ class BacktestResultResponse(BaseModel):
     timeframe: str
     metrics: BacktestMetrics
     trades: list[dict[str, Any]] | None = None
+    research_mode: str = "pure_sim"
+    research_only: bool = True
 
 
 # ── Portfolio & Order Schemas ────────────────────────────────────────────────

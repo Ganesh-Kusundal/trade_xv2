@@ -15,6 +15,7 @@ from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain import Order
 from domain.ports.broker_gateway import OrderTransportPort
+from application.observability import trace_operation
 
 
 class ExecutionService:
@@ -52,6 +53,7 @@ class ExecutionService:
     def _live_submit_fn(self) -> Callable[[OmsOrderCommand], Order]:
         return make_gateway_submit_fn(self._gateway)
 
+    @trace_operation("execution.place_order")
     def place_order(
         self,
         command: OmsOrderCommand,
@@ -78,6 +80,7 @@ class ExecutionService:
             submit_fn=submit_fn,
         ).execute(command)
 
+    @trace_operation("execution.cancel_order")
     def cancel_order(self, order_id: str) -> OrderResult:
         """Cancel an order through CancelOrderUseCase → OMS."""
         return CancelOrderUseCase(self._ctx.order_manager).execute(order_id)

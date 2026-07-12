@@ -14,8 +14,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.upstox.gateway import UpstoxBrokerGateway
-from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live
+from brokers.upstox.wire import UpstoxBrokerGateway
+from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live, skip_live_market_hours
 from domain import MarketDepth, Quote
 
 pytestmark = pytest.mark.live_readonly
@@ -23,9 +23,17 @@ pytestmark = pytest.mark.live_readonly
 
 @pytest.fixture(scope="module")
 def live_gateway() -> UpstoxBrokerGateway:
-    from brokers.upstox.factory import UpstoxBrokerFactory
+    from infrastructure.gateway.factory import bootstrap_gateway
 
-    gw = UpstoxBrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
+    result = bootstrap_gateway(
+        "upstox",
+        env_path=ENV_PATH,
+        load_instruments=True,
+        require_authenticated=True,
+    )
+    if not result.live_ready or result.gateway is None:
+        pytest.skip(f"Upstox bootstrap failed: {result.error or result.status.value}")
+    gw = result.gateway
     yield gw
     gw.close()
 
@@ -69,7 +77,7 @@ class TestUpstoxQuoteContract:
 
 
 class TestUpstoxDepthContract:
-    @skip_live
+    @skip_live_market_hours
     def test_depth_returns_bids_and_asks(self, live_gateway):
         depth = live_gateway.depth("RELIANCE", "NSE")
         assert isinstance(depth, MarketDepth)

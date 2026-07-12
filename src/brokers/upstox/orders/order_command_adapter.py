@@ -53,9 +53,8 @@ class UpstoxOrderCommandAdapter:
         self._risk_manager = risk_manager
 
     def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
-        # NOTE: Exception policy divergence (F-20, P1) -- this adapter
-        # returns OrderResponse.fail() on errors; Dhan's OrdersAdapter
-        # raises OrderError. The gateway layer unifies both.
+        from domain.errors import OrderError
+
         if request.correlation_id and self._idempotency_cache is not None:
             cached = self._idempotency_cache.get(request.correlation_id)
             if cached is not None:
@@ -65,17 +64,17 @@ class UpstoxOrderCommandAdapter:
             preview_order = self._to_domain_order(request)
             risk_result = self._risk_manager.check_order(preview_order)
             if not risk_result.allowed:
-                return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
+                raise OrderError(f"Risk check failed: {risk_result.reason}")
 
         instrument_key = self._resolve_instrument_key(request)
         if not instrument_key:
-            return OrderResponse.fail(
+            raise OrderError(
                 f"Cannot resolve Upstox instrument_key for {request.symbol!r}"
             )
 
         preview = self.preview_order(request)
         if not preview.valid:
-            return OrderResponse.fail("; ".join(preview.errors))
+            raise OrderError("; ".join(preview.errors))
 
         payload = self._order_client.build_place_payload(
             request,
@@ -89,11 +88,13 @@ class UpstoxOrderCommandAdapter:
             else:
                 result = self._order_client.place_order_v2(payload)
         except (RuntimeError, OSError) as exc:
-            return OrderResponse.fail(str(exc))
+            raise OrderError(str(exc)) from exc
 
         response = UpstoxDomainMapper.to_order_response(result)
         if response.success:
             self._publish_order_placed(request, response)
+        elif response.message:
+            raise OrderError(response.message)
         if request.correlation_id and self._idempotency_cache is not None and response.success:
             self._idempotency_cache.put(request.correlation_id, response)
         return response
@@ -221,10 +222,6 @@ class UpstoxOrderCommandAdapter:
         return OrderPreview(valid=not errors, errors=errors)
 
     def _resolve_instrument_key(self, request: BrokerOrderPayload) -> str | None:
-        # Prefer instrument_key if caller already set one
-        if request.security_id and request.security_id != "":
-            seg_wire = UpstoxDomainMapper.segment_to_wire(request.exchange_segment)
-            return f"{seg_wire}|{request.security_id}"
         seg_wire = UpstoxDomainMapper.segment_to_wire(request.exchange_segment)
         definition = self._instrument_resolver.resolve(
             symbol=request.symbol, exchange_segment=seg_wire

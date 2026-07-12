@@ -5,6 +5,7 @@ snake_case field names. Broker adapters can provide their own implementations
 of the FieldMapping protocol for broker-specific field names.
 """
 
+from domain.constants.market import DEFAULT_EXCHANGE
 from domain.entities import FieldMapping
 
 
@@ -31,7 +32,7 @@ class DefaultFieldMapping(FieldMapping):
         return str(data.get("tradingSymbol", data.get("symbol", "")))
 
     def map_exchange(self, data: dict) -> str:
-        return str(data.get("exchangeSegment", data.get("exchange", "NSE")))
+        return str(data.get("exchangeSegment", data.get("exchange", DEFAULT_EXCHANGE)))
 
     def map_side(self, data: dict) -> str:
         return str(data.get("transactionType", data.get("side", "BUY"))).upper()

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _resolve_tradex_python() -> str:
@@ -90,7 +90,13 @@ def run_cli(tradex_python: str, project_root: Path, tmp_path: Path):
         expect_exit_override: int | None = None,
     ) -> CliResult:
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(project_root) + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join(
+            [
+                str(project_root / "src"),
+                str(project_root),
+                env.get("PYTHONPATH", ""),
+            ]
+        )
         # Force isolated, deterministic caching per test
         env["XDG_CACHE_HOME"] = str(tmp_path / "cache")
         env["HOME"] = str(tmp_path)  # isolate ~/.cache, .env, etc.
@@ -217,7 +223,11 @@ def _seed_empty_state(tmp_path: Path) -> None:
         conn.commit()
         conn.close()
 
-    # DuckDB catalog — empty file is enough; DuckDB opens it on demand.
+    # DuckDB catalog — must be a valid empty database (not a zero-byte file).
     catalog = journal_dir / "catalog.duckdb"
     if not catalog.exists():
-        catalog.touch()
+        import duckdb
+
+        conn = duckdb.connect(str(catalog))
+        conn.execute("SELECT 1")
+        conn.close()

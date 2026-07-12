@@ -10,26 +10,38 @@ from interface.ui.services.compose import build_for_api
 from runtime.trading_runtime_factory import TradingRuntimeFactory
 
 
+@pytest.fixture(autouse=True)
+def _clear_risk_fail_open(monkeypatch):
+    monkeypatch.delenv("RISK_FAIL_OPEN", raising=False)
+    yield
+    monkeypatch.delenv("RISK_FAIL_OPEN", raising=False)
+
+
+def test_build_for_api_wires_real_broker_service_with_composition_bus():
+    """API bootstrap uses create_api_event_bus and real BrokerService."""
+    runtime = build_for_api(skip_parity_gate=True)
+    try:
+        assert runtime.broker_service is not None
+        assert runtime.event_bus is not None
+        assert runtime.event_bus is runtime.broker_service._event_bus
+    finally:
+        runtime.broker_service.close()
+
+
 def test_build_for_api_uses_composition_module():
-    """API bootstrap must use runtime.composition.create_api_event_bus."""
-    mock_bus = MagicMock()
-    mock_bs = MagicMock()
+    """create_api_event_bus must be invoked during API bootstrap."""
+    from runtime.composition import create_api_event_bus as real_create
+
     with patch(
         "runtime.composition.create_api_event_bus",
-        return_value=(mock_bus, None),
+        wraps=real_create,
     ) as create_bus:
-        with patch(
-            "interface.ui.services.broker_service.BrokerService",
-            return_value=mock_bs,
-        ):
-            with patch.object(
-                TradingRuntimeFactory,
-                "build_from_broker_service",
-                return_value=MagicMock(),
-            ) as build_from_bs:
-                build_for_api()
-    create_bus.assert_called_once()
-    build_from_bs.assert_called_once_with(mock_bs)
+        runtime = build_for_api(skip_parity_gate=True)
+        try:
+            create_bus.assert_called_once()
+            assert runtime.event_bus is runtime.broker_service._event_bus
+        finally:
+            runtime.broker_service.close()
 
 
 def test_authorize_risk_fail_open_requires_explicit_env(monkeypatch):
@@ -62,3 +74,4 @@ def test_authorize_risk_fail_open_sets_env_when_explicitly_opted_in(monkeypatch)
     with patch("runtime.production_config.validate_production_config"):
         factory.build_from_broker_service(bs)
     assert __import__("os").environ.get("RISK_FAIL_OPEN") == "1"
+    monkeypatch.delenv("RISK_FAIL_OPEN", raising=False)

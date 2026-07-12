@@ -36,7 +36,7 @@ defaults:
 # ── Common job template (env + steps) ─────────────────────────────────────
 
 env:
-  PYTHONPATH: .
+  PYTHONPATH: src
   PIP_QUIET: "1"
 
 jobs:
@@ -72,10 +72,10 @@ jobs:
 
       - name: Run off-market regression suite
         run: |
-          python -m pytest \
+          PYTHONPATH=src python -m pytest \
             -m "dhan and off_market_safe and regression" \
-            brokers/dhan/tests/integration/test_regression_suite.py \
-            brokers/dhan/tests/regression/test_e2e_smoke.py \
+            tests/integration/brokers/dhan/regression/ \
+            tests/integration/brokers/dhan/regression/test_e2e_smoke.py \
             --tb=short -v \
             --junitxml=reports/off_market_regression.xml \
             --timeout=120
@@ -83,7 +83,7 @@ jobs:
       - name: Generate regression report
         if: always()
         run: |
-          python scripts/dhan_regression_report.py \
+          python scripts/audit/dhan_regression_report.py \
             --junit reports/off_market_regression.xml \
             --output docs/audits/DHAN_REGRESSION_REPORT.md \
             --fail-on P0
@@ -128,10 +128,10 @@ jobs:
 
       - name: Run market-hours regression suite
         run: |
-          python -m pytest \
+          PYTHONPATH=src python -m pytest \
             -m "dhan and market_hours and regression" \
-            brokers/dhan/tests/integration/test_regression_suite.py \
-            brokers/dhan/tests/regression/test_e2e_smoke.py \
+            tests/integration/brokers/dhan/regression/ \
+            tests/integration/brokers/dhan/regression/test_e2e_smoke.py \
             --tb=short -v \
             --junitxml=reports/market_hours_regression.xml \
             --timeout=120
@@ -177,7 +177,7 @@ jobs:
           python -m pytest \
             -m sandbox \
             tests/e2e/test_sandbox_real_broker.py \
-            cli/tests/test_order_sandbox_integration.py \
+            tests/component/ui/test_order_sandbox_integration.py \
             --tb=short -v \
             --junitxml=reports/sandbox_orders.xml \
             --timeout=60
@@ -219,16 +219,16 @@ jobs:
 
       - name: Run full regression suite (pre-release gate)
         run: |
-          PRE_PROD_GATE=1 python -m pytest \
+          PRE_PROD_GATE=1 PYTHONPATH=src python -m pytest \
             -m "dhan and regression" \
-            brokers/dhan/tests/integration/ \
+            tests/integration/brokers/dhan/ \
             --tb=short -v \
             --junitxml=reports/pre_release_regression.xml \
             --timeout=180
 
       - name: Enforce P0 capability gate
         run: |
-          python scripts/dhan_regression_report.py \
+          python scripts/audit/dhan_regression_report.py \
             --junit reports/pre_release_regression.xml \
             --output docs/audits/DHAN_REGRESSION_REPORT.md \
             --fail-on P0

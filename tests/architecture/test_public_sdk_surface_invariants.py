@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 def test_broker_gateways_importable() -> None:
-    import brokers.dhan.gateway  # noqa: F401
-    import brokers.upstox.gateway  # noqa: F401
+    import brokers.dhan.wire  # noqa: F401
+    import brokers.upstox.wire  # noqa: F401
 
 
 def test_single_instrument_state_export() -> None:

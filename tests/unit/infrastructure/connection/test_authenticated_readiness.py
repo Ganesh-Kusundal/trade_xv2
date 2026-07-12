@@ -89,6 +89,7 @@ class TestUpstoxAuthenticatedProbe:
         tm = MagicMock()
         tm.bearer_token.return_value = "dead-token"
         tm.oauth_client.fetch_profile.return_value = -1
+        tm.oauth_client.validate_read_only_token.return_value = False
         broker.token_manager = tm
         gw._broker = broker
         gw.funds.return_value = MagicMock()
@@ -104,6 +105,7 @@ class TestUpstoxAuthenticatedProbe:
         tm = MagicMock()
         tm.bearer_token.return_value = "dead-token"
         tm.oauth_client.fetch_profile.return_value = -1
+        tm.oauth_client.validate_read_only_token.return_value = False
         broker.token_manager = tm
         gw._broker = broker
         gw.funds.side_effect = Exception("HTTP 401 unauthorized")
@@ -112,6 +114,42 @@ class TestUpstoxAuthenticatedProbe:
         assert not result.ok
         assert result.probe_name == "upstox.funds"
         assert result.token_rejected is True
+
+    def test_funds_423_with_valid_market_status_succeeds(self):
+        from brokers.upstox.auth.exceptions import UpstoxFundsMaintenanceError
+
+        gw = MagicMock()
+        broker = MagicMock()
+        tm = MagicMock()
+        tm.bearer_token.return_value = "valid-token"
+        tm.oauth_client.fetch_profile.return_value = -1
+        tm.oauth_client.validate_read_only_token.return_value = True
+        broker.token_manager = tm
+        gw._broker = broker
+        gw.funds.side_effect = UpstoxFundsMaintenanceError(
+            "Upstox funds service is down for maintenance (12:00 AM–5:30 AM IST)",
+            423,
+            "",
+        )
+
+        result = execute_read_only_probe(gw, "upstox")
+        assert result.ok
+        assert result.probe_name == "upstox.profile_or_market_status"
+        assert result.token_rejected is False
+
+    def test_profile_without_expiry_succeeds(self):
+        gw = MagicMock()
+        broker = MagicMock()
+        tm = MagicMock()
+        tm.bearer_token.return_value = "tok"
+        tm.oauth_client.fetch_profile.return_value = 0
+        broker.token_manager = tm
+        gw._broker = broker
+
+        result = execute_read_only_probe(gw, "upstox")
+        assert result.ok
+        assert result.probe_name == "upstox.profile"
+        gw.funds.assert_not_called()
 
 
 class TestAuthManagerForceRefresh:
@@ -187,7 +225,7 @@ class TestBootstrapLiveReady:
         gw.funds.return_value = MagicMock()
 
         monkeypatch.setattr(
-            "infrastructure.gateway.factory.create_gateway",
+            "infrastructure.gateway.factory._create_transport_gateway",
             lambda *a, **k: gw,
         )
         monkeypatch.setattr(
@@ -218,7 +256,7 @@ class TestBootstrapLiveReady:
         gw._conn = conn
 
         monkeypatch.setattr(
-            "infrastructure.gateway.factory.create_gateway",
+            "infrastructure.gateway.factory._create_transport_gateway",
             lambda *a, **k: gw,
         )
         monkeypatch.setattr(

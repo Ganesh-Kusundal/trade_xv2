@@ -29,9 +29,9 @@ def test_all_gateways_implement_abc_methods() -> None:
         if getattr(obj, "__isabstractmethod__", False):
             abc_methods.add(name)
 
-    from brokers.dhan.gateway import DhanBrokerGateway
+    from brokers.dhan.wire import DhanBrokerGateway
     from brokers.paper.paper_gateway import PaperGateway
-    from brokers.upstox.gateway import UpstoxBrokerGateway
+    from brokers.upstox.wire import UpstoxBrokerGateway
 
     for gw_cls in (DhanBrokerGateway, UpstoxBrokerGateway, PaperGateway):
         for method_name in abc_methods:

@@ -44,7 +44,7 @@ class DhanDepth200Extension(Extension):
 
     @property
     def capabilities(self) -> tuple[Capability, ...]:
-        return (Capability(name="depth_200", supported=True),)
+        return (Capability.DEPTH_200,)
 
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return instrument_id.exchange in self._NSE_SEGMENTS

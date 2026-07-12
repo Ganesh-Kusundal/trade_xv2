@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.identity.factory import BrokerFactory
-from brokers.dhan.gateway import DhanBrokerGateway
+from brokers.dhan.wire import DhanBrokerGateway
+from infrastructure.gateway.factory import bootstrap_gateway
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 ENV_PATH = _PROJECT_ROOT / ".env.local"
@@ -45,7 +45,15 @@ def live_gateway() -> DhanBrokerGateway:
             ".env.local with DHAN_CLIENT_ID required for Dhan regression tests"
         )
 
-    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
+    result = bootstrap_gateway(
+        "dhan",
+        env_path=ENV_PATH,
+        load_instruments=True,
+        require_authenticated=True,
+    )
+    if not result.live_ready or result.gateway is None:
+        pytest.skip(f"Dhan bootstrap failed: {result.error or result.status.value}")
+    gw = result.gateway
     yield gw
     with contextlib.suppress(Exception):
         gw.close()

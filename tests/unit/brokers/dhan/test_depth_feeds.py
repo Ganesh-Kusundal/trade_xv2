@@ -342,7 +342,7 @@ class TestDhanDepth200Feed:
 
 
 def _make_offline_gateway():
-    from brokers.dhan.gateway import DhanBrokerGateway
+    from brokers.dhan.wire import DhanBrokerGateway
     from brokers.dhan.resolver import SymbolResolver
 
     resolver = SymbolResolver()

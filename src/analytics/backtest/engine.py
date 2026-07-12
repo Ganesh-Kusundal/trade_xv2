@@ -27,7 +27,6 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
-import numpy as np
 import pandas as pd
 
 from analytics.backtest.models import (
@@ -40,6 +39,7 @@ from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.engine import ReplayEngine
 from analytics.replay.models import ReplayResult, SimulatedTrade
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.analytics.statistics import StatisticsEngine, TradeStatistics
 
 logger = logging.getLogger(__name__)
 
@@ -162,229 +162,69 @@ class BacktestEngine:
         replay: ReplayResult,
         benchmark: pd.DataFrame | None = None,
     ) -> PerformanceMetrics:
-        """Compute all performance metrics from replay result."""
+        """Compute all performance metrics via the standalone StatisticsEngine."""
         session = replay.session
         config = self._config
 
         metrics = PerformanceMetrics()
 
-        # Basic return
-        if session.equity_curve:
-            initial = session.equity_curve[0][1]
-            final = session.current_equity
-            metrics.total_return = final - initial
-            metrics.total_return_pct = ((final / initial) - 1) if initial > 0 else 0.0
+        initial = session.equity_curve[0][1] if session.equity_curve else 0.0
+        final = session.current_equity
 
-            # CAGR
-            if len(session.equity_curve) >= 2:
-                years = len(session.equity_curve) / config.annualization_factor
-                if years > 0 and initial > 0:
-                    metrics.cagr = (final / initial) ** (1 / years) - 1
+        computed = StatisticsEngine.compute(
+            session.equity_curve,
+            session.trades,
+            initial=initial,
+            final=final,
+            annualization_factor=config.annualization_factor,
+            risk_free_rate=config.risk_free_rate,
+            benchmark=benchmark,
+        )
 
-        # Trade analysis
-        metrics.trade_analysis = self._analyze_trades(session.trades)
+        metrics.total_return = computed["total_return"]
+        metrics.total_return_pct = computed["total_return_pct"]
+        metrics.cagr = computed["cagr"]
+        metrics.volatility = computed.get("volatility", 0.0)
+        metrics.sharpe_ratio = computed.get("sharpe_ratio", 0.0)
+        metrics.sortino_ratio = computed.get("sortino_ratio", 0.0)
+        metrics.max_drawdown = computed["max_drawdown"]
+        metrics.max_drawdown_duration = computed["max_drawdown_duration"]
+        metrics.calmar_ratio = computed["calmar_ratio"]
+        metrics.trade_analysis = self._trade_analysis_from_stats(computed["trade_analysis"])
 
-        # Risk metrics from equity curve
-        if len(session.equity_curve) >= 2:
-            equities = np.array([eq for _, eq in session.equity_curve])
-            returns = np.diff(equities) / equities[:-1]
-            returns = returns[np.isfinite(returns)]
-
-            if len(returns) > 0:
-                # Volatility (annualized)
-                metrics.volatility = float(np.std(returns) * np.sqrt(config.annualization_factor))
-
-                # Sharpe ratio
-                rf_per_bar = config.risk_free_rate / config.annualization_factor
-                excess_returns = returns - rf_per_bar
-                if np.std(excess_returns) > 0:
-                    metrics.sharpe_ratio = float(
-                        np.mean(excess_returns)
-                        / np.std(excess_returns)
-                        * np.sqrt(config.annualization_factor)
-                    )
-
-                # Sortino ratio (downside deviation only)
-                downside = returns[returns < 0]
-                if len(downside) > 0 and np.std(downside) > 0:
-                    metrics.sortino_ratio = float(
-                        np.mean(excess_returns)
-                        / np.std(downside)
-                        * np.sqrt(config.annualization_factor)
-                    )
-
-                # Max drawdown
-                peak = np.maximum.accumulate(equities)
-                drawdown = (peak - equities) / peak
-                drawdown = drawdown[np.isfinite(drawdown)]
-                if len(drawdown) > 0:
-                    metrics.max_drawdown = float(np.max(drawdown))
-
-                # Max drawdown duration
-                peak_idx = np.argmax(equities)
-                trough_idx = (
-                    np.argmin(equities[peak_idx:]) + peak_idx
-                    if peak_idx < len(equities)
-                    else len(equities) - 1
-                )
-                metrics.max_drawdown_duration = int(trough_idx - peak_idx)
-
-        # Calmar ratio
-        if metrics.max_drawdown > 0:
-            metrics.calmar_ratio = metrics.cagr / metrics.max_drawdown
-
-        # Benchmark comparison
-        if benchmark is not None and not benchmark.empty:
-            bench_metrics = self._compute_benchmark_metrics(session.equity_curve, benchmark, config)
-            metrics.alpha = bench_metrics.get("alpha", 0.0)
-            metrics.beta = bench_metrics.get("beta", 0.0)
-            metrics.benchmark_return = bench_metrics.get("benchmark_return", 0.0)
-            metrics.tracking_error = bench_metrics.get("tracking_error", 0.0)
-            metrics.information_ratio = bench_metrics.get("information_ratio", 0.0)
+        for key in ("alpha", "beta", "benchmark_return", "tracking_error", "information_ratio"):
+            if key in computed:
+                setattr(metrics, key, computed[key])
 
         return metrics
 
-    def _analyze_trades(self, trades: list[SimulatedTrade]) -> TradeAnalysis:
-        """Analyze all completed trades."""
-        analysis = TradeAnalysis()
-        if not trades:
-            return analysis
-
-        analysis.total_trades = len(trades)
-
-        wins = [t for t in trades if t.pnl > 0]
-        losses = [t for t in trades if t.pnl <= 0]
-
-        analysis.winning_trades = len(wins)
-        analysis.losing_trades = len(losses)
-        analysis.win_rate = len(wins) / len(trades) if trades else 0.0
-
-        # Win/loss amounts
-        if wins:
-            analysis.avg_win = float(np.mean([t.pnl for t in wins]))
-            analysis.avg_win_pct = float(np.mean([t.pnl_pct for t in wins]))
-            analysis.largest_win = float(max(t.pnl for t in wins))
-        if losses:
-            analysis.avg_loss = float(np.mean([t.pnl for t in losses]))
-            analysis.avg_loss_pct = float(np.mean([t.pnl_pct for t in losses]))
-            analysis.largest_loss = float(min(t.pnl for t in losses))
-
-        # Profit factor
-        total_wins = sum(t.pnl for t in wins)
-        total_losses = abs(sum(t.pnl for t in losses))
-        analysis.profit_factor = (
-            total_wins / total_losses
-            if total_losses > 0
-            else float("inf")
-            if total_wins > 0
-            else 0.0
-        )
-
-        # Payoff ratio
-        analysis.payoff_ratio = (
-            analysis.avg_win / abs(analysis.avg_loss) if analysis.avg_loss != 0 else 0.0
-        )
-
-        # Expected value
-        analysis.expected_value = (
-            analysis.win_rate * analysis.avg_win + (1 - analysis.win_rate) * analysis.avg_loss
-        )
-
-        # Total PnL
-        analysis.total_pnl = float(sum(t.pnl for t in trades))
-        analysis.total_pnl_pct = float(sum(t.pnl_pct for t in trades))
-
-        # Consecutive wins/losses
-        max_wins = max_losses = current_wins = current_losses = 0
-        for t in trades:
-            if t.pnl > 0:
-                current_wins += 1
-                current_losses = 0
-                max_wins = max(max_wins, current_wins)
-            else:
-                current_losses += 1
-                current_wins = 0
-                max_losses = max(max_losses, current_losses)
-        analysis.max_consecutive_wins = max_wins
-        analysis.max_consecutive_losses = max_losses
-
-        # Holding period — use total_seconds for intraday accuracy.
-        # delta.days returns 0 for same-day trades, understating duration.
-        holding_days = []
-        for t in trades:
-            if t.entry_time and t.exit_time:
-                delta = t.exit_time - t.entry_time
-                holding_days.append(delta.total_seconds() / 86400.0)
-        analysis.avg_holding_bars = float(np.mean(holding_days)) if holding_days else 0.0
-
-        # Trades by strategy
-        strategy_counts: dict[str, int] = {}
-        for t in trades:
-            strategy_counts[t.strategy] = strategy_counts.get(t.strategy, 0) + 1
-        analysis.trades_by_strategy = strategy_counts
-
-        return analysis
-
     @staticmethod
-    def _compute_benchmark_metrics(
-        equity_curve: list,
-        benchmark: pd.DataFrame,
-        config: BacktestConfig,
-    ) -> dict[str, float]:
-        """Compute alpha, beta, IR vs benchmark."""
-        if not equity_curve or benchmark.empty:
-            return {}
-
-        # Build benchmark returns
-        ts_col = (
-            "timestamp"
-            if "timestamp" in benchmark.columns
-            else "date"
-            if "date" in benchmark.columns
-            else None
-        )
-        if ts_col is None or "close" not in benchmark.columns:
-            return {}
-
-        bench = benchmark.sort_values(ts_col)
-        bench_returns = bench["close"].pct_change().dropna().values
-
-        # Strategy returns from equity curve
-        equities = np.array([eq for _, eq in equity_curve])
-        strat_returns = np.diff(equities) / equities[:-1]
-        strat_returns = strat_returns[np.isfinite(strat_returns)]
-
-        # Align lengths
-        min_len = min(len(strat_returns), len(bench_returns))
-        if min_len < 2:
-            return {}
-        strat_returns = strat_returns[:min_len]
-        bench_returns = bench_returns[:min_len]
-
-        # Beta = Cov(strat, bench) / Var(bench)
-        cov = np.cov(strat_returns, bench_returns)
-        beta = cov[0, 1] / cov[1, 1] if cov[1, 1] > 0 else 0.0
-
-        # Alpha = Strat_mean - risk_free - beta * (Bench_mean - risk_free)
-        rf = config.risk_free_rate / config.annualization_factor
-        alpha = float(np.mean(strat_returns) - rf - beta * (np.mean(bench_returns) - rf))
-
-        # Information Ratio = (Strat_mean - Bench_mean) / Tracking Error
-        tracking_diff = strat_returns - bench_returns
-        tracking_error = float(np.std(tracking_diff) * np.sqrt(config.annualization_factor))
-        ir = (
-            float((np.mean(strat_returns) - np.mean(bench_returns)) / np.std(tracking_diff))
-            if np.std(tracking_diff) > 0
-            else 0.0
+    def _trade_analysis_from_stats(stats: TradeStatistics) -> TradeAnalysis:
+        """Copy pure :class:`TradeStatistics` into the analytics ``TradeAnalysis``."""
+        return TradeAnalysis(
+            total_trades=stats.total_trades,
+            winning_trades=stats.winning_trades,
+            losing_trades=stats.losing_trades,
+            win_rate=stats.win_rate,
+            avg_win=stats.avg_win,
+            avg_loss=stats.avg_loss,
+            avg_win_pct=stats.avg_win_pct,
+            avg_loss_pct=stats.avg_loss_pct,
+            largest_win=stats.largest_win,
+            largest_loss=stats.largest_loss,
+            avg_holding_bars=stats.avg_holding_bars,
+            profit_factor=stats.profit_factor,
+            expected_value=stats.expected_value,
+            payoff_ratio=stats.payoff_ratio,
+            max_consecutive_wins=stats.max_consecutive_wins,
+            max_consecutive_losses=stats.max_consecutive_losses,
+            total_pnl=stats.total_pnl,
+            total_pnl_pct=stats.total_pnl_pct,
+            trades_by_strategy=stats.trades_by_strategy,
+            avg_entry_confidence=stats.avg_entry_confidence,
         )
 
-        # Benchmark total return
-        bench_total = float((bench_returns + 1).prod() - 1)
-
-        return {
-            "alpha": alpha,
-            "beta": float(beta),
-            "benchmark_return": bench_total,
-            "tracking_error": tracking_error,
-            "information_ratio": ir,
-        }
+    def _analyze_trades(self, trades: list[SimulatedTrade]) -> TradeAnalysis:
+        """Analyze all completed trades (delegates to the StatisticsEngine)."""
+        stats = StatisticsEngine.analyze_trades(trades)
+        return self._trade_analysis_from_stats(stats)

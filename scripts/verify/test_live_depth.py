@@ -18,9 +18,9 @@ from dotenv import load_dotenv
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from brokers.dhan.identity.factory import BrokerFactory
+sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root / "scripts"))
+from _connect import bootstrap_or_exit
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.logging_config import configure_logging
@@ -40,7 +40,8 @@ def test_depth_20_live():
     event_bus = EventBus()
 
     # Create gateway from factory
-    gateway = BrokerFactory().create(
+    gateway = bootstrap_or_exit(
+        "dhan",
         lifecycle=lifecycle,
         event_bus=event_bus,
     )
@@ -88,7 +89,8 @@ def test_depth_200_live():
     event_bus = EventBus()
 
     # Create gateway from factory
-    gateway = BrokerFactory().create(
+    gateway = bootstrap_or_exit(
+        "dhan",
         lifecycle=lifecycle,
         event_bus=event_bus,
     )
@@ -131,7 +133,7 @@ def test_basic_connection():
     logger.info("TESTING BASIC DHAN CONNECTION")
     logger.info("=" * 60)
 
-    gateway = BrokerFactory().create()
+    gateway = bootstrap_or_exit("dhan", load_instruments=True)
 
     try:
         # Test LTP

@@ -7,9 +7,9 @@ import time
 from pathlib import Path
 
 repo_root = Path(__file__).parent.parent
-sys.path.insert(0, str(repo_root))
-
-from brokers.upstox.factory import UpstoxBrokerFactory
+sys.path.insert(0, str(repo_root / "src"))
+sys.path.insert(0, str(repo_root / "scripts"))
+from _connect import bootstrap_or_exit
 
 
 async def main():
@@ -18,9 +18,7 @@ async def main():
     print("=" * 80)
 
     try:
-        factory = UpstoxBrokerFactory()
-        print("\n📦 Creating Upstox gateway and loading instruments...")
-        gateway = factory.create(load_instruments=True)
+        gateway = bootstrap_or_exit("upstox", load_instruments=True)
         print("✅ Gateway created")
     except Exception as e:
         print(f"❌ Failed to create gateway: {e}")

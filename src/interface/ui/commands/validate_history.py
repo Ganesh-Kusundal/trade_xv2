@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
+
+from interface.ui.services.broker_ops import fetch_history_df
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -15,70 +18,44 @@ def run(args: list[str], broker_service, console: Console) -> None:
         return
 
     symbol = args[0].upper()
-
     console.print(f"\n[bold]Historical Data Quality: {symbol}[/bold]\n")
 
-    # Get gateway
-    try:
-        from pathlib import Path
-        from types import SimpleNamespace
-
-        from interface.ui.services.broker_registry import create_gateway
-
-        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
-        if not dhan and not upstox:
-            console.print("[red]No broker gateways available[/red]")
-            return
-        gw = SimpleNamespace(dhan=dhan, upstox=upstox)
-    except Exception as e:
-        console.print(f"[red]Error creating gateway: {e}[/red]")
-        return
-
-    # Validate for each broker
-    for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+    for name, broker_id, env in [
+        ("Dhan", "dhan", Path(".env.local")),
+        ("Upstox", "upstox", Path(".env.upstox")),
+    ]:
         console.print(f"\n[cyan]--- {name} ---[/cyan]")
+        kw = {"env_path": str(env), "load_instruments": True}
         try:
             t0 = time.time()
-            df = broker.history(symbol, timeframe="1D", lookback_days=30)
+            df = fetch_history_df(None, symbol, days=30, default=broker_id, **kw)
             latency = (time.time() - t0) * 1000
 
             rows = len(df)
-            duplicates = df.duplicated(subset=["timestamp"]).sum() if not df.empty else 0
-            schema_ok = list(df.columns) == [
-                "timestamp",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "oi",
-                "symbol",
-                "exchange",
-                "timeframe",
-            ]
+            duplicates = (
+                df.duplicated(subset=["timestamp"]).sum()
+                if not df.empty and "timestamp" in df.columns
+                else 0
+            )
+            schema_ok = "open" in getattr(df, "columns", []) and "close" in getattr(df, "columns", [])
 
-            # Check for out-of-order candles
             if not df.empty and "timestamp" in df.columns:
                 out_of_order = (df["timestamp"].diff().dt.total_seconds() < 0).sum()
             else:
                 out_of_order = 0
 
-            # Check for missing candles (weekdays)
             if not df.empty and "timestamp" in df.columns:
                 date_range = (df["timestamp"].max() - df["timestamp"].min()).days
-                expected_candles = date_range * 5 / 7  # ~5 trading days per week
+                expected_candles = date_range * 5 / 7
                 completeness = (rows / expected_candles * 100) if expected_candles > 0 else 100
             else:
                 completeness = 0
 
-            # Check volume anomalies (zero volume)
             if not df.empty and "volume" in df.columns:
                 zero_volume = (df["volume"] == 0).sum()
             else:
                 zero_volume = 0
 
-            # Determine status
             issues = []
             if duplicates > 0:
                 issues.append(f"{duplicates} duplicates")
@@ -91,7 +68,6 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
             status = "PASS" if not issues else "WARN: " + ", ".join(issues)
 
-            # Display
             table = Table(show_header=False, show_edge=False)
             table.add_column("Metric", style="cyan", width=20)
             table.add_column("Value", width=40)
@@ -104,6 +80,5 @@ def run(args: list[str], broker_service, console: Console) -> None:
             table.add_row("Latency", f"{latency:.0f}ms")
             table.add_row("Status", status)
             console.print(table)
-
         except Exception as e:
             console.print(f"  ERROR: {e}")

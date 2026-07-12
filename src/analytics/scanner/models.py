@@ -63,6 +63,8 @@ class Candidate:
     score: Decimal
     reasons: list[str] = field(default_factory=list)
     metrics: dict[str, Decimal] = field(default_factory=dict)
+    exchange: str = "NSE"
+    candidate_id: str = ""
 
     def __post_init__(self) -> None:
         if not Decimal("0") <= self.score <= Decimal("100"):
@@ -139,6 +141,7 @@ class BaseScanner:
     top_n: int = 10
     event_bus: Any | None = None
     _candidates: list[Candidate] = field(default_factory=list, init=False, repr=False)
+    _scan_run_id: str = field(default="", init=False, repr=False)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
         """Default scan: compute features, score, rank. Override for custom logic.
@@ -164,6 +167,11 @@ class BaseScanner:
         P5.1: Avoid unnecessary .copy() — pipeline.run() already returns
         a new DataFrame, so we can safely mutate it in-place downstream.
         """
+        if not self._scan_run_id:
+            from domain.correlation import generate_correlation_id
+
+            self._scan_run_id = generate_correlation_id()
+
         df = universe
         # Ensure symbol column exists — use index as symbol if missing
         if "symbol" not in df.columns:
@@ -204,8 +212,13 @@ class BaseScanner:
                 if not pd.isna(getattr(row, col, None))
             }
 
+            symbol = str(getattr(row, "symbol", "UNKNOWN"))
+            exchange = str(getattr(row, "exchange", "NSE"))
+            candidate_id = f"{self.name}:{exchange}:{symbol}:{self._scan_run_id}"
             candidate = Candidate(
-                symbol=str(getattr(row, "symbol", "UNKNOWN")),
+                symbol=symbol,
+                exchange=exchange,
+                candidate_id=candidate_id,
                 score=_to_decimal(score_val),
                 reasons=reasons,
                 metrics=metrics,
@@ -219,6 +232,8 @@ class BaseScanner:
                     EventType.CANDIDATE_GENERATED.value,
                     payload={
                         "symbol": candidate.symbol,
+                        "exchange": candidate.exchange,
+                        "candidate_id": candidate.candidate_id,
                         "score": candidate.score,
                         "reason": ", ".join(candidate.reasons),
                     },

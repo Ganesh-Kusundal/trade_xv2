@@ -91,6 +91,8 @@ class TestBacktestRunRealEngine:
             assert "run_id" in data
             assert data["symbol"] == "RELIANCE"
             assert data["timeframe"] == "1d"
+            assert data["research_mode"] == "pure_sim"
+            assert data["research_only"] is True
             metrics = data["metrics"]
             assert "total_return_pct" in metrics
             assert "sharpe_ratio" in metrics

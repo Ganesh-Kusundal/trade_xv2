@@ -162,5 +162,86 @@ class AgentTools:
         self._guardrails.check_rate_limit("order")
         return self._session.modify(order_id, **changes)
 
+    # ── Self-diagnosis tools (wire to existing doctor/diagnostics) ─────────
+
+    def diagnose(self, broker: str = "paper") -> dict[str, Any]:
+        """Run the standard broker ``doctor`` environment pre-flight and return
+        its structured report (overall verdict + per-check status/detail).
+
+        Surfaces the exact same diagnostics CLI/MCP use — no re-implementation —
+        so an agent can self-diagnose connectivity/auth/data/permissions before
+        attempting live actions.
+        """
+        self._guardrails.check_rate_limit("read")
+        from brokers.diagnostics.doctor import run_doctor
+
+        report = run_doctor(broker)
+        return {
+            "broker": report.broker_id,
+            "overall": report.overall,
+            "checks": [
+                {"name": c.name, "status": c.status.value, "detail": c.detail}
+                for c in report.checks
+            ],
+        }
+
+    def diagnose_stream(self, broker: str = "paper") -> dict[str, Any]:
+        """Run the broker streaming/subscription diagnostic and return its result.
+
+        Exercises the live quote/subscription path (the same checks the broker
+        ``doctor`` runs for the ``Subscription`` gate) so an agent can verify a
+        stream can be opened before relying on WebSocket market data.
+        """
+        self._guardrails.check_rate_limit("read")
+        from brokers.diagnostics.core import BrokerDiagnostics
+        from brokers.session import BrokerSession
+
+        try:
+            session = BrokerSession(broker)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "broker": broker,
+                "ok": False,
+                "detail": f"{type(exc).__name__}: {exc}",
+            }
+        try:
+            report = BrokerDiagnostics(session).run_all_checks()
+            stream = next(
+                (c for c in report.checks if c.name == "Subscription"), None
+            )
+            return {
+                "broker": broker,
+                "ok": stream is not None and stream.status.value == "PASS",
+                "check": (
+                    {"name": stream.name, "status": stream.status.value, "detail": stream.detail}
+                    if stream is not None
+                    else None
+                ),
+                "all_checks": [
+                    {"name": c.name, "status": c.status.value, "detail": c.detail}
+                    for c in report.checks
+                ],
+            }
+        finally:
+            session.close()
+
+    def check_readiness(self) -> dict[str, Any]:
+        """Report platform readiness using the same gate as the ``/ready``
+        endpoint. Lets an agent self-diagnose deploy-readiness (event bus, OMS,
+        reconciliation gate, broker session) before acting."""
+        self._guardrails.check_rate_limit("read")
+        from application.services.api_readiness import evaluate_api_readiness
+        from interface.api.deps import get_container
+
+        try:
+            container = get_container()
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ready": False,
+                "checks": {},
+                "error": f"service container not initialized: {exc}",
+            }
+        return evaluate_api_readiness(container).to_dict()
+
 
 __all__ = ["AgentTools", "DryRunResult"]

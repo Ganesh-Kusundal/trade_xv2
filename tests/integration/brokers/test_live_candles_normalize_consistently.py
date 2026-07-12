@@ -25,30 +25,35 @@ def _import_runtime():
     try:
         from application.streaming.candle_aggregator import (
             CandleAggregator,
-            Candle,
             parse_timeframe,
         )
         from application.streaming.orchestrator import (
             MarketTick,
             StreamOrchestrator,
         )
-        from domain.candles.historical import InstrumentRef
+        from domain.candles.historical import HistoricalBar, InstrumentRef
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"runtime module not importable: {exc}")
-    return CandleAggregator, Candle, parse_timeframe, MarketTick, StreamOrchestrator, InstrumentRef
+    return CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, StreamOrchestrator, InstrumentRef
 
 
 def _tick(symbol, ltp, volume, ts, exchange="NSE"):
-    CandleAggregator, Candle, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    from decimal import Decimal
+
+    from domain.entities.market import MarketTick
+    from domain.provenance import DataProvenance
+
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
     return MarketTick(
         instrument=InstrumentRef(symbol=symbol, exchange=exchange),
-        ltp=float(ltp),
+        ltp=Decimal(str(ltp)),
+        event_time=ts,
+        provenance=DataProvenance.now("test", "stream"),
         volume=int(volume),
         bid=None,
         ask=None,
         broker_id="test",
         session_id="s1",
-        event_time=ts,
         sequence=None,
     )
 
@@ -59,7 +64,7 @@ def _tick(symbol, ltp, volume, ts, exchange="NSE"):
 
 
 def test_1m_candle_ohlcv_and_boundary():
-    CandleAggregator, Candle, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -93,7 +98,7 @@ def test_1m_candle_ohlcv_and_boundary():
 
 
 def test_multi_timeframe_per_symbol():
-    CandleAggregator, Candle, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m", "5m"))
@@ -132,7 +137,7 @@ def test_multi_timeframe_per_symbol():
 
 
 def test_independent_symbols():
-    CandleAggregator, Candle, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -162,7 +167,7 @@ def test_independent_symbols():
 
 
 def test_late_tick_discarded():
-    CandleAggregator, Candle, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -191,7 +196,7 @@ def test_late_tick_discarded():
 
 
 def test_orchestrator_feeds_aggregator_when_attached():
-    CandleAggregator, Candle, parse_timeframe, MarketTick, StreamOrchestrator, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, StreamOrchestrator, InstrumentRef = _import_runtime()
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -205,7 +210,7 @@ def test_orchestrator_feeds_aggregator_when_attached():
     # call it directly. No consumers are registered, so fan-out is a no-op.
     import asyncio
 
-    asyncio.run(orch._deliver_tick("s1", tick))
+    asyncio.run(orch._tick_router.deliver_tick("s1", tick))
 
     # Aggregator received the tick (off-by-default behavior preserved: when no
     # aggregator is attached nothing happens).
@@ -218,7 +223,7 @@ def test_orchestrator_feeds_aggregator_when_attached():
 
 
 def test_parse_timeframe():
-    CandleAggregator, Candle, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
     assert parse_timeframe("1m") == 60
     assert parse_timeframe("5m") == 300
     assert parse_timeframe("15m") == 900

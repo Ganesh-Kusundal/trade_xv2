@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 import pandas as pd
 
-from domain.candles.historical import InstrumentRef
+from domain.candles.historical import InstrumentRef, HistoricalSeries
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -105,6 +105,24 @@ class DhanDataProvider(DataProvider):
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
+    ) -> HistoricalSeries:
+        """Return canonical ``HistoricalSeries`` (SSOT at broker→app boundary)."""
+        return self.get_history_series(
+            instrument_id,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
+
+    def _history_dataframe(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
     ) -> pd.DataFrame:
         try:
             return self._gw.history(
@@ -117,6 +135,31 @@ class DhanDataProvider(DataProvider):
             )
         except Exception:
             return pd.DataFrame()
+
+    def get_history_series(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> HistoricalSeries:
+        ref = InstrumentRef(
+            symbol=instrument_id.underlying, exchange=instrument_id.exchange
+        )
+        df = self._history_dataframe(
+            instrument_id,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        if df is None or getattr(df, "empty", True):
+            return HistoricalSeries(
+                bars=[], coverage=None, instrument=ref, timeframe=timeframe
+            )
+        return HistoricalSeries.from_dataframe(df, ref, timeframe)
 
     def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
         try:

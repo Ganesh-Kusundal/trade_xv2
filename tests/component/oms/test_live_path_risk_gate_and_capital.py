@@ -222,6 +222,8 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     )
     fake_gateway = MagicMock()
     fake_gateway.funds.return_value = fake_balance
+    # Wire-style gateway: prefers .funds() over ExecutionProvider.get_funds().
+    del fake_gateway.get_funds
     cp.update_gateway(fake_gateway)
 
     # Now capital_provider reads the real balance
@@ -242,6 +244,7 @@ def test_oms_capital_fn_uses_placeholder_on_broker_call_failure_with_fail_open()
 
     fake_gateway = MagicMock()
     fake_gateway.funds.side_effect = ConnectionError("network down")
+    del fake_gateway.get_funds
     cp.update_gateway(fake_gateway)
 
     # Capital falls back to placeholder
@@ -265,6 +268,7 @@ def test_oms_capital_fn_fails_closed_on_broker_call_failure(monkeypatch) -> None
     # the tracked wrapper returns Decimal(0) (fail-closed).
     fake_gateway = MagicMock()
     fake_gateway.funds.side_effect = ConnectionError("network down")
+    del fake_gateway.get_funds
     cp.update_gateway(fake_gateway)
 
     # Fail closed: capital is 0, OMS blocks every order
@@ -286,6 +290,7 @@ def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
         available_balance=Decimal("0"),
         sod_limit=Decimal("0"),
     )
+    del fake_gateway.get_funds
     cp.update_gateway(fake_gateway)
 
     # Hard stop on zero/negative balance
@@ -319,6 +324,7 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
     fake_gateway.funds.return_value = Balance(
         available_balance=Decimal("100000"),
     )
+    del fake_gateway.get_funds
     cp = GatewayCapitalProvider(gateway=fake_gateway)
 
     pm = PositionManager()

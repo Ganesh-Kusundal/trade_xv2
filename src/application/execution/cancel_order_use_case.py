@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from application.oms.order_manager import OrderManager, OrderResult
 from domain.ports import EventPublisher
+from application.observability import trace_operation
 
 
 class CancelOrderUseCase:
@@ -22,6 +23,7 @@ class CancelOrderUseCase:
         self._events = event_publisher
         self._cancel_fn = cancel_fn
 
+    @trace_operation("cancel_order")
     def execute(self, order_id: str) -> OrderResult:
         result = self._oms.cancel_order(order_id, cancel_fn=self._cancel_fn)
         if self._events is not None and result.success:

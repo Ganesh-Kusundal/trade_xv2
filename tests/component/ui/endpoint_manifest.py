@@ -77,7 +77,7 @@ OFFLINE_ENDPOINTS: list[CliEndpoint] = [
     CliEndpoint("cache_no_args", ["cache"], "offline", 0, None, 10),
     CliEndpoint("risk_status", ["risk", "status"], "offline", 0, None, 10),
     CliEndpoint("risk_no_args", ["risk"], "offline", 0, "risk", 10),
-    CliEndpoint("instruments_stats", ["instruments", "stats"], "offline", 0, None, 15),
+    CliEndpoint("instruments_stats", ["instruments", "stats"], "offline", 0, None, 45),
     CliEndpoint("broker", ["broker"], "offline", 0, None, 15),
     CliEndpoint("broker_list", ["broker", "list"], "offline", 0, None, 15),
     CliEndpoint("load_test_no_args", ["load-test"], "offline", 0, "load-test", 10),

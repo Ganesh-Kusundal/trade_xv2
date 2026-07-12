@@ -19,7 +19,7 @@ class TestGatewayAllowLiveOrdersGuard:
 
     def test_place_order_blocked_when_live_orders_disabled(self):
         """Security guard: place_order must fail when allow_live_orders=False."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = False
@@ -38,7 +38,7 @@ class TestGatewayAllowLiveOrdersGuard:
 
     def test_cancel_order_blocked_when_live_orders_disabled(self):
         """Security guard: cancel_order checks allow_live_orders in order_command adapter."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -63,7 +63,7 @@ class TestGatewayOrderPlacement:
 
     def test_place_order_success_logs_and_returns_response(self):
         """Verify successful order placement logs and returns response."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -78,7 +78,7 @@ class TestGatewayOrderPlacement:
 
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with patch("brokers.upstox.gateway.logger") as mock_logger:
+        with patch("brokers.upstox.wire.logger") as mock_logger:
             response = gateway.place_order(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -104,7 +104,7 @@ class TestGatewayOrderPlacement:
         )
 
     def test_place_order_passes_upstox_metadata_through_provider_metadata(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -127,7 +127,7 @@ class TestGatewayOrderPlacement:
 
     def test_place_order_failure_logs_warning(self):
         """Verify failed order placement logs warning."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -139,7 +139,7 @@ class TestGatewayOrderPlacement:
 
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with patch("brokers.upstox.gateway.logger") as mock_logger:
+        with patch("brokers.upstox.wire.logger") as mock_logger:
             response = gateway.place_order(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -163,7 +163,7 @@ class TestGatewayOrderPlacement:
 
     def test_place_order_exception_logs_and_returns_fail(self):
         """Verify exception during placement is caught, logged, and returned as fail."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -173,7 +173,7 @@ class TestGatewayOrderPlacement:
 
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with patch("brokers.upstox.gateway.logger") as mock_logger:
+        with patch("brokers.upstox.wire.logger") as mock_logger:
             response = gateway.place_order(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -199,7 +199,7 @@ class TestResolveInstrumentKey:
 
     def test_index_symbol_resolves_to_nse_index(self):
         """Index symbols (NIFTY) should resolve to NSE_INDEX segment."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
         from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
         from domain.market_enums import ExchangeSegment
@@ -229,7 +229,7 @@ class TestResolveInstrumentKey:
 
     def test_equity_symbol_resolves_to_isin(self):
         """Equity symbols should resolve to NSE_EQ|ISIN format."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
         from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
         from domain.market_enums import ExchangeSegment
@@ -258,7 +258,7 @@ class TestResolveInstrumentKey:
 
     def test_unknown_symbol_falls_back_to_constructed_key(self):
         """Unknown symbols should fall back to segment|symbol construction."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -277,7 +277,7 @@ class TestResolveExchangeSegment:
 
     def test_index_symbol_forces_idx_i_segment(self):
         """Index symbols should force IDX_I segment regardless of exchange."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -294,7 +294,7 @@ class TestResolveExchangeSegment:
 
     def test_normal_exchange_parses_correctly(self):
         """Normal exchanges should parse to their canonical segments."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -308,7 +308,7 @@ class TestResolveExchangeSegment:
 
     def test_unknown_segment_raises_value_error(self):
         """Unknown segments should raise ValueError."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -326,7 +326,7 @@ class TestModifyOrder:
 
     def test_modify_order_success(self):
         """Successful modification should return OrderResponse.ok."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -344,7 +344,7 @@ class TestModifyOrder:
 
     def test_modify_order_success_order_response_contract(self):
         """ENG-002: adapter returns OrderResponse — gateway must not fail it."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -362,7 +362,7 @@ class TestModifyOrder:
 
     def test_modify_order_failure(self):
         """Failed modification should return OrderResponse.fail."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
@@ -382,7 +382,7 @@ class TestModifyOrder:
 
     def test_modify_order_exception_handling(self):
         """Exception during modification should return OrderResponse.fail."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True

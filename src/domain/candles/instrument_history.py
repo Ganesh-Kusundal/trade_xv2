@@ -115,14 +115,18 @@ class InstrumentHistory:
         owner = self._owner
         provider = owner._resolve_provider()
         try:
-            return provider.get_history_series(
+            series = provider.get_history_series(
                 owner.id,
                 timeframe=timeframe,
                 lookback_days=days,
                 from_date=start,
                 to_date=end,
             )
+            if series is not None and getattr(series, "bar_count", 0) > 0:
+                return series
         except (AttributeError, NotImplementedError, TypeError):
+            pass
+        try:
             bars = provider.get_history(
                 owner.id,
                 timeframe=timeframe,
@@ -143,6 +147,13 @@ class InstrumentHistory:
                 bars,
                 InstrumentRef(symbol=owner.symbol, exchange=owner.exchange),
                 timeframe,
+            )
+        except Exception:
+            return HistoricalSeries(
+                bars=[],
+                coverage=None,
+                instrument=InstrumentRef(symbol=owner.symbol, exchange=owner.exchange),
+                timeframe=timeframe,
             )
 
     @property

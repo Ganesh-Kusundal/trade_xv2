@@ -317,29 +317,38 @@ def _register_broker_capabilities(broker_id: str, fn: Callable[[], Any]) -> None
 
 
 def _default_capabilities_loader(broker_id: str) -> Any | None:
-    """Return a broker's capabilities via registration hook or lazy import.
+    """Return a broker's capabilities via capability declaration, never by name.
 
-    Prefer explicit ``caps=`` from the broker factory. Registration and
-    lazy import are fallbacks so ``create_rate_limiter("dhan")`` still
-    builds real buckets in tests/ops without each call site passing caps.
+    Dispatch order (all capability-driven, no broker-name equality branch):
+
+    1. Explicit registration hook — brokers may call
+       :func:`_register_broker_capabilities` (e.g. at import time) to declare
+       their loader. This is the preferred, fully broker-agnostic path.
+    2. The broker's ``BrokerPlugin`` declares *where* its capabilities live via
+       the ``capabilities_module`` / ``capabilities_fn`` metadata strings. The
+       resilience layer imports that module by name and calls the declared
+       factory — no concrete broker names are hard-coded here (DR-B3).
+    3. Otherwise warn and return ``None`` so callers fall back to default
+       buckets rather than inventing per-broker behavior.
     """
     if broker_id in _BROKER_CAPABILITIES:
         return _BROKER_CAPABILITIES[broker_id]()
 
-    # Lazy import fallbacks (tradex.runtime may depend on brokers adapters).
-    try:
-        if broker_id == "dhan":
-            _mod = importlib.import_module("brokers.dhan.config.capabilities")
-            return _mod.dhan_capabilities()
-        if broker_id == "upstox":
-            _mod = importlib.import_module("brokers.upstox.capabilities")
-            return _mod.upstox_capabilities()
-    except Exception as exc:
-        logger.warning(
-            "capabilities_lazy_import_failed",
-            extra={"broker_id": broker_id, "error": str(exc)},
-        )
-        return None
+    # Capability-flag dispatch: the broker declares its capabilities loader in
+    # its BrokerPlugin metadata. No hard-coded broker names here.
+    from infrastructure.broker_plugin import get_broker_plugin
+
+    plugin = get_broker_plugin(broker_id)
+    if plugin is not None and plugin.capabilities_module and plugin.capabilities_fn:
+        try:
+            _mod = importlib.import_module(plugin.capabilities_module)
+            return getattr(_mod, plugin.capabilities_fn)()
+        except Exception as exc:
+            logger.warning(
+                "capabilities_load_failed",
+                extra={"broker_id": broker_id, "error": str(exc)},
+            )
+            return None
 
     logger.warning(
         "no_capabilities_loader_registered",
@@ -362,7 +371,7 @@ def create_rate_limiter(
     ``capacity`` -> profile.burst_rps or 2x sustained when unset).
 
     Args:
-        broker_id: One of ``"dhan"``, ``"upstox"`` (extensible).
+        broker_id: broker id resolved via capability metadata (extensible).
         caps: Optional pre-built ``BrokerCapabilities`` (or any object with
             ``rate_limit_profiles``). When omitted, the capabilities are
             resolved via :func:`register_capabilities_loader` (the broker

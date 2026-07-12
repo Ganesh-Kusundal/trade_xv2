@@ -207,11 +207,11 @@ class ScannerViews:
                     s.close_5d,
                     s.close_10d,
                     s.close_20d,
-                    -- RSI from daily data
+                    -- 5-day price change % (not RSI — do not alias as rsi_14)
                     CASE
                         WHEN s.close_5d > 0 THEN (s.close - s.close_5d) / s.close_5d * 100
                         ELSE 0
-                    END as rsi_approx,
+                    END as momentum_5d_pct,
                     -- ATR approximation from daily range
                     (s.day_high - s.day_low) as atr_approx,
                     -- Composite intraday score
@@ -379,7 +379,7 @@ class ScannerViews:
                 intraday_score,
                 signal,
                 trend,
-                rsi_approx as rsi_14,
+                momentum_5d_pct,
                 roc_5,
                 relative_volume,
                 day_high,
@@ -401,7 +401,7 @@ class ScannerViews:
                 intraday_score,
                 signal,
                 trend,
-                rsi_approx as rsi_14,
+                momentum_5d_pct,
                 roc_5,
                 relative_volume,
                 day_high,

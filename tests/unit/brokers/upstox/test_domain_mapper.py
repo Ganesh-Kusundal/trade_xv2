@@ -263,6 +263,29 @@ def test_to_fund_limits():
     assert f.total_margin == Decimal("60000")
 
 
+def test_to_fund_limits_v3():
+    payload = {
+        "status": "success",
+        "data": {
+            "available_to_trade": {
+                "total": 5379.03,
+                "cash_available_to_trade": {
+                    "total": 5117.34,
+                    "margin_used": {"total": 0.0},
+                },
+                "pledge_available_to_trade": {
+                    "total": 261.69,
+                    "margin_used": {"total": 1.8},
+                },
+            }
+        },
+    }
+    f = UpstoxDomainMapper.to_fund_limits(payload)
+    assert f.available_balance == Decimal("5379.03")
+    assert f.used_margin == Decimal("1.8")
+    assert f.total_margin == Decimal("5380.83")
+
+
 def test_to_historical_candles_from_array():
     payload = {
         "data": {

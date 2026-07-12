@@ -80,63 +80,71 @@ class BrokerConsoleWidget(Static):
     def refresh_broker_data(self) -> None:
         """Fetch current portfolio information and refresh tables."""
         try:
-            broker = self._broker_service.active_broker
+            self._broker_service.active_broker
         except BrokerNotReadyError:
             self.notify("Broker not ready", severity="warning")
             return
 
-        # Update metrics
+        from interface.ui.services.active_session import get_active_session
+        from interface.ui.services.market_access import refresh_account
+
+        session = get_active_session(self._broker_service)
         try:
-            limits = broker.funds()
-            positions = broker.positions()
-            holdings = broker.holdings()
+            acct = refresh_account(session)
+            limits = acct.funds
+            positions = acct.positions
+            holdings = acct.holdings
 
-            realized = sum(p.realized_pnl for p in positions)
-            unrealized = sum(p.unrealized_pnl for p in positions)
+            avail = getattr(limits, "available_balance", 0) if limits else 0
+            used = getattr(limits, "used_margin", 0) if limits else 0
+            if isinstance(limits, dict):
+                avail = limits.get("available_balance", limits.get("available_margin", 0))
+                used = limits.get("used_margin", 0)
 
-            # Set labels
-            self.query_one("#val-balance", Label).update(f"Rs. {limits.available_balance:,.2f}")
-            self.query_one("#val-used", Label).update(f"Rs. {limits.used_margin:,.2f}")
+            realized = sum(getattr(p, "realized_pnl", 0) for p in positions)
+            unrealized = sum(getattr(p, "unrealized_pnl", 0) for p in positions)
+
+            self.query_one("#val-balance", Label).update(f"Rs. {float(avail):,.2f}")
+            self.query_one("#val-used", Label).update(f"Rs. {float(used):,.2f}")
 
             def style_pnl(val: Decimal) -> Text:
                 if val > 0:
                     return Text(f"Rs. {val:,.2f}", style="bold green")
-                elif val < 0:
+                if val < 0:
                     return Text(f"Rs. {val:,.2f}", style="bold red")
                 return Text(f"Rs. {val:,.2f}", style="white")
 
-            self.query_one("#val-realized", Label).update(style_pnl(realized))
-            self.query_one("#val-unrealized", Label).update(style_pnl(unrealized))
+            self.query_one("#val-realized", Label).update(style_pnl(Decimal(str(realized))))
+            self.query_one("#val-unrealized", Label).update(style_pnl(Decimal(str(unrealized))))
 
-            # Fill Positions table
             pos_table = self.query_one("#positions-table", DataTable)
             pos_table.clear()
             for pos in positions:
-                p_pnl = pos.realized_pnl + pos.unrealized_pnl
+                p_pnl = getattr(pos, "realized_pnl", 0) + getattr(pos, "unrealized_pnl", 0)
                 pnl_style = "bold green" if p_pnl > 0 else ("bold red" if p_pnl < 0 else "white")
+                product = getattr(getattr(pos, "product_type", None), "value", str(getattr(pos, "product_type", "")))
                 pos_table.add_row(
                     pos.symbol,
-                    pos.product_type.value,
+                    product,
                     str(pos.quantity),
                     f"{pos.avg_price:,.2f}",
-                    f"{pos.ltp:,.2f}",
+                    f"{getattr(pos, 'ltp', 0):,.2f}",
                     Text(f"Rs. {p_pnl:,.2f}", style=pnl_style),
                 )
 
-            # Fill Holdings table
             hld_table = self.query_one("#holdings-table", DataTable)
             hld_table.clear()
             for hld in holdings:
-                h_pnl = hld.pnl
+                h_pnl = getattr(hld, "pnl", 0)
                 pnl_style = "bold green" if h_pnl > 0 else ("bold red" if h_pnl < 0 else "white")
                 hld_table.add_row(
                     hld.symbol,
                     str(hld.quantity),
                     f"{hld.avg_price:,.2f}",
-                    f"{hld.ltp:,.2f}",
+                    f"{getattr(hld, 'ltp', 0):,.2f}",
                     Text(f"Rs. {h_pnl:,.2f}", style=pnl_style),
                 )
         except Exception as exc:
-            logger.debug(
-                "holdings_display_failed: %s", exc
-            )  # Fallback for display stability if API returns errors
+            logger.debug("holdings_display_failed: %s", exc)
+        finally:
+            session.close()

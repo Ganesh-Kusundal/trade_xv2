@@ -39,8 +39,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from application.composer.factory import _fetch_gap_bars, _split_instrument_key
-from infrastructure.time.clock import time_service
-
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +107,7 @@ class GapReconciler:
             ``"NSE_EQ|RELIANCE"``) understood by
             ``factory._split_instrument_key``.
         now
-            Reference "current" time. Defaults to ``time_service.now()`` (UTC).
+            Reference "current" time. Defaults to ``get_current_clock().now()`` (UTC).
         already_covered_to
             Optional ``{key: datetime}`` mapping of ranges a recent reconnect
             backfill already filled, which are subtracted from the gap so we do
@@ -128,7 +127,7 @@ class GapReconciler:
         if not subscribed:
             return []
 
-        now = now or time_service.now()
+        now = now or get_current_clock().now()
 
         already = already_covered_to or {}
 
@@ -198,10 +197,7 @@ class GapReconciler:
         recent reconnect backfill already covered.
         """
         last_known = self._last_known_fn(key)
-        if last_known is None:
-            start = now - self._max_gap_span
-        else:
-            start = last_known
+        start = now - self._max_gap_span if last_known is None else last_known
 
         if already_covered_to is not None and already_covered_to > start:
             start = already_covered_to

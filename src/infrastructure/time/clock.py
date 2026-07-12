@@ -15,9 +15,27 @@ order, audit, or stream timestamps — use ``time_service.now()`` or
 
 from __future__ import annotations
 
+from domain.ports.time_service import (
+    ClockPort,
+    RealClock,
+    VirtualClock,
+    get_current_clock,
+    set_current_clock,
+    use_clock,
+)
 from infrastructure.time_service import TimeService, time_service
 
 # Backward-compatible name: same class as the full TimeService.
 Clock = TimeService
 
-__all__ = ["Clock", "TimeService", "time_service"]
+__all__ = [
+    "Clock",
+    "ClockPort",
+    "RealClock",
+    "TimeService",
+    "VirtualClock",
+    "get_current_clock",
+    "set_current_clock",
+    "time_service",
+    "use_clock",
+]

@@ -8,6 +8,7 @@ from typing import Any
 
 from domain.ports.broker_gateway import QuotaToken
 from domain.extensions.broker_bundle import ExtensionBundle, register_extension_factory
+from domain.extensions.extended_order import ExtendedOrderExecutor
 from domain.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
@@ -138,11 +139,49 @@ class DhanNativeSliceExtension(NativeSliceOrderProvider):
         ]
 
 
+class DhanExtendedOrderExecutor(ExtendedOrderExecutor):
+    """Sync executor for Dhan extended order types (DR-B1).
+
+    Encapsulates exactly the operations Dhan supports via its native
+    ``extended`` capability object and ``_conn`` order interface. Dhan does
+    not expose GTT, cover orders, or a broker-side kill switch through this
+    surface, so those fall through to the base ``UnsupportedExtensionError``.
+    """
+
+    broker_id = "dhan"
+
+    def __init__(self, gateway: MarketDataGateway) -> None:
+        self._gateway = gateway
+
+    @property
+    def _extended(self) -> Any:
+        return self._gateway.extended
+
+    def place_super_order(self, payload: dict[str, Any]) -> Any:
+        return self._extended.place_super_order(**payload)
+
+    def place_forever_order(self, payload: dict[str, Any]) -> Any:
+        return self._extended.place_forever_order(payload)
+
+    def place_trigger(self, payload: dict[str, Any]) -> Any:
+        return self._extended.place_conditional_trigger(payload)
+
+    def exit_all(self) -> Any:
+        return self._extended.exit_all()
+
+    def place_slice_order(self, payload: dict[str, Any]) -> Any:
+        conn = getattr(self._gateway, "_conn", None)
+        if conn is None:
+            raise self._unsupported("slice orders")
+        return conn.orders.place_slice_order(**payload)
+
+
 def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle = ExtensionBundle("dhan")
     bundle.register(SuperOrderProvider, DhanSuperOrderStrategy(gateway))
     bundle.register(ForeverOrderProvider, DhanForeverOrderStrategy(gateway))
     bundle.register(NativeSliceOrderProvider, DhanNativeSliceExtension(gateway))
+    bundle.register(ExtendedOrderExecutor, DhanExtendedOrderExecutor(gateway))
     bundle.register(DhanDepth20Extension, DhanDepth20Extension(gateway))
     bundle.register(DhanDepth200Extension, DhanDepth200Extension(gateway))
     return bundle

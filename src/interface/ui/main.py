@@ -30,7 +30,6 @@ from interface.ui.commands import (
     dashboard as cmd_dashboard,
     doctor as cmd_doctor,
     events as cmd_events,
-    instrument_info as cmd_instrument_info,
     instrument as cmd_instrument,
     instruments as cmd_instruments,
     asset as cmd_asset,
@@ -76,7 +75,7 @@ COMMAND_HANDLERS = {
     "benchmark": cmd_benchmark.run,
     "compare": cmd_compare.run,
     "quality-report": cmd_quality_report.run,
-    "instrument-info": cmd_instrument_info.run,
+    "instrument-info": cmd_instrument.run,
     "account": cmd_account.run,
     "funds": cmd_account.run,
     "holdings": cmd_portfolio.show_holdings,
@@ -118,6 +117,39 @@ COMMAND_HANDLERS = {
 for _name, _fn in COMMAND_HANDLERS.items():
     register_handler(_name, _fn)
 
+# Trade spine commands use runtime.factory.build (TRANS-P5-022).
+_TRADE_SPINE_CMDS = frozenset(
+    {
+        "place-order",
+        "cancel-order",
+        "modify-order",
+        "place-orders",
+        "bracket-order",
+        "oco-order",
+        "basket-order",
+        "oms",
+        "orders",
+        "trades",
+        "risk",
+        "holdings",
+        "positions",
+    }
+)
+
+
+def _bootstrap_trade_runtime(
+    broker_name: str,
+    *,
+    authorize_risk_fail_open: bool,
+) -> Any:
+    from interface.ui.services.compose import build_runtime
+
+    return build_runtime(
+        broker_name,
+        authorize_risk_fail_open=authorize_risk_fail_open,
+        skip_parity_gate=True,
+    )
+
 
 def _try_create_gateway(
     broker: str = "dhan",
@@ -147,6 +179,7 @@ def _try_create_gateway(
 
 def main() -> None:
     """Parse CLI arguments and route to commands or TUI."""
+    exit_code = 0
     args = sys.argv[1:]
 
     broker_name = "dhan"
@@ -220,48 +253,46 @@ def main() -> None:
     # Commands that need instruments (historical, search, instruments)
     _NEEDS_INSTRUMENTS = {"historical", "history", "search", "instrument", "instruments", "option-chain", "futures"}
 
-    # Lazy gateway accessor for market data commands
+    runtime = None
     gateway = None
-    broker_service = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
-    # Phase 3: build EventBusService WITHOUT an event bus so it does not
-    # create a second, separate EventBus. We re-attach below once the
-    # OMS TradingContext is available so the service mirrors the canonical
-    # bus. Until then ``events`` will print an explanatory banner.
+    broker_service: BrokerService | Any
     event_bus_service = EventBusService()
-
+    tc = None
     _gw: Any = None
 
-    def _get_gateway() -> Any:
-        nonlocal _gw
-        if _gw is None:
-            # Only load instruments for commands that need them
-            load_inst = subcommand in _NEEDS_INSTRUMENTS
-            _gw = _try_create_gateway(broker_name, load_instruments=load_inst)
-        return _gw
-
-    # Skip gateway creation for commands that don't need it
-    if subcommand not in _NO_GATEWAY_CMDS:
-        # Only load instruments for commands that need them
-        load_inst = subcommand in _NEEDS_INSTRUMENTS
-        gateway = _try_create_gateway(
+    if subcommand in _TRADE_SPINE_CMDS:
+        runtime = _bootstrap_trade_runtime(
             broker_name,
-            load_instruments=load_inst,
-            event_bus=event_bus_service.event_bus,
-            lifecycle=broker_service.lifecycle,
+            authorize_risk_fail_open=authorize_risk_fail_open,
         )
+        broker_service = runtime.broker_service
+        gateway = runtime.gateway
         _gw = gateway
-
-    # Wire TradingContext / EventBus for live gateway commands.
-    # (D6: OmsService retired — BrokerService now owns the live_actionable
-    # guard + order/trade read access; no separate OMS service object needed.)
-    tc = None
-    if subcommand not in _NO_GATEWAY_CMDS:
-        tc = broker_service.trading_context
-        # Phase 3: re-bind EventBusService to the canonical OMS bus so the
-        # CLI ``events`` command mirrors real OMS activity instead of
-        # fabricating events on a separate bus.
-        if tc is not None:
+        tc = runtime.trading_context
+        if tc is not None and tc.event_bus is not None:
             event_bus_service = EventBusService(event_bus=tc.event_bus)
+    else:
+        broker_service = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
+
+        def _get_gateway() -> Any:
+            nonlocal _gw
+            if _gw is None:
+                load_inst = subcommand in _NEEDS_INSTRUMENTS
+                _gw = _try_create_gateway(broker_name, load_instruments=load_inst)
+            return _gw
+
+        if subcommand not in _NO_GATEWAY_CMDS:
+            load_inst = subcommand in _NEEDS_INSTRUMENTS
+            gateway = _try_create_gateway(
+                broker_name,
+                load_instruments=load_inst,
+                event_bus=event_bus_service.event_bus,
+                lifecycle=broker_service.lifecycle,
+            )
+            _gw = gateway
+            tc = broker_service.trading_context
+            if tc is not None:
+                event_bus_service = EventBusService(event_bus=tc.event_bus)
 
     # 3. Subcommand routing
     try:
@@ -283,7 +314,9 @@ def main() -> None:
             cmd_benchmark.run(cmd_args, broker_service, console)
 
         elif subcommand == "analytics":
-            cmd_analytics.run(cmd_args, broker_service, console)
+            result = cmd_analytics.run(cmd_args, broker_service, console)
+            if result is not None and not getattr(result, "success", True):
+                exit_code = 1
 
         elif subcommand == "compare":
             cmd_compare.run(cmd_args, broker_service, console)
@@ -291,8 +324,8 @@ def main() -> None:
         elif subcommand == "quality-report":
             cmd_quality_report.run(cmd_args, broker_service, console)
 
-        elif subcommand == "instrument":
-            cmd_instrument_info.run(cmd_args, broker_service, console)
+        elif subcommand == "instrument" or subcommand == "instrument-info":
+            cmd_instrument.run(cmd_args, broker_service, console)
 
         elif subcommand == "account" or subcommand == "funds":
             cmd_account.run(cmd_args, broker_service, console)
@@ -314,69 +347,14 @@ def main() -> None:
             cmd_oms.show_oms_summary(broker_service, console)
 
         elif subcommand == "quote":
-            if not cmd_args:
-                console.print("[yellow]Usage: tradex quote <symbol> [--live][/yellow]")
-                return
-            symbol = cmd_args[0]
-            try:
-                gw = _get_gateway()
-                if gw is None:
-                    console.print(f"[red]No {broker_name} gateway available. Check credentials.[/red]")
-                    return
-                quote = gw.quote(symbol)
-                if quote is not None:
-                    from rich.table import Table
+            from interface.ui.commands.market_handlers import handle_quote
 
-                    table = Table(title=f"Quote: {symbol.upper()}", header_style="bold green")
-                    table.add_column("Metric", style="bold white")
-                    table.add_column("Value", justify="right")
-                    table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
-                    table.add_row("Open", f"\u20b9{quote.open:,.2f}")
-                    table.add_row("High", f"\u20b9{quote.high:,.2f}")
-                    table.add_row("Low", f"\u20b9{quote.low:,.2f}")
-                    table.add_row("Close", f"\u20b9{quote.close:,.2f}")
-                    table.add_row("Volume", f"{quote.volume:,}")
-                    table.add_row("Change", f"\u20b9{quote.change:,.2f}")
-                    console.print(table)
-                else:
-                    console.print(f"[red]No quote data for {symbol}[/red]")
-            except Exception as exc:
-                console.print(f"[red]Error fetching quote for {symbol}: {exc}[/red]")
+            handle_quote(cmd_args, broker_service, console)
 
         elif subcommand == "depth":
-            if not cmd_args:
-                console.print("[yellow]Usage: tradex depth <symbol> [--live][/yellow]")
-                return
-            symbol = cmd_args[0]
-            try:
-                gw = _get_gateway()
-                if gw is None:
-                    console.print(f"[red]No {broker_name} gateway available. Check credentials.[/red]")
-                    return
-                depth = gw.depth(symbol)
-                if depth is not None and (depth.bids or depth.asks):
-                    from rich.table import Table
+            from interface.ui.commands.market_handlers import handle_depth
 
-                    table = Table(title=f"Market Depth: {symbol.upper()}", header_style="bold magenta")
-                    table.add_column("Bid Qty", style="green", justify="right")
-                    table.add_column("Bid Price", style="bold green", justify="right")
-                    table.add_column("Ask Price", style="bold red", justify="right")
-                    table.add_column("Ask Qty", style="red", justify="right")
-                    levels = max(len(depth.bids), len(depth.asks))
-                    for i in range(levels):
-                        bid = depth.bids[i] if i < len(depth.bids) else None
-                        ask = depth.asks[i] if i < len(depth.asks) else None
-                        table.add_row(
-                            f"{bid.quantity:,}" if bid else "-",
-                            f"\u20b9{bid.price:,.2f}" if bid else "-",
-                            f"\u20b9{ask.price:,.2f}" if ask else "-",
-                            f"{ask.quantity:,}" if ask else "-",
-                        )
-                    console.print(table)
-                else:
-                    console.print(f"[red]No depth data for {symbol}[/red]")
-            except Exception as exc:
-                console.print(f"[red]Error fetching depth for {symbol}: {exc}[/red]")
+            handle_depth(cmd_args, broker_service, console)
 
         elif subcommand == "option-chain":
             if not cmd_args:
@@ -407,52 +385,9 @@ def main() -> None:
             if not cmd_args:
                 console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
                 return
-            symbol = cmd_args[0]
-            try:
-                from datetime import date, timedelta
+            from interface.ui.commands.market_handlers import handle_history
 
-                gw = _get_gateway()
-                if gw is None:
-                    console.print(f"[red]No {broker_name} gateway available. Check credentials.[/red]")
-                    return
-                to_date = date.today()
-                from_date = to_date - timedelta(days=10)
-                df = gw.historical.history(
-                    symbol, "NSE",
-                    from_date=from_date.strftime("%Y-%m-%d"),
-                    to_date=to_date.strftime("%Y-%m-%d"),
-                    timeframe="1D",
-                )
-                if df is not None and not df.empty:
-                    from rich.table import Table
-
-                    table = Table(
-                        title=f"History: {symbol.upper()} (last 5 days)",
-                        header_style="bold magenta",
-                    )
-                    table.add_column("Date", style="bold white")
-                    table.add_column("Open", justify="right")
-                    table.add_column("High", justify="right")
-                    table.add_column("Low", justify="right")
-                    table.add_column("Close", justify="right")
-                    table.add_column("Volume", justify="right")
-                    for _, row in df.tail(5).iterrows():
-                        ts = row["timestamp"]
-                        date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)
-                        table.add_row(
-                            date_str,
-                            f"\u20b9{row['open']:,.2f}",
-                            f"\u20b9{row['high']:,.2f}",
-                            f"\u20b9{row['low']:,.2f}",
-                            f"\u20b9{row['close']:,.2f}",
-                            f"{int(row['volume']):,}",
-                        )
-                    console.print(table)
-                    console.print(f"[dim]{len(df)} candles total[/dim]")
-                else:
-                    console.print(f"[red]No history data for {symbol}[/red]")
-            except Exception as exc:
-                console.print(f"[red]Error fetching history for {symbol}: {exc}[/red]")
+            handle_history(cmd_args, broker_service, console)
 
         elif subcommand == "stream":
             if not cmd_args:
@@ -514,13 +449,22 @@ def main() -> None:
                 console.print(
                     "[yellow]Available commands: broker, analytics, account/funds, holdings, positions, orders, trades, oms, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
                 )
+                exit_code = 1
     finally:
-        broker_service.close()
+        if runtime is not None:
+            try:
+                runtime.lifecycle.stop_all()
+            except Exception as exc:
+                logger.debug("runtime_stop_failed: %s", exc)
+        if broker_service is not None:
+            broker_service.close()
         if gateway is not None:
             try:
                 gateway.close()
             except Exception as exc:
                 logger.debug("gateway_close_failed: %s", exc)
+
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

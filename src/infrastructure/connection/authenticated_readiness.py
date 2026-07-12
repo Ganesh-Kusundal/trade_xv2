@@ -39,6 +39,92 @@ def is_token_rejection(exc: BaseException) -> bool:
     return bool("unauthorized" in msg or "forbidden" in msg)
 
 
+def is_funds_maintenance(exc: BaseException) -> bool:
+    """Return True when *exc* is Upstox overnight funds maintenance (HTTP 423)."""
+    name = type(exc).__name__
+    if name == "UpstoxFundsMaintenanceError":
+        return True
+    status = getattr(exc, "status_code", None)
+    if status == 423:
+        return True
+    msg = str(exc).lower()
+    return "423" in msg or ("locked" in msg and "maintenance" in msg)
+
+
+def _upstox_market_status_ok(oauth_client: Any, token: str) -> bool:
+    return bool(oauth_client.validate_read_only_token(token))
+
+
+def _probe_upstox(gateway: Any) -> AuthProbeResult:
+    broker_obj = getattr(gateway, "_broker", None)
+    probe_name = "upstox.profile"
+    token: str | None = None
+    oauth_client: Any | None = None
+
+    if broker_obj is not None:
+        tm = getattr(broker_obj, "token_manager", None)
+        if tm is not None and hasattr(tm, "oauth_client"):
+            oauth_client = tm.oauth_client
+            try:
+                token = tm.bearer_token()
+                if not token:
+                    return AuthProbeResult(
+                        ok=False,
+                        probe_name=probe_name,
+                        error="Upstox bearer token is empty",
+                        token_rejected=True,
+                    )
+                exp_ms = oauth_client.fetch_profile(token)
+                now_ms = int(time.time() * 1000)
+                if exp_ms > now_ms:
+                    return AuthProbeResult(ok=True, probe_name=probe_name)
+                if exp_ms == 0:
+                    return AuthProbeResult(ok=True, probe_name=probe_name)
+                if exp_ms > 0:
+                    return AuthProbeResult(
+                        ok=False,
+                        probe_name=probe_name,
+                        error="Upstox token expired (profile token_expiry in past)",
+                        token_rejected=True,
+                    )
+                if _upstox_market_status_ok(oauth_client, token):
+                    return AuthProbeResult(
+                        ok=True,
+                        probe_name="upstox.profile_or_market_status",
+                    )
+            except Exception as exc:
+                rejected = is_token_rejection(exc)
+                return AuthProbeResult(
+                    ok=False,
+                    probe_name=probe_name,
+                    error=str(exc),
+                    token_rejected=rejected,
+                )
+
+    probe_name = "upstox.funds"
+    try:
+        gateway.funds()
+        return AuthProbeResult(ok=True, probe_name=probe_name)
+    except Exception as exc:
+        if is_funds_maintenance(exc) and oauth_client is not None and token:
+            if _upstox_market_status_ok(oauth_client, token):
+                return AuthProbeResult(
+                    ok=True,
+                    probe_name="upstox.profile_or_market_status",
+                )
+            return AuthProbeResult(
+                ok=False,
+                probe_name=probe_name,
+                error=str(exc),
+                token_rejected=False,
+            )
+        rejected = is_token_rejection(exc)
+        return AuthProbeResult(
+            ok=False,
+            probe_name=probe_name,
+            error=str(exc),
+            token_rejected=rejected,
+        )
 
 
 def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:
@@ -128,57 +214,6 @@ def is_token_rejection_from_result(result: AuthProbeResult) -> bool:
 
 def _probe_dhan(gateway: Any) -> AuthProbeResult:
     probe_name = "dhan.funds"
-    try:
-        gateway.funds()
-        return AuthProbeResult(ok=True, probe_name=probe_name)
-    except Exception as exc:
-        rejected = is_token_rejection(exc)
-        return AuthProbeResult(
-            ok=False,
-            probe_name=probe_name,
-            error=str(exc),
-            token_rejected=rejected,
-        )
-
-
-def _probe_upstox(gateway: Any) -> AuthProbeResult:
-    broker_obj = getattr(gateway, "_broker", None)
-    probe_name = "upstox.profile"
-
-    if broker_obj is not None:
-        tm = getattr(broker_obj, "token_manager", None)
-        if tm is not None and hasattr(tm, "oauth_client"):
-            try:
-                token = tm.bearer_token()
-                if not token:
-                    return AuthProbeResult(
-                        ok=False,
-                        probe_name=probe_name,
-                        error="Upstox bearer token is empty",
-                        token_rejected=True,
-                    )
-                exp_ms = tm.oauth_client.fetch_profile(token)
-                now_ms = int(time.time() * 1000)
-                if exp_ms > now_ms:
-                    return AuthProbeResult(ok=True, probe_name=probe_name)
-                if exp_ms > 0:
-                    return AuthProbeResult(
-                        ok=False,
-                        probe_name=probe_name,
-                        error="Upstox token expired (profile token_expiry in past)",
-                        token_rejected=True,
-                    )
-                # fetch_profile returned -1 (401/unavailable) — fall through to funds()
-            except Exception as exc:
-                rejected = is_token_rejection(exc)
-                return AuthProbeResult(
-                    ok=False,
-                    probe_name=probe_name,
-                    error=str(exc),
-                    token_rejected=rejected,
-                )
-
-    probe_name = "upstox.funds"
     try:
         gateway.funds()
         return AuthProbeResult(ok=True, probe_name=probe_name)

@@ -156,6 +156,7 @@ SKIP_PATHS = frozenset(
         "/redoc",
         "/api/v1/health",
         "/api/v1/health/readyz",
+        "/api/v1/health/ready",
         "/api/v1/health/metrics",
         "/api/v1/health/metrics/prometheus",
     }

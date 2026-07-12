@@ -8,7 +8,6 @@ from decimal import Decimal
 import pytest
 
 from domain.orders.requests import (
-    HistoricalCandle,
     ModifyOrderRequest,
     OrderPreview,
     OrderRequest,
@@ -91,26 +90,3 @@ class TestOrderPreview:
         assert not p.valid
         assert len(p.errors) == 1
 
-
-class TestHistoricalCandle:
-    def test_defaults(self):
-        c = HistoricalCandle()
-        assert c.exchange == "NSE"
-        assert c.volume == 0
-        assert c.timeframe == "1D"
-
-    def test_custom(self):
-        from datetime import datetime, timezone
-
-        ts = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        c = HistoricalCandle(
-            timestamp=ts,
-            symbol="NIFTY",
-            open=Decimal("20000"),
-            high=Decimal("20100"),
-            low=Decimal("19900"),
-            close=Decimal("20050"),
-            volume=1000000,
-        )
-        assert c.close == Decimal("20050")
-        assert c.volume == 1000000

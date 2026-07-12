@@ -23,7 +23,6 @@ __all__ = [
     "TokenSource",
     "TokenState",
     "TokenStateStore",
-    "TotpGenerator",
     "bootstrap_environment",
     "ensure_access_token",
     "should_generate_token",

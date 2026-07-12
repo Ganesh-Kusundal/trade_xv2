@@ -96,9 +96,16 @@ class MarketConsoleWidget(Static):
         symbol = self._current_symbol
         exchange = resolve_exchange(symbol)
 
-        # 1. Update Quote - handle Quote dataclass, not DataFrame
+        from interface.ui.services.active_session import get_active_session
+        from interface.ui.services.market_access import refresh_quote
+
+        session = get_active_session(self._broker_service)
         try:
-            quote = broker.quote(symbol, exchange)
+            quote = refresh_quote(session, symbol, exchange)
+        finally:
+            session.close()
+
+        try:
             if quote is not None:
                 self.query_one("#q-sym", Label).update(
                     f"Symbol: [bold yellow]{symbol}[/bold yellow] ({exchange})"
@@ -118,9 +125,15 @@ class MarketConsoleWidget(Static):
             logger.warning("quote_refresh_failed: %s", exc)
             self.notify("Failed to fetch quote", severity="error")
 
-        # 2. Update Depth - use correct gateway method
+        # 2. Update Depth via domain instrument
         try:
-            depth = broker.depth(symbol, exchange)
+            from interface.ui.services.market_access import fetch_depth
+
+            session = get_active_session(self._broker_service)
+            try:
+                depth = fetch_depth(session, symbol, exchange)
+            finally:
+                session.close()
             d_table = self.query_one("#depth-table", DataTable)
             d_table.clear()
             if depth is not None and (depth.bids or depth.asks):
@@ -144,6 +157,7 @@ class MarketConsoleWidget(Static):
         try:
             from datetime import date
 
+            broker = self._broker_service.active_broker
             # Resolve next valid expiry dynamically
             expiry = None
             try:

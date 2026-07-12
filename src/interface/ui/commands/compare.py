@@ -1,11 +1,19 @@
-"""CLI command for broker comparison."""
+"""Compare brokers using brokers.services (single code path)."""
 
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
+
+from interface.ui.services.broker_ops import fetch_history, fetch_quote
+
+
+def _env_kwargs(broker_id: str) -> dict:
+    env = Path(".env.local") if broker_id == "dhan" else Path(".env.upstox")
+    return {"env_path": str(env), "load_instruments": True}
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -19,35 +27,29 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     console.print(f"\n[bold]Broker Comparison: {compare_type.upper()} {symbol}[/bold]\n")
 
-    # Get gateways
-    try:
-        from pathlib import Path
-        from types import SimpleNamespace
+    brokers: list[tuple[str, str]] = []
+    for name in ("dhan", "upstox"):
+        try:
+            fetch_quote(None, symbol, default=name, **_env_kwargs(name))
+            brokers.append((name.capitalize(), name))
+        except Exception:
+            pass
 
-        from interface.ui.services.broker_registry import create_gateway
-
-        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
-        if not dhan and not upstox:
-            console.print("[red]No broker gateways available[/red]")
-            return
-        gw = SimpleNamespace(dhan=dhan, upstox=upstox)
-    except Exception as e:
-        console.print(f"[red]Error creating gateway: {e}[/red]")
+    if not brokers:
+        console.print("[red]No broker sessions available[/red]")
         return
 
     if compare_type == "quote":
-        _compare_quote(gw, symbol, console)
+        _compare_quote(brokers, symbol, console)
     elif compare_type == "ltp":
-        _compare_ltp(gw, symbol, console)
+        _compare_ltp(brokers, symbol, console)
     elif compare_type == "history":
-        _compare_history(gw, symbol, console)
+        _compare_history(brokers, symbol, console)
     else:
         console.print(f"[yellow]Unknown comparison type: {compare_type}[/yellow]")
 
 
-def _compare_quote(gw, symbol: str, console: Console) -> None:
-    """Compare quote data between brokers."""
+def _compare_quote(brokers: list[tuple[str, str]], symbol: str, console: Console) -> None:
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
     table.add_column("LTP", justify="right")
@@ -57,25 +59,22 @@ def _compare_quote(gw, symbol: str, console: Console) -> None:
     table.add_column("Latency", justify="right")
 
     results = {}
-    for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+    for name, broker_id in brokers:
         try:
             t0 = time.time()
-            q = broker.quote(symbol)
+            q = fetch_quote(None, symbol, default=broker_id, **_env_kwargs(broker_id))
             latency = (time.time() - t0) * 1000
             bid_str = f"₹{q.bid}" if hasattr(q, "bid") and q.bid else "N/A"
             ask_str = f"₹{q.ask}" if hasattr(q, "ask") and q.ask else "N/A"
             table.add_row(name, f"₹{q.ltp}", bid_str, ask_str, f"{q.volume:,}", f"{latency:.0f}ms")
             results[name] = q
         except Exception as e:
-            # Check if it's an auth error
             if "401" in str(e) or "auth" in str(e).lower():
                 table.add_row(name, "N/A", "-", "-", "-", "token expired")
             else:
                 table.add_row(name, "ERROR", "-", "-", "-", str(e)[:20])
 
     console.print(table)
-
-    # Calculate difference
     if len(results) == 2:
         q1, q2 = list(results.values())
         diff = abs(float(q1.ltp) - float(q2.ltp))
@@ -83,18 +82,18 @@ def _compare_quote(gw, symbol: str, console: Console) -> None:
         console.print(f"Validation: {'PASS' if diff < 1 else 'WARN'}")
 
 
-def _compare_ltp(gw, symbol: str, console: Console) -> None:
-    """Compare LTP between brokers."""
+def _compare_ltp(brokers: list[tuple[str, str]], symbol: str, console: Console) -> None:
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
     table.add_column("LTP", justify="right")
     table.add_column("Latency", justify="right")
 
     results = {}
-    for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+    for name, broker_id in brokers:
         try:
             t0 = time.time()
-            ltp = broker.ltp(symbol)
+            q = fetch_quote(None, symbol, default=broker_id, **_env_kwargs(broker_id))
+            ltp = q.ltp
             latency = (time.time() - t0) * 1000
             table.add_row(name, f"₹{ltp}", f"{latency:.0f}ms")
             results[name] = ltp
@@ -102,32 +101,29 @@ def _compare_ltp(gw, symbol: str, console: Console) -> None:
             table.add_row(name, "ERROR", str(e)[:20])
 
     console.print(table)
-
     if len(results) == 2:
-        diff = abs(float(results.get("Dhan", 0)) - float(results.get("Upstox", 0)))
+        vals = list(results.values())
+        diff = abs(float(vals[0]) - float(vals[1]))
         console.print(f"\nDifference: ₹{diff:.2f}")
         console.print(f"Validation: {'PASS' if diff < 1 else 'WARN'}")
 
 
-def _compare_history(gw, symbol: str, console: Console) -> None:
-    """Compare historical data between brokers."""
+def _compare_history(brokers: list[tuple[str, str]], symbol: str, console: Console) -> None:
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
-    table.add_column("Rows", justify="right")
-    table.add_column("Start", justify="right")
-    table.add_column("End", justify="right")
+    table.add_column("Bars", justify="right")
     table.add_column("Latency", justify="right")
 
-    for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+    for name, broker_id in brokers:
         try:
             t0 = time.time()
-            df = broker.history(symbol, timeframe="1D", lookback_days=30)
+            series = fetch_history(
+                None, symbol, days=30, default=broker_id, **_env_kwargs(broker_id)
+            )
             latency = (time.time() - t0) * 1000
-            rows = len(df)
-            start = str(df["timestamp"].min())[:10] if not df.empty else "N/A"
-            end = str(df["timestamp"].max())[:10] if not df.empty else "N/A"
-            table.add_row(name, str(rows), start, end, f"{latency:.0f}ms")
+            n = getattr(series, "bar_count", 0)
+            table.add_row(name, str(n), f"{latency:.0f}ms")
         except Exception as e:
-            table.add_row(name, "ERROR", "-", "-", str(e)[:20])
+            table.add_row(name, "ERROR", str(e)[:20])
 
     console.print(table)

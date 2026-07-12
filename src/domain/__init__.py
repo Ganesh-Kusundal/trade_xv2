@@ -50,7 +50,6 @@ from domain.reconciliation import (
     ReconciliationReport,
 )
 from domain.orders.requests import (
-    HistoricalCandle,
     ModifyOrderRequest,
     OrderPreview,
     OrderRequest,
@@ -115,7 +114,6 @@ __all__ = [
     "FutureChain",
     "FutureContract",
     "GatewayResult",
-    "HistoricalCandle",
     "Holding",
     "Instrument",
     "InstrumentRecord",

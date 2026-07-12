@@ -3,20 +3,33 @@
 Moved from ``cli.services.broker_registry`` so ``tradex.connect`` can create
 live gateways without importing presentation-layer code.
 
-**Automatic auth design**
--------------------------
-``create_gateway`` builds transport only.
-``bootstrap_gateway`` is the production path: create → structural check →
-authenticated network probe (and at most one TOTP remint if token rejected).
+Public API (use these)
+----------------------
+* :func:`bootstrap_gateway` — create + optional auth probe (composition roots)
+* :func:`require_gateway` — bootstrap with probe; raise if not live-ready
+* :func:`resolve_env_path`, :func:`list_available_brokers`, ``ENV_FILES``
 
-CLI and ``tradex.connect`` must use ``bootstrap_gateway`` for live brokers so
-probe-before-mint / soft-then-hard 401 policy runs automatically.
+Private API (internal only)
+---------------------------
+* :func:`_create_transport_gateway` — transport wiring, no network auth probe
+* ``BrokerFactory.create`` / ``UpstoxBrokerFactory.create`` — only via
+  ``_create_dhan`` / ``_create_upstox`` in this module
+
+Connect modes
+-------------
+* **Live** — ``require_gateway`` or ``bootstrap_gateway(require_authenticated=True)``:
+  structural check → read-only probe → at most one remint on 401.
+* **Analytics** — ``bootstrap_gateway(skip_auth_probe=True)``: transport only,
+  explicit TOTP-safe opt-out (still never call ``_create_transport_gateway`` directly).
+
+``create_gateway`` is deprecated; it delegates to ``_create_transport_gateway``.
 """
 
 from __future__ import annotations
 
 import importlib
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +67,7 @@ def list_available_brokers() -> list[dict[str, Any]]:
     return result
 
 
-def create_gateway(
+def _create_transport_gateway(
     broker: str = "paper",
     env_path: str | Path | None = None,
     load_instruments: bool = True,
@@ -62,10 +75,7 @@ def create_gateway(
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
 ) -> Any | None:
-    """Create a gateway for *broker* (transport only — no network auth probe).
-
-    Prefer :func:`bootstrap_gateway` for production connect paths.
-    """
+    """Create transport for *broker* (private — no network auth probe)."""
     broker = (broker or "paper").lower().strip()
     builders = {
         "dhan": _create_dhan,
@@ -81,6 +91,30 @@ def create_gateway(
         return None
     return builder(
         env_path,
+        load_instruments=load_instruments,
+        event_bus=event_bus,
+        lifecycle=lifecycle,
+        risk_manager=risk_manager,
+    )
+
+
+def create_gateway(
+    broker: str = "paper",
+    env_path: str | Path | None = None,
+    load_instruments: bool = True,
+    event_bus: Any | None = None,
+    lifecycle: Any | None = None,
+    risk_manager: Any | None = None,
+) -> Any | None:
+    """Deprecated: use :func:`bootstrap_gateway` or :func:`require_gateway`."""
+    warnings.warn(
+        "create_gateway is deprecated; use bootstrap_gateway or require_gateway",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _create_transport_gateway(
+        broker,
+        env_path=env_path,
         load_instruments=load_instruments,
         event_bus=event_bus,
         lifecycle=lifecycle,
@@ -105,7 +139,7 @@ def bootstrap_gateway(
 
     Flow (live brokers)::
 
-        create_gateway
+        _create_transport_gateway
           → structural_readiness (token present)
           → execute_read_only_probe (funds/profile)
           → on token rejection: one force-refresh (TOTP under cooldown)
@@ -140,7 +174,7 @@ def bootstrap_gateway(
             skip_probe = False
 
     try:
-        gw = create_gateway(
+        gw = _create_transport_gateway(
             broker,
             env_path=resolved,
             load_instruments=load_instruments,
@@ -175,7 +209,7 @@ def bootstrap_gateway(
         return BootstrapResult(
             status=BootstrapStatus.FAILED,
             broker=broker,
-            error="create_gateway returned None",
+            error="_create_transport_gateway returned None",
         )
 
     # Non-live or explicit skip: no auth probe
@@ -349,9 +383,9 @@ def _create_paper(
     **kwargs: Any,  # noqa: ARG001
 ) -> Any | None:
     try:
-        from brokers.paper import PaperGateway
+        _mod = importlib.import_module("brokers.paper")
 
-        return PaperGateway()
+        return _mod.PaperGateway()
     except ImportError:
         logger.warning("Paper gateway not available")
         return None

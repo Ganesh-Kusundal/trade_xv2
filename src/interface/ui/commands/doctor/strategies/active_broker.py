@@ -36,28 +36,57 @@ class ActiveBrokerCheck(CheckStrategy):
             )
 
             if caps:
+                if hasattr(caps, "supports_live_market_data"):
+                    matrix = {
+                        "supports_live_market_data": caps.supports_live_market_data,
+                        "supports_depth_20_ws": caps.supports_depth_20_ws,
+                        "supports_depth_200_ws": caps.supports_depth_200_ws,
+                        "supports_super_order": caps.supports_super_order,
+                        "order_types": sorted(caps.order_types),
+                        "rate_limit_profiles": [
+                            {
+                                "sustained_rps": p.sustained_rps,
+                                "burst_rps": p.burst_rps,
+                            }
+                            for p in caps.rate_limit_profiles
+                        ],
+                    }
+                elif isinstance(caps, dict):
+                    matrix = caps.get("matrix", caps)
+                else:
+                    matrix = {}
                 features = []
-                if caps.websocket:
+                if matrix.get("supports_live_market_data"):
                     features.append("WebSocket")
-                if caps.depth_20:
+                if matrix.get("supports_depth_20_ws"):
                     features.append("Depth20")
-                if caps.depth_200:
+                if matrix.get("supports_depth_200_ws"):
                     features.append("Depth200")
-                if caps.super_orders:
+                if matrix.get("supports_super_order"):
                     features.append("SuperOrders")
-                order_types = ", ".join(caps.order_types[:4])
+                order_types = matrix.get("order_types") or []
+                if isinstance(order_types, (list, tuple, frozenset)):
+                    order_types = ", ".join(list(order_types)[:4])
+                else:
+                    order_types = str(order_types)
                 results.append(
                     CheckResult(
                         "  Capabilities",
                         "PASS",
-                        f"Orders: {order_types} | Features: {', '.join(features) or 'none'}",
+                        f"Orders: {order_types or 'n/a'} | Features: {', '.join(features) or 'none'}",
                     )
                 )
+                profiles = matrix.get("rate_limit_profiles") or []
+                rate_detail = "n/a"
+                if profiles:
+                    p0 = profiles[0] if isinstance(profiles, list) else None
+                    if isinstance(p0, dict):
+                        rate_detail = f"{p0.get('sustained_rps', '?')}/s burst {p0.get('burst_rps', '?')}"
                 results.append(
                     CheckResult(
                         "  Rate Limits",
                         "PASS",
-                        f"{caps.rate_limit_per_second}/s, {caps.rate_limit_per_minute}/min",
+                        rate_detail,
                     )
                 )
         except Exception as exc:

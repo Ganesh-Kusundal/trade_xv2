@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 from rich.console import Console
 from rich.table import Table
@@ -32,7 +32,7 @@ def test_dhan_options_via_gateway():
         import time
 
         from infrastructure.config.env_loader import load_env_file
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import bootstrap_gateway
 
         env_path = Path(".env.local")
         if not env_path.exists():
@@ -42,7 +42,13 @@ def test_dhan_options_via_gateway():
 
         console.print("\n[cyan]Creating Dhan gateway...[/cyan]")
         t0 = time.time()
-        gw = create_gateway("dhan", env_path=env_path, load_instruments=True)
+        boot = bootstrap_gateway(
+            "dhan",
+            env_path=env_path,
+            load_instruments=True,
+            require_authenticated=True,
+        )
+        gw = boot.gateway if boot.live_ready else None
         latency = (time.time() - t0) * 1000
         if not gw:
             console.print("[red]Gateway creation failed[/red]")
@@ -159,7 +165,7 @@ def test_upstox_options_via_gateway():
         import time
 
         from infrastructure.config.env_loader import load_env_file
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import bootstrap_gateway
 
         env_path = Path(".env.upstox")
         if not env_path.exists():
@@ -169,7 +175,13 @@ def test_upstox_options_via_gateway():
 
         console.print("\n[cyan]Creating Upstox gateway...[/cyan]")
         t0 = time.time()
-        gw = create_gateway("upstox", env_path=env_path, load_instruments=True)
+        boot = bootstrap_gateway(
+            "upstox",
+            env_path=env_path,
+            load_instruments=True,
+            require_authenticated=True,
+        )
+        gw = boot.gateway if boot.live_ready else None
         latency = (time.time() - t0) * 1000
         if not gw:
             console.print("[red]Gateway creation failed[/red]")

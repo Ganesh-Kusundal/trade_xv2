@@ -25,10 +25,12 @@ class MarketFeedPublisher:
         next_sequence: Callable[[str], int],
         *,
         to_decimal: Callable[[Any], Decimal],
+        degrade_every_n_drops: int = 10,
     ) -> None:
         self._event_bus = event_bus
         self._next_sequence = next_sequence
         self._to_decimal = to_decimal
+        self._degrade_every_n_drops = max(1, degrade_every_n_drops)
         self.published_ticks = 0
         self.dropped_ticks = 0
         self.published_depths = 0
@@ -45,11 +47,13 @@ class MarketFeedPublisher:
                 self.dropped_ticks += 1
                 self._inc_metric("dhan_ws_dropped_ticks_total")
                 logger.warning("tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>")
+                self._maybe_emit_market_data_degraded(symbol, "missing_or_zero_ltp")
                 return
             if not symbol:
                 self.dropped_ticks += 1
                 self._inc_metric("dhan_ws_dropped_ticks_total")
                 logger.warning("tick_dropped_missing_symbol")
+                self._maybe_emit_market_data_degraded("", "missing_symbol")
                 return
 
             seq = self._next_sequence(symbol)
@@ -79,6 +83,28 @@ class MarketFeedPublisher:
         except Exception as exc:
             self.dropped_ticks += 1
             logger.error("EventBus TICK publish error: %s", exc)
+
+    def _maybe_emit_market_data_degraded(self, symbol: str, reason: str) -> None:
+        """Surface tick drops as DEGRADED (fail-closed MD-3) — throttled."""
+        if self._event_bus is None:
+            return
+        if self.dropped_ticks % self._degrade_every_n_drops != 0:
+            return
+        try:
+            self._event_bus.publish(
+                DomainEvent.now(
+                    "MARKET_DATA_DEGRADED",
+                    {
+                        "reason": reason,
+                        "dropped_ticks": self.dropped_ticks,
+                        "degraded": True,
+                    },
+                    symbol=symbol or None,
+                    source="DhanMarketFeed",
+                )
+            )
+        except Exception as exc:
+            logger.debug("market_data_degraded_publish_failed: %s", exc)
 
     def publish_depth(self, depth: dict, correlation_id: str | None = None) -> None:
         if self._event_bus is None:

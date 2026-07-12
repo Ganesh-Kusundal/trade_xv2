@@ -13,15 +13,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from application.oms.context import TradingContext
+from application.oms.order_manager import OrderResult
 from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
 from infrastructure.lifecycle import LifecycleManager
-from application.oms.context import TradingContext
 
 if TYPE_CHECKING:
     from application.execution.execution_mode_adapter import ExecutionModeAdapter
     from application.trading.trading_orchestrator import TradingOrchestrator
     from infrastructure.broker_infrastructure import BrokerInfrastructure
     from infrastructure.event_bus.event_bus import EventBus
+    from runtime.resilience import ResilienceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,8 @@ class Runtime:
     broker_service: Any | None = None
     event_bus: EventBus | None = None
     execution_adapter: ExecutionModeAdapter | None = None
+    resilience: ResilienceConfig | None = None
+    pattern_engine: Any | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -59,6 +63,7 @@ class TradingRuntimeFactory:
         wire_intelligent_gateway: bool | None = None,
         orchestrator_dry_run: bool | None = None,
         skip_parity_gate: bool = False,
+        resilience: ResilienceConfig | None = None,
     ) -> None:
         self._broker = broker
         self._authorize_risk_fail_open = authorize_risk_fail_open
@@ -71,6 +76,10 @@ class TradingRuntimeFactory:
             orchestrator_dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "1") == "1"
         self._orchestrator_dry_run = orchestrator_dry_run
         self._skip_parity_gate = skip_parity_gate
+        # ADR-012 appendix: resilience subsystem is a visible kernel dependency.
+        from runtime.resilience import ResilienceConfig
+
+        self._resilience = resilience or ResilienceConfig.from_env()
 
     def build_from_broker_service(self, bs: Any) -> Runtime:
         """Wire runtime from an existing :class:`BrokerService`."""
@@ -79,7 +88,7 @@ class TradingRuntimeFactory:
 
         validate_production_config(surface="runtime")
 
-        if not self._skip_parity_gate:
+        if not self._skip_parity_gate and self._resilience.parity_gate_enabled:
             assert_runtime_parity_or_raise()
 
         if self._authorize_risk_fail_open:
@@ -104,8 +113,11 @@ class TradingRuntimeFactory:
             broker_infrastructure = self._build_broker_infrastructure(bs)
 
         orchestrator = None
+        pattern_engine = None
         if self._wire_orchestrator and tc is not None:
-            orchestrator = self._wire_trading_orchestrator(tc, gateway, bs.lifecycle)
+            orchestrator, pattern_engine = self._wire_trading_orchestrator(
+                tc, gateway, bs.lifecycle
+            )
 
         execution_adapter = None
         # Note: "live" mode is handled directly in ExecutionService,
@@ -127,6 +139,8 @@ class TradingRuntimeFactory:
             broker_service=bs,
             event_bus=event_bus,
             execution_adapter=execution_adapter,
+            resilience=self._resilience,
+            pattern_engine=pattern_engine,
         )
 
     @staticmethod
@@ -141,31 +155,79 @@ class TradingRuntimeFactory:
         gateway: MarketDataGateway | None,
         lifecycle: LifecycleManager,
     ) -> Any:
-        from application.trading.multi_strategy_runtime import MultiStrategyRuntime
-        from analytics.pipeline.features import ATR, RSI, SMA
+        from analytics.pipeline.features import ATR, RSI, SMA, CandlestickPattern
         from analytics.pipeline.pipeline import FeaturePipeline
-        from infrastructure.event_bus import EventType
+        from analytics.strategy.pipeline import StrategyPipeline
         from application.trading.feature_fetcher import PipelineFeatureFetcher
+        from application.trading.multi_strategy_runtime import MultiStrategyRuntime
         from application.trading.trading_orchestrator import (
             OrchestratorConfig,
             TradingOrchestrator,
         )
+        from infrastructure.event_bus import EventType
 
-        pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
+        # Core feature pipeline now also surfaces candlestick/swing patterns so
+        # they feed both scanners and strategies (Tier 1-C pattern engine).
+        pipeline = (
+            FeaturePipeline()
+            .add(RSI(14))
+            .add(ATR(14))
+            .add(SMA(20))
+            .add(CandlestickPattern())
+        )
+
+        # Build the strategy pipeline: keep all discovered built-in strategies
+        # and append the pattern-driven strategy so patterns can drive signals.
         multi = MultiStrategyRuntime()
-        strategy_pipeline = multi.pipeline
+        from analytics.scanner.patterns import PatternEngine, PatternStrategy
+
+        strategy_instances = [*multi.pipeline.strategies, PatternStrategy()]
+        strategy_pipeline = StrategyPipeline(strategies=strategy_instances)
+
+        # Standalone pattern engine for direct pattern scanning.
+        pattern_engine = PatternEngine()
+
         feature_fetcher = PipelineFeatureFetcher(pipeline=pipeline, gateway=gateway)
 
         config = OrchestratorConfig(
             min_confidence=float(os.getenv("ORCHESTRATOR_MIN_CONFIDENCE", "0.7")),
             dry_run=self._orchestrator_dry_run,
         )
+        # ADR-012: route signals through a CommandDispatcher so the orchestrator
+        # never calls the OMS/broker directly. Built here (runtime layer) wrapping
+        # the context's OrderManager; the critical path stays synchronous. The
+        # orchestrator receives a closure (order_command_fn) so it does not import
+        # runtime.commands itself (keeps application -> runtime cycle-free).
+        from runtime.commands import CommandDispatcher, OrderCommandHandler, PlaceOrderCommand
+
+        command_dispatcher = CommandDispatcher(event_bus=tc.event_bus)
+        command_dispatcher.register_handler(OrderCommandHandler(tc.order_manager))
+
+        def order_command_fn(oms_cmd: Any) -> Any:
+            cmd = PlaceOrderCommand(
+                correlation_id=oms_cmd.correlation_id,
+                symbol=oms_cmd.symbol,
+                exchange=oms_cmd.exchange,
+                side=oms_cmd.side,
+                quantity=oms_cmd.quantity,
+                price=oms_cmd.price,
+                order_type=oms_cmd.order_type,
+                product_type=oms_cmd.product_type,
+            )
+            result = command_dispatcher.dispatch(cmd)
+            return OrderResult(
+                success=result.success,
+                order=result.data,
+                error=result.error or "",
+            )
+
         orchestrator = TradingOrchestrator(
             event_bus=tc.event_bus,
             order_manager=tc.order_manager,
             strategy_evaluator=strategy_pipeline,
             feature_fetcher=feature_fetcher,
             config=config,
+            order_command_fn=order_command_fn,
         )
         tc.event_bus.subscribe(EventType.CANDIDATE_GENERATED, orchestrator.on_candidate)
         lifecycle.register(orchestrator)
@@ -173,7 +235,7 @@ class TradingRuntimeFactory:
             "TradingOrchestrator wired (dry_run=%s)",
             config.dry_run,
         )
-        return orchestrator
+        return orchestrator, pattern_engine
 
     def _build_broker_infrastructure(
         self,
@@ -186,11 +248,13 @@ class TradingRuntimeFactory:
         ``QuotaScheduler``, and ``StreamOrchestrator``.
         """
         import asyncio
-        from infrastructure.bootstrap import bootstrap_from_gateways, policy_from_env
+
+        from domain.policies.source_selection import auto_dual_broker_policy
+        from runtime.broker_infrastructure import build_infrastructure
 
         dhan_gw = getattr(broker_service, "_gateway", None)
         upstox_gw = getattr(broker_service, "_upstox_gateway", None)
-        gateway_pairs = []
+        gateway_pairs: list[tuple[str, Any]] = []
         if dhan_gw is not None:
             gateway_pairs.append(("dhan", dhan_gw))
         if upstox_gw is not None:
@@ -198,9 +262,13 @@ class TradingRuntimeFactory:
         if len(gateway_pairs) < 2:
             logger.info("BrokerInfrastructure skipped: fewer than 2 brokers configured")
             return None
+        execution_account = gateway_pairs[0][0]
         try:
             infra = asyncio.run(
-                bootstrap_from_gateways(gateway_pairs, policy=policy_from_env())
+                build_infrastructure(
+                    gateways=[gw for _, gw in gateway_pairs],
+                    policy=auto_dual_broker_policy(execution_account=execution_account),
+                )
             )
             logger.info("BrokerInfrastructure wired for multi-broker routing")
             return infra

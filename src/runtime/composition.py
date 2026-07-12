@@ -6,10 +6,14 @@ from typing import Any
 
 
 def create_api_event_bus(*, maxsize: int = 2000) -> tuple[Any, Any]:
-    """Create the shared AsyncEventBus used by API bootstrap."""
-    from infrastructure.event_bus.factory import AsyncEventBusFactory
+    """Create the shared EventBus used by API bootstrap (metrics + DLQ)."""
+    from infrastructure.bootstrap import build_production_event_bus
+    from runtime.resilience import ResilienceConfig
 
-    return AsyncEventBusFactory.create_from_config(
-        force_async=True,
-        maxsize=maxsize,
-    )
+    bus = build_production_event_bus(resilience=ResilienceConfig.from_env())
+    config = {
+        "maxsize": maxsize,
+        "created_by": "create_api_event_bus",
+        "bus_type": "synchronous",
+    }
+    return bus, config

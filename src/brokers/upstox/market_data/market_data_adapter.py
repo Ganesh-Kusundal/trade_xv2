@@ -7,6 +7,7 @@ v2/v3 quotes path, and native multi-key batching (≤500 keys per request).
 from __future__ import annotations
 
 from datetime import date
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -20,7 +21,13 @@ from brokers.upstox.market_data.client_v3 import (
     UpstoxMarketDataV3Client,
 )
 from brokers.upstox.market_data.historical_v2 import UpstoxHistoricalV2Client
-from domain import HistoricalCandle, MarketDepth, OptionContract, Quote
+from domain import MarketDepth, OptionContract, Quote
+from domain.candles.historical import (
+    DateRange,
+    HistoricalBar,
+    HistoricalSeries,
+    InstrumentRef,
+)
 
 
 def _chunked(items: list[str], size: int) -> list[list[str]]:
@@ -107,6 +114,40 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         # full quote — documented multi-key path
         return self._v2.get_quote(chunk)
 
+    def get_history_series(
+        self,
+        symbol: str | list[str],
+        exchange: str = "NSE",
+        timeframe: str = "1D",
+        lookback_days: int = 90,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> HistoricalSeries:
+        """Fetch historical candles as domain ``HistoricalSeries`` (SSOT)."""
+        if isinstance(symbol, list):
+            symbol = symbol[0]
+
+        bars = self._fetch_historical_bars(
+            symbol,
+            exchange,
+            timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        ref = InstrumentRef(symbol=symbol, exchange=exchange)
+        coverage = (
+            DateRange(bars[0].event_time.date(), bars[-1].event_time.date())
+            if bars
+            else DateRange(date.today(), date.today())
+        )
+        return HistoricalSeries(
+            bars=bars,
+            coverage=coverage,
+            instrument=ref,
+            timeframe=timeframe,
+        )
+
     def history(
         self,
         symbol: str | list[str],
@@ -116,10 +157,26 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        """Fetch historical candle data."""
-        if isinstance(symbol, list):
-            symbol = symbol[0]
+        """Fetch historical candle data (DataFrame export of ``get_history_series``)."""
+        return self.get_history_series(
+            symbol,
+            exchange,
+            timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        ).to_dataframe()
 
+    def _fetch_historical_bars(
+        self,
+        symbol: str,
+        exchange: str,
+        timeframe: str,
+        *,
+        lookback_days: int,
+        from_date: str | None,
+        to_date: str | None,
+    ) -> list[HistoricalBar]:
         instrument_key = _as_instrument_key(symbol, exchange)
 
         interval = timeframe.lower()
@@ -146,23 +203,8 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         body = self._historical.get_candles(
             instrument_key, interval, to_dt.date(), from_dt.date()
         )
-        candles = UpstoxDomainMapper.to_historical_candles(body)
-
-        if not candles:
-            return pd.DataFrame()
-
-        return pd.DataFrame(
-            [
-                {
-                    "timestamp": c.timestamp,
-                    "open": float(c.open),
-                    "high": float(c.high),
-                    "low": float(c.low),
-                    "close": float(c.close),
-                    "volume": c.volume,
-                }
-                for c in candles
-            ]
+        return UpstoxDomainMapper.to_historical_candles(
+            body, symbol=symbol, exchange=exchange, timeframe=timeframe
         )
 
     def get_historical_daily(
@@ -172,7 +214,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         from_date: date,
         to_date: date,
         instrument: str = "EQUITY",
-    ) -> list[HistoricalCandle]:
+    ) -> list[HistoricalBar]:
         instrument_key = f"{_segment_wire(exchange_segment)}|{security_id}"
         body = self._historical.get_candles(instrument_key, "day", to_date, from_date)
         return UpstoxDomainMapper.to_historical_candles(body)
@@ -184,7 +226,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         from_date: date,
         to_date: date,
         interval: str | None = None,
-    ) -> list[HistoricalCandle]:
+    ) -> list[HistoricalBar]:
         instrument_key = f"{_segment_wire(exchange_segment)}|{security_id}"
         body = self._historical.get_candles(
             instrument_key, interval or "1minute", to_date, from_date

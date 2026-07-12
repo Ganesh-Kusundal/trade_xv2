@@ -213,7 +213,7 @@ class TestUpstoxGatewayNewFeatures:
         return mock_broker
 
     def test_gateway_ipo_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = self._make_mock_broker()
         mock_broker.ipo = MagicMock()
@@ -223,7 +223,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "get_ipos")
 
     def test_gateway_payments_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = self._make_mock_broker()
         mock_broker.payments = MagicMock()
@@ -233,7 +233,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "initiate_payout")
 
     def test_gateway_mutual_funds_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = self._make_mock_broker()
         mock_broker.mutual_funds = MagicMock()
@@ -243,7 +243,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "get_mutual_fund_holdings")
 
     def test_gateway_fundamentals_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = self._make_mock_broker()
         mock_broker.fundamentals = MagicMock()
@@ -253,7 +253,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "get_pnl")
 
     def test_gateway_capabilities_includes_new_features(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = self._make_mock_broker()
         mock_broker.portfolio = MagicMock()

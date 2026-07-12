@@ -62,11 +62,18 @@ def _market_open() -> bool:
 
 
 def _gateway():
-    from brokers.upstox.factory import UpstoxBrokerFactory
+    from infrastructure.gateway.factory import bootstrap_gateway
 
-    return UpstoxBrokerFactory().create(
-        env_path=ENV_PATH, load_instruments=True, analytics_only=True
+    result = bootstrap_gateway(
+        "upstox",
+        env_path=ENV_PATH,
+        load_instruments=True,
+        skip_auth_probe=True,
+        analytics_only=True,
     )
+    if not result.ok or result.gateway is None:
+        raise RuntimeError(result.error or "Upstox bootstrap failed")
+    return result.gateway
 
 
 def _data_list(body: Any) -> list[Any]:

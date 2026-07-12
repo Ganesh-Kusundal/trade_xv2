@@ -94,6 +94,8 @@ class BacktestCacheStore:
             timeframe=data["timeframe"],
             metrics=BacktestMetrics(**data["metrics"]),
             trades=data.get("trades"),
+            research_mode=data.get("research_mode", "pure_sim"),
+            research_only=data.get("research_only", True),
         )
 
     def load_all(self) -> dict[str, BacktestResultResponse]:
@@ -114,6 +116,8 @@ class BacktestCacheStore:
                 timeframe=data["timeframe"],
                 metrics=BacktestMetrics(**data["metrics"]),
                 trades=data.get("trades"),
+                research_mode=data.get("research_mode", "pure_sim"),
+                research_only=data.get("research_only", True),
             )
             results[resp.run_id] = resp
         return results

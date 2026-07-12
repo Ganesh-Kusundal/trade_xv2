@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper, _to_wire
 from domain import ExchangeSegment
 
 
@@ -26,14 +26,19 @@ def test_unknown_segment_defaults_to_nse():
 
 
 def test_segment_to_wire():
-    assert UpstoxSegmentMapper.to_wire(ExchangeSegment.NSE) == "NSE_EQ"
-    assert UpstoxSegmentMapper.to_wire(ExchangeSegment.BSE) == "BSE_EQ"
-    assert UpstoxSegmentMapper.to_wire(ExchangeSegment.NSE_FNO) == "NSE_FO"
-    assert UpstoxSegmentMapper.to_wire(ExchangeSegment.MCX) == "MCX_FO"
-    assert UpstoxSegmentMapper.to_wire(ExchangeSegment.IDX_I) == "NSE_INDEX"
+    mapper = UpstoxSegmentMapper()
+    assert mapper.to_wire(ExchangeSegment.NSE) == "NSE_EQ"
+    assert mapper.to_wire(ExchangeSegment.BSE) == "BSE_EQ"
+    assert mapper.to_wire(ExchangeSegment.NSE_FNO) == "NSE_FO"
+    assert mapper.to_wire(ExchangeSegment.MCX) == "MCX_FO"
+    assert mapper.to_wire(ExchangeSegment.IDX_I) == "NSE_INDEX"
 
 
 def test_segment_to_wire_string_input():
-    assert UpstoxSegmentMapper.to_wire("NSE_EQ") == "NSE_EQ"
-    assert UpstoxSegmentMapper.to_wire("") == "NSE_EQ"
-    assert UpstoxSegmentMapper.to_wire(None) == "NSE_EQ"
+    mapper = UpstoxSegmentMapper()
+    assert _to_wire("NSE_EQ") == "NSE_EQ"
+    assert _to_wire("") == "NSE_EQ"
+    assert _to_wire(None) == "NSE_EQ"
+
+
+

@@ -324,10 +324,9 @@ class ConfigValidator:
                 "AUTH_MODE=none in production - API endpoints are unprotected"
             )
 
-        # Ensure encryption key is set if secret rotation is used
         if "SECRET_ENCRYPTION_KEY" not in self._env:
             result.add_warning(
-                "SECRET_ENCRYPTION_KEY not set - token state files will be unencrypted"
+                "SECRET_ENCRYPTION_KEY is unset — broker token stores use plaintext JSON"
             )
 
     def _validate_staging_specific(self, result: ValidationResult) -> None:

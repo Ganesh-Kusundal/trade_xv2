@@ -106,10 +106,12 @@ class AuthLiveProbeCheck(CheckStrategy):
                 except Exception:
                     pass
 
-        from infrastructure.gateway.factory import create_gateway, resolve_env_path
+        from interface.ui.services.connect import connect_analytics
+        from interface.ui.services.broker_registry import resolve_env_path
 
         env = self.env_path or resolve_env_path(name)
-        return create_gateway(name, env_path=env, load_instruments=False)
+        result = connect_analytics(name, env_path=env, load_instruments=False)
+        return result.gateway if result.ok else None
 
     @staticmethod
     def _to_result(

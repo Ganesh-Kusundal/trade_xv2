@@ -75,7 +75,9 @@ class UpstoxOAuthClient:
     def fetch_profile(self, access_token: str) -> int:
         """Hit ``/user/profile`` to retrieve ``data.token_expiry``.
 
-        Returns epoch ms, or -1 if unavailable.
+        Returns epoch ms when ``token_expiry`` is present, ``0`` when profile
+        succeeds without expiry (auth OK), or ``-1`` on soft failure.
+        Raises :class:`UpstoxAuthError` on HTTP 401/403.
         """
         try:
             resp = self._session.get(
@@ -88,6 +90,12 @@ class UpstoxOAuthClient:
             )
         except (requests.RequestException, Exception):
             return -1
+        if resp.status_code in (401, 403):
+            raise UpstoxAuthError(
+                f"Upstox profile failed: HTTP {resp.status_code}",
+                resp.status_code,
+                resp.text,
+            )
         if resp.status_code != 200:
             return -1
         try:
@@ -95,7 +103,7 @@ class UpstoxOAuthClient:
             data = payload.get("data", {}) if isinstance(payload, dict) else {}
             token_expiry = data.get("token_expiry")
             if not token_expiry:
-                return -1
+                return 0
             from datetime import datetime
 
             dt = datetime.fromisoformat(token_expiry.replace("Z", "+00:00"))

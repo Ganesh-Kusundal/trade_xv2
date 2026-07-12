@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
+from interface.ui.services.broker_ops import fetch_depth, fetch_history, fetch_quote
 from interface.ui.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
@@ -34,11 +35,13 @@ def show_quote(
     broker_service: BrokerService, symbol: str, console: Console, live_mode: bool = False
 ) -> None:
     """Display real-time quote for a symbol."""
-    gw = broker_service.active_broker
     exchange = resolve_exchange(symbol)
 
     def generate_table() -> Table:
-        quote = gw.market_data.get_quote(symbol, exchange)
+        try:
+            quote = fetch_quote(broker_service, symbol, exchange=exchange)
+        except Exception:
+            quote = None
         table = Table(
             title=f"Quote Terminal: {symbol.upper()} ({exchange})", header_style="bold green"
         )
@@ -80,11 +83,13 @@ def show_depth(
     broker_service: BrokerService, symbol: str, console: Console, live_mode: bool = False
 ) -> None:
     """Display L2 market depth (bids/asks)."""
-    gw = broker_service.active_broker
     exchange = resolve_exchange(symbol)
 
     def generate_table() -> Table:
-        depth = gw.market_data.get_depth(symbol, exchange)
+        try:
+            depth = fetch_depth(broker_service, symbol, exchange=exchange)
+        except Exception:
+            depth = None
         table = Table(title=f"Market Depth L2: {symbol.upper()}", header_style="bold magenta")
         table.add_column("Bid Qty", style="green", justify="right")
         table.add_column("Bid Price", style="bold green", justify="right")
@@ -272,24 +277,31 @@ def show_futures(
 
     try:
         result = gw.future_chain(sym, exchange)
-        contracts = result.get("contracts") if isinstance(result, dict) else result
+        if hasattr(result, "contracts"):
+            contracts = result.contracts
+        elif isinstance(result, dict):
+            contracts = result.get("contracts", [])
+        else:
+            contracts = result or []
 
         table = Table(title=f"Futures Contracts for {sym}", header_style="bold yellow")
         table.add_column("Expiry", style="bold white")
         table.add_column("Trading Symbol", style="white")
-        table.add_column("Security ID", justify="center")
         table.add_column("Lot Size", justify="right")
 
         if contracts:
             for c in contracts:
-                table.add_row(
-                    c.get("expiry") or "N/A",
-                    c.get("symbol") or "N/A",
-                    str(c.get("security_id", "N/A")),
-                    str(c.get("lot_size", "N/A")),
-                )
+                if hasattr(c, "expiry"):
+                    expiry = c.expiry or "N/A"
+                    symbol_val = c.symbol or "N/A"
+                    lot = c.lot_size
+                else:
+                    expiry = c.get("expiry") or "N/A"
+                    symbol_val = c.get("symbol") or "N/A"
+                    lot = c.get("lot_size", "N/A")
+                table.add_row(str(expiry), str(symbol_val), str(lot))
         else:
-            table.add_row("No contracts found", "-", "-", "-")
+            table.add_row("No contracts found", "-", "-")
 
         console.print(table)
     except Exception as exc:
@@ -300,13 +312,30 @@ def show_historical(
     broker_service: BrokerService, symbol: str, console: Console
 ) -> None:
     """Display historical candles summary and preview."""
-    gw = broker_service.active_broker
     exchange = resolve_exchange(symbol)
-    to_date = date.today().isoformat()
-    from_date = (date.today() - timedelta(days=10)).isoformat()
 
     try:
-        df = gw.historical.get_historical(symbol, exchange, from_date, to_date, timeframe="1D")
+        series = fetch_history(
+            broker_service, symbol, exchange=exchange, timeframe="1D", days=10
+        )
+        df = series.to_dataframe() if hasattr(series, "to_dataframe") else None
+        if df is None and hasattr(series, "bars"):
+            import pandas as pd
+
+            bars = getattr(series, "bars", []) or []
+            df = pd.DataFrame(
+                [
+                    {
+                        "timestamp": getattr(b, "timestamp", None),
+                        "open": float(getattr(b, "open", 0)),
+                        "high": float(getattr(b, "high", 0)),
+                        "low": float(getattr(b, "low", 0)),
+                        "close": float(getattr(b, "close", 0)),
+                        "volume": int(getattr(b, "volume", 0)),
+                    }
+                    for b in bars
+                ]
+            )
 
         table = Table(
             title=f"Historical Data Preview: {symbol.upper()}", header_style="bold magenta"
@@ -453,7 +482,7 @@ def show_stream(
                 # Fallback: REST polling when WS is not available
                 if not use_ws:
                     try:
-                        quote = gw.market_data.get_quote(symbol, exchange)
+                        quote = fetch_quote(broker_service, symbol, exchange=exchange)
                         if quote is not None:
                             on_tick(quote)
                     except Exception as exc:

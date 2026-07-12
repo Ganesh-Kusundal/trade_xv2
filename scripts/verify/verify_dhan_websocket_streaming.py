@@ -15,9 +15,9 @@ from datetime import datetime
 
 # Add repo to path
 repo_root = Path(__file__).parent.parent
-sys.path.insert(0, str(repo_root))
-
-from brokers.dhan.identity.factory import BrokerFactory
+sys.path.insert(0, str(repo_root / "src"))
+sys.path.insert(0, str(repo_root / "scripts"))
+from _connect import bootstrap_or_exit
 
 
 class WebSocketStreamingTest:
@@ -38,8 +38,7 @@ class WebSocketStreamingTest:
 
         try:
             print("\n📦 Creating Dhan gateway and loading instruments...")
-            factory = BrokerFactory()
-            self.gateway = factory.create(load_instruments=True)
+            self.gateway = bootstrap_or_exit("dhan", load_instruments=True)
             print("✅ Gateway created and instruments loaded")
             return True
         except Exception as e:

@@ -49,45 +49,75 @@ _SEGMENT_TO_UPSTOX: dict[ExchangeSegment, str] = {
 }
 
 
+def _to_safe(upstox_segment: str) -> ExchangeSegment:
+    if not upstox_segment:
+        return ExchangeSegment.NSE
+    seg = _UPSTOX_TO_SEGMENT.get(upstox_segment.upper())
+    if seg is None:
+        return ExchangeSegment.NSE
+    return seg
+
+
+def _from_exchange(exchange: str) -> ExchangeSegment:
+    exch = str(exchange or "NSE").upper()
+    if exch in (NFO, "NSE_FNO"):
+        return ExchangeSegment.NSE_FNO
+    if exch in (BFO, "BSE_FNO"):
+        return ExchangeSegment.BSE_FNO
+    if exch == BSE:
+        return ExchangeSegment.BSE
+    if exch == MCX:
+        return ExchangeSegment.MCX
+    if exch in ("INDEX", "IDX"):
+        return ExchangeSegment.IDX_I
+    return ExchangeSegment.NSE
+
+
+def _to_wire(segment: Any) -> str:
+    if isinstance(segment, str):
+        segment_upper = segment.upper()
+        if segment_upper == NSE:
+            segment = ExchangeSegment.NSE
+        elif segment_upper == BSE:
+            segment = ExchangeSegment.BSE
+        elif segment_upper in ("NSE_FNO", NFO):
+            segment = ExchangeSegment.NSE_FNO
+        elif segment_upper in ("BSE_FNO", BFO):
+            segment = ExchangeSegment.BSE_FNO
+        elif segment_upper == MCX:
+            segment = ExchangeSegment.MCX
+        elif segment_upper == "INDEX":
+            segment = ExchangeSegment.IDX_I
+        else:
+            for seg in ExchangeSegment:
+                if seg.name == segment_upper or seg.value == segment_upper:
+                    segment = seg
+                    break
+
+    if isinstance(segment, ExchangeSegment):
+        return _SEGMENT_TO_UPSTOX.get(segment, WIRE_NSE_EQ)
+    if isinstance(segment, str):
+        return segment.upper() or WIRE_NSE_EQ
+    return WIRE_NSE_EQ
+
+
 class UpstoxSegmentMapper:
     """Bidirectional segment mapper."""
 
+    broker_id = "upstox"
+
+    def to_wire(self, segment: ExchangeSegment) -> str:
+        return _to_wire(segment)
+
+    def from_wire(self, wire: str) -> ExchangeSegment:
+        return _to_safe(wire)
+
+    def from_exchange(self, exchange: str) -> ExchangeSegment:
+        return _from_exchange(exchange)
+
     @classmethod
     def to_safe(cls, upstox_segment: str) -> ExchangeSegment:
-        if not upstox_segment:
-            return ExchangeSegment.NSE
-        seg = _UPSTOX_TO_SEGMENT.get(upstox_segment.upper())
-        if seg is None:
-            return ExchangeSegment.NSE
-        return seg
-
-    @classmethod
-    def to_wire(cls, segment: Any) -> str:
-        if isinstance(segment, str):
-            segment_upper = segment.upper()
-            if segment_upper == NSE:
-                segment = ExchangeSegment.NSE
-            elif segment_upper == BSE:
-                segment = ExchangeSegment.BSE
-            elif segment_upper in ("NSE_FNO", NFO):
-                segment = ExchangeSegment.NSE_FNO
-            elif segment_upper in ("BSE_FNO", BFO):
-                segment = ExchangeSegment.BSE_FNO
-            elif segment_upper == MCX:
-                segment = ExchangeSegment.MCX
-            elif segment_upper == "INDEX":
-                segment = ExchangeSegment.IDX_I
-            else:
-                for seg in ExchangeSegment:
-                    if seg.name == segment_upper or seg.value == segment_upper:
-                        segment = seg
-                        break
-
-        if isinstance(segment, ExchangeSegment):
-            return _SEGMENT_TO_UPSTOX.get(segment, WIRE_NSE_EQ)
-        if isinstance(segment, str):
-            return segment.upper() or WIRE_NSE_EQ
-        return WIRE_NSE_EQ
+        return _to_safe(upstox_segment)
 
     @classmethod
     def all_upstox_segments(cls) -> list[str]:

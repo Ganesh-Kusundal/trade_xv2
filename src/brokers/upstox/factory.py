@@ -16,7 +16,7 @@ from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.upstox.auth.config import UpstoxSettingsLoader
 from brokers.upstox.auth.exceptions import UpstoxAuthError
 from brokers.upstox.broker import UpstoxBroker
-from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
                 "will not run until lifecycle.start_all() wires TotpRefreshScheduler"
             )
 
-        gateway = UpstoxBrokerGateway(broker)
+        gateway = UpstoxWireAdapter(broker)
 
         # Register extension factories so brokers.common can find them
 

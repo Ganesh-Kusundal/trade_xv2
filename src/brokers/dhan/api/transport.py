@@ -58,7 +58,7 @@ class DhanOrderTransport(ExecutionProvider):
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:
             response = self._gateway.place_order(
-                symbol=request.symbol or request.security_id,
+                symbol=request.symbol,
                 exchange=request.exchange,
                 side=request.transaction_type.value,
                 quantity=request.quantity,

@@ -14,7 +14,6 @@ import pandas as pd
 
 from datalake.core.paths import timeframe_partition_dir
 from datalake.gateway import DataLakeGateway
-from datalake.core.paths import CURATED_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +22,12 @@ class ResearchAPI:
     """Fast local data access for research."""
 
     def __init__(
-        self, root: str = "market_data", curated_root: str = CURATED_ROOT, catalog=None
+        self, root: str = "market_data", catalog=None
     ) -> None:
         self._root = Path(root)
-        self._curated_root = Path(curated_root)
         self._catalog = catalog
         # Delegate to DataLakeGateway for unified data access path
-        self._gateway = DataLakeGateway(root=str(self._root), curated_root=str(self._curated_root))
+        self._gateway = DataLakeGateway(root=str(self._root))
 
     def history(
         self,

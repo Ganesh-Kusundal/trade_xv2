@@ -103,3 +103,23 @@ def test_paper_broker_facade_empty_capabilities():
     with pytest.raises(AttributeError, match="depth"):
         eq.broker.depth20()
     session.close()
+
+
+def test_upstox_news_extension_capabilities_enum() -> None:
+    from domain.capabilities import Capability
+    from brokers.upstox.extensions.news import UpstoxNewsExtension
+
+    ext = UpstoxNewsExtension(MagicMock())
+    caps = ext.capabilities
+    assert caps == (Capability.NEWS,)
+
+
+def test_broker_facade_capability_names_includes_upstox_news() -> None:
+    from brokers.upstox.extensions.depth import UpstoxDepth30Extension
+    from brokers.upstox.extensions.news import UpstoxNewsExtension
+
+    gw = MagicMock()
+    facade = BrokerFacade("upstox", [UpstoxDepth30Extension(gw), UpstoxNewsExtension(gw)])
+    names = facade.capability_names()
+    assert "depth_30" in names
+    assert "news" in names

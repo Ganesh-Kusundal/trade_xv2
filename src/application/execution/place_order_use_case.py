@@ -11,8 +11,9 @@ from collections.abc import Callable
 
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain import Order, Side
-from domain.ports import EventPublisher
 from domain.orders.requests import OrderRequest
+from domain.ports import EventPublisher
+from application.observability import trace_operation
 
 
 class PlaceOrderUseCase:
@@ -34,6 +35,7 @@ class PlaceOrderUseCase:
         self._events = event_publisher
         self._submit_fn = submit_fn
 
+    @trace_operation("place_order")
     def execute(self, request: OrderRequest | OmsOrderCommand) -> OrderResult:
         if isinstance(request, OmsOrderCommand):
             command = request

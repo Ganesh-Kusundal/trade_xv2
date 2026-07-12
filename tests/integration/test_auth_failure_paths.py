@@ -360,7 +360,7 @@ class TestAuthIntegrationWithGateway:
         from unittest.mock import MagicMock, patch
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         # Create connection
         conn = DhanConnection(

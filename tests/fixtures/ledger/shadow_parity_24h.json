@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "description": "Synthetic 24h session fills — one fill per order_id for shadow parity gate",
+  "fills": [
+    {"fill_id": "f001", "order_id": "o001", "symbol": "RELIANCE", "exchange": "NSE", "side": "BUY", "quantity": 10, "cumulative_quantity": 10, "order_quantity": 10, "price": "2450.50", "event_time": "2026-07-10T03:45:00+00:00"},
+    {"fill_id": "f002", "order_id": "o002", "symbol": "INFY", "exchange": "NSE", "side": "BUY", "quantity": 25, "cumulative_quantity": 25, "order_quantity": 25, "price": "1520.00", "event_time": "2026-07-10T04:15:00+00:00"},
+    {"fill_id": "f003", "order_id": "o003", "symbol": "TCS", "exchange": "NSE", "side": "BUY", "quantity": 5, "cumulative_quantity": 5, "order_quantity": 5, "price": "3850.25", "event_time": "2026-07-10T05:00:00+00:00"},
+    {"fill_id": "f004", "order_id": "o004", "symbol": "RELIANCE", "exchange": "NSE", "side": "SELL", "quantity": 3, "cumulative_quantity": 3, "order_quantity": 3, "price": "2460.00", "event_time": "2026-07-10T06:30:00+00:00"},
+    {"fill_id": "f005", "order_id": "o005", "symbol": "HDFCBANK", "exchange": "NSE", "side": "BUY", "quantity": 15, "cumulative_quantity": 15, "order_quantity": 15, "price": "1680.75", "event_time": "2026-07-10T07:00:00+00:00"},
+    {"fill_id": "f006", "order_id": "o006", "symbol": "INFY", "exchange": "NSE", "side": "SELL", "quantity": 10, "cumulative_quantity": 10, "order_quantity": 10, "price": "1535.50", "event_time": "2026-07-10T08:00:00+00:00"},
+    {"fill_id": "f007", "order_id": "o007", "symbol": "SBIN", "exchange": "NSE", "side": "BUY", "quantity": 50, "cumulative_quantity": 50, "order_quantity": 50, "price": "820.00", "event_time": "2026-07-10T08:30:00+00:00"},
+    {"fill_id": "f008", "order_id": "o008", "symbol": "TCS", "exchange": "NSE", "side": "SELL", "quantity": 2, "cumulative_quantity": 2, "order_quantity": 2, "price": "3870.00", "event_time": "2026-07-10T09:00:00+00:00"},
+    {"fill_id": "f009", "order_id": "o009", "symbol": "ICICIBANK", "exchange": "NSE", "side": "BUY", "quantity": 20, "cumulative_quantity": 20, "order_quantity": 20, "price": "1125.30", "event_time": "2026-07-10T09:15:00+00:00"},
+    {"fill_id": "f010", "order_id": "o010", "symbol": "RELIANCE", "exchange": "NSE", "side": "BUY", "quantity": 5, "cumulative_quantity": 5, "order_quantity": 5, "price": "2475.00", "event_time": "2026-07-10T09:45:00+00:00"},
+    {"fill_id": "f011", "order_id": "o011", "symbol": "HDFCBANK", "exchange": "NSE", "side": "SELL", "quantity": 5, "cumulative_quantity": 5, "order_quantity": 5, "price": "1695.00", "event_time": "2026-07-10T10:00:00+00:00"},
+    {"fill_id": "f012", "order_id": "o012", "symbol": "INFY", "exchange": "NSE", "side": "BUY", "quantity": 8, "cumulative_quantity": 8, "order_quantity": 8, "price": "1540.00", "event_time": "2026-07-11T03:45:00+00:00"},
+    {"fill_id": "f013", "order_id": "o013", "symbol": "SBIN", "exchange": "NSE", "side": "SELL", "quantity": 20, "cumulative_quantity": 20, "order_quantity": 20, "price": "835.50", "event_time": "2026-07-11T04:30:00+00:00"},
+    {"fill_id": "f014", "order_id": "o014", "symbol": "TCS", "exchange": "NSE", "side": "BUY", "quantity": 3, "cumulative_quantity": 3, "order_quantity": 3, "price": "3880.00", "event_time": "2026-07-11T05:15:00+00:00"},
+    {"fill_id": "f015", "order_id": "o015", "symbol": "ICICIBANK", "exchange": "NSE", "side": "SELL", "quantity": 10, "cumulative_quantity": 10, "order_quantity": 10, "price": "1140.00", "event_time": "2026-07-11T06:00:00+00:00"},
+    {"fill_id": "f016", "order_id": "o016", "symbol": "RELIANCE", "exchange": "NSE", "side": "SELL", "quantity": 12, "cumulative_quantity": 12, "order_quantity": 12, "price": "2480.00", "event_time": "2026-07-11T07:30:00+00:00"},
+    {"fill_id": "f017", "order_id": "o017", "symbol": "HDFCBANK", "exchange": "NSE", "side": "BUY", "quantity": 10, "cumulative_quantity": 10, "order_quantity": 10, "price": "1700.00", "event_time": "2026-07-11T08:00:00+00:00"},
+    {"fill_id": "f018", "order_id": "o018", "symbol": "INFY", "exchange": "NSE", "side": "SELL", "quantity": 23, "cumulative_quantity": 23, "order_quantity": 23, "price": "1555.00", "event_time": "2026-07-11T09:00:00+00:00"},
+    {"fill_id": "f019", "order_id": "o019", "symbol": "TCS", "exchange": "NSE", "side": "SELL", "quantity": 6, "cumulative_quantity": 6, "order_quantity": 6, "price": "3895.00", "event_time": "2026-07-11T09:30:00+00:00"},
+    {"fill_id": "f020", "order_id": "o020", "symbol": "SBIN", "exchange": "NSE", "side": "SELL", "quantity": 30, "cumulative_quantity": 30, "order_quantity": 30, "price": "840.00", "event_time": "2026-07-11T09:45:00+00:00"}
+  ]
+}

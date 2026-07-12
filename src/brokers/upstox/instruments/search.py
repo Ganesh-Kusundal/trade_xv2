@@ -32,7 +32,7 @@ class UpstoxInstrumentSearch:
 
         params: dict[str, str] = {"symbol": symbol}
         if exchange_segment:
-            params["segment"] = UpstoxSegmentMapper.to_wire(exchange_segment)
+            params["segment"] = UpstoxSegmentMapper().to_wire(exchange_segment)
         body = self._http.get_json(url, params=params)
         rows = body.get("data") if isinstance(body, dict) else body
         if not isinstance(rows, list):

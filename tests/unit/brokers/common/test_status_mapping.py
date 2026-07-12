@@ -153,7 +153,7 @@ class TestStrictStatusMappingIntegration:
     @pytest.mark.xfail(reason="Mock bypasses status mapping; gateway delegates to connection without validation")
     def test_dhan_gateway_uses_strict_status_mapping(self):
         """Test that DhanGateway uses strict status mapping and fails on unknown statuses."""
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
         from brokers.dhan.exceptions import OrderError
         from unittest.mock import Mock, patch
         

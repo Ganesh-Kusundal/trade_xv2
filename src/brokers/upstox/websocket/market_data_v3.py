@@ -32,7 +32,10 @@ from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionManager,
 )
 from domain import Quote
+from domain.events import DomainEvent
 from infrastructure.event_bus.event_bus import EventBus
+
+_DEGRADE_EVERY_N_DROPS = 10
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,7 @@ class UpstoxMarketDataV3Multiplexer:
         socket_factory: Callable[[str], Any] | None = None,
         event_bus: EventBus | None = None,
         backfill_callback: Callable[[str, Any, Any], list[dict]] | None = None,
+        degrade_every_n_drops: int = _DEGRADE_EVERY_N_DROPS,
     ) -> None:
         self._authorizer = authorizer
         self._decoder = decoder or UpstoxV3Decoder()
@@ -96,6 +100,10 @@ class UpstoxMarketDataV3Multiplexer:
         self._socket_factory = socket_factory or _default_socket_factory
         self._event_bus = event_bus
         self._backfill_callback = backfill_callback
+        self.published_ticks = 0
+        self.dropped_ticks = 0
+        self.dropped_bus_ticks = 0
+        self._degrade_every_n_drops = max(1, degrade_every_n_drops)
         self._socket: Any = None
         self._listeners: list[TickListener] = []
         self._listener_lock = threading.RLock()
@@ -352,7 +360,9 @@ class UpstoxMarketDataV3Multiplexer:
                 # frame (with its decoded exchange_timestamp) is forwarded
                 # unchanged when validation passes.
                 if not self._tick_quote_is_valid(frame):
+                    self._record_tick_drop(frame, "invalid_quote")
                     continue
+                self._publish_tick_to_bus(frame)
                 with self._listener_lock:
                     listeners = list(self._listeners)
                 for listener in listeners:
@@ -412,6 +422,67 @@ class UpstoxMarketDataV3Multiplexer:
             )
         # No extractable LTP — cannot judge; forward as-is (prior behavior).
         return True
+
+    def _symbol_from_frame(self, frame: Any) -> str:
+        payload = getattr(frame, "payload", None)
+        if payload is None:
+            return ""
+        sym = self._extract_raw_symbol(payload)
+        return str(sym) if sym else ""
+
+    def _record_tick_drop(self, frame: Any, reason: str) -> None:
+        """Count a dropped tick and surface MARKET_DATA_DEGRADED when throttled."""
+        self.dropped_ticks += 1
+        self.dropped_bus_ticks += 1
+        self._maybe_emit_market_data_degraded(self._symbol_from_frame(frame), reason)
+
+    def _maybe_emit_market_data_degraded(self, symbol: str, reason: str) -> None:
+        """Surface tick drops as DEGRADED (fail-closed MD-3) — throttled."""
+        if self._event_bus is None:
+            return
+        if self.dropped_ticks % self._degrade_every_n_drops != 0:
+            return
+        try:
+            self._event_bus.publish(
+                DomainEvent.now(
+                    "MARKET_DATA_DEGRADED",
+                    {
+                        "reason": reason,
+                        "dropped_ticks": self.dropped_ticks,
+                        "degraded": True,
+                    },
+                    symbol=symbol or None,
+                    source="UpstoxMarketDataV3",
+                )
+            )
+        except Exception as exc:
+            logger.debug("market_data_degraded_publish_failed: %s", exc)
+
+    def _publish_tick_to_bus(self, frame: Any) -> None:
+        """Publish canonical TICK to EventBus (ADR-016 — parity with Dhan path)."""
+        if self._event_bus is None:
+            return
+        payload = getattr(frame, "payload", None)
+        if payload is None:
+            self._record_tick_drop(frame, "missing_payload")
+            return
+        quote = TickTranslatorAdapter.translate(payload)
+        if not isinstance(quote, Quote):
+            self._record_tick_drop(frame, "translation_failed")
+            return
+        try:
+            self._event_bus.publish(
+                DomainEvent.now(
+                    "TICK",
+                    {"quote": quote},
+                    symbol=quote.symbol,
+                    source="UpstoxMarketDataV3",
+                )
+            )
+            self.published_ticks += 1
+        except Exception as exc:
+            self._record_tick_drop(frame, "publish_error")
+            logger.error("EventBus TICK publish error: %s", exc)
 
     def _track_tick_from_frame(self, frame: Any) -> None:
         """Record latest tick time per instrument for gap detection."""

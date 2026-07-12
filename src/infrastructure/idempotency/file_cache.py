@@ -92,7 +92,7 @@ class FileLockManager:
     
     def _get_lock_path(self, key: str) -> Path:
         # Create a unique lock file for each key
-        key_hash = hashlib.md5(key.encode()).hexdigest()[:16]
+        key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
         return self._lock_dir / f"{key_hash}.lock"
     
     def acquire(self, key: str, timeout: float = 10.0) -> bool:
@@ -208,7 +208,7 @@ class FileIdempotencyCache(IdempotencyCacheBackend[T]):
 
     def _get_shard_dir(self, key: str) -> Path:
         """Get the shard directory for a key."""
-        key_hash = hashlib.md5(key.encode()).hexdigest()
+        key_hash = hashlib.sha256(key.encode()).hexdigest()
         shard_index = int(key_hash[:8], 16) % self._shard_count
         return self._storage_dir / f"shard_{shard_index:03d}"
     
@@ -219,7 +219,7 @@ class FileIdempotencyCache(IdempotencyCacheBackend[T]):
         
         # Sanitize key for filename
         safe_key = key.replace("/", "_").replace("\\", "_").replace(":", "_")
-        key_hash = hashlib.md5(key.encode()).hexdigest()[:16]
+        key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
         return shard_dir / f"{safe_key}_{key_hash}.json"
     
     def _acquire_lock(self, key: str) -> bool:

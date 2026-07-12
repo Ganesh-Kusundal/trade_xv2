@@ -41,6 +41,7 @@ class BrokerOrderPayload(OrderRequest):
     Extends the canonical ``OrderRequest`` with fields that are relevant
     only at the broker-API transport layer:
 
+    * ``security_id`` — resolved broker token (wire adapters only)
     * ``exchange_segment`` — broker-specific segment enum
     * ``provider_metadata`` — broker-specific transport extensions
 
@@ -49,6 +50,7 @@ class BrokerOrderPayload(OrderRequest):
     the payload.
     """
 
+    security_id: str = ""
     exchange_segment: ExchangeSegment = ExchangeSegment.NSE
     provider_metadata: dict[str, Any] = field(default_factory=dict)
 

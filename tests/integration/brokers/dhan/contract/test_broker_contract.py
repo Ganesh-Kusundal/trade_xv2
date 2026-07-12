@@ -17,8 +17,8 @@ from brokers.common.contracts.broker_contract import BrokerContractSuite
 from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.execution.orders import IdempotencyCache
-from brokers.dhan.gateway import DhanBrokerGateway
-from brokers.dhan.identity.factory import BrokerFactory
+from brokers.dhan.wire import DhanBrokerGateway
+from infrastructure.gateway.factory import bootstrap_gateway
 from brokers.dhan.streaming.connection import DhanConnection
 from domain import MarketDepth, Quote
 from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
@@ -33,15 +33,12 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 
 
 def _should_skip_live() -> bool:
+    """Credentials only — token refresh is automatic; market hours not required."""
+    return not _live_env_loaded
+
+
+def _should_skip_live_market_hours() -> bool:
     if not _live_env_loaded:
-        return True
-    token = os.environ.get("DHAN_ACCESS_TOKEN", "")
-    import time as _time
-
-    from infrastructure.auth.jwt_expiry import JwtExpiry
-
-    exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
-    if exp_ms > 0 and exp_ms < _time.time() * 1000:
         return True
     from tests.market_hours import is_market_open
 
@@ -50,7 +47,12 @@ def _should_skip_live() -> bool:
 
 skip_live = pytest.mark.skipif(
     _should_skip_live(),
-    reason="Live API tests require .env.local credentials and open market hours",
+    reason="Live API tests require .env.local with DHAN_CLIENT_ID",
+)
+
+skip_live_market_hours = pytest.mark.skipif(
+    _should_skip_live_market_hours(),
+    reason="Live stream/depth tests require NSE market hours (09:15–15:30 IST)",
 )
 
 
@@ -64,7 +66,17 @@ def offline_gateway() -> DhanBrokerGateway:
 
 @pytest.fixture(scope="module")
 def live_gateway() -> DhanBrokerGateway:
-    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
+    if not _live_env_loaded:
+        pytest.skip("Live API tests require .env.local with DHAN_CLIENT_ID")
+    result = bootstrap_gateway(
+        "dhan",
+        env_path=ENV_PATH,
+        load_instruments=True,
+        require_authenticated=True,
+    )
+    if not result.live_ready or result.gateway is None:
+        pytest.skip(f"Dhan bootstrap failed: {result.error or result.status.value}")
+    gw = result.gateway
     yield gw
     gw.close()
 
@@ -120,7 +132,7 @@ class TestDhanExtendedContract:
         assert quote.ltp > 0
         time.sleep(1.5)
 
-    @skip_live
+    @skip_live_market_hours
     def test_depth_returns_bids_asks(self, live_gateway: DhanBrokerGateway) -> None:
         depth = live_gateway.depth("RELIANCE", "NSE")
         assert isinstance(depth, MarketDepth)

@@ -16,7 +16,11 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from interface.ui.services.broker_registry import get_dhan_reconciliation_service_factory, get_dhan_websocket_classes
+from interface.ui.services.broker_registry import (
+    get_dhan_reconciliation_service_factory,
+    get_dhan_websocket_classes,
+    get_upstox_reconciliation_service_factory,
+)
 
 if TYPE_CHECKING:
     from interface.ui.services.broker_service import BrokerService
@@ -89,9 +93,19 @@ class OmsBootstrap:
         drift detection silently disabled if the TradingContext build
         raised between the two steps.
         """
-        from infrastructure.event_log import EventLog
         from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
         from application.oms.factory import create_trading_context
+        from infrastructure.bootstrap import (
+            build_dead_letter_queue,
+            build_execution_ledger,
+            build_order_store,
+        )
+        from infrastructure.metrics import metrics_registry
+        from infrastructure.observability.event_metrics import EventMetrics
+        from interface.ui.services.oms_setup import (
+            _build_event_log,
+            _build_processed_trade_repository,
+        )
 
         svc = self._svc
 
@@ -103,13 +117,16 @@ class OmsBootstrap:
         except Exception as exc:  # pragma: no cover - defensive
             logger.debug("lifecycle_register_failed: %s", exc)
 
-        # B-2: build an EventLog for crash recovery and OMS replay on
-        # startup. The TradingContext wires this into the EventBus.
-        try:
-            event_log = EventLog(events_dir=Path("runtime/event-log"))
-        except Exception as exc:
-            logger.error("event_log_build_failed: %s", exc)
-            event_log = None
+        event_log = _build_event_log()
+        processed_trades = _build_processed_trade_repository()
+        dead_letter_queue = build_dead_letter_queue()
+        order_store = build_order_store()
+        from runtime.ledger_policy import resolve_execution_ledger
+
+        execution_ledger = resolve_execution_ledger(builder=build_execution_ledger)
+        from runtime.ledger_policy import require_execution_ledger
+
+        require_execution_ledger(execution_ledger)
 
         # Build a TradingContext that shares the OMS risk_manager
         # and event_log with the lifecycle. The Dhan OrdersAdapter is
@@ -125,7 +142,14 @@ class OmsBootstrap:
                 reconciliation_service=None,
                 reconciliation_interval_seconds=300.0,
                 event_log=event_log,
+                event_bus=svc._event_bus,
                 replay_events=event_log is not None,
+                processed_trade_repository=processed_trades,
+                dead_letter_queue=dead_letter_queue,
+                durable_order_store=order_store,
+                execution_ledger=execution_ledger,
+                metrics=EventMetrics(),
+                metrics_registry=metrics_registry,
             )
             # Attach any registered ManagedServices (none yet) to the
             # lifecycle. The reconciliation service is attached below
@@ -136,33 +160,48 @@ class OmsBootstrap:
             svc._trading_context = None
             return
 
-        # B-1 (Phase 1.4): now that the OrderManager exists, build the
-        # broker-specific DhanReconciliationService and attach it via
-        # the explicit setter. This replaces the previous monkey-patch
-        # (``dhan_reconciliation._oms = order_manager``) which left drift
-        # detection silently disabled if any earlier step raised.
+        # B-1 (Phase 1.4): attach broker-specific reconciliation once OMS exists.
         try:
-            create_reconciliation_service = get_dhan_reconciliation_service_factory()
-            conn = getattr(svc._gateway, "_conn", None)
-            if conn is not None:
-                from application.oms.recon_heal_policy import should_auto_repair
-
-                dhan_reconciliation = create_reconciliation_service(
-                    orders_adapter=conn.orders,
-                    portfolio_adapter=conn.portfolio,
-                    oms=svc._trading_context.order_manager,
-                    auto_repair=should_auto_repair(),
-                )
-                # Allow heal path to upsert positions via PositionManager
-                svc._trading_context.order_manager.position_manager = (
-                    svc._trading_context.position_manager
-                )
-                svc._trading_context.attach_reconciliation_service(
-                    dhan_reconciliation,
-                    lifecycle=svc._lifecycle,
-                )
+            self._attach_broker_reconciliation(svc)
         except Exception as exc:
-            logger.error("dhan_reconciliation_attach_failed: %s", exc)
+            logger.error("broker_reconciliation_attach_failed: %s", exc)
+
+    def _attach_broker_reconciliation(self, svc: "BrokerService") -> None:
+        """Attach Dhan or Upstox reconciliation to the live TradingContext."""
+        from application.oms.recon_heal_policy import should_auto_repair
+
+        tc = svc._trading_context
+        if tc is None:
+            return
+
+        tc.order_manager.position_manager = tc.position_manager
+        auto_repair = should_auto_repair()
+        oms = tc.order_manager
+
+        conn = getattr(svc._gateway, "_conn", None) if svc._gateway else None
+        if conn is not None:
+            create_reconciliation_service = get_dhan_reconciliation_service_factory()
+            reconciliation = create_reconciliation_service(
+                orders_adapter=conn.orders,
+                portfolio_adapter=conn.portfolio,
+                oms=oms,
+                auto_repair=auto_repair,
+            )
+            tc.attach_reconciliation_service(reconciliation, lifecycle=svc._lifecycle)
+            return
+
+        upstox_gw = svc._upstox_gateway
+        broker = getattr(upstox_gw, "_broker", None) if upstox_gw is not None else None
+        if broker is not None:
+            create_reconciliation_service = get_upstox_reconciliation_service_factory()
+
+            reconciliation = create_reconciliation_service(
+                order_client=broker.order_client,
+                portfolio_client=broker.portfolio_client,
+                oms=oms,
+                auto_repair=auto_repair,
+            )
+            tc.attach_reconciliation_service(reconciliation, lifecycle=svc._lifecycle)
 
     # ------------------------------------------------------------------
     # WebSocket services
@@ -217,7 +256,7 @@ class OmsBootstrap:
                 try:
                     inst = conn.instruments.resolve("NIFTY", "IDX")
                     if inst is not None:
-                        instruments = [("IDX_I", str(inst.security_id), "QUOTE")]
+                        instruments = [("IDX_I", str(inst.security_id), "QUOTE")]  # ponytail: internal Dhan WS tuple
                 except Exception as exc:
                     logger.debug(
                         "nifty_spot_resolve_skipped: %s", exc,

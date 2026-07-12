@@ -14,12 +14,15 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 from analytics.strategy.models import Signal
+from domain.portfolio_projection import PortfolioProjector
+from domain.simulation_fill_pipeline import SimulationFillPipeline
+from domain.simulation_position_meta import PositionMeta
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -58,44 +61,10 @@ class FillModel(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# Bar
+# Domain bar SSOT — import HistoricalBar from domain.candles.historical
 # ---------------------------------------------------------------------------
 
-
-@dataclass(frozen=True)
-class Bar:
-    """A single OHLCV bar with metadata.
-
-    This is the minimal unit of data processed by the Replay Engine.
-    It mirrors what a live market data feed would provide.
-    """
-
-    symbol: str
-    timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dict format compatible with old Strategy.on_bar()."""
-        return {
-            "symbol": self.symbol,
-            "timestamp": self.timestamp,
-            "open": self.open,
-            "high": self.high,
-            "low": self.low,
-            "close": self.close,
-            "volume": self.volume,
-            **self.metadata,
-        }
-
-
-# ---------------------------------------------------------------------------
-# ReplayConfig
-# ---------------------------------------------------------------------------
+from domain.candles.historical import HistoricalBar  # noqa: F401 — re-exported via __init__
 
 
 @dataclass
@@ -160,6 +129,7 @@ class ReplayConfig:
     segment: str = "EQUITY"  # "EQUITY" or "FNO"
     fill_model: FillModel = FillModel.NEXT_OPEN
     publish_events: bool = False
+    fail_closed_features: bool = True
 
     def __post_init__(self) -> None:
         if self.slippage_pct < 0:
@@ -280,7 +250,8 @@ class ReplaySession:
     """
 
     capital: float = 0.0
-    position: SimulatedPosition | None = None
+    fill_pipeline: SimulationFillPipeline = field(default_factory=SimulationFillPipeline)
+    position_meta: dict[str, PositionMeta] = field(default_factory=dict)
     trades: list[SimulatedTrade] = field(default_factory=list)
     signals: list[Signal] = field(default_factory=list)
     equity_curve: list[tuple[datetime, float]] = field(default_factory=list)
@@ -288,11 +259,108 @@ class ReplaySession:
     peak_equity: float = 0.0
 
     @property
+    def projector(self) -> PortfolioProjector:
+        return self.fill_pipeline.projector
+
+    def has_position(self, symbol: str, exchange: str = "NSE") -> bool:
+        pos = self.fill_pipeline.projector.get_position(symbol, exchange)
+        return pos is not None and pos.quantity != 0
+
+    def open_symbols(self) -> list[str]:
+        return [
+            p.symbol
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        ]
+
+    def mark_symbol(self, symbol: str, price: float, exchange: str = "NSE") -> None:
+        from decimal import Decimal
+
+        self.fill_pipeline.projector.mark_ltp(symbol, exchange, Decimal(str(price)))
+
+    def bootstrap_position(
+        self,
+        position: SimulatedPosition,
+        *,
+        exchange: str = "NSE",
+    ) -> None:
+        from domain import Side as DomainSide
+        from domain.entities import Trade
+        from decimal import Decimal
+
+        side = DomainSide.BUY if position.side == "BUY" else DomainSide.SELL
+        order_id = f"bootstrap:{position.symbol}"
+        trade = Trade(
+            trade_id=f"{order_id}:{position.quantity}",
+            order_id=order_id,
+            symbol=position.symbol,
+            exchange=exchange,
+            side=side,
+            quantity=position.quantity,
+            price=Decimal(str(position.entry_price)),
+            trade_value=Decimal(str(position.entry_price)) * position.quantity,
+            timestamp=position.entry_time,
+        )
+        self.fill_pipeline.apply_trade(trade, order_quantity=position.quantity)
+        mark = position.mark_price if position.mark_price is not None else position.entry_price
+        self.fill_pipeline.projector.mark_ltp(position.symbol, exchange, Decimal(str(mark)))
+        self.position_meta[position.symbol] = PositionMeta(
+            entry_time=position.entry_time,
+            stop_loss=position.stop_loss,
+            target=position.target,
+            strategy=position.strategy,
+        )
+
+    def clear_position(self, symbol: str) -> None:
+        self.position_meta.pop(symbol, None)
+
+    def _to_simulated_position(self, symbol: str, exchange: str = "NSE") -> SimulatedPosition | None:
+        pos = self.fill_pipeline.projector.get_position(symbol, exchange)
+        if pos is None or pos.quantity == 0:
+            return None
+        meta = self.position_meta.get(symbol)
+        return SimulatedPosition(
+            symbol=symbol,
+            side="BUY" if pos.quantity > 0 else "SELL",
+            entry_price=float(pos.avg_price),
+            quantity=abs(pos.quantity),
+            entry_time=meta.entry_time if meta else datetime.now(timezone.utc),
+            stop_loss=meta.stop_loss if meta else None,
+            target=meta.target if meta else None,
+            strategy=meta.strategy if meta else "",
+            mark_price=float(pos.ltp),
+        )
+
+    @property
+    def positions(self) -> dict[str, SimulatedPosition]:
+        return {
+            sym: view for sym in self.open_symbols() if (view := self._to_simulated_position(sym))
+        }
+
+    @property
+    def position(self) -> SimulatedPosition | None:
+        """Backward-compat accessor for single-symbol replay paths."""
+        symbols = self.open_symbols()
+        if not symbols:
+            return None
+        return self._to_simulated_position(symbols[0])
+
+    @position.setter
+    def position(self, value: SimulatedPosition | None) -> None:
+        """Backward-compat setter for single-symbol replay paths."""
+        if value is None:
+            self.position_meta.clear()
+        else:
+            self.bootstrap_position(value)
+
+    @property
     def current_equity(self) -> float:
-        """Current total equity (cash + mark-to-market position value)."""
-        pos_value = 0.0
-        if self.position:
-            pos_value = self.position.market_value
+        """Current total equity (cash + mark-to-market position values)."""
+        pos_value = sum(
+            float(p.ltp) * p.quantity
+            for p in self.fill_pipeline.projector.get_positions()
+            if p.quantity != 0
+        )
         return self.capital + pos_value
 
     @property

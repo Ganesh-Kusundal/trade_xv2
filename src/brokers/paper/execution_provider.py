@@ -36,7 +36,7 @@ class PaperExecutionProvider(ExecutionProvider):
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:
             response = self._gateway.place_order(
-                symbol=request.symbol or request.security_id,
+                symbol=request.symbol,
                 exchange=request.exchange,
                 side=self._enum_value(request.transaction_type),
                 quantity=request.quantity,

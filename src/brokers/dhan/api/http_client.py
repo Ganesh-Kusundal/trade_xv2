@@ -40,6 +40,25 @@ _MAX_DELAY_MS = DEFAULT_CONFIG.retry.max_delay_ms
 _REFRESH_COOLDOWN_SECONDS = DEFAULT_CONFIG.token.refresh_cooldown_seconds
 _RATE_LIMIT_BACKOFF_SECONDS = DEFAULT_CONFIG.token.rate_limit_backoff_seconds
 
+_WRITE_PREFIXES = (
+    "/orders",
+    "/super",
+    "/forever",
+    "/slice",
+    "/killswitch",
+    "/exitall",
+    "/conditional",
+    "/triggers",
+)
+
+
+def _is_ambiguous_write(method: str, endpoint: str) -> bool:
+    """Non-idempotent writes must not be auto-retried after transport failure."""
+    if method.upper() not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return False
+    ep = (endpoint or "").lower().split("?", 1)[0]
+    return ep.startswith(_WRITE_PREFIXES)
+
 
 # ── Endpoint categorization for circuit-breaker isolation (A1) ────────────
 #
@@ -422,7 +441,10 @@ class DhanHttpClient:
         self._throttle(endpoint)
         url = f"{self._base_url}{endpoint}" if endpoint.startswith("/") else endpoint
 
-        max_attempts = self._config.retry.max_retries if self._enable_retry else 1
+        if _is_ambiguous_write(method, endpoint):
+            max_attempts = 1
+        else:
+            max_attempts = self._config.retry.max_retries if self._enable_retry else 1
         last_exc: Exception | None = None
 
         _start = time.monotonic()

@@ -1,11 +1,13 @@
-"""Composition-root facade for the CLI layer (the sanctioned broker importer).
+"""Composition-root facade for the CLI layer.
 
 Per the FDOS inversion, brokers are plugins: the public surface is ``markets``
 and the domain ports (``DataProvider`` / ``ExecutionProvider``), not broker
-gateways. CLI modules must pull broker-specific pieces from HERE, never from
-``brokers.dhan`` / ``brokers.upstox`` / ``brokers.paper`` directly. This module
-is the single sanctioned ``brokers.*`` importer within ``cli`` (see the
-``cli-no-broker-impl`` import-linter contract).
+gateways. CLI modules pull broker-specific pieces from HERE, never from a
+concrete broker package directly. This module re-exports the broker symbols the
+CLI needs, but reaches every concrete broker type through
+:mod:`interface.ui.services.broker_registry` (the single sanctioned
+concrete-broker importer within the UI layer) rather than naming a broker
+package by name. See the ``cli-no-broker-impl`` import-linter contract.
 """
 
 from __future__ import annotations
@@ -13,30 +15,41 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # ── Re-exports of broker internals the CLI legitimately needs ────────────────
-# These are the only broker symbols the CLI may reference; everything else
-# flows through the domain ports below.
-from brokers.dhan.identity.account_registry import AccountConnectionRegistry
-from brokers.dhan.gateway import DhanBrokerGateway
-from brokers.dhan.loader import InstrumentLoader
-from brokers.dhan.portfolio.reconciliation import create_reconciliation_service
-from brokers.dhan.symbol_validator import DhanSymbolValidator
-from interface.ui.services.broker_registry import create_seeded_mock_broker as create_demo_broker
-from brokers.paper.paper_gateway import PaperGateway as PaperBrokerGateway
-from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+# Every concrete broker type is reached via broker_registry accessor functions
+# (the sanctioned indirection), never by naming a broker package directly.
+from interface.ui.services.broker_registry import (
+    bootstrap_gateway,
+    create_seeded_mock_broker as create_demo_broker,
+    get_dhan_account_registry_class,
+    get_dhan_broker_gateway_class,
+    get_dhan_extensions,
+    get_dhan_instrument_loader_class,
+    get_dhan_reconciliation_service_fn,
+    get_dhan_symbol_validator_class,
+    get_paper_gateway_class,
+    get_upstox_domain_mapper_class,
+)
 
 if TYPE_CHECKING:
     from domain.extensions.base import Extension
+    from domain.instruments.instrument import Instrument
     from domain.ports.protocols import DataProvider
 
-    from domain.instruments.instrument import Instrument
-
-from interface.ui.services.broker_registry import bootstrap_gateway
+# Concrete broker symbols the CLI references — resolved through the registry so
+# this module never imports a broker package by name.
+AccountConnectionRegistry = get_dhan_account_registry_class()
+DhanBrokerGateway = get_dhan_broker_gateway_class()
+InstrumentLoader = get_dhan_instrument_loader_class()
+create_reconciliation_service = get_dhan_reconciliation_service_fn()
+DhanSymbolValidator = get_dhan_symbol_validator_class()
+PaperBrokerGateway = get_paper_gateway_class()
+UpstoxDomainMapper = get_upstox_domain_mapper_class()
 
 
 def get_market_provider(broker: str = "dhan") -> "DataProvider | None":
     """Return a domain ``DataProvider`` for *broker* (broker-as-plugin).
 
-    Dhan is fully adapted via :class:`brokers.dhan.adapter.DhanDataAdapter`.
+    Dhan is fully adapted via its domain data adapter.
     Upstox/Zerodha/IB adapters land in P7; today they return their gateway,
     which callers can wrap once the adapter exists.
     """
@@ -58,13 +71,7 @@ def get_broker_extensions(broker: str, gateway: object) -> "list[Extension]":
     discovers them via ``instrument.get_extension("depth20")``.
     """
     if broker == "dhan":
-        from brokers.dhan.extensions.depth20 import DhanDepth20Extension
-        from brokers.dhan.extensions.depth200 import DhanDepth200Extension
-
-        return [
-            DhanDepth20Extension(gateway),
-            DhanDepth200Extension(gateway),
-        ]
+        return get_dhan_extensions(gateway)
     return []
 
 

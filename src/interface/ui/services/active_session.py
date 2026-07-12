@@ -40,20 +40,22 @@ def get_active_session(
     gw = broker_service.active_broker
     name = broker_service.active_broker_name
 
+    kwargs: dict[str, Any] = {
+        "broker": name,
+        "mode": mode,
+        "load_instruments": True,
+    }
+    if mode == "trade":
+        kwargs["broker_service"] = broker_service
+
     if gw is not None:
+        kwargs["gateway"] = gw
         try:
-            return open_session(
-                broker=name,
-                mode=mode,
-                gateway=gw,
-                load_instruments=True,
-            )
+            return open_session(**kwargs)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("active_session: reuse failed, bootstrapping fresh: %s", exc)
 
     return open_session(
-        broker=name,
-        mode=mode,
         env_path=env_path or _ENV_PATH,
-        load_instruments=True,
+        **kwargs,
     )

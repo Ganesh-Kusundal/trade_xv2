@@ -24,7 +24,6 @@ from .holders import (
     UpstoxStaticTokenHolder,
     UpstoxTokenHolder,
 )
-from .encrypted_token_state_store import EncryptedTokenStateStore
 from .json_token_state_store import JsonTokenStateStore
 from .oauth_client import UpstoxOAuthClient
 from .pkce import PkcePair, UpstoxPkceUtil
@@ -53,13 +52,13 @@ class UpstoxTokenManager:
         self,
         settings: any,
         oauth_client: UpstoxOAuthClient | None = None,
-        state_store: JsonTokenStateStore | EncryptedTokenStateStore | None = None,
+        state_store: JsonTokenStateStore | None = None,
         refresh_lock: threading.Lock | None = None,
     ) -> None:
         self._settings = settings
         self._oauth_client = oauth_client or UpstoxOAuthClient(base_url=settings.base_v2)
         self._state_store = state_store or (
-            EncryptedTokenStateStore(settings.token_state_file)
+            JsonTokenStateStore(settings.token_state_file)
             if getattr(settings, "token_state_file", None)
             else None
         )

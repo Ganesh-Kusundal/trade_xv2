@@ -22,7 +22,7 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 2.1 is complete (extract non-ABC methods).
         """
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from domain.ports.protocols import DataProvider, ExecutionProvider
 
         # Get all protocol-defined methods (Protocols don't use @abstractmethod)
@@ -111,7 +111,7 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 1.2 is complete.
         """
-        from brokers.dhan.gateway import DhanBrokerGateway
+        from brokers.dhan.wire import DhanBrokerGateway
 
         place_order_sig = inspect.signature(DhanBrokerGateway.place_order)
         params = list(place_order_sig.parameters.keys())

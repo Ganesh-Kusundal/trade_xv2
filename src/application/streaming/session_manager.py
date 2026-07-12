@@ -13,14 +13,13 @@ import logging
 import uuid
 
 from domain.ports.broker_gateway import BrokerStreamPlan
+from domain.ports.time_service import get_current_clock
 from domain.stream_health import (
-    FreshnessState,
     StreamHealth,
     StreamSession,
     SubscriptionState,
     TransportState,
 )
-from infrastructure.time.clock import time_service
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +93,7 @@ class SessionManager:
             instruments=request.instruments,
             modes=request.modes,
             health=StreamHealth(stale_seconds_threshold=request.freshness_sla_s),
-            created_at=time_service.now(),
+            created_at=get_current_clock().now(),
         )
         session.update_transport(TransportState.CONNECTING)
         self._sessions[session_id] = session

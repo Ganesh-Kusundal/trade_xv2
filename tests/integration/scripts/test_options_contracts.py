@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 import contextlib
 
@@ -36,11 +36,17 @@ def _test_broker_options(
         return False
 
     from infrastructure.config.env_loader import load_env_file
-    from interface.ui.services.broker_registry import create_gateway
+    from infrastructure.gateway.factory import bootstrap_gateway
 
     load_env_file(env_path)
 
-    gw = create_gateway(name, env_path=env_path, load_instruments=True)
+    boot = bootstrap_gateway(
+        name,
+        env_path=env_path,
+        load_instruments=True,
+        require_authenticated=True,
+    )
+    gw = boot.gateway if boot.live_ready else None
     if gw is None:
         console.print(f"[red]Failed to create {name} gateway[/red]")
         return False

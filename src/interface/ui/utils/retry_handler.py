@@ -7,7 +7,7 @@ Usage:
 
     @with_retry(max_retries=3, backoff_factor=1.0)
     def fetch_quote(symbol):
-        return gw.quote(symbol)
+        return session.stock(symbol).refresh()
 """
 
 from __future__ import annotations

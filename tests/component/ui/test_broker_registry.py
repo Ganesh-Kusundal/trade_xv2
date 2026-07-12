@@ -31,14 +31,14 @@ class TestCreateGatewayBasic:
 
     def test_unknown_broker_returns_none(self):
         """Unknown broker name must return None and log an error."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         result = create_gateway("nonexistent_broker")
         assert result is None
 
     def test_paper_gateway_returns_paper(self):
         """'paper' broker must return a PaperGateway instance."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         result = create_gateway("paper")
         assert result is not None
@@ -48,7 +48,7 @@ class TestCreateGatewayBasic:
 
     def test_broker_name_is_case_insensitive(self):
         """create_gateway('Paper') must work the same as 'paper'."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         result = create_gateway("Paper")
         assert result is not None
@@ -62,7 +62,7 @@ class TestCreateGatewayEventBusForwarding:
 
     def test_dhan_factory_receives_event_bus(self, monkeypatch, tmp_path):
         """create_gateway('dhan', event_bus=...) must pass event_bus to BrokerFactory."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
         mock_bus = MagicMock(name="event_bus")
@@ -93,7 +93,7 @@ class TestCreateGatewayEventBusForwarding:
 
     def test_upstox_factory_receives_event_bus(self, monkeypatch, tmp_path):
         """create_gateway('upstox', event_bus=...) must pass event_bus to UpstoxBrokerFactory."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
         mock_bus = MagicMock(name="event_bus")
@@ -124,7 +124,7 @@ class TestCreateGatewayEventBusForwarding:
 
     def test_event_bus_defaults_to_none(self, monkeypatch, tmp_path):
         """When no event_bus is passed, factory must receive None."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
 
@@ -152,7 +152,7 @@ class TestCreateGatewayLifecycleForwarding:
 
     def test_dhan_factory_receives_lifecycle(self, monkeypatch, tmp_path):
         """create_gateway('dhan', lifecycle=...) must pass lifecycle to BrokerFactory."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
         mock_lifecycle = MagicMock(name="lifecycle")
@@ -183,7 +183,7 @@ class TestCreateGatewayLifecycleForwarding:
 
     def test_upstox_factory_receives_lifecycle(self, monkeypatch, tmp_path):
         """create_gateway('upstox', lifecycle=...) must pass lifecycle to UpstoxBrokerFactory."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
         mock_lifecycle = MagicMock(name="lifecycle")
@@ -214,7 +214,7 @@ class TestCreateGatewayLifecycleForwarding:
 
     def test_lifecycle_defaults_to_none(self, monkeypatch, tmp_path):
         """When no lifecycle is passed, factory must receive None."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
 
@@ -242,7 +242,7 @@ class TestCreateGatewayEnvPathConversion:
 
     def test_string_env_path_converted_to_path(self, monkeypatch):
         """A string env_path must be converted to a Path before passing to factory."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
 
@@ -268,7 +268,7 @@ class TestCreateGatewayEnvPathConversion:
 
     def test_none_env_path_remains_none(self, monkeypatch):
         """A None env_path must remain None (not be converted to Path)."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         captured = {}
 
@@ -298,7 +298,7 @@ class TestCreateGatewayErrorHandling:
 
     def test_dhan_factory_error_returns_none(self, monkeypatch, tmp_path):
         """If BrokerFactory.create() raises, create_gateway must return None."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         class FailingFactory:
             @staticmethod
@@ -312,7 +312,7 @@ class TestCreateGatewayErrorHandling:
 
     def test_upstox_factory_error_returns_none(self, monkeypatch, tmp_path):
         """If UpstoxBrokerFactory.create() raises, create_gateway must return None."""
-        from interface.ui.services.broker_registry import create_gateway
+        from infrastructure.gateway.factory import create_gateway
 
         class FailingFactory:
             @staticmethod

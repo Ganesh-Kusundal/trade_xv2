@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from interface.api.auth import require_auth
+from interface.api.auth import require_admin, require_auth
 from config.feature_flags import FeatureFlags
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,12 @@ async def get_flag(name: str):
     return FlagInfoResponse(**info)
 
 
-@router.post("/{name}/toggle", response_model=FlagToggleResponse, summary="Toggle flag")
+@router.post(
+    "/{name}/toggle",
+    response_model=FlagToggleResponse,
+    summary="Toggle flag",
+    dependencies=[Depends(require_admin)],
+)
 async def toggle_flag(name: str):
     """Toggle a feature flag on/off (admin only).
 
@@ -106,7 +111,12 @@ async def toggle_flag(name: str):
     )
 
 
-@router.post("/{name}/rollout", response_model=RolloutUpdateResponse, summary="Set rollout percentage")
+@router.post(
+    "/{name}/rollout",
+    response_model=RolloutUpdateResponse,
+    summary="Set rollout percentage",
+    dependencies=[Depends(require_admin)],
+)
 async def set_rollout(name: str, body: RolloutUpdateRequest):
     """Set the rollout percentage for a feature flag (admin only).
 

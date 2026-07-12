@@ -97,7 +97,7 @@ class TestAllowLiveOrdersGuards:
         """place_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -115,7 +115,7 @@ class TestAllowLiveOrdersGuards:
         """cancel_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -133,7 +133,7 @@ class TestAllowLiveOrdersGuards:
         """modify_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.gateway import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False

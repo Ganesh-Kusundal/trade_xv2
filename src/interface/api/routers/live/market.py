@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from interface.api.auth import require_auth
+from interface.api.candle_mapper import series_to_api_candles
 from interface.api.routers.live.headers import apply_live_headers
 from domain.universe import Session
 
@@ -107,8 +108,19 @@ async def live_candles(
     instrument = _get_session().universe.equity(symbol, exchange)
     end = date.today()
     start = end - timedelta(days=days)
-    df = instrument.history(timeframe=timeframe, start=start.isoformat(), end=end.isoformat())
+    series = instrument.history(timeframe=timeframe, start=start.isoformat(), end=end.isoformat())
+    if series.bar_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No candle data for {symbol}/{timeframe}",
+        )
     if response:
         apply_live_headers(response, "domain")
-    rows = df.to_dict(orient="records") if not df.empty else []
-    return {"symbol": symbol, "timeframe": timeframe, "candles": rows}
+    candles = series_to_api_candles(series)
+    return {
+        "symbol": symbol,
+        "exchange": exchange,
+        "timeframe": timeframe,
+        "candles": [c.model_dump() for c in candles],
+        "count": len(candles),
+    }

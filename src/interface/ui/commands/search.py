@@ -25,7 +25,6 @@ def run(args: list[str], broker_service, console: Console) -> None:
     table = Table(title=f"Instrument Search: '{query}'", header_style="bold yellow")
     table.add_column("Symbol", style="bold white")
     table.add_column("Exchange", justify="center")
-    table.add_column("Security ID", justify="center")
     table.add_column("Type", justify="center")
 
     matches = []
@@ -42,7 +41,6 @@ def run(args: list[str], broker_service, console: Console) -> None:
             table.add_row(
                 (inst.canonical_symbol or inst.symbol)[:60],
                 inst.exchange.value,
-                inst.security_id,
                 inst.instrument_type.value,
             )
         stats = resolver.stats()

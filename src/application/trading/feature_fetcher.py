@@ -62,7 +62,7 @@ class PipelineFeatureFetcher:
             series = self._market_data.history(symbol, start, end, interval="1m", exchange=exchange)
             if series is None or series.bar_count == 0:
                 return FeatureSet.empty()
-            df = _series_to_df(series).tail(self._lookback_bars).copy()
+            df = series.to_dataframe().tail(self._lookback_bars).copy()
             features_df = self._pipeline.run(df)
             features = _df_to_feature_set(features_df)
             self._cache[cache_key] = features
@@ -73,20 +73,3 @@ class PipelineFeatureFetcher:
             logger.error("PipelineFeatureFetcher failed for %s: %s", symbol, exc)
             return FeatureSet.empty()
 
-
-def _series_to_df(series: HistoricalSeries) -> pd.DataFrame:
-    """Convert a HistoricalSeries back to a DataFrame for pipeline processing."""
-
-    rows = []
-    for bar in series.bars:
-        rows.append(
-            {
-                "date": bar.event_time,
-                "open": float(bar.open),
-                "high": float(bar.high),
-                "low": float(bar.low),
-                "close": float(bar.close),
-                "volume": bar.volume,
-            }
-        )
-    return pd.DataFrame(rows)

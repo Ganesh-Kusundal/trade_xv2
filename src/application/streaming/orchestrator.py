@@ -36,8 +36,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, Protocol
 
+from application.streaming.broker_selector import BrokerSelector
+from application.streaming.reconnect_controller import ReconnectController
+from application.streaming.session_manager import SessionManager
+from application.streaming.tick_router import (
+    TickRouter,
+    _parse_exchange_time,  # noqa: F401 — re-export for backward compat
+)
 from domain.candles.historical import InstrumentRef
+from domain.entities.market import MarketTick
 from domain.ports.broker_gateway import BrokerStreamHandle
+from domain.ports.time_service import get_current_clock
 from domain.stream_health import (
     FreshnessState,
     StreamHealth,
@@ -45,13 +54,6 @@ from domain.stream_health import (
     StreamStateSummary,
     SubscriptionState,
 )
-from infrastructure.time.clock import time_service
-
-from application.streaming.broker_selector import BrokerSelector
-from application.streaming.session_manager import SessionManager
-from application.streaming.tick_router import TickRouter
-from application.streaming.reconnect_controller import ReconnectController
-from application.streaming.tick_router import _parse_exchange_time  # re-export for backward compat
 
 logger = logging.getLogger(__name__)
 
@@ -73,30 +75,7 @@ class StreamConsumer(Protocol):
     async def on_stream_health_change(self, session_id: str, health: StreamHealth) -> None: ...
 
 
-# ---------------------------------------------------------------------------
-# Normalized stream event types
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class MarketTick:
-    """Normalized market data tick delivered to consumers."""
-
-    instrument: InstrumentRef
-    ltp: float
-    volume: int
-    bid: float | None
-    ask: float | None
-    broker_id: str
-    session_id: str
-    event_time: datetime
-    sequence: int | None = None
-    open: float | None = None
-    high: float | None = None
-    low: float | None = None
-
-
-@dataclass(frozen=True)
+# Normalized stream event types — MarketTick is domain.entities.market.MarketTick
 class OrderUpdate:
     """Normalized order/position update delivered to consumers."""
 
@@ -145,7 +124,7 @@ class _ActiveSubscription:
     session_id: str
     consumer: StreamConsumer
     request: SubscriptionRequest
-    registered_at: datetime = field(default_factory=lambda: time_service.now())
+    registered_at: datetime = field(default_factory=lambda: get_current_clock().now())
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +363,7 @@ class StreamOrchestrator:
                 "from_state": from_state,
                 "to_state": to_state,
                 "reason": reason,
-                "timestamp": time_service.now().isoformat(),
+                "timestamp": get_current_clock().now().isoformat(),
             },
         )
         with contextlib.suppress(Exception):

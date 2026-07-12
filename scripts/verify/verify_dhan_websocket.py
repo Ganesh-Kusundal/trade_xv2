@@ -6,9 +6,9 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from brokers.dhan.identity.factory import BrokerFactory
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _connect import bootstrap_or_exit
 
 
 async def main():
@@ -19,9 +19,7 @@ async def main():
 
     # Create gateway
     try:
-        factory = BrokerFactory()
-        print("\n   Creating Dhan gateway and loading instruments...")
-        gateway = factory.create(load_instruments=True)
+        gateway = bootstrap_or_exit("dhan", load_instruments=True)
         print("✅ Created Dhan gateway")
     except Exception as e:
         print(f"❌ Failed to create gateway: {e}")

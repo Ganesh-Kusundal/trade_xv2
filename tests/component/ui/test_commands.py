@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from brokers.dhan import BrokerGateway
+from brokers.dhan.wire import BrokerGateway
 from interface.ui.commands import account as cmd_account
 from interface.ui.commands import broker as cmd_broker
 from interface.ui.commands import doctor as cmd_doctor
@@ -100,6 +100,17 @@ def test_portfolio_commands(services):
     cmd_portfolio.show_positions(broker_service, pos_console)
     output_pos = pos_console.export_text()
     assert "Position" in output_pos or "Symbol" in output_pos
+
+
+@pytest.mark.integration
+def test_validate_broker_delegates(services):
+    from interface.ui.commands import validate as cmd_validate
+
+    broker_service = services
+    console = Console(record=True)
+    cmd_validate.run(["broker"], broker_service, console)
+    output = console.export_text()
+    assert "Verify" in output or "Configuration" in output or "PASS" in output or "FAIL" in output
 
 
 def test_oms_commands(services):

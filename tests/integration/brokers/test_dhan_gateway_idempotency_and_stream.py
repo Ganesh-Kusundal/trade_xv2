@@ -144,7 +144,7 @@ class _FakeOrdersAdapter:
 def test_g1_gateway_has_modify_and_cancel_all_methods():
     gateway_mod = _skip_if_import_error(
         lambda: __import__(
-            "brokers.dhan.gateway", fromlist=["DhanBrokerGateway"]
+            "brokers.dhan.wire", fromlist=["DhanBrokerGateway"]
         ).DhanBrokerGateway
     )
     assert callable(getattr(gateway_mod, "modify_order", None))
@@ -153,7 +153,7 @@ def test_g1_gateway_has_modify_and_cancel_all_methods():
 
 def test_g1_gateway_init_runs_without_raising():
     mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.gateway", fromlist=["DhanBrokerGateway"])
+        lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"])
     )
     DhanBrokerGateway = mod.DhanBrokerGateway
     conn = _FakeConnection()
@@ -166,7 +166,7 @@ def test_g1_gateway_init_runs_without_raising():
 
 def test_g1_stream_routes_through_create_market_feed():
     mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.gateway", fromlist=["DhanBrokerGateway"])
+        lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"])
     )
     DhanBrokerGateway = mod.DhanBrokerGateway
     conn = _FakeConnection()

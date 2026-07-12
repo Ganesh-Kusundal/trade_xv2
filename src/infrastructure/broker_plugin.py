@@ -24,6 +24,12 @@ class BrokerPlugin:
     # Optional factories (gateway still via create_gateway for now)
     data_provider_factory: Callable[[Any], Any] | None = None
     execution_provider_factory: Callable[[Any], Any] | None = None
+    # Capability declaration (DR-B3): the broker declares *where* its
+    # ``BrokerCapabilities`` are built.  The resilience layer resolves the
+    # loader from these strings instead of hard-coding broker names, so adding
+    # a broker requires no edits to ``infrastructure.resilience.rate_limiter``.
+    capabilities_module: str | None = None
+    capabilities_fn: str | None = None
 
 
 _PLUGINS: dict[str, BrokerPlugin] = {}
@@ -84,6 +90,8 @@ def ensure_core_plugins() -> None:
                 default_mode="market",
                 supported_modes=frozenset({"market", "trade"}),
                 is_live=True,
+                capabilities_module="brokers.dhan.config.capabilities",
+                capabilities_fn="dhan_capabilities",
             )
         )
     if "upstox" not in _PLUGINS:
@@ -94,6 +102,8 @@ def ensure_core_plugins() -> None:
                 default_mode="market",
                 supported_modes=frozenset({"market", "trade"}),
                 is_live=True,
+                capabilities_module="brokers.upstox.capabilities.snapshot",
+                capabilities_fn="upstox_capabilities",
             )
         )
     if "datalake" not in _PLUGINS:

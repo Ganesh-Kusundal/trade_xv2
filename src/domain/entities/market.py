@@ -291,6 +291,8 @@ class MarketTick:
     open: Decimal | None = None
     high: Decimal | None = None
     low: Decimal | None = None
+    broker_id: str = ""
+    session_id: str = ""
 
 
 @dataclass(slots=True, frozen=True)

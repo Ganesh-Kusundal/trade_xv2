@@ -20,6 +20,7 @@ from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerG
 from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from domain.stream_health import FreshnessState, SubscriptionState, TransportState
+from application.streaming.tick_router import TickRouter
 from infrastructure.time_service import time_service
 
 
@@ -99,14 +100,14 @@ class TestStreamOrchestrator:
             )
         )
         session = orchestrator.all_sessions()[0]
-        tick = orchestrator._normalize_tick(
+        tick = TickRouter._normalize_tick(
             {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100},
             session.session_id,
             session.broker_id,
             __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
         )
         assert tick is not None
-        await orchestrator._deliver_tick(session.session_id, tick)
+        await orchestrator._tick_router.deliver_tick(session.session_id, tick)
         assert consumer.ticks
         health = orchestrator.session_health(session.session_id)
         assert health is not None
@@ -122,7 +123,7 @@ class TestStreamOrchestrator:
         # Build a session manually is not needed; use normalize directly.
         now = datetime.now(timezone.utc)
         exchange_ts_ms = 1_700_000_000_000  # 2023-11-14T22:13:20Z
-        tick = orchestrator._normalize_tick(
+        tick = TickRouter._normalize_tick(
             {
                 "symbol": "RELIANCE",
                 "exchange": "NSE",
@@ -145,7 +146,7 @@ class TestStreamOrchestrator:
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc)
-        tick = orchestrator._normalize_tick(
+        tick = TickRouter._normalize_tick(
             {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100},
             "sess-1",
             "dhan",  # Dhan quotes carry no timestamp
@@ -170,10 +171,10 @@ class TestStreamOrchestrator:
             "sequence": 7,
         }
         # First delivery is accepted, second is a duplicate → dropped.
-        assert orchestrator._dedup_drop("RELIANCE:NSE", orchestrator._normalize_tick(frame, "s", "upstox", now).event_time, 7) is False
-        assert orchestrator._dedup_drop("RELIANCE:NSE", orchestrator._normalize_tick(frame, "s", "upstox", now).event_time, 7) is True
+        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 7) is False
+        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 7) is True
         # Different sequence on same instrument/time is NOT a duplicate.
-        assert orchestrator._dedup_drop("RELIANCE:NSE", orchestrator._normalize_tick(frame, "s", "upstox", now).event_time, 8) is False
+        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 8) is False
 
     @pytest.mark.asyncio
     async def test_dedup_not_applied_to_timestamp_less_quotes(self, orchestrator):
@@ -186,12 +187,12 @@ class TestStreamOrchestrator:
 
         base = datetime.now(timezone.utc)
         frame = {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100}
-        et_a = orchestrator._normalize_tick(frame, "s", "dhan", base).event_time
-        et_b = orchestrator._normalize_tick(
+        et_a = TickRouter._normalize_tick(frame, "s", "dhan", base).event_time
+        et_b = TickRouter._normalize_tick(
             frame, "s", "dhan", base + timedelta(milliseconds=1)
         ).event_time
-        assert orchestrator._dedup_drop("RELIANCE:NSE", et_a, None) is False
-        assert orchestrator._dedup_drop("RELIANCE:NSE", et_b, None) is False
+        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", et_a, None) is False
+        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", et_b, None) is False
 
     @pytest.mark.asyncio
     async def test_unsubscribe_removes_session_when_last_consumer(self, orchestrator):

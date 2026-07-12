@@ -2,17 +2,28 @@
 
 Routes super orders, forever orders, GTT, cover orders, slice orders,
 and exit-all through the risk pipeline before broker transport.
+
+Broker-agnostic (DR-B1): this service never branches on broker **name** and
+never probes gateway internals. Every broker-specific execution detail is
+resolved through ``BrokerExtensionRegistry.require(broker_id,
+OrderCapabilityPort)`` and delegated to that executor. The capability port
+(:class:`domain.extensions.order_capability.OrderCapabilityPort`, whose
+canonical implementation is
+:class:`domain.extensions.extended_order.ExtendedOrderExecutor`) is the only
+interface this service depends on. Adding a broker means implementing the port
+(only for the operations it supports) and registering it in the broker's
+extension bundle — no edits here.
 """
 
 from __future__ import annotations
 
 import logging
-import warnings
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from domain.events.types import EventType
 from domain.exceptions import TradeXV2Error
+from domain.extensions.order_capability import OrderCapabilityPort
 from domain.ports.execution_context import oms_managed
 
 logger = logging.getLogger(__name__)
@@ -38,10 +49,10 @@ class ExtendedOrderService:
     3. Event publishing for audit trail
 
     Extension Resolution:
-        When ``extension_registry`` is provided, extensions are resolved via
-        ``registry.require(broker_id, ExtensionType)`` — the preferred approach.
-        When ``extension_registry`` is None, falls back to ``getattr`` probing
-        (deprecated — will be removed in a future release).
+        Broker-specific execution is resolved via
+        ``registry.require(broker_id, ExtendedOrderExecutor)``. The OMS owns
+        the kill-switch, risk, ``oms_managed`` and event-publishing concerns;
+        the resolved executor owns only the broker wire calls.
     """
 
     def __init__(
@@ -134,9 +145,11 @@ class ExtendedOrderService:
         return str(getattr(svc, "active_broker_name", "unknown"))
 
     def _require_extension(self, extension_type: type[T]) -> T:
-        """Acquire extension via ExtensionRegistry (preferred path).
+        """Acquire extension via ExtensionRegistry (broker-agnostic path).
 
-        Raises UnsupportedExtensionError if not registered.
+        Raises :class:`ExtendedFeatureUnavailableError` if the registry is not
+        configured, or ``UnsupportedExtensionError`` if the active broker did
+        not register the requested extension.
         """
         if self._extensions is None:
             raise ExtendedFeatureUnavailableError(
@@ -145,47 +158,14 @@ class ExtendedOrderService:
         broker_id = self._broker_name()
         return self._extensions.require(broker_id, extension_type)
 
-    def _get_extended(self, gw: Any) -> Any:
-        """DEPRECATED: Use _require_extension() instead."""
-        warnings.warn(
-            "_get_extended() is deprecated — use ExtensionRegistry instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        ext = getattr(gw, "extended", None)
-        if ext is None:
-            raise ExtendedFeatureUnavailableError(
-                "Extended capabilities not available on this gateway"
-            )
-        return ext
+    def _executor(self) -> OrderCapabilityPort:
+        """Resolve the active broker's extended-order executor.
 
-    def _get_broker(self, gw: Any) -> Any:
-        """DEPRECATED: Use _require_extension() instead."""
-        warnings.warn(
-            "_get_broker() is deprecated — use ExtensionRegistry instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        broker = getattr(gw, "_broker", None)
-        if broker is None:
-            raise ExtendedFeatureUnavailableError(
-                "Broker adapter unavailable"
-            )
-        return broker
-
-    def _get_conn(self, gw: Any) -> Any:
-        """DEPRECATED: Use _require_extension() instead."""
-        warnings.warn(
-            "_get_conn() is deprecated — use ExtensionRegistry instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        conn = getattr(gw, "_conn", None)
-        if conn is None:
-            raise ExtendedFeatureUnavailableError(
-                "Broker connection unavailable"
-            )
-        return conn
+        Resolved via the capability port (``OrderCapabilityPort``), so the OMS
+        asks the registry *"is an extended-order executor declared for this
+        broker?"* rather than branching on a broker name.
+        """
+        return self._require_extension(OrderCapabilityPort)
 
     # ── Super Order ──────────────────────────────────────────────────────
 
@@ -195,10 +175,8 @@ class ExtendedOrderService:
             risk_result = self._check_risk(payload)
             if risk_result is not None:
                 return risk_result
-            self._require_broker("dhan")
-            ext = self._get_extended(gw)
             with oms_managed():
-                resp = ext.place_super_order(**payload)
+                resp = self._executor().place_super_order(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
                 {"order_type": "super_order", "payload_keys": list(payload.keys())},
@@ -219,22 +197,12 @@ class ExtendedOrderService:
             risk_result = self._check_risk(payload)
             if risk_result is not None:
                 return risk_result
-            broker_name = self._broker_name()
-
-            if broker_name == "dhan":
-                ext = self._get_extended(gw)
-                with oms_managed():
-                    resp = ext.place_forever_order(payload)
-            elif broker_name == "upstox":
-                broker = self._get_broker(gw)
-                with oms_managed():
-                    resp = broker.gtt.place_forever_order(payload)
-            else:
-                raise ExtendedFeatureUnavailableError("Forever orders not supported")
-
+            executor = self._executor()
+            with oms_managed():
+                resp = executor.place_forever_order(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
-                {"order_type": "forever_order", "broker": broker_name},
+                {"order_type": "forever_order", "broker": executor.broker_id},
                 symbol=payload.get("symbol"),
             )
             return ExtendedOrderResult(success=True, response=resp)
@@ -252,23 +220,12 @@ class ExtendedOrderService:
             risk_result = self._check_risk(payload)
             if risk_result is not None:
                 return risk_result
-            broker_name = self._broker_name()
-
-            if broker_name == "dhan":
-                ext = self._get_extended(gw)
-                with oms_managed():
-                    resp = ext.place_conditional_trigger(payload)
-            else:
-                broker = self._get_broker(gw)
-                if hasattr(broker, "alert"):
-                    with oms_managed():
-                        resp = broker.alert.place_alert(payload)
-                else:
-                    raise ExtendedFeatureUnavailableError("Triggers not supported")
-
+            executor = self._executor()
+            with oms_managed():
+                resp = executor.place_trigger(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
-                {"order_type": "conditional_trigger", "broker": broker_name},
+                {"order_type": "conditional_trigger", "broker": executor.broker_id},
                 symbol=payload.get("symbol"),
             )
             return ExtendedOrderResult(success=True, response=resp)
@@ -292,15 +249,8 @@ class ExtendedOrderService:
         """
         try:
             self._check_kill_switch()
-            ext = self._get_extended(gw)
-            if hasattr(ext, "exit_all"):
-                with oms_managed():
-                    resp = ext.exit_all()
-            else:
-                broker = self._get_broker(gw)
-                with oms_managed():
-                    resp = broker.exit_all.exit_all()
-
+            with oms_managed():
+                resp = self._executor().exit_all()
             self._publish_event(
                 EventType.ORDER_PLACED,
                 {"order_type": "exit_all", "response": str(resp)[:200]},
@@ -320,11 +270,8 @@ class ExtendedOrderService:
             risk_result = self._check_risk(payload)
             if risk_result is not None:
                 return risk_result
-            self._require_broker("upstox")
-
-            broker = self._get_broker(gw)
             with oms_managed():
-                resp = broker.gtt.place_gtt_single(payload)
+                resp = self._executor().place_gtt(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
                 {"order_type": "gtt", "payload_keys": list(payload.keys())},
@@ -345,31 +292,12 @@ class ExtendedOrderService:
             risk_result = self._check_risk(payload)
             if risk_result is not None:
                 return risk_result
-            self._require_broker("upstox")
-
-            broker = self._get_broker(gw)
-            from decimal import Decimal
-
-            from domain import OrderRequest, OrderType, ProductType, Side, Validity
-
-            req = OrderRequest(
-                symbol=payload.get("symbol", ""),
-                exchange=payload.get("exchange", "NSE"),
-                transaction_type=Side(payload.get("side", "BUY")),
-                quantity=int(payload.get("quantity", 0)),
-                order_type=OrderType(payload.get("order_type", "MARKET")),
-                product_type=ProductType(payload.get("product_type", "INTRADAY")),
-                validity=Validity(payload.get("validity", "DAY")),
-                price=Decimal(str(payload.get("price", "0"))),
-            )
             with oms_managed():
-                resp = broker.cover.place_cover_order(
-                    req, Decimal(str(payload.get("stop_loss_price", "0")))
-                )
+                resp = self._executor().place_cover_order(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
-                {"order_type": "cover_order", "symbol": req.symbol},
-                symbol=req.symbol,
+                {"order_type": "cover_order", "symbol": payload.get("symbol", "")},
+                symbol=payload.get("symbol"),
             )
             return ExtendedOrderResult(success=True, response=resp)
         except KillSwitchActiveError as exc:
@@ -386,23 +314,12 @@ class ExtendedOrderService:
             risk_result = self._check_risk(payload)
             if risk_result is not None:
                 return risk_result
-            broker_name = self._broker_name()
-
-            if broker_name == "dhan":
-                conn = self._get_conn(gw)
-                with oms_managed():
-                    resp = conn.orders.place_slice_order(**payload)
-            else:
-                broker = self._get_broker(gw)
-                from domain.orders.requests import SliceOrderRequest
-
-                req = SliceOrderRequest(**payload)
-                with oms_managed():
-                    resp = broker.slice.place_slice_order(req)
-
+            executor = self._executor()
+            with oms_managed():
+                resp = executor.place_slice_order(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
-                {"order_type": "slice_order", "broker": broker_name},
+                {"order_type": "slice_order", "broker": executor.broker_id},
                 symbol=payload.get("symbol"),
             )
             return ExtendedOrderResult(success=True, response=resp)
@@ -415,14 +332,11 @@ class ExtendedOrderService:
     # ── Kill Switch ──────────────────────────────────────────────────────
 
     def set_kill_switch(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
-        self._require_broker("upstox")
-
-        broker = self._get_broker(gw)
         try:
-            updates = payload.get("updates", [])
-            resp = broker.kill_switch.set_status(updates)
+            resp = self._executor().set_kill_switch(payload)
 
             # Sync OMS risk manager kill switch
+            updates = payload.get("updates", [])
             if self._risk is not None and hasattr(self._risk, "set_kill_switch"):
                 enabled = any(u.get("enabled", False) for u in updates) if updates else False
                 self._risk.set_kill_switch(enabled)
@@ -435,14 +349,6 @@ class ExtendedOrderService:
         except Exception as exc:
             logger.exception("Kill switch update failed")
             return ExtendedOrderResult(success=False, error=str(exc))
-
-    # ── Helpers ──────────────────────────────────────────────────────────
-
-    def _require_broker(self, expected: str) -> None:
-        if self._broker_name() != expected:
-            raise ExtendedFeatureUnavailableError(
-                f"Feature not supported on broker {self._broker_name()}"
-            )
 
 
 class KillSwitchActiveError(TradeXV2Error):

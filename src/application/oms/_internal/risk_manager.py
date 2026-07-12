@@ -204,6 +204,27 @@ class RiskManager:
 
         # Loss-based circuit breaker
         self._loss_cb = LossCircuitBreaker(config=loss_cb_config)
+        # Pending exposure reserved between risk check and terminal order state.
+        self._pending_by_correlation: dict[str, Decimal] = {}
+        self._pending_meta: dict[str, tuple[str, str]] = {}
+
+    def release_pending(self, correlation_id: str | None) -> None:
+        """Release a pending exposure reservation (idempotent)."""
+        if not correlation_id:
+            return
+        with self._lock:
+            self._pending_by_correlation.pop(correlation_id, None)
+            self._pending_meta.pop(correlation_id, None)
+
+    def _pending_gross(self) -> Decimal:
+        return sum(self._pending_by_correlation.values(), Decimal("0"))
+
+    def _pending_symbol_notional(self, symbol: str, exchange: str) -> Decimal:
+        total = Decimal("0")
+        for cid, (sym, ex) in self._pending_meta.items():
+            if sym == symbol and ex == exchange:
+                total += self._pending_by_correlation.get(cid, Decimal("0"))
+        return total
 
     def _resolve_market_context(
         self, order: Order
@@ -427,7 +448,8 @@ class RiskManager:
                 if current
                 else Decimal("0")
             )
-            if (current_notional + notional) / capital * 100 > self._config.max_position_pct:
+            pending_symbol = self._pending_symbol_notional(order.symbol, order.exchange)
+            if (current_notional + pending_symbol + notional) / capital * 100 > self._config.max_position_pct:
                 return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
 
             # Gross exposure
@@ -438,7 +460,8 @@ class RiskManager:
                 * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
                 for p in positions
             )
-            if (gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
+            pending_gross = self._pending_gross()
+            if (gross + pending_gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
             # Daily loss
@@ -448,6 +471,9 @@ class RiskManager:
             ):
                 return RiskResult(False, "Daily loss limit reached")
 
+            if order.correlation_id:
+                self._pending_by_correlation[order.correlation_id] = notional
+                self._pending_meta[order.correlation_id] = (order.symbol, order.exchange)
             return RiskResult(True)
 
     def update_daily_pnl(self, pnl: Decimal) -> None:

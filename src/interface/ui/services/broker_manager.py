@@ -151,8 +151,10 @@ class BrokerManager:
             # Phase 6: read-only datalake gateway. Created lazily so
             # operators can switch between live and historical data
             # without restarting the CLI.
-            from interface.ui.services.broker_registry import create_gateway
-            svc._paper = create_gateway("datalake", load_instruments=False)
+            from interface.ui.services.connect import connect_analytics
+
+            result = connect_analytics("datalake", load_instruments=False)
+            svc._paper = result.gateway if result.ok else None
             if svc._paper is None:
                 raise ValueError(
                     "DataLake gateway not available. Verify the 'market_data' directory exists."

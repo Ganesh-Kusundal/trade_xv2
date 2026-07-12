@@ -29,11 +29,12 @@ def record(endpoint: str, segment: str, status: str, detail: str = ""):
 
 
 def test_gateway():
-    from brokers.dhan.identity.factory import BrokerFactory
+    sys.path.insert(0, os.path.join(project_root, "src"))
+    sys.path.insert(0, os.path.join(project_root, "scripts"))
+    from _connect import bootstrap_or_exit
 
     print("=== Creating Dhan Gateway ===")
-    factory = BrokerFactory()
-    gw = factory.create(load_instruments=True)
+    gw = bootstrap_or_exit("dhan", load_instruments=True)
     print(f"Gateway created. Instruments loaded: {gw.describe().get('instrument_count', '?')}")
     print()
 

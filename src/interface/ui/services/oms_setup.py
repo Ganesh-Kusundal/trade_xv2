@@ -15,16 +15,19 @@ This module handles:
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from application.oms.capital_provider import GatewayCapitalProvider
-from infrastructure.bootstrap import build_dead_letter_queue, build_order_store
-from interface.ui.services.capital_provider import TrackedCapitalProvider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
+from infrastructure.bootstrap import (
+    build_dead_letter_queue,
+    build_execution_ledger,
+    build_order_store,
+)
+from interface.ui.services.capital_provider import TrackedCapitalProvider
 
 if TYPE_CHECKING:
     from interface.ui.services.broker_service import BrokerService
@@ -138,6 +141,13 @@ def _build_order_store() -> Any:
         return None
 
 
+def _build_execution_ledger() -> Any:
+    """Build execution ledger when TRADEX_LEDGER_AUTHORITY=1 (ADR-015)."""
+    from runtime.ledger_policy import resolve_execution_ledger
+
+    return resolve_execution_ledger(builder=build_execution_ledger)
+
+
 def _build_event_log() -> Any:
     """Build BufferedEventLog for crash recovery and OMS replay.
 
@@ -188,6 +198,7 @@ def register_oms_services(
     processed_trades = _build_processed_trade_repository()
     dead_letter_queue = _build_dead_letter_queue()
     order_store = _build_order_store()
+    execution_ledger = _build_execution_ledger()
 
     # Build TradingContext with shared risk_manager, reconciliation, and event_log
     try:
@@ -201,6 +212,7 @@ def register_oms_services(
             processed_trade_repository=processed_trades,
             dead_letter_queue=dead_letter_queue,
             durable_order_store=order_store,
+            execution_ledger=execution_ledger,
             metrics=EventMetrics(),
             metrics_registry=metrics_registry,
         )

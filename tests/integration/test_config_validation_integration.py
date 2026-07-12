@@ -142,38 +142,54 @@ class TestInvalidValues:
         assert settings.http_timeout == 15.0  # default
 
 
-# ── Test 4: Factory uses validation on create ───────────────────────────
+# ── Test 4: Bootstrap uses validation on create ─────────────────────────
 
-class TestFactoryValidationIntegration:
-    """Verify BrokerFactory.create() validates config before creating gateway."""
+class TestBootstrapValidationIntegration:
+    """Verify bootstrap_gateway validates config before creating gateway."""
 
-    def test_factory_uses_validation_on_create(self, tmp_path: Path) -> None:
-        """BrokerFactory.create() must fail fast on invalid config."""
+    def test_bootstrap_fails_on_invalid_config(self, tmp_path: Path, caplog) -> None:
+        """bootstrap_gateway must fail fast on invalid config."""
+        import logging
+
         env_file = tmp_path / ".env.test"
         env_file.write_text(
             "DHAN_ACCESS_TOKEN=some_token\n"
             # Missing DHAN_CLIENT_ID
         )
 
-        from brokers.dhan.identity.factory import BrokerFactory
+        from domain.ports.bootstrap import BootstrapStatus
+        from infrastructure.gateway.factory import bootstrap_gateway
 
-        with pytest.raises(ValueError, match="DHAN_CLIENT_ID is required"):
-            BrokerFactory().create(env_path=env_file, load_instruments=False)
+        with caplog.at_level(logging.ERROR):
+            result = bootstrap_gateway(
+                "dhan",
+                env_path=env_file,
+                load_instruments=False,
+                skip_auth_probe=True,
+            )
+        assert not result.ok
+        assert result.status == BootstrapStatus.FAILED
+        assert result.gateway is None
+        assert "DHAN_CLIENT_ID" in caplog.text
 
-    def test_factory_creates_gateway_with_valid_config(self, tmp_path: Path) -> None:
-        """Factory.create() must succeed with valid config (even without TOTP if token provided)."""
+    def test_bootstrap_creates_gateway_with_valid_config(self, tmp_path: Path) -> None:
+        """bootstrap_gateway must succeed with valid config (transport-only, fake token)."""
         env_file = tmp_path / ".env.test"
         env_file.write_text(
             "DHAN_CLIENT_ID=test_client\n"
             "DHAN_ACCESS_TOKEN=test_token\n"
         )
 
-        from brokers.dhan.identity.factory import BrokerFactory
+        from infrastructure.gateway.factory import bootstrap_gateway
 
-        # Should succeed (token provided, no TOTP needed)
-        gateway = BrokerFactory().create(env_path=env_file, load_instruments=False)
-        assert gateway is not None
-        gateway.close()
+        result = bootstrap_gateway(
+            "dhan",
+            env_path=env_file,
+            load_instruments=False,
+            skip_auth_probe=True,
+        )
+        assert result.ok and result.gateway is not None
+        result.gateway.close()
 
 
 # ── Test 5: Validation error messages clear ─────────────────────────────

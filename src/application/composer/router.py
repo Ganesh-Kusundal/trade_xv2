@@ -16,6 +16,7 @@ import contextlib
 import logging
 from collections.abc import Callable
 
+from application.composer.registry import BrokerRegistry
 from domain.errors import RoutingError
 from domain.models.routing import (
     OperationKind,
@@ -23,7 +24,7 @@ from domain.models.routing import (
     RoutingRequest,
 )
 from domain.policies.source_selection import RoutingPolicy, SourceSelectionPolicy
-from infrastructure.time.clock import time_service
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ class BrokerRouter:
             parallel_brokers=tuple(parallel),
             reason_codes=tuple(reason_codes),
             rejected=rejected,
-            decided_at=time_service.now(),
+            decided_at=get_current_clock().now(),
         )
         self._log_decision(
             request=request,
