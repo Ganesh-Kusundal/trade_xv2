@@ -15,14 +15,16 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 - **Owner:** Runtime/Platform
 - **Exit:** import-linter proves no `_active_name` string branch and no direct broker
   import outside `runtime/`; broker selected by `broker_id` enum via plugin registry.
-- **Status:** IN_PROGRESS (P5-1 slice landed 2026-07-12) — removed the `_active_name == "dhan"`
-  string branch in `trading_runtime_factory.py` and the `getattr(_active_name)` fallback in
-  `runtime/factory.py`; added arch guard `tests/architecture/test_no_broker_string_branching.py`
-  (forbids `_active_name` string-branch/`getattr` in `src/runtime/`). Remaining for full G1
-  close: (a) introduce a `BrokerId` enum (stable contract) and select via it; (b) migrate the
-  `interface/ui` name-based broker selection (`getattr(_active_name)`, `getattr(_upstox_gateway)`)
-  to the public `active_broker`/`active_broker_name` properties — those are warning-level per the
-  layering rule but still couple the UI to private broker attributes.
+- **Status:** IN_PROGRESS (P5-1 slices landed 2026-07-12):
+  - Removed `_active_name == "dhan"` string branch in `trading_runtime_factory.py`.
+  - Removed `getattr(_active_name)` fallback in `runtime/factory.py`.
+  - Added arch guard `tests/architecture/test_no_broker_string_branching.py`.
+  - **BrokerId enum introduced** (`domain/ports/broker_id.py`): `DHAN`, `UPSTOX`, `PAPER`,
+    `MOCK` with `from_str()` helper. Exported from `domain/ports/__init__.py`.
+  - **auth_live_probe.py**: migrated `getattr(_active_name)` to `broker_service.active_broker_name`.
+  - Remaining: (a) migrate `websocket.py` `getattr(_upstox_gateway)` (needs public property
+    on BrokerService), (b) add `upstox_gateway`/`dhan_gateway` public properties to
+    BrokerService for full interface-layer cleanup.
 
 ## G2 — Orphaned shadow `brokers/dhan/*` duplicates `src/brokers/dhan/*` 🔴
 - **Roadmap:** P5-1 · **ADR:** ADR-001
