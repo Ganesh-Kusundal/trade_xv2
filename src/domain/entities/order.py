@@ -110,6 +110,12 @@ class Order:
         return self.status.is_terminal
 
     def with_status(self, status: OrderStatus) -> Order:
+        from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
+        from domain.state_machine import IllegalTransitionError
+
+        allowed = ORDER_STATUS_TRANSITIONS.get(self.status, frozenset())
+        if status != self.status and status not in allowed:
+            raise IllegalTransitionError(self.status, status)
         return replace(self, status=status)
 
     def with_fill(
