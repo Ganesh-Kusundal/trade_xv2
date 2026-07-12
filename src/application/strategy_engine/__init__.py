@@ -1,5 +1,5 @@
-"""Strategy engine capability (TOS-P6-005)."""
+"""Strategy engine capability — canonical spine is TradingOrchestrator.
 
-from application.strategy_engine.engine import LiveStrategyEngine, StrategyEngineConfig
-
-__all__ = ["LiveStrategyEngine", "StrategyEngineConfig"]
+LiveStrategyEngine was removed (G5): it was dead code, not wired in
+production, and duplicated TradingOrchestrator's dry-run/kill-switch logic.
+"""
