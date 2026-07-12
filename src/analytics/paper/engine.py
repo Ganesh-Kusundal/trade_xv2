@@ -15,6 +15,11 @@ Flow per bar:
     6. Process Signals → place orders → fill at bar close ± slippage
     7. Update positions, equity curve
 
+Responsibility split (this file is the facade):
+    * Bar iteration / window building  -> ``BarWindowManager``
+    * Signal processing (OMS routing)  -> ``PaperSignalProcessor``
+    * Position closing / exit checks   -> ``PaperPositionCloser``
+
 Usage:
     from analytics.paper import PaperTradingEngine, PaperConfig
     from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
@@ -32,42 +37,27 @@ Usage:
 from __future__ import annotations
 
 import logging
-import uuid
-from collections.abc import Generator, Iterator
+from collections.abc import Iterator
 from datetime import datetime
 from decimal import Decimal
 
 import pandas as pd
 
-from analytics.paper.models import (
-    OrderSide,
-    OrderStatus,
-    PaperConfig,
-    PaperOrder,
-    PaperResult,
-    PaperSession,
-    PaperTrade,
-    PositionSide,
-)
-from analytics.pipeline.errors import FeaturePipelineError
+from analytics.paper.models import PaperConfig, PaperResult, PaperSession
+from analytics.paper.bar_window import BarWindowManager
+from analytics.paper.position_closer import PaperPositionCloser
+from analytics.paper.signal_processor import PaperSignalProcessor
 from analytics.pipeline.pipeline import FeaturePipeline
 from domain.candles.historical import HistoricalBar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from domain import Side
 from domain.entities import Trade
-from domain.simulation_position_meta import PositionMeta
 from analytics.strategy.pipeline import StrategyPipeline
-from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.runtime_hooks import create_oms_backtest_adapter
-from domain.trading_costs import apply_slippage as _apply_slippage
 
 logger = logging.getLogger(__name__)
-
-
-def _gen_id() -> str:
-    return uuid.uuid4().hex[:8]
 
 
 class PaperTradingEngine:
@@ -116,6 +106,17 @@ class PaperTradingEngine:
                 "PaperTradingEngine requires trading_context (or oms_adapter) for order execution. "
                 "Pass a TradingContext instance from your composition root."
             )
+
+        # Decompose responsibilities into focused collaborators. The fill-recording
+        # callback is shared so every collaborator applies fills through the same
+        # FillReducer / PortfolioProjector path.
+        self._window_mgr = BarWindowManager(self._pipeline)
+        self._signal_processor = PaperSignalProcessor(
+            self._config, self._oms_adapter, self._record_session_fill
+        )
+        self._closer = PaperPositionCloser(
+            self._config, self._oms_adapter, self._record_session_fill
+        )
 
     # -----------------------------------------------------------------------
     # Public API
@@ -171,7 +172,7 @@ class PaperTradingEngine:
         session.bar_count += 1
 
         # Check stop-loss / take-profit on existing positions
-        self._check_exits(bar, session)
+        self._closer.check_exits(session, bar)
 
         if session.has_position(bar.symbol):
             session.mark_symbol(bar.symbol, bar.close)
@@ -185,12 +186,12 @@ class PaperTradingEngine:
             session._window = []  # type: ignore[attr-defined]
         session._window.append(bar.to_dict())  # type: ignore[attr-defined]
 
-        window_df = self._build_window(
+        window_df = self._window_mgr.build_window(
             session._window,
             self._config.window_size,  # type: ignore[attr-defined]
         )
 
-        features = self._run_features(window_df, session, self._config)
+        features = self._window_mgr.run_features(window_df, session, self._config)
         if features is None:
             return []
 
@@ -202,7 +203,7 @@ class PaperTradingEngine:
 
         # Process signals
         for signal in signals:
-            self._process_signal(signal, bar, session)
+            self._signal_processor.process(signal, bar, session)
 
         # Update equity
         equity = session.total_equity
@@ -262,13 +263,13 @@ class PaperTradingEngine:
                 warmup_done = True
 
             # Check stop-loss / take-profit exits and update mark-to-market
-            self._check_exits(bar, session)
+            self._closer.check_exits(session, bar)
             if session.has_position(bar.symbol):
                 session.mark_symbol(bar.symbol, bar.close)
 
             # Build window DataFrame and run feature pipeline
-            window_df = self._build_window(window, config.window_size)
-            features = self._run_features(window_df, session, config)
+            window_df = self._window_mgr.build_window(window, config.window_size)
+            features = self._window_mgr.run_features(window_df, session, config)
             if features is None:
                 equity = session.total_equity
                 session.equity_curve.append((bar.timestamp, equity))
@@ -283,7 +284,7 @@ class PaperTradingEngine:
             # Process every actionable signal
             for signal in signals:
                 signals_all.append(signal)
-                self._process_signal(signal, bar, session)
+                self._signal_processor.process(signal, bar, session)
 
             # Record equity after all signals for this bar have been processed
             equity = session.total_equity
@@ -300,7 +301,9 @@ class PaperTradingEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        signals_all = self._process_bar_stream(self._iter_bars(df, symbol, ts_col), session)
+        signals_all = self._process_bar_stream(
+            self._window_mgr.iter_bars(df, symbol, ts_col), session
+        )
 
         # Close any open positions at end
         if not df.empty:
@@ -315,11 +318,11 @@ class PaperTradingEngine:
                 volume=float(last_row.get("volume", 0)),
             )
             for sym in list(session.open_symbols()):
-                self._close_position(
+                self._closer.close(
+                    session,
                     sym,
                     last_bar.close,
                     last_bar.timestamp,
-                    session,
                     "End of paper trading",
                 )
 
@@ -340,7 +343,9 @@ class PaperTradingEngine:
         if not merged.empty:
             session.equity_curve.append((merged[ts_col].iloc[0], config.initial_capital))
 
-        all_signals = self._process_bar_stream(self._iter_bars(merged, "", ts_col), session)
+        all_signals = self._process_bar_stream(
+            self._window_mgr.iter_bars(merged, "", ts_col), session
+        )
 
         # Close remaining positions at each symbol's last bar price
         if not merged.empty:
@@ -349,11 +354,11 @@ class PaperTradingEngine:
                 if sym not in last_rows.index:
                     continue
                 row = last_rows.loc[sym]
-                self._close_position(
+                self._closer.close(
+                    session,
                     sym,
                     float(row["close"]),
                     row[ts_col],
-                    session,
                     "End of paper trading",
                 )
 
@@ -363,6 +368,10 @@ class PaperTradingEngine:
             bars_processed=session.bar_count,
             signals_generated=len(all_signals),
         )
+
+    # -----------------------------------------------------------------------
+    # Session fill recording (shared with collaborators)
+    # -----------------------------------------------------------------------
 
     def _record_session_fill(
         self,
@@ -392,288 +401,3 @@ class PaperTradingEngine:
             timestamp=timestamp,
         )
         return session.fill_pipeline.apply_trade(trade, order_quantity=quantity)
-
-    # -----------------------------------------------------------------------
-    # Signal processing
-    # -----------------------------------------------------------------------
-
-    def _process_signal(self, signal: Signal, bar: HistoricalBar, session: PaperSession) -> None:
-        """Process a signal through OMS for backtest-live parity.
-
-        Requires trading_context (or oms_adapter) passed at construction time.
-        """
-        if not signal.is_actionable:
-            return
-
-        self._process_signal_via_oms(signal, bar, session)
-
-    def _process_signal_via_oms(self, signal: Signal, bar: HistoricalBar, session: PaperSession) -> None:
-        """Route paper signals through OMS for parity with live/replay."""
-        config = self._config
-        if signal.is_buy and not session.has_position(bar.symbol):
-            if session.position_count >= config.max_positions:
-                return
-            # REF-4: float → Decimal daily-loss gate (domain policy helper).
-            if config.max_daily_loss_pct > 0:
-                from domain.risk.policy import check_paper_daily_loss
-
-                loss_check = check_paper_daily_loss(
-                    session.daily_pnl,
-                    session.total_equity,
-                    config.max_daily_loss_pct,
-                )
-                if not loss_check.approved:
-                    logger.info(
-                        "paper_daily_loss_blocked",
-                        extra={"reason": loss_check.reason, "symbol": bar.symbol},
-                    )
-                    return
-            price = _apply_slippage(Decimal(str(bar.close)), side="BUY", slippage_pct=config.slippage_pct)
-            qty = compute_order_quantity(
-                equity=session.capital,
-                price=float(price),
-                max_position_pct=config.max_position_pct,
-            )
-            if qty <= 0:
-                return
-            order_id = self._oms_adapter.open_long(
-                symbol=bar.symbol,
-                exchange="NSE",
-                quantity=qty,
-                price=price,
-                timestamp=bar.timestamp,
-                strategy=signal.strategy,
-                reasons=list(signal.reasons),
-            )
-            if order_id:
-                cost = float(price) * qty + config.commission_flat
-                session.capital -= cost
-                self._record_session_fill(
-                    session,
-                    order_id=order_id,
-                    symbol=bar.symbol,
-                    exchange="NSE",
-                    side=Side.BUY,
-                    quantity=qty,
-                    price=float(price),
-                    timestamp=bar.timestamp,
-                    trade_tag="open",
-                )
-                session.mark_symbol(bar.symbol, bar.close)
-                session.position_meta[bar.symbol] = PositionMeta(
-                    entry_time=bar.timestamp,
-                    stop_loss=signal.stop_loss,
-                    target=signal.target,
-                    strategy=signal.strategy,
-                )
-        elif signal.is_sell and session.has_position(bar.symbol):
-            domain_pos = session._domain_position(bar.symbol)
-            if domain_pos is None or domain_pos.quantity <= 0:
-                return
-            qty = domain_pos.quantity
-            entry_price = float(domain_pos.avg_price)
-            price = _apply_slippage(Decimal(str(bar.close)), side="SELL", slippage_pct=config.slippage_pct)
-            order_id = self._oms_adapter.close_long(
-                symbol=bar.symbol,
-                exchange="NSE",
-                quantity=qty,
-                price=price,
-                timestamp=bar.timestamp,
-                strategy=signal.strategy,
-                reasons=list(signal.reasons),
-            )
-            if order_id:
-                proceeds = float(price) * qty - config.commission_flat
-                session.capital += proceeds
-                simple_pnl = (float(price) - entry_price) * qty - config.commission_flat
-                session.daily_pnl += simple_pnl
-                self._record_session_fill(
-                    session,
-                    order_id=order_id,
-                    symbol=bar.symbol,
-                    exchange="NSE",
-                    side=Side.SELL,
-                    quantity=qty,
-                    price=float(price),
-                    timestamp=bar.timestamp,
-                    trade_tag="close",
-                )
-                session.clear_position(bar.symbol)
-
-    def _close_position(
-        self,
-        symbol: str,
-        price: float,
-        timestamp: datetime,
-        session: PaperSession,
-        reason: str,
-    ) -> None:
-        """Close a position through OMS for backtest-live parity."""
-        view = session._to_paper_position(symbol)
-        if view is None:
-            return
-
-        dec_price = Decimal(str(price))
-        order_id = self._oms_adapter.close_long(
-            symbol=symbol,
-            exchange="NSE",
-            quantity=view.quantity,
-            price=dec_price,
-            timestamp=timestamp,
-            strategy=view.strategy,
-            reasons=[reason],
-        )
-
-        if order_id is None:
-            return
-
-        config = self._config
-        if view.side == PositionSide.LONG:
-            exit_price = float(_apply_slippage(dec_price, side="SELL", slippage_pct=config.slippage_pct))
-            close_side = Side.SELL
-        else:
-            exit_price = float(_apply_slippage(dec_price, side="BUY", slippage_pct=config.slippage_pct))
-            close_side = Side.BUY
-
-        if view.side == PositionSide.LONG:
-            pnl = (exit_price - view.entry_price) * view.quantity
-        else:
-            pnl = (view.entry_price - exit_price) * view.quantity
-
-        pnl_pct = ((exit_price / view.entry_price) - 1) * 100 if view.entry_price > 0 else 0.0
-        if view.side == PositionSide.SHORT:
-            pnl_pct = -pnl_pct
-
-        exit_value = exit_price * view.quantity
-        commission = max(exit_value * config.commission_pct, config.commission_flat)
-        slippage_cost = view.quantity * float(dec_price) * (config.slippage_pct / 100)
-        net_pnl = pnl - commission
-        session.daily_pnl += net_pnl
-        session.capital += view.quantity * view.entry_price + net_pnl
-
-        session.trades.append(
-            PaperTrade(
-                symbol=symbol,
-                side=OrderSide.BUY if view.side == PositionSide.LONG else OrderSide.SELL,
-                entry_price=view.entry_price,
-                exit_price=exit_price,
-                quantity=view.quantity,
-                entry_time=view.entry_time,
-                exit_time=timestamp,
-                pnl=net_pnl,
-                pnl_pct=pnl_pct,
-                commission=commission,
-                slippage_cost=slippage_cost,
-                strategy=view.strategy,
-                reasons=[reason],
-            )
-        )
-
-        session.orders.append(
-            PaperOrder(
-                order_id=f"P-{_gen_id()}",
-                symbol=symbol,
-                side=OrderSide.SELL if view.side == PositionSide.LONG else OrderSide.BUY,
-                quantity=view.quantity,
-                price=float(dec_price),
-                order_time=timestamp,
-                status=OrderStatus.FILLED,
-                fill_price=exit_price,
-                fill_time=timestamp,
-                commission=commission,
-                slippage=slippage_cost,
-                strategy=view.strategy,
-                reasons=[reason],
-            )
-        )
-
-        self._record_session_fill(
-            session,
-            order_id=order_id,
-            symbol=symbol,
-            exchange="NSE",
-            side=close_side,
-            quantity=view.quantity,
-            price=exit_price,
-            timestamp=timestamp,
-            trade_tag="close",
-        )
-        session.clear_position(symbol)
-
-    def _check_exits(self, bar: HistoricalBar, session: PaperSession) -> None:
-        """Check stop-loss and take-profit exits for all positions."""
-        if not session.has_position(bar.symbol):
-            return
-
-        view = session._to_paper_position(bar.symbol)
-        meta = session.position_meta.get(bar.symbol)
-        if view is None:
-            return
-
-        stop_loss = meta.stop_loss if meta else view.stop_loss
-        take_profit = meta.take_profit if meta else view.take_profit
-
-        if stop_loss is not None and (
-            (view.side == PositionSide.LONG and bar.low <= stop_loss)
-            or (view.side == PositionSide.SHORT and bar.high >= stop_loss)
-        ):
-            self._close_position(bar.symbol, stop_loss, bar.timestamp, session, "Stop-loss hit")
-            return
-
-        if take_profit is not None and (
-            (view.side == PositionSide.LONG and bar.high >= take_profit)
-            or (view.side == PositionSide.SHORT and bar.low <= take_profit)
-        ):
-            self._close_position(
-                bar.symbol, take_profit, bar.timestamp, session, "Take-profit hit"
-            )
-            return
-
-    # -----------------------------------------------------------------------
-    # Helpers
-    # -----------------------------------------------------------------------
-
-    @staticmethod
-    def _iter_bars(df: pd.DataFrame, symbol: str, ts_col: str) -> Generator[HistoricalBar, None, None]:
-        """Yield :class:`HistoricalBar` instances from a DataFrame in row order.
-
-        Extracted from the old ``_bar_generator`` closures in ``_run_single``
-        and ``_run_multi_symbol`` to avoid re-defining the closure on every
-        iteration of the caller's loop.
-        """
-        for idx in range(len(df)):
-            row = df.iloc[idx]
-            sym = str(row["symbol"]) if "symbol" in df.columns else symbol
-            yield HistoricalBar.from_replay(
-                symbol=sym,
-                timestamp=row[ts_col],
-                open=float(row.get("open", 0)),
-                high=float(row.get("high", 0)),
-                low=float(row.get("low", 0)),
-                close=float(row.get("close", 0)),
-                volume=float(row.get("volume", 0)),
-            )
-
-    def _run_features(
-        self,
-        window_df: pd.DataFrame,
-        session: PaperSession,
-        config: PaperConfig,
-    ) -> pd.DataFrame | None:
-        """Run feature pipeline; return None on fail-closed skip (no neutral fallback)."""
-        self._pipeline.fail_closed = config.fail_closed_features
-        try:
-            return self._pipeline.run(window_df)
-        except FeaturePipelineError as exc:
-            logger.warning(
-                "Feature pipeline fail-closed at bar %d: %s",
-                session.bar_count,
-                exc,
-            )
-            return None
-
-    def _build_window(self, window: list[dict], window_size: int) -> pd.DataFrame:
-        """Build a DataFrame from the window, optionally limiting size."""
-        if window_size > 0:
-            window = window[-window_size:]
-        return pd.DataFrame(window)
