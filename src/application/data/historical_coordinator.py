@@ -17,6 +17,11 @@ Architecture invariant: the coordinator calls ``CommonBrokerGateway.get_historic
 on individual gateways.  It does not call gateway.history() or any internal
 adapter method.  Provenance survives every step.
 
+The heavy lifting is delegated to focused collaborators:
+  - :class:`ChunkPlanner`   — chunk planning and range partitioning
+  - :class:`ChunkMerger`     — chunk result recording, merge, bar ranges
+  - :class:`GapDetector`     — gap detection and empty-series construction
+
 Usage Example:
     # Create coordinator with broker registry and router
     coordinator = HistoricalDataCoordinator(
@@ -24,7 +29,7 @@ Usage Example:
         router=BrokerRouter(),
         policy=default_source_selection_policy(),
     )
-    
+
     # Create and execute query
     query = HistoricalQuery(
         instrument=InstrumentRef(symbol="RELIANCE", exchange="NSE"),
@@ -33,7 +38,7 @@ Usage Example:
         to_date=date(2024, 12, 31),
         merge_strategy="prefer_primary",
     )
-    
+
     # Get historical bars (automatically federates across brokers)
     bars = coordinator.get_historical_bars(query)
 """
@@ -46,27 +51,24 @@ import logging
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
-from application.data.provenance import (
-    BarRangeRecord,
-    ChunkRecord,
-    ConflictRecord,
-    ProvenanceLedger,
-)
+from application.data.chunk_merger import ChunkMerger, MergeStrategy
+from application.data.chunk_planner import ChunkPlan, ChunkPlanner
+from application.data.gap_detector import GapDetector
+from application.data.provenance import ProvenanceLedger
 from domain.candles.historical import (
     DateRange,
-    Gap,
     HistoricalBar,
     HistoricalSeries,
     InstrumentRef,
     MergeManifest,
 )
-from domain.errors import MergeConflictError, RoutingError
+from domain.errors import MergeConflictError
 from domain.models.routing import OperationKind, RouteDecision, RoutingRequest
 from domain.ports.broker_gateway import (
     HistoricalBarRequest,
@@ -75,7 +77,8 @@ from domain.ports.broker_gateway import (
 
 logger = logging.getLogger(__name__)
 
-MergeStrategy = Literal["prefer_primary", "prefer_newest_provenance", "fail_on_conflict"]
+# Backward-compatible alias for the (private) planning record.
+_ChunkPlan = ChunkPlan
 
 # Tolerance for OHLCV comparison between overlapping sources (10 basis points)
 _DEFAULT_CONFLICT_TOLERANCE_PCT = Decimal("0.001")
@@ -105,20 +108,6 @@ class HistoricalQuery:
     max_concurrent_fetches: int = 4
 
 
-@dataclass
-class _ChunkPlan:
-    """Internal planning record — not exposed outside this module."""
-
-    chunk_id: str
-    broker_id: str
-    instrument: InstrumentRef
-    from_date: date
-    to_date: date
-    timeframe: str
-    request_id: str
-    is_fallback: bool = False
-
-
 class HistoricalDataCoordinator:
     """Federated multi-broker historical data coordinator.
 
@@ -143,6 +132,8 @@ class HistoricalDataCoordinator:
         self._registry = registry
         self._router = router
         self._quota_fn = quota_fn
+        self._planner = ChunkPlanner(registry=registry, router=router)
+        self._gap_detector = GapDetector()
 
     async def fetch(
         self,
@@ -178,7 +169,7 @@ class HistoricalDataCoordinator:
         # 2. Fetch all chunks concurrently (respecting concurrency cap)
         semaphore = asyncio.Semaphore(query.max_concurrent_fetches)
         fetch_results: list[
-            tuple[_ChunkPlan, Sequence[HistoricalBar] | None]
+            tuple[ChunkPlan, Sequence[HistoricalBar] | None]
         ] = await asyncio.gather(
             *[self._fetch_chunk_guarded(chunk, semaphore, ledger) for chunk in chunks],
             return_exceptions=False,
@@ -208,6 +199,7 @@ class HistoricalDataCoordinator:
             chunk_bars=chunk_bars,
             strategy=query.merge_strategy,
             tolerance=query.conflict_tolerance_pct,
+            ledger=ledger,
         )
         for c in conflicts:
             ledger.add_conflict(c)
@@ -269,68 +261,11 @@ class HistoricalDataCoordinator:
         return series, ledger
 
     # ------------------------------------------------------------------
-    # Planning
+    # Planning (delegated to ChunkPlanner)
     # ------------------------------------------------------------------
 
-    def _plan_chunks(self, query: HistoricalQuery, request_id: str) -> list[_ChunkPlan]:
-        """Plan fetch chunks by clipping ranges and assigning to brokers.
-
-        Strategy:
-        1. Ask the router for parallel brokers.
-        2. For each eligible broker, determine the date range it can serve
-           (constrained by HistoricalWindowConstraint).
-        3. Partition the requested range so brokers do not duplicate work:
-           - Upstox takes the most recent window (up to its max_lookback_days).
-           - Dhan takes the remainder.
-        4. Split long ranges into max_chunk_days chunks.
-        """
-        # Determine routing
-        route_request = RoutingRequest(
-            operation=OperationKind.GET_HISTORICAL_BARS,
-            trace_id=request_id,
-            instrument=str(query.instrument),
-        )
-        try:
-            decision: RouteDecision = self._router.route(route_request)
-        except RoutingError:
-            logger.error(
-                "historical.routing.failed",
-                extra={"request_id": request_id, "instrument": str(query.instrument)},
-            )
-            return []
-
-        eligible_brokers = list(decision.parallel_brokers) or [decision.primary_broker]
-        today = date.today()
-        chunks: list[_ChunkPlan] = []
-
-        # Determine per-broker feasible ranges and partition
-        broker_ranges = self._partition_ranges(
-            query.from_date, query.to_date, query.timeframe, eligible_brokers, today
-        )
-
-        for broker_id, (from_d, to_d) in broker_ranges.items():
-            cap_descriptor = self._registry.get_capabilities(broker_id)
-            constraint = cap_descriptor.capabilities.historical_window_for(query.timeframe)
-            max_chunk = constraint.max_chunk_days if constraint else 90
-
-            # Split into chunks
-            current = from_d
-            while current <= to_d:
-                end = min(current + timedelta(days=max_chunk - 1), to_d)
-                chunks.append(
-                    _ChunkPlan(
-                        chunk_id=str(uuid.uuid4()),
-                        broker_id=broker_id,
-                        instrument=query.instrument,
-                        from_date=current,
-                        to_date=end,
-                        timeframe=query.timeframe,
-                        request_id=request_id,
-                    )
-                )
-                current = end + timedelta(days=1)
-
-        return chunks
+    def _plan_chunks(self, query: HistoricalQuery, request_id: str) -> list[ChunkPlan]:
+        return self._planner.plan(query, request_id)
 
     def _partition_ranges(
         self,
@@ -340,55 +275,7 @@ class HistoricalDataCoordinator:
         broker_ids: list[str],
         today: date,
     ) -> dict[str, tuple[date, date]]:
-        """Partition the requested range across eligible brokers.
-
-        For two brokers where one (e.g. Upstox) has a short intraday window and
-        the other (Dhan) has a long one, the recent window goes to Upstox and
-        the older portion goes to Dhan — avoiding duplicated fetches.
-        """
-        result: dict[str, tuple[date, date]] = {}
-
-        # Build broker window map: broker_id -> max_lookback_days
-        broker_windows: dict[str, int] = {}
-        for bid in broker_ids:
-            with contextlib.suppress(Exception):
-                cap = self._registry.get_capabilities(bid).capabilities
-                constraint = cap.historical_window_for(timeframe)
-                if constraint and cap.supports_historical_data:
-                    broker_windows[bid] = constraint.max_lookback_days
-
-        if not broker_windows:
-            return result
-
-        if len(broker_windows) == 1:
-            bid, max_days = next(iter(broker_windows.items()))
-            earliest = today - timedelta(days=max_days)
-            effective_from = max(from_date, earliest)
-            if effective_from <= to_date:
-                result[bid] = (effective_from, to_date)
-            return result
-
-        # Multi-broker: sort by coverage ascending (shorter coverage = recent window)
-        sorted_brokers = sorted(broker_windows.items(), key=lambda x: x[1])
-        # The broker with shorter max_lookback takes the recent slice
-        short_broker, short_days = sorted_brokers[0]
-        long_broker, long_days = sorted_brokers[-1]
-
-        short_earliest = today - timedelta(days=short_days)
-        long_earliest = today - timedelta(days=long_days)
-
-        # Short broker: max(from_date, short_earliest) to to_date
-        short_from = max(from_date, short_earliest)
-        if short_from <= to_date:
-            result[short_broker] = (short_from, to_date)
-
-        # Long broker: max(from_date, long_earliest) to (short_from - 1 day)
-        long_to = short_from - timedelta(days=1)
-        long_from = max(from_date, long_earliest)
-        if long_from <= long_to:
-            result[long_broker] = (long_from, long_to)
-
-        return result
+        return self._planner.partition(from_date, to_date, timeframe, broker_ids, today)
 
     # ------------------------------------------------------------------
     # Fetching
@@ -396,18 +283,18 @@ class HistoricalDataCoordinator:
 
     async def _fetch_chunk_guarded(
         self,
-        plan: _ChunkPlan,
+        plan: ChunkPlan,
         semaphore: asyncio.Semaphore,
         ledger: ProvenanceLedger,
-    ) -> tuple[_ChunkPlan, Sequence[HistoricalBar] | None]:
+    ) -> tuple[ChunkPlan, Sequence[HistoricalBar] | None]:
         async with semaphore:
             return await self._fetch_chunk(plan, ledger)
 
     async def _fetch_chunk(
         self,
-        plan: _ChunkPlan,
+        plan: ChunkPlan,
         ledger: ProvenanceLedger,
-    ) -> tuple[_ChunkPlan, Sequence[HistoricalBar] | None]:
+    ) -> tuple[ChunkPlan, Sequence[HistoricalBar] | None]:
         import time
 
         start = time.monotonic()
@@ -432,71 +319,17 @@ class HistoricalDataCoordinator:
 
     def _record_chunk_result(
         self,
-        plan: _ChunkPlan,
+        plan: ChunkPlan,
         ledger: ProvenanceLedger,
         bars: Sequence[HistoricalBar] | None,
         elapsed_ms: float,
         error: Exception | None = None,
     ) -> None:
-        """Record chunk outcome in the ledger, audit log, and structured log."""
-        bar_count = len(bars) if bars is not None else 0
-        event_type = "complete" if error is None else "failed"
-
-        ledger.add_chunk(
-            ChunkRecord(
-                chunk_id=plan.chunk_id,
-                broker_id=plan.broker_id,
-                from_date=plan.from_date,
-                to_date=plan.to_date,
-                timeframe=plan.timeframe,
-                bars_fetched=bar_count,
-                error=str(error) if error else None,
-                fetch_latency_ms=elapsed_ms,
-            )
-        )
-
-        with contextlib.suppress(Exception):
-            from infrastructure.observability.audit import emit_historical_chunk
-
-            emit_historical_chunk(
-                request_id=plan.request_id,
-                chunk_id=plan.chunk_id,
-                broker_id=plan.broker_id,
-                from_date=plan.from_date.isoformat(),
-                to_date=plan.to_date.isoformat(),
-                timeframe=plan.timeframe,
-                event_type=event_type,
-                bar_count=bar_count,
-                latency_ms=elapsed_ms,
-                **({"error": str(error)} if error else {}),
-            )
-
-        if error is None:
-            logger.info(
-                "historical.chunk.complete",
-                extra={
-                    "chunk_id": plan.chunk_id,
-                    "broker_id": plan.broker_id,
-                    "from_date": plan.from_date.isoformat(),
-                    "to_date": plan.to_date.isoformat(),
-                    "bar_count": bar_count,
-                    "request_id": plan.request_id,
-                },
-            )
-        else:
-            logger.warning(
-                "historical.chunk.failed",
-                extra={
-                    "chunk_id": plan.chunk_id,
-                    "broker_id": plan.broker_id,
-                    "error": str(error),
-                    "request_id": plan.request_id,
-                },
-            )
+        ChunkMerger(ledger).record(plan, bars, elapsed_ms, error=error)
 
     async def _try_fallback(
         self,
-        failed_plan: _ChunkPlan,
+        failed_plan: ChunkPlan,
         ledger: ProvenanceLedger,
     ) -> Sequence[HistoricalBar] | None:
         """Try remaining eligible brokers for a failed chunk."""
@@ -511,7 +344,7 @@ class HistoricalDataCoordinator:
 
         fallbacks = [b for b in decision.fallback_brokers if b != failed_plan.broker_id]
         for fallback_id in fallbacks:
-            fallback_plan = _ChunkPlan(
+            fallback_plan = ChunkPlan(
                 chunk_id=str(uuid.uuid4()),
                 broker_id=fallback_id,
                 instrument=failed_plan.instrument,
@@ -546,7 +379,7 @@ class HistoricalDataCoordinator:
         return None
 
     # ------------------------------------------------------------------
-    # Merge
+    # Merge (delegated to ChunkMerger)
     # ------------------------------------------------------------------
 
     def _merge(
@@ -555,137 +388,31 @@ class HistoricalDataCoordinator:
         chunk_bars: dict[str, list[HistoricalBar]],
         strategy: MergeStrategy,
         tolerance: Decimal,
-    ) -> tuple[list[HistoricalBar], list[ConflictRecord]]:
-        """Merge sorted bars, detecting and resolving OHLCV conflicts."""
-        conflicts: list[ConflictRecord] = []
-        merged: dict[datetime, HistoricalBar] = {}
-
-        for bar in bars:
-            ts = bar.event_time
-            if ts not in merged:
-                merged[ts] = bar
-                continue
-
-            existing = merged[ts]
-            delta = abs(bar.close - existing.close)
-            base = existing.close if existing.close != Decimal("0") else Decimal("1")
-            delta_pct = delta / base
-
-            if delta_pct <= tolerance:
-                # Within tolerance — prefer existing (primary source)
-                continue
-
-            # Conflict outside tolerance
-            conflict = ConflictRecord(
-                bar_event_time=ts,
-                instrument=str(bar.instrument),
-                timeframe=bar.timeframe,
-                primary_broker=existing.provenance.source.broker_id,
-                secondary_broker=bar.provenance.source.broker_id,
-                primary_close=existing.close,
-                secondary_close=bar.close,
-                delta_pct=delta_pct,
-                resolution=strategy,
-            )
-            conflicts.append(conflict)
-
-            if strategy == "prefer_primary":
-                pass  # keep existing
-            elif (
-                strategy == "prefer_newest_provenance"
-                and bar.provenance.fetched_at > existing.provenance.fetched_at
-            ):
-                merged[ts] = bar
-            # fail_on_conflict: keep existing; caller raises after seeing conflicts
-
-        return sorted(merged.values(), key=lambda b: b.event_time), conflicts
-
-    # ------------------------------------------------------------------
-    # Provenance bar ranges
-    # ------------------------------------------------------------------
+        ledger: ProvenanceLedger | None = None,
+    ) -> tuple[list[HistoricalBar], list]:
+        return ChunkMerger(ledger or ProvenanceLedger(
+            request_id="", instrument="", timeframe=""
+        )).merge(
+            bars, chunk_bars=chunk_bars, strategy=strategy, tolerance=tolerance
+        )
 
     def _populate_bar_ranges(
         self,
         bars: list[HistoricalBar],
         ledger: ProvenanceLedger,
     ) -> None:
-        """Build BarRangeRecord entries mapping bar indices to source chunks."""
-        if not bars:
-            return
-
-        current_broker = bars[0].provenance.source.broker_id
-        current_chunk_id = bars[0].provenance.request_id
-        range_start = 0
-
-        for idx in range(1, len(bars)):
-            bar = bars[idx]
-            broker = bar.provenance.source.broker_id
-            chunk_id = bar.provenance.request_id
-            if broker != current_broker or chunk_id != current_chunk_id:
-                ledger.add_bar_range(
-                    BarRangeRecord(
-                        start_bar_index=range_start,
-                        end_bar_index=idx - 1,
-                        chunk_id=current_chunk_id,
-                        broker_id=current_broker,
-                    )
-                )
-                current_broker = broker
-                current_chunk_id = chunk_id
-                range_start = idx
-
-        ledger.add_bar_range(
-            BarRangeRecord(
-                start_bar_index=range_start,
-                end_bar_index=len(bars) - 1,
-                chunk_id=current_chunk_id,
-                broker_id=current_broker,
-            )
-        )
+        ChunkMerger(ledger).populate_bar_ranges(bars)
 
     # ------------------------------------------------------------------
-    # Gap detection
+    # Gap detection (delegated to GapDetector)
     # ------------------------------------------------------------------
 
     def _detect_gaps(
         self,
         bars: list[HistoricalBar],
         query: HistoricalQuery,
-    ) -> list[Gap]:
-        """Detect gaps between the requested coverage and actual bars.
-
-        Gap detection is calendar-day based for daily bars.  For intraday bars,
-        gaps are detected by finding consecutive bars with timestamps more than
-        2x the timeframe apart (approximate heuristic).
-        """
-        gaps: list[Gap] = []
-        if not bars:
-            gaps.append(Gap(start=query.from_date, end=query.to_date, reason="all_failed"))
-            return gaps
-
-        # Coverage gap at start
-        first_bar_date = bars[0].event_time.date()
-        if first_bar_date > query.from_date:
-            gaps.append(
-                Gap(
-                    start=query.from_date,
-                    end=first_bar_date - timedelta(days=1),
-                    reason="missing_from_start",
-                )
-            )
-
-        # Coverage gap at end
-        last_bar_date = bars[-1].event_time.date()
-        if last_bar_date < query.to_date:
-            gaps.append(
-                Gap(
-                    start=last_bar_date + timedelta(days=1),
-                    end=query.to_date,
-                    reason="missing_from_end",
-                )
-            )
-
-        return gaps
+    ) -> list:
+        return self._gap_detector.detect(bars, query)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -693,11 +420,4 @@ class HistoricalDataCoordinator:
 
     @staticmethod
     def _empty_series(query: HistoricalQuery, ledger: ProvenanceLedger) -> HistoricalSeries:
-        return HistoricalSeries(
-            bars=[],
-            coverage=DateRange(start=query.from_date, end=query.to_date),
-            instrument=query.instrument,
-            timeframe=query.timeframe,
-            gaps=[Gap(start=query.from_date, end=query.to_date, reason=ledger.degraded_reason)],
-            merge_manifest=MergeManifest(degraded=True, degraded_reason=ledger.degraded_reason),
-        )
+        return GapDetector.empty_series(query, ledger)
