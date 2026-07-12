@@ -36,6 +36,7 @@ class DomainEvent:
     payload: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:EVENT_ID_HEX_LENGTH])
     correlation_id: str | None = None
+    sequence_number: int = 0
 
     @classmethod
     def now(

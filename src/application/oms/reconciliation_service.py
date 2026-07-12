@@ -228,6 +228,27 @@ class ReconciliationService(ManagedServicePort):
                             payload,
                         )
                     )
+                    # G6: emit RECONCILIATION_DRIFT when drift is detected
+                    # so the bus-level drift signal is available to monitors,
+                    # dashboards, and auto-healing subscribers.
+                    if self._last_drift_count > 0:
+                        self._event_bus.publish(
+                            DomainEvent.now(
+                                "RECONCILIATION_DRIFT",
+                                {
+                                    "drift_count": self._last_drift_count,
+                                    "drift_items": [
+                                        {
+                                            "kind": getattr(d, "kind", "unknown"),
+                                            "severity": getattr(d, "severity", "unknown"),
+                                            "symbol": getattr(d, "symbol", ""),
+                                            "details": getattr(d, "details", ""),
+                                        }
+                                        for d in getattr(report, "drift_items", [])
+                                    ],
+                                },
+                            )
+                        )
                 except Exception:
                     logger.exception("Failed to publish RECONCILIATION_COMPLETED")
         return report
