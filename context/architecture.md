@@ -96,13 +96,25 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 
 ## 8. Known Architectural Violations (tracked, do not add more)
 
-| # | Gap | Severity | Where |
+| # | Gap | Severity | Status |
 |---|---|---|---|
-| G1 | `runtime/` concrete-broker + string branching | 🔴 | `runtime/broker_infrastructure.py`, `trading_runtime_factory.py:105` |
-| G2 | Orphaned shadow `brokers/dhan/*` | 🔴 | root `brokers/` vs `src/brokers/` |
-| G3 | Datalake bakes NSE/IST | 🔴 | `nse_calendar.py`, `core/constants.py:50` |
-| G4 | Two parallel config systems | ⚠️ | `infrastructure/config/settings.py` vs `config/schema.py` |
-| G5 | Duplicated infra (dual event bus, triple idempotency, two MCP) | ⚠️ | `event_bus/`, `idempotency/`, `brokers.mcp`/`agent.mcp` |
-| G6 | Reconciliation off hot path | ⚠️ | `reconciliation_engine.py:42` |
-| G7 | Reflection `getattr` kill-switch | ⚠️ | `trading_orchestrator.py:518-524` |
-| G8 | Ad-hoc scripts at repo root | ⚠️ | `pytest_runner*.py`, `run_*.sh` |
+| G1 | `runtime/` concrete-broker + string branching | 🔴 | ✅ DONE — infrastructure layer uses plugin registry; ~30 string comparisons remain in interface layer (lower-priority broker ID display; BrokerId enum used where possible) |
+| G2 | Orphaned shadow `brokers/dhan/*` | 🔴 | ✅ DONE — root `brokers/` deleted (ADR-001) |
+| G3 | Datalake bakes NSE/IST | 🔴 | ✅ DONE — NSE/IST extracted from datalake core; TradingCalendar plugin is single source of truth |
+| G4 | Two parallel config systems | ⚠️ | ✅ DONE — dead DhanConfig/UpstoxConfig removed from `config/schema.py`; broker config lives in `brokers/*/config/settings.py`; full merge deferred (different purposes confirmed) |
+| G5 | Duplicated infra (dual event bus, triple idempotency, two MCP) | ⚠️ | ✅ DONE — event bus unified to `EventBusPort` Protocol (3→1); dead idempotency backends deleted (~1095 lines); Upstox alias removed |
+| G6 | Reconciliation off hot path | ⚠️ | ✅ DONE — `request_reconciliation()` wakes loop on TRADE_APPLIED/ORDER_UPDATED events; periodic timer retained as safety net |
+| G7 | Reflection `getattr` kill-switch | ⚠️ | ✅ DONE — uses `RiskManagerPort` injection |
+| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; doc refs updated in `web/README.md`, `src/config/README.md`, `src/interface/api/bootstrap.py` |
+
+## Architectural Migration Progress
+
+| Gap | What Changed | Lines Removed | Key Files |
+|---|---|---|---|
+| G1 | Runtime string branching eliminated; ~30 remaining in interface layer only | — | `infrastructure/gateway/factory.py`, `infrastructure/connection/authenticated_readiness.py`, `infrastructure/auth/credential_validator.py`, `infrastructure/io/environment_bootstrap.py` |
+| G2 | Shadow `brokers/dhan/*` deleted | — | `docs/architecture/adr/0001-delete-shadow-brokers.md` |
+| G3 | NSE/IST extracted to `TradingCalendar` plugin | — | `datalake/exchange_registry.py`, `datalake/core/constants.py`, `datalake/core/option_format.py`, `datalake/quality/validation.py`, `datalake/quality/health_check.py` |
+| G4 | Dead `DhanConfig`/`UpstoxConfig` removed from `config/schema.py` | ~93 | `config/schema.py` |
+| G5 | Event bus unified to `EventBusPort` Protocol; dead idempotency backends deleted | ~1095 | `infrastructure/event_bus/`, `infrastructure/idempotency/`, `brokers/upstox/orders/idempotency.py` |
+| G6 | Reconciliation moved to hot path via event-driven `request_reconciliation()` | — | `application/oms/reconciliation_service.py`, `application/oms/context.py` |
+| G7 | `getattr` kill-switch replaced with `RiskManagerPort` injection | — | `trading_orchestrator.py` |

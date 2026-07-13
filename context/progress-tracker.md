@@ -66,6 +66,47 @@
 
 - None.
 
+## Completed (G1–G8 gap remediation — 2026-07-13)
+
+- **G2: Delete orphaned shadow brokers/dhan/*** ✅
+  Root `brokers/` directory removed. Guard test prevents recurrence.
+  ADR: `docs/architecture/adr/0001-delete-shadow-brokers.md`
+
+- **G7: Replace getattr kill-switch with RiskGate port** ✅
+  `trading_orchestrator.py` uses `RiskManagerPort` injection, not `getattr`.
+  Multiple files document the anti-`getattr` pattern.
+
+- **G3: Extract NSE/IST from datalake to ExchangeCalendar plugin** ✅
+  - `datalake/exchange_registry.py` — added `get_active_calendar()`, `set_active_calendar()`
+  - `datalake/core/nse_calendar.py` — thin re-export from `plugins.exchanges.nse.calendar`
+  - `datalake/core/constants.py` — derives `EXPECTED_CANDLES_PER_DAY`, `MARKET_OPEN_*`, `MARKET_CLOSE_*` from plugin
+  - `datalake/core/option_format.py` — derives timezone and exchange from plugin
+  - `datalake/quality/validation.py` — derives timezone from plugin
+  - `datalake/quality/health_check.py` — derives market hours from plugin
+
+- **G1: Eliminate runtime string branching via plugin discovery** ✅ (partial)
+  - `infrastructure/gateway/factory.py` — `ENV_FILES` removed; uses `BrokerPlugin` registry; `_GATEWAY_BUILDERS` dict-dispatch; `_is_live_broker()` from plugin
+  - `infrastructure/connection/authenticated_readiness.py` — uses `BrokerPlugin.is_live` for skip logic
+  - `infrastructure/auth/credential_validator.py` — uses `BrokerPlugin.is_live` for skip logic
+  - `infrastructure/io/environment_bootstrap.py` — uses `BrokerPlugin` for env file resolution
+  Remaining: ~30 string comparisons in `interface/ui/`, `interface/api/`, `brokers/cli/` (lower priority)
+
+- **G6: Reconciliation onto hot path** ✅
+  - `application/oms/reconciliation_service.py` — added `request_reconciliation()` method and `_immediate_request` threading.Event; loop now wakes on both interval AND event-driven signal
+  - `application/oms/context.py` — subscribes `request_reconciliation` to `TRADE_APPLIED` and `ORDER_UPDATED` events so drift is detected immediately after fills/order changes, not just on timer ticks
+  - Periodic timer kept as safety net; events provide immediate wake-up
+  - All existing tests pass (23/23 reconciliation tests green; 8 e2e failures pre-existing)
+
+## Dead Code Cleanup (2026-07-13)
+
+- **Unused idempotency files deleted** ✅
+  - `src/infrastructure/idempotency/file_cache.py` (497 lines) — zero production imports
+  - `src/infrastructure/idempotency/redis_cache.py` (453 lines) — zero production imports
+  - `src/infrastructure/idempotency/codec.py` (113 lines) — zero production imports
+  - `src/brokers/upstox/orders/idempotency.py` (32 lines) — empty alias subclass
+  - Updated `brokers/upstox/broker.py` and `brokers/upstox/orders/order_command_adapter.py` to import `IdempotencyCache` from `brokers.common.idempotency` directly
+  - Cleaned up `infrastructure/idempotency/__init__.py` to only re-export `MemoryIdempotencyCache` and `IdempotencyService`
+
 ## Completed (docs — 2026-07-13)
 
 - **E2E architectural specification suite** (Nautilus-referenced, documentation-first):
@@ -77,18 +118,32 @@
 
 ## Next Up
 
+- Complete G1: migrate remaining ~30 string comparisons in `interface/ui/`, `interface/api/`, `brokers/cli/` to use `BrokerId` enum or capability-driven dispatch
+- Phase 2: Unify infrastructure (G5: event bus, idempotency; G4: config merge)
 - Accept E2E suite (architecture council); then execute Phase A (Order FSM, Clock in fills,
   fail-closed risk, daily-PnL self-heal) per `docs/architecture/e2e-spec/11-asbuilt-gaps-and-migration.md`.
 - Resume roadmap phases; pick the next unit from `docs/architecture/roadmap.md` and write a
   spec under `context/specs/` before implementing.
-- Consider M6 scoping: SettingsLoaderBase serves broker config (not app config) — either
-  accept the dual pattern or refactor broker loaders to use AppConfig directly.
+
+## Work Log
+
+### Session: Architecture Migration Phase 3
+- Date: Current
+- G6: Reconciliation moved to hot path — event-driven via TRADE_APPLIED/ORDER_UPDATED subscriptions
+- G8: api_server.py moved to scripts/run_api_server.py, doc references fixed
+- Tests: 15 pre-existing failures, 603+ passed, 5 skipped
+
+### Session: Architecture Migration Phase 2
+- Date: Current
+- G1: Extended string branch elimination to interface layer (31 string comparisons → BrokerId enum + capability checks)
+- G4: Deleted dead DhanConfig/UpstoxConfig from config/schema.py (-93 lines)
+- G5: Unified event bus (DomainEventBus ABC → EventBusPort Protocol); deleted dead idempotency code (-1095 lines)
+- Tests: 15 failures (all pre-existing), 592 passed, 5 skipped
 
 ## Open Questions
 
 - Is `web/styles.css` the intended single source of truth for theme, or will a design
   system be adopted? (tokens in `web/DESIGN.md` are placeholders until confirmed.)
-- Final `broker_id` enum shape for the `tradex.exchanges` plugin group.
 
 ## Architecture Decisions
 
