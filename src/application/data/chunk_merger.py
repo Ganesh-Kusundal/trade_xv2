@@ -9,9 +9,8 @@ coordinator.
 
 from __future__ import annotations
 
-import contextlib
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
@@ -31,12 +30,20 @@ logger = logging.getLogger(__name__)
 
 MergeStrategy = Literal["prefer_primary", "prefer_newest_provenance", "fail_on_conflict"]
 
+AuditFn = Callable[..., None]
+
 
 class ChunkMerger:
     """Record chunk outcomes and merge bars into a final series."""
 
-    def __init__(self, ledger: ProvenanceLedger) -> None:
+    def __init__(
+        self,
+        ledger: ProvenanceLedger,
+        *,
+        audit_fn: AuditFn | None = None,
+    ) -> None:
         self._ledger = ledger
+        self._audit_fn = audit_fn
 
     def record(
         self,
@@ -62,10 +69,8 @@ class ChunkMerger:
             )
         )
 
-        with contextlib.suppress(Exception):
-            from infrastructure.observability.audit import emit_historical_chunk
-
-            emit_historical_chunk(
+        if self._audit_fn is not None:
+            self._audit_fn(
                 request_id=plan.request_id,
                 chunk_id=plan.chunk_id,
                 broker_id=plan.broker_id,

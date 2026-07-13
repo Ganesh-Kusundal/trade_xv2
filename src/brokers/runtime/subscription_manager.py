@@ -26,7 +26,8 @@ class SubscriptionManager:
         *,
         depth: bool = False,
     ) -> SubscriptionHandle | None:
-        handle = instrument.subscribe(callback, depth=depth)
+        provider = instrument._resolve_provider()
+        handle = provider.subscribe(instrument.id, callback, depth=depth)
         if handle is not None:
             self._handles[str(instrument.id)] = handle
         return handle
@@ -36,11 +37,10 @@ class SubscriptionManager:
         handle = self._handles.pop(key, None)
         if handle is not None:
             try:
-                handle.unsubscribe()
+                provider = instrument._resolve_provider()
+                provider.unsubscribe(handle)
             except Exception:
                 pass
-        else:
-            instrument.unsubscribe()
 
     def active(self) -> list[str]:
         return list(self._handles.keys())

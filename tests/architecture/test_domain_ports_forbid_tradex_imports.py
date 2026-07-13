@@ -40,7 +40,7 @@ def test_market_bridge_event_types_in_canonical_enum() -> None:
 
 def test_domain_event_payload_is_immutable_mapping() -> None:
     """DomainEvent freezes top-level payload keys (Phase 0)."""
-    event = DomainEvent.now("TICK", {"ltp": 100.0}, symbol="RELIANCE")
+    event = DomainEvent.now("TICK", {"ltp": 100.0})
     with pytest.raises(TypeError):
         event.payload["ltp"] = 200.0  # type: ignore[index]
 

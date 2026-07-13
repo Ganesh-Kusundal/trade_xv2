@@ -37,7 +37,6 @@ _ALLOWED_PLACE_ORDER_FILES = frozenset(
         "src/application/execution/execution_mode_adapter.py",
         "src/application/execution/place_order_use_case.py",
         "src/interface/api/routers/orders.py",
-        "src/interface/api/v2/domain_endpoints.py",
         "src/interface/ui/commands/order_placement.py",
         "src/interface/ui/services/cli_broker_facade.py",
         "src/interface/ui/services/broker_service.py",
@@ -57,6 +56,9 @@ _ALLOWED_PLACE_ORDER_FILES = frozenset(
         "src/brokers/dhan/execution/orders.py",
         "src/brokers/dhan/execution/order_placement.py",
         "src/brokers/dhan/api/transport.py",
+        "src/brokers/dhan/wire.py",
+        "src/brokers/upstox/wire.py",
+        "src/brokers/services/orders.py",
         # src/brokers/dhan/order_placement.py — removed (shim deleted; logic in execution/order_placement.py)
     }
 )

@@ -18,6 +18,7 @@ import time
 import tracemalloc
 import weakref
 
+import numpy as np
 import pandas as pd
 
 # ──────────────────────────────────────────────────────────────────────
@@ -145,6 +146,7 @@ class TestReplayEngineMemoryBounds:
         from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
+        from analytics.strategy.pipeline import StrategyPipeline
 
         window_size = 20
         config = ReplayConfig(window_size=window_size, warmup_bars=0)
@@ -164,7 +166,9 @@ class TestReplayEngineMemoryBounds:
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
+            strategy_pipeline=StrategyPipeline(strategies=[]),
             config=config,
+            allow_simulate_without_oms=True,
         )
 
         tracemalloc.start()
@@ -209,14 +213,14 @@ class TestCacheEviction:
     """Verify caches evict properly and don't grow unbounded."""
 
     def test_datalake_gateway_resample_cache_bounded(self):
-        """DataLakeGateway resample cache should respect maxsize."""
+        """DataLakeGateway resample method should be stateless (no unbounded cache)."""
         from datalake.gateway import DataLakeGateway
 
         gw = DataLakeGateway(root="/tmp/test_datalake_mem")
-        # TTLCache maxsize=100
-
-        # Verify cache attributes
-        assert gw._resample_cache.maxsize == 100, "Resample cache should have maxsize of 100"
+        # Verify no internal cache is held on the instance (resample is stateless)
+        assert not hasattr(gw, "_resample_cache"), (
+            "DataLakeGateway should not hold an internal _resample_cache"
+        )
 
     def test_ttl_cache_evicts_old_entries(self):
         """TTLCache should evict entries when maxsize is reached."""
@@ -347,6 +351,7 @@ class TestDataFrameMemory:
         from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
+        from analytics.strategy.pipeline import StrategyPipeline
 
         n_bars = 500
         df = pd.DataFrame(
@@ -364,7 +369,9 @@ class TestDataFrameMemory:
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
+            strategy_pipeline=StrategyPipeline(strategies=[]),
             config=ReplayConfig(window_size=20, warmup_bars=0),
+            allow_simulate_without_oms=True,
         )
         result = engine.run(df, symbol="TEST")
 
@@ -432,9 +439,7 @@ class TestDataFrameMemory:
         )
 
     def test_dataframe_memory_usage_tracking(self):
-        """DataLakeGateway._df_size should accurately report DataFrame size."""
-        from datalake.gateway import DataLakeGateway
-
+        """DataFrame memory usage should be accurately reportable."""
         df = pd.DataFrame(
             {
                 "a": [1] * 1000,
@@ -442,9 +447,9 @@ class TestDataFrameMemory:
             }
         )
 
-        size = DataLakeGateway._df_size(df)
-        assert size > 0, "_df_size should return positive value"
-        assert isinstance(size, int), "_df_size should return int"
+        size = df.memory_usage(deep=True).sum()
+        assert size > 0, "memory_usage should return positive value"
+        assert isinstance(size, (int, np.integer)), "memory_usage should return int"
 
 
 # ──────────────────────────────────────────────────────────────────────

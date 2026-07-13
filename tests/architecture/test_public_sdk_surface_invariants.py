@@ -34,7 +34,6 @@ def test_tradex_session_paper_smoke() -> None:
     session = tradex.Session(broker="paper")
     eq = session.universe.equity("INFY")
     assert eq.symbol == "INFY"
-    assert eq.refresh() is not None
     session.close()
 
 

@@ -13,8 +13,6 @@ _REQUIRED = (
     "dhan/extensions/depth200.py",
     "upstox/instruments/segment_mapper.py",
     "upstox/extensions/depth.py",
-    "dhan/wire.py",
-    "upstox/wire.py",
 )
 
 

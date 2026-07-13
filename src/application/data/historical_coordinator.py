@@ -74,6 +74,7 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
+from infrastructure.observability.audit import emit_historical_chunk
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +326,9 @@ class HistoricalDataCoordinator:
         elapsed_ms: float,
         error: Exception | None = None,
     ) -> None:
-        ChunkMerger(ledger).record(plan, bars, elapsed_ms, error=error)
+        ChunkMerger(ledger, audit_fn=emit_historical_chunk).record(
+            plan, bars, elapsed_ms, error=error
+        )
 
     async def _try_fallback(
         self,

@@ -141,7 +141,7 @@ def run_verify(broker: str = "paper", **kwargs: Any) -> VerifyReport:
         mapping = verify_mapping(broker, session=s)
         report.add("Mappings", mapping.all_passed)
 
-        q = s.stock("RELIANCE").refresh()
+        q = s.stock("RELIANCE")
         report.add("Sample Quote", q is not None)
 
         hist = s.history(s.stock("RELIANCE"), timeframe="1D", days=30)

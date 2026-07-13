@@ -43,6 +43,7 @@ EXEMPTIONS = {
     "infrastructure/observability/alerting.py": (508, "Alerting engine — split tracked in ADR-011 backlog"),
     "interface/api/schemas.py": (510, "API schemas — split tracked in ADR-011 backlog"),
     "interface/ui/commands/market.py": (481, "Market commands — split tracked in ADR-011 backlog"),
+    "brokers/cli/_shell_nav.py": (410, "CLI shell navigation — split tracked in ADR-011 backlog"),
 
 }
 

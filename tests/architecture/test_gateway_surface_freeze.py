@@ -16,6 +16,7 @@ import inspect
 # Captured 2026-07-09. Growth requires explicit PR review.
 _DHAN_PUBLIC = frozenset(
     {
+        "authenticate",
         "cancel_all_orders",
         "cancel_order",
         "capabilities",
@@ -50,6 +51,7 @@ _DHAN_PUBLIC = frozenset(
 
 _UPSTOX_PUBLIC = frozenset(
     {
+        "authenticate",
         "cancel_order",
         "capabilities",
         "close",
