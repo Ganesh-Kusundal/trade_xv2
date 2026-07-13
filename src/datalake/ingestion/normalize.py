@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta, timezone
 
 import pandas as pd
 
 from datalake.core.schema import CANONICAL_COLUMNS
-from datalake.core.symbols import normalize_symbol
+from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.exchange_registry import get_active_adapter
 
 logger = logging.getLogger(__name__)
@@ -37,11 +38,33 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns={k: v for k, v in COLUMN_MAP.items() if k in df.columns})
 
 
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
 def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
-    """Ensure timestamp column is timezone-aware UTC (zero-parity with live path)."""
+    """Ensure timestamp column is naive datetime in IST (Asia/Kolkata).
+
+    All datalake timestamps are IST naive per schema.py. Broker data may
+    arrive as UTC-aware, IST-aware, or naive — this normalizes everything.
+
+    - UTC-aware → convert to IST, strip tz
+    - IST-aware → strip tz (already correct)
+    - Naive → assume already IST, keep as-is
+    """
     if "timestamp" not in df.columns:
         return df
-    ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    try:
+        adapter = get_active_adapter()
+        tz = adapter.timezone
+    except Exception:
+        tz = _IST  # Fallback to IST if no adapter configured
+    ts = pd.to_datetime(df["timestamp"], errors="coerce")
+
+    if ts.dt.tz is not None:
+        # Timezone-aware: convert to exchange tz, then strip tz
+        ts = ts.dt.tz_convert(tz).dt.tz_localize(None)
+    # else: naive — assume already in exchange tz, keep as-is
+
     df["timestamp"] = ts
     return df
 
@@ -95,7 +118,7 @@ def convert_paise_to_rupees(
 
 def ensure_canonical_columns(df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
     """Ensure all canonical columns exist with correct types."""
-    df["symbol"] = normalize_symbol(symbol)
+    df["symbol"] = normalize_symbol_for_storage(symbol)
     df["exchange"] = exchange
 
     if "oi" not in df.columns:
