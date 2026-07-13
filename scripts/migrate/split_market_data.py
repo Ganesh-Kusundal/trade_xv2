@@ -70,9 +70,10 @@ def _move(src: str, dst: str, *, dry_run: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Split market_data/ into lake + state")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be moved")
+    parser.add_argument("--force", action="store_true", help="Skip confirmation prompt")
     args = parser.parse_args()
 
-    if not args.dry_run:
+    if not args.dry_run and not args.force:
         confirm = input("This will move files from market_data/ to data/lake/ + data/state/. Continue? [y/N] ")
         if confirm.lower() != "y":
             print("Aborted.")
