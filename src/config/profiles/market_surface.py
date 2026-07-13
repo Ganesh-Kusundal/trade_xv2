@@ -1,7 +1,7 @@
 """Market-surface profiles for TradeXV2.
 
 This module is the *source of truth* for the market conventions the rest of
-the codebase reads via :class:`market_data.market_surface.MarketSurface`. A
+the codebase reads via :class:`domain.conventions.MarketSurface`. A
 default surface is registered that is byte-for-byte equal to the legacy
 hardcoded constants (NSE / INR / paisa x100 / tick 0.05 / lot 1 / risk-free
 0.065), and additional surfaces can be registered for other exchanges or
@@ -17,7 +17,7 @@ Usage::
 
 from __future__ import annotations
 
-from market_data.market_surface import (
+from domain.conventions import (
     DEFAULT_MARKET_SURFACE,
     MarketSurface,
 )

@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import timedelta, timezone
 from decimal import Decimal
 
-from market_data.market_surface import DEFAULT_MARKET_SURFACE
+from domain.conventions import DEFAULT_MARKET_SURFACE
 
 # ── Market data defaults (sourced from the default MarketSurface) ──────────
 #

@@ -13,11 +13,11 @@ from typing import Any, ContextManager, Protocol, runtime_checkable
 
 # Canonical constants — single source of truth for all consumers.
 # These are the legacy defaults; prefer DataPaths for new code.
-DEFAULT_DATA_ROOT: str = "market_data"
-"""Root directory for market data storage (legacy)."""
+DEFAULT_DATA_ROOT: str = "data/lake"
+"""Root directory for market data storage (data lake)."""
 
-DEFAULT_CATALOG_PATH: Path = Path("market_data/catalog.duckdb")
-"""Default path for DuckDB catalog database (legacy)."""
+DEFAULT_CATALOG_PATH: Path = Path("data/lake/catalog.duckdb")
+"""Default path for DuckDB catalog database."""
 
 
 @dataclass(frozen=True)

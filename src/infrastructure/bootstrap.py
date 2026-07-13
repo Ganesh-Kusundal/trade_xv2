@@ -101,7 +101,7 @@ def build_execution_ledger(db_path: str | None = None) -> Any:
     """Construct the durable pre-submit execution ledger."""
     from infrastructure.persistence.sqlite_execution_ledger import SqliteExecutionLedger
 
-    return SqliteExecutionLedger(db_path or "market_data/execution_ledger.sqlite")
+    return SqliteExecutionLedger(db_path or "data/state/oms/execution_ledger.sqlite")
 
 
 def build_production_event_bus(*, event_log: Any = None, resilience: Any | None = None) -> Any:

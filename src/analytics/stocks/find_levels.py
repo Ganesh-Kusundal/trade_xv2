@@ -169,7 +169,7 @@ def find_support_resistance(
     cluster_tolerance : float
         Fraction of price for clustering pivots. Default 0.01 (1%).
     catalog_path : str | Path | None
-        Override catalog path (for testing). Defaults to market_data/catalog.duckdb.
+        Override catalog path (for testing). Defaults to data/lake/catalog.duckdb.
     conn : duckdb.DuckDBPyConnection | None
         DuckDB connection (for testing). If None, opens a read-only catalog connection.
 

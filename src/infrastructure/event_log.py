@@ -324,7 +324,7 @@ class BufferedEventLog(EventLog):
 
     Usage:
         log = BufferedEventLog(
-            events_dir=Path("market_data/events"),
+            events_dir=Path("data/state/events"),
             flush_threshold=100,
             flush_interval=1.0,
         )

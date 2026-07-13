@@ -37,7 +37,7 @@ class RuleEngine:
         })
     """
 
-    def __init__(self, catalog_path: str | Path = "market_data/catalog.duckdb") -> None:
+    def __init__(self, catalog_path: str | Path = "data/lake/catalog.duckdb") -> None:
         self._catalog_path = str(catalog_path)
         self._compiler = RuleCompiler()
 

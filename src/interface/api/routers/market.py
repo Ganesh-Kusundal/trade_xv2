@@ -27,22 +27,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
-# ── Session DI (set once at startup) ────────────────────────────────
-_session: Session | None = None
+
+class _SessionState:
+    """Module-level session state (set once at startup)."""
+
+    _session: Session | None = None
+
+    @classmethod
+    def set(cls, session: Session) -> None:
+        cls._session = session
+
+    @classmethod
+    def get(cls) -> Session:
+        if cls._session is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Session not wired — call set_session() at startup",
+            )
+        return cls._session
 
 
 def set_session(session: Session) -> None:
-    global _session
-    _session = session
+    _SessionState.set(session)
 
 
 def _get_session() -> Session:
-    if _session is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Session not wired — call set_session() at startup",
-        )
-    return _session
+    return _SessionState.get()
 
 
 # Cache TTL configuration by timeframe category
@@ -100,7 +110,7 @@ async def get_candles(
     """Get historical OHLCV candles from the data lake.
 
     Supports multiple timeframes and date range filtering.
-    Data is sourced from Parquet files in market_data/.
+    Data is sourced from Parquet files in data/lake/.
 
     Cache-Control headers vary by timeframe:
     - 1m-5m: max-age=30 (30 seconds)

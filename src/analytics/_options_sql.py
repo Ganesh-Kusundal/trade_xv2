@@ -23,7 +23,7 @@ def build_options_features_sql(published_at: datetime) -> str:
             expiry_code,
             expiry_date,
             spot
-        FROM read_parquet('market_data/options/chains/expiry=*/underlying=*/data.parquet')
+        FROM read_parquet('data/lake/options/chains/expiry=*/underlying=*/data.parquet')
         WHERE timestamp >= (SELECT MAX(timestamp) FROM v_candles_1m) - INTERVAL '30 days'
     ),
     pcr AS (

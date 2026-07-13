@@ -35,7 +35,7 @@ class OrderRequest:
     need transport metadata should accept ``BrokerOrderPayload``.
 
     Exchange default is a placeholder; composition roots should set exchange
-    from :class:`market_data.market_surface.MarketSurface` (TOS-P5-030).
+    from :class:`domain.conventions.MarketSurface` (TOS-P5-030).
     """
 
     symbol: str = ""

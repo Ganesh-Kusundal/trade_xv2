@@ -1,6 +1,6 @@
 """Layer 7: Option Analytics — PCR, Max Pain, IV Surface.
 
-Reads from migrated option Parquet data in market_data/options/candles/.
+Reads from migrated option Parquet data in data/lake/options/candles/.
 All views read from materialized tables (m_pcr, m_max_pain, m_iv_surface) for speed.
 """
 

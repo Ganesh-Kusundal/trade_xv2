@@ -7,7 +7,7 @@ come from the configured surface, not hardcoded NSE/INR.
 
 from __future__ import annotations
 
-from market_data.market_surface import DEFAULT_MARKET_SURFACE, MarketSurface
+from domain.conventions import DEFAULT_MARKET_SURFACE, MarketSurface
 
 
 def get_default_surface() -> MarketSurface:

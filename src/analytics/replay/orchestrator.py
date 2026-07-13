@@ -38,8 +38,8 @@ Usage::
     orchestrator = UnifiedReplayOrchestrator(
         feature_pipeline=pipeline,
         strategy_pipeline=strategy,
-        events_dir="market_data/events",
-        data_root="market_data",
+        events_dir="data/state/events",
+        data_root="data/lake",
     )
     result = orchestrator.run(
         date="2026-01-15",
