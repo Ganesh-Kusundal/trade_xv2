@@ -10,8 +10,9 @@ from pathlib import Path
 
 # Re-export from domain canonical home for backward compatibility.
 from domain.ports.data_catalog import DEFAULT_CATALOG_PATH, DEFAULT_DATA_ROOT  # noqa: F401
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS  # noqa: F401
 
-CURATED_ROOT: str = "market_data/curated"
+CURATED_ROOT: str = DEFAULT_DATA_PATHS.curated_root
 """Root directory for curated (date-partitioned) data layout."""
 
 # Timeframes

@@ -26,7 +26,9 @@ from infrastructure.event_bus import DomainEvent
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EVENTS_DIR = Path("market_data/events")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+DEFAULT_EVENTS_DIR = DEFAULT_DATA_PATHS.events_dir
 
 # Cap on the in-memory idempotency guard (_seen_ids). Beyond this many
 # recently-seen event_ids, the oldest are evicted (LRU). This bounds memory

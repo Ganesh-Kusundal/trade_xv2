@@ -38,7 +38,9 @@ from datalake.core.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
-FEATURES_ROOT = Path("market_data/features")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+FEATURES_ROOT = DEFAULT_DATA_PATHS.features_root
 SR_DIR = FEATURES_ROOT / "support_resistance"
 
 

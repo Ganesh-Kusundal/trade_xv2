@@ -12,7 +12,9 @@ from domain.backtest.models import BacktestMetrics, BacktestResultResponse
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CACHE_PATH = Path("market_data/backtest_results.sqlite")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+DEFAULT_CACHE_PATH = DEFAULT_DATA_PATHS.backtest_results_path
 MAX_CACHE_ENTRIES = 500
 
 

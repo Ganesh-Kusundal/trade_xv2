@@ -240,7 +240,7 @@ _pool_lock = threading.Lock()
 
 def get_pool() -> DuckDBPool:
     """Return the process-wide DuckDBPool singleton (created on first call)."""
-    global _pool
+    global _pool  # intentional module singleton — double-checked locking
     if _pool is None:
         with _pool_lock:
             if _pool is None:
@@ -250,7 +250,7 @@ def get_pool() -> DuckDBPool:
 
 def get_read_pool() -> DuckDBReadPool:
     """Return the process-wide DuckDBReadPool singleton (created on first call)."""
-    global _read_pool
+    global _read_pool  # intentional module singleton — double-checked locking
     if _read_pool is None:
         with _pool_lock:
             if _read_pool is None:
@@ -259,9 +259,12 @@ def get_read_pool() -> DuckDBReadPool:
 
 
 def get_connection(
-    db_path: str | Path = "market_data/catalog.duckdb",
+    db_path: str | Path | None = None,
     read_only: bool = True,
 ) -> duckdb.DuckDBPyConnection:
+    if db_path is None:
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        db_path = str(DEFAULT_DATA_PATHS.catalog_path)
     """Get a DuckDB connection from the appropriate pool.
 
     Read-only requests use ``DuckDBReadPool`` (caller must ``release`` via
@@ -387,7 +390,7 @@ _memory_pool_lock = threading.Lock()
 
 def get_memory_pool() -> InMemoryDuckDBPool:
     """Return the process-wide InMemoryDuckDBPool singleton (created on first call)."""
-    global _memory_pool
+    global _memory_pool  # intentional module singleton — double-checked locking
     if _memory_pool is None:
         with _memory_pool_lock:
             if _memory_pool is None:
@@ -401,7 +404,7 @@ def reset_memory_pool() -> None:
     Thread-safe: acquires the pool lock before mutating the singleton.
     After this call, the next ``get_memory_pool()`` creates a fresh pool.
     """
-    global _memory_pool
+    global _memory_pool  # intentional module singleton — reset for tests
     with _memory_pool_lock:
         if _memory_pool is not None:
             _memory_pool.close_all()

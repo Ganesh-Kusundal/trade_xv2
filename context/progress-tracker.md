@@ -6,8 +6,8 @@
 
 ## Current Phase
 
-- **Phase A + B (E2E spec gap closure) complete** — clock injection (I2), PaperOrders legacy bypass retired (I1), ExecutionEngine promoted to production (I1 structural).
-- Next: **Phase D** — market data storage split (lake vs state).
+- **Phase A + B + D-Phase1 (E2E spec gap closure) complete** — clock injection (I2), PaperOrders legacy bypass retired (I1), ExecutionEngine promoted to production (I1 structural), DataPaths config spine (D-Phase1).
+- Next: **Phase D-Phase2** — physical split (create `data/lake` + `data/state`, move files).
 - Parallel: remaining `ExecutionService`/`SimulatedOMSAdapter` can be deleted once backtest path is migrated to `ExecutionEngine`.
 
 ## Current Goal
@@ -55,6 +55,29 @@
 - 52 application tests pass (execution + OMS)
 - 5/5 reconciliation integration tests pass
 - `graphify update .` completed
+
+### Phase D-Phase1: Market Data Storage Config Spine (2026-07-13)
+
+**DataPaths value object created:**
+- `domain/ports/data_catalog.py` — `DataPaths` frozen dataclass with `lake_root`, `state_root`, `catalog_path` + derived properties for OMS, ledger, events, research, features, options Greeks
+- `DEFAULT_DATA_PATHS` module-level instance for backward compatibility
+
+**Storage components updated to use DataPaths:**
+- `infrastructure/persistence/sqlite_order_store.py` — `oms_orders_path`
+- `infrastructure/persistence/sqlite_execution_ledger.py` — `execution_ledger_path`
+- `infrastructure/event_log.py` — `events_dir`
+- `datalake/research/backtest_cache_store.py` — `backtest_results_path`
+- `datalake/core/duckdb_utils.py` — `catalog_path`
+- `datalake/core/constants.py` — `curated_root`
+- `datalake/analytics/support_resistance.py` — `features_root`
+- `datalake/analytics/options_greeks.py` — `options_greeks_root`
+- `datalake/research/dataset.py` — `research_datasets_root`
+- `datalake/ingestion/sync_options.py` — lake root for options candles
+
+**Verification:**
+- 70 application tests pass
+- 610 architecture tests pass
+- Defaults match current layout (zero downtime)
 
 - **4.1** `DhanWireAdapter.authenticate()` ensures token via AuthManager /
   `_try_refresh_token` (not WS `is_connected` no-op).

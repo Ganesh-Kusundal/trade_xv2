@@ -27,7 +27,9 @@ from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
 
 logger = logging.getLogger(__name__)
 
-GREEKS_ROOT = Path("market_data/options/greeks")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+GREEKS_ROOT = DEFAULT_DATA_PATHS.options_greeks_root
 
 
 @dataclass

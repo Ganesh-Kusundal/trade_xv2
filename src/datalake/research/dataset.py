@@ -11,7 +11,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-ROOT = Path("market_data/research_datasets")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+ROOT = DEFAULT_DATA_PATHS.research_datasets_root
 
 
 class ResearchDataset:

@@ -30,10 +30,22 @@ from domain.types import OrderStatus, OrderType, ProductType, Side
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_PATH = Path("market_data/oms_orders.sqlite")
+from domain.ports.data_catalog import DataPaths, DEFAULT_DATA_PATHS
+
+_DEFAULT_PATH = DEFAULT_DATA_PATHS.oms_orders_path
+
+
+def _money_str(value: Any) -> str:
+    if hasattr(value, "amount"):
+        return str(value.amount)
+    if hasattr(value, "to_decimal"):
+        return str(value.to_decimal())
+    return str(value)
 
 
 def _order_to_row(order: Order) -> tuple[Any, ...]:
+    qty = order.quantity
+    filled = order.filled_quantity
     return (
         order.order_id,
         order.correlation_id,
@@ -42,10 +54,10 @@ def _order_to_row(order: Order) -> tuple[Any, ...]:
         order.side.value,
         order.order_type.value,
         order.product_type.value,
-        order.quantity,
-        order.filled_quantity,
-        str(order.price),
-        str(order.avg_price),
+        int(qty) if hasattr(qty, "__int__") else qty,
+        int(filled) if hasattr(filled, "__int__") else filled,
+        _money_str(order.price),
+        _money_str(order.avg_price),
         order.status.value,
         order.timestamp.isoformat() if order.timestamp else None,
         order.reject_reason,

@@ -45,7 +45,7 @@ from datalake.core.option_format import (
     convert_format,
     map_expiry_code_to_date,
 )
-from datalake.core.symbols import normalize_symbol
+from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.quality.validation import validate_candles
 
 # Initialize logging if not already configured
@@ -56,7 +56,9 @@ if not logging.getLogger().handlers:
 logger = logging.getLogger(__name__)
 
 TRADE_J_DUCKDB = "/Users/apple/Downloads/Trade_J/runtime-dev/historical.duckdb"
-TARGET_ROOT = Path("market_data/options/candles")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+TARGET_ROOT = Path(DEFAULT_DATA_PATHS.lake_root) / "options" / "candles"
 
 
 def _get_watermark(target_file: Path, conn: duckdb.DuckDBPyConnection) -> int:
@@ -117,7 +119,7 @@ def sync_options(
         for underlying, ek, ec in groups:
             target_dir = (
                 tgt_root
-                / f"underlying={normalize_symbol(underlying)}"
+                / f"underlying={normalize_symbol_for_storage(underlying)}"
                 / f"expiry_kind={ek}"
                 / f"expiry_code={ec}"
             )

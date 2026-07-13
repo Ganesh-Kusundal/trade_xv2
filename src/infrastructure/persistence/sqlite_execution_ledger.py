@@ -14,8 +14,17 @@ from domain.execution_contracts import (
     SubmissionOutcome,
     SubmissionState,
 )
+from domain.enums import OrderType, ProductType
 from domain.types import Side
 from domain.ports.execution_ledger import ExecutionLedgerPort
+
+
+def _parse_order_type(raw: str) -> OrderType:
+    return OrderType(raw) if not isinstance(raw, OrderType) else raw
+
+
+def _parse_product_type(raw: str) -> ProductType:
+    return ProductType(raw) if not isinstance(raw, ProductType) else raw
 
 
 class SqliteExecutionLedger(ExecutionLedgerPort):
@@ -26,7 +35,10 @@ class SqliteExecutionLedger(ExecutionLedgerPort):
     order snapshot table is a complete economic ledger.
     """
 
-    def __init__(self, path: Path | str = "market_data/execution_ledger.sqlite") -> None:
+    def __init__(self, path: Path | str | None = None) -> None:
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        if path is None:
+            path = str(DEFAULT_DATA_PATHS.execution_ledger_path)
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -167,6 +179,33 @@ class SqliteExecutionLedger(ExecutionLedgerPort):
             observed_at=observed_at,
             schema_version=row["schema_version"],
         )
+
+    def intent_for_correlation(self, correlation_id: str) -> OrderIntent | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM order_intents WHERE correlation_id = ?",
+                (correlation_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return OrderIntent(
+            intent_id=row["intent_id"],
+            order_id=row["order_id"],
+            correlation_id=row["correlation_id"],
+            symbol=row["symbol"],
+            exchange=row["exchange"],
+            side=Side(row["side"]),
+            quantity=row["quantity"],
+            price=Decimal(row["price"]),
+            order_type=_parse_order_type(row["order_type"]),
+            product_type=_parse_product_type(row["product_type"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            schema_version=row["schema_version"],
+        )
+
+    def order_id_for_correlation(self, correlation_id: str) -> str | None:
+        intent = self.intent_for_correlation(correlation_id)
+        return intent.order_id if intent is not None else None
 
     def record_fill(self, fill: LedgerFillRecord) -> None:
         with self._lock:
