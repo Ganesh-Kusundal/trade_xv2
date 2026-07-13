@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-from datetime import datetime, timezone
 from decimal import Decimal
 from threading import RLock
 
@@ -80,23 +78,13 @@ class PaperOrders:
         if isinstance(validity, str):
             validity = Validity(validity.upper())
 
-        # REF-018: Route through OMS OrderManager for idempotency when available.
-        if self._order_manager is not None:
-            return self._place_via_oms(
-                symbol=symbol,
-                exchange=exchange,
-                side=side,
-                quantity=quantity,
-                price=price,
-                order_type=order_type,
-                product_type=product_type,
-                validity=validity,
-                trigger_price=trigger_price,
-                correlation_id=correlation_id,
+        # Route through OMS OrderManager for idempotency, risk, and events.
+        if self._order_manager is None:
+            raise RuntimeError(
+                "PaperOrders requires an OrderManager. "
+                "Pass order_manager= to PaperGateway or PaperOrders."
             )
-
-        # Legacy path: no OMS available, manage state internally.
-        return self._place_internal(
+        return self._place_via_oms(
             symbol=symbol,
             exchange=exchange,
             side=side,
@@ -240,126 +228,6 @@ class PaperOrders:
             self._order_manager.record_trade(trade)
 
         return result.order
-
-    def _place_internal(
-        self,
-        symbol: str,
-        exchange: str,
-        side: Side,
-        quantity: int,
-        price: Decimal,
-        order_type: OrderType,
-        product_type: ProductType,
-        validity: Validity,
-        trigger_price: Decimal,
-        correlation_id: str | None,
-    ) -> Order:
-        """Legacy internal order placement (no OMS, backward compatible).
-
-        MARKET → instant fill (FILLED).
-        LIMIT / stop styles → rest as OPEN (so cancel/modify e2e works).
-        """
-        from brokers.common.order_validation import validate_lot_size
-
-        # Paper default lot size 1; still route through shared validator.
-        lot_err = validate_lot_size(quantity, 1, symbol, exchange)
-        if lot_err:
-            raise ValueError(lot_err)
-
-        is_market = order_type == OrderType.MARKET
-        if price > 0 and order_type == OrderType.LIMIT:
-            fill_price = price
-        else:
-            fill_price = self._md.get_ltp(symbol, exchange)
-
-        with self._lock:
-            self._order_seq += 1
-            order_id = f"PPR-{self._order_seq:06d}"
-
-            preview_order = Order(
-                order_id=order_id,
-                symbol=symbol,
-                exchange=exchange,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                price=price,
-                trigger_price=trigger_price,
-                product_type=product_type,
-                validity=validity,
-                correlation_id=correlation_id,
-            )
-            allowed, reason = self._risk_check(preview_order)
-            if not allowed:
-                rejected = replace(
-                    preview_order,
-                    status=OrderStatus.REJECTED,
-                    reject_reason=reason or "Risk check failed",
-                )
-                self._orders.append(rejected)
-                return rejected
-
-            if is_market:
-                order = Order(
-                    order_id=order_id,
-                    symbol=symbol,
-                    exchange=exchange,
-                    side=side,
-                    order_type=order_type,
-                    quantity=quantity,
-                    filled_quantity=quantity,
-                    price=price,
-                    trigger_price=trigger_price,
-                    status=OrderStatus.FILLED,
-                    timestamp=get_current_clock().now(),
-                    product_type=product_type,
-                    validity=validity,
-                    avg_price=fill_price,
-                    correlation_id=correlation_id,
-                )
-                self._orders.append(order)
-                self._trade_seq += 1
-                trade = Trade(
-                    trade_id=f"PPR-T-{self._trade_seq:06d}",
-                    order_id=order_id,
-                    symbol=symbol,
-                    exchange=exchange,
-                    side=side,
-                    quantity=quantity,
-                    price=fill_price,
-                    trade_value=fill_price * quantity,
-                    timestamp=get_current_clock().now(),
-                    product_type=product_type,
-                )
-                self._trades.append(trade)
-
-                if self._position_manager is not None:
-                    self._position_manager.apply_trade(trade)
-                self._positions = self._update_position(
-                    symbol, exchange, side, quantity, fill_price, product_type
-                )
-                return order
-
-            # Resting limit / conditional — OPEN (no fill yet)
-            order = Order(
-                order_id=order_id,
-                symbol=symbol,
-                exchange=exchange,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                filled_quantity=0,
-                price=price,
-                trigger_price=trigger_price,
-                status=OrderStatus.OPEN,
-                timestamp=get_current_clock().now(),
-                product_type=product_type,
-                validity=validity,
-                avg_price=Decimal("0"),
-                correlation_id=correlation_id,
-            )
-            self._orders.append(order)
-            return order
 
     def cancel_order(self, order_id: str) -> bool:
         with self._lock:

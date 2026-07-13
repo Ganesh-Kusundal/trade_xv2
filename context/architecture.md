@@ -9,6 +9,11 @@
 > `docs/architecture/e2e-spec/README.md` — kernel, domain, event catalog, data/execution
 > flows, risk, time/parity, reconciliation, ports, and migration. Prefer that suite for
 > flow-level design; this file remains the layering + invariant contract.
+>
+> **Code-derived audit (2026-07-13, graphify-first):**  
+> `docs/architecture/CURRENT-STATE.md` · `PRIORITIZED-AUDIT.md` · `TARGET-STATE.md`.
+> Prefer these for as-built flows, P0–P3 findings (F1–F9), and the Phase 0–4 migration.
+> Older `docs/architecture/AUDIT-*` files are superseded for audit purposes.
 
 ## 1. Stack Table (layer → technology → role)
 

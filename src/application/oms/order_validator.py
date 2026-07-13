@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Protocol
 
 from domain.events.types import DomainEvent, EventType
+from domain.ports.time_service import ClockPort, get_current_clock
 from domain.types import OrderStatus
 
 if TYPE_CHECKING:
@@ -46,10 +47,12 @@ class OrderValidator:
         risk_manager: RiskCheckPort | None = None,
         event_bus: EventBusPort | None = None,
         publish_callback: Callable | None = None,
+        clock: ClockPort | None = None,
     ) -> None:
         self._risk_manager = risk_manager
         self._event_bus = event_bus
         self._publish_callback = publish_callback
+        self._clock = clock or get_current_clock()
         self._placement_gate: Callable[[], tuple[bool, str | None]] | None = None
 
     def set_placement_gate(self, gate_fn: Callable[[], tuple[bool, str | None]]) -> None:
@@ -108,7 +111,7 @@ class OrderValidator:
                     price=request.price,
                     product_type=request.product_type,
                     status=OrderStatus.REJECTED,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=self._clock.now(),
                     correlation_id=request.correlation_id,
                 ),
                 reason=gate_reason,
@@ -125,7 +128,7 @@ class OrderValidator:
             price=request.price,
             product_type=request.product_type,
             status=OrderStatus.OPEN,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=self._clock.now(),
             correlation_id=request.correlation_id,
         )
 

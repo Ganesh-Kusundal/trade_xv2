@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from domain.entities import Order, Trade
     from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
 
+from domain.ports.time_service import ClockPort, get_current_clock
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ class TradeRecorder:
         position_updater: OrderPositionUpdater | None = None,
         publish_callback: object | None = None,
         execution_ledger: ExecutionLedgerPort | None = None,
+        clock: ClockPort | None = None,
     ) -> None:
         self._processed_trades = processed_trade_repository
         self._execution_ledger = execution_ledger
@@ -50,6 +53,7 @@ class TradeRecorder:
         self._audit_logger = audit_logger
         self._position_updater = position_updater
         self._publish_callback = publish_callback
+        self._clock = clock or get_current_clock()
         self._pending_trades_by_order: dict[str, list[Trade]] = {}
         self._pending_trades_max_per_order: int = 32
         self._trades_processed: int = 0
@@ -63,6 +67,11 @@ class TradeRecorder:
     @property
     def trades_duplicated(self) -> int:
         return self._trades_duplicated
+
+    @property
+    def execution_ledger(self) -> ExecutionLedgerPort | None:
+        """Public accessor for the execution ledger (used by ReconciliationService)."""
+        return self._execution_ledger
 
     def record_trade(
         self,
@@ -205,9 +214,7 @@ class TradeRecorder:
 
             event_time = event_time.replace(tzinfo=timezone.utc)
         if event_time is None:
-            from datetime import datetime, timezone
-
-            event_time = datetime.now(timezone.utc)
+            event_time = self._clock.now()
         record = LedgerFillRecord(
             fill_id=str(trade.trade_id),
             order_id=trade.order_id,
@@ -231,8 +238,6 @@ class TradeRecorder:
             DomainEvent.now(
                 EventType.TRADE_APPLIED.value,
                 {"trade": trade},
-                symbol=trade.symbol,
-                source="OrderManager",
                 correlation_id=correlation_id,
             )
         )

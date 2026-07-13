@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from domain.events.types import EventType
 from domain.execution_contracts import OrderIntent, SubmissionOutcome, SubmissionState
+from domain.ports.time_service import ClockPort, get_current_clock
 from domain.types import OrderStatus
 
 if TYPE_CHECKING:
@@ -81,6 +82,7 @@ class OrderLifecycle:
         publish: Callable[..., None],
         active_orders: Any | None = None,
         execution_ledger: ExecutionLedgerPort | None = None,
+        clock: ClockPort | None = None,
     ) -> None:
         self._state_validator = state_validator
         self._audit_logger = audit_logger
@@ -90,6 +92,12 @@ class OrderLifecycle:
         self._publish = publish
         self._active_orders = active_orders
         self._execution_ledger = execution_ledger
+        self._clock = clock or get_current_clock()
+
+    @property
+    def execution_ledger(self) -> ExecutionLedgerPort | None:
+        """Public accessor for the execution ledger (used by ReconciliationService)."""
+        return self._execution_ledger
 
     def submit_to_broker(
         self,
@@ -121,7 +129,7 @@ class OrderLifecycle:
                 price=order.price,
                 order_type=order.order_type,
                 product_type=order.product_type,
-                created_at=order.timestamp or datetime.now(timezone.utc),
+                created_at=order.timestamp or self._clock.now(),
             )
             assert intent is not None
         # Record-then-submit: persist stub before broker I/O so a crash after

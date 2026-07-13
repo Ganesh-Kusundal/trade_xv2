@@ -1,19 +1,15 @@
-"""Execution mode adapters."""
+"""Execution engine — single entry for order execution."""
 
 from application.execution.cancel_order_use_case import CancelOrderUseCase
-from application.execution.execution_mode_adapter import (
-    ExecutionModeAdapter,
-    SimulatedOMSAdapter,
-    create_execution_adapter,
-)
-from application.execution.execution_service import ExecutionService
+from application.execution.execution_engine import ExecutionEngine
+from application.execution.fill_source import BrokerFillSource, FillSource, SimulatedFillSource
 from application.execution.place_order_use_case import PlaceOrderUseCase
 
 __all__ = [
+    "BrokerFillSource",
     "CancelOrderUseCase",
-    "ExecutionModeAdapter",
-    "ExecutionService",
+    "ExecutionEngine",
+    "FillSource",
     "PlaceOrderUseCase",
-    "SimulatedOMSAdapter",
-    "create_execution_adapter",
+    "SimulatedFillSource",
 ]

@@ -6,16 +6,22 @@ import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from application.oms.order_manager import OmsOrderCommand
 from domain import Order, OrderStatus
 from domain.entities import OrderResponse
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.execution_context import oms_managed
+from domain.ports.time_service import ClockPort, get_current_clock
 from application.observability import trace_operation
 
 
-def order_from_response(command: OmsOrderCommand, response: OrderResponse) -> Order:
+def order_from_response(
+    command: OmsOrderCommand,
+    response: OrderResponse,
+    clock: ClockPort | None = None,
+) -> Order:
     """Convert a broker :class:`OrderResponse` into a canonical :class:`Order`."""
     if not response.success:
         raise RuntimeError(response.message or "Order rejected by broker")
@@ -31,19 +37,21 @@ def order_from_response(command: OmsOrderCommand, response: OrderResponse) -> Or
         price=command.price,
         product_type=command.product_type,
         status=response.status if response.status else OrderStatus.OPEN,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=(clock or get_current_clock()).now(),
         correlation_id=command.correlation_id,
     )
 
 
 def make_gateway_submit_fn(
     gateway: OrderTransportPort,
+    clock: ClockPort | None = None,
 ) -> Callable[[OmsOrderCommand], Order]:
     """Return an OMS ``submit_fn`` that sends orders through *gateway*.
 
     The OMS owns pre-submit validation; broker adapters remain free to enforce
     their own boundary checks without needing a transport policy flag.
     """
+    _clock = clock or get_current_clock()
 
     @trace_operation("gateway_submit")
     def submit(command: OmsOrderCommand) -> Order:
@@ -58,6 +66,6 @@ def make_gateway_submit_fn(
                 product_type=command.product_type.value,
                 correlation_id=command.correlation_id,
             )
-        return order_from_response(command, response)
+        return order_from_response(command, response, clock=_clock)
 
     return submit

@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from application.execution.execution_service import ExecutionService
+from application.execution.execution_engine import ExecutionEngine
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from application.trading.candidate_evaluator import CandidateEvaluator
 from application.trading.execution_planner import ExecutionPlanner, _safe_decimal
@@ -54,6 +54,7 @@ from domain.orders.requests import OrderRequest
 from domain.ports import EventBusPort
 from domain.ports.risk_manager import RiskManagerPort
 from domain.ports.strategy_evaluator import StrategyEvaluator
+from domain.ports.time_service import ClockPort, get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -130,9 +131,10 @@ class TradingOrchestrator:
         feature_fetcher: FeatureFetcher,
         config: OrchestratorConfig | None = None,
         submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
-        execution_service: ExecutionService | None = None,
+        execution_engine: ExecutionEngine | None = None,
         order_command_fn: Callable[[OmsOrderCommand], OrderResult] | None = None,
         risk_manager: RiskManagerPort | None = None,
+        clock: ClockPort | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._order_manager = order_manager
@@ -140,7 +142,8 @@ class TradingOrchestrator:
         self._feature_fetcher = feature_fetcher
         self._config = config or OrchestratorConfig()
         self._submit_fn = submit_fn
-        self._execution_service = execution_service
+        self._execution_engine = execution_engine
+        self._clock = clock or get_current_clock()
         # G7: kill-switch reads via the injected RiskManagerPort, never by
         # reaching into order_manager.risk_manager. Default to the order
         # manager's risk manager to stay backward-compatible with existing
@@ -170,7 +173,7 @@ class TradingOrchestrator:
         self._order_placer = OrderPlacer(
             order_manager=self._order_manager,
             submit_fn=self._submit_fn,
-            execution_service=self._execution_service,
+            execution_engine=self._execution_engine,
             order_command_fn=self._order_command_fn,
             on_error=self._inc_error,
         )
@@ -536,7 +539,7 @@ class TradingOrchestrator:
         return HealthStatus(
             state=HealthState.HEALTHY,
             service=self.name,
-            last_check=datetime.now(timezone.utc),
+            last_check=self._clock.now(),
             detail=(
                 f"executed={self._executed_count} "
                 f"rejected={self._rejected_count} "

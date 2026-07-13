@@ -49,12 +49,14 @@ def test_apply_mass_status_detects_position_updates():
     """Broker position updates are flagged as MEDIUM severity drift."""
     mock_ctx = MagicMock()
     mock_ctx.order_manager = MagicMock()
+    mock_ctx.position_manager.get_position.return_value = None
 
     fill_source = MagicMock(spec=FillSource)
     engine = ExecutionEngine(fill_source=fill_source, trading_context=mock_ctx)
 
     broker_pos = MagicMock()
     broker_pos.symbol = "RELIANCE"
+    broker_pos.quantity = 0
 
     drift = engine.apply_mass_status(positions=[broker_pos])
 

@@ -125,11 +125,11 @@ class CliBrokerFacade:
         price: Decimal | None = None,
         order_type: str = "MARKET",
     ):
-        """Place order via ExecutionService → PlaceOrderUseCase → OMS.
+        """Place order via ExecutionEngine → OrderManager → OMS.
 
         The application execution spine is the single entry point for order
-        placement. Live mode routes through ``PlaceOrderUseCase`` (risk,
-        idempotency, events) with a gateway-backed ``submit_fn``.
+        placement. ExecutionEngine uses a FillSource (BrokerFillSource for live)
+        to route through PlaceOrderUseCase (risk, idempotency, events).
 
         This method refuses to dispatch when the runtime is not
         ``live_actionable`` (production readiness gate failed, or the OMS has
@@ -148,7 +148,8 @@ class CliBrokerFacade:
         if self._svc._trading_context is not None:
             import uuid
 
-            from application.execution.execution_service import ExecutionService
+            from application.execution.execution_engine import ExecutionEngine
+            from application.execution.fill_source import BrokerFillSource
             from application.oms.order_manager import OmsOrderCommand
             from domain import OrderType as Ot
             from domain import ProductType as Pt
@@ -174,11 +175,11 @@ class CliBrokerFacade:
                 product_type=Pt.INTRADAY,
                 correlation_id=f"cli:{uuid.uuid4().hex[:12]}",
             )
-            result = ExecutionService(
+            engine = ExecutionEngine(
+                fill_source=BrokerFillSource(gw),
                 trading_context=self._svc._trading_context,
-                gateway=gw,
-                mode="live",
-            ).place_order(command)
+            )
+            result = engine.place_order(command)
             if not result.success:
                 raise RuntimeError(f"OMS rejected order: {result.error}")
             return result.order

@@ -216,7 +216,8 @@ class Quote:
         """True if the quote is older than max_age_seconds."""
         if self.timestamp is None:
             return True
-        now = datetime.now(timezone.utc)
+        from domain.ports.time_service import get_current_clock
+        now = get_current_clock().now()
         ts = self.timestamp if self.timestamp.tzinfo else self.timestamp.replace(tzinfo=timezone.utc)
         return (now - ts).total_seconds() > max_age_seconds
 
@@ -224,7 +225,8 @@ class Quote:
         """Age in seconds since timestamp. None if no timestamp."""
         if self.timestamp is None:
             return None
-        now = datetime.now(timezone.utc)
+        from domain.ports.time_service import get_current_clock
+        now = get_current_clock().now()
         ts = self.timestamp if self.timestamp.tzinfo else self.timestamp.replace(tzinfo=timezone.utc)
         return (now - ts).total_seconds()
 
@@ -257,11 +259,12 @@ class Quote:
 
     def to_snapshot(self, provenance: DataProvenance | None = None) -> QuoteSnapshot:
         """Bridge: convert Quote to QuoteSnapshot."""
+        from domain.ports.time_service import get_current_clock
         prov = provenance or DataProvenance.now("bridge", "quote-to-snapshot")
         return QuoteSnapshot(
             instrument=InstrumentRef(symbol=self.symbol, exchange=""),
             ltp=self.ltp,
-            event_time=self.timestamp or datetime.now(timezone.utc),
+            event_time=self.timestamp or get_current_clock().now(),
             provenance=prov,
             open=self.open,
             high=self.high,
@@ -336,13 +339,15 @@ class QuoteSnapshot:
 
     def is_stale(self, max_age_seconds: float = 60.0) -> bool:
         """True if the event_time is older than max_age_seconds."""
-        now = datetime.now(timezone.utc)
+        from domain.ports.time_service import get_current_clock
+        now = get_current_clock().now()
         et = self.event_time if self.event_time.tzinfo else self.event_time.replace(tzinfo=timezone.utc)
         return (now - et).total_seconds() > max_age_seconds
 
     def age(self) -> float:
         """Age in seconds since event_time."""
-        now = datetime.now(timezone.utc)
+        from domain.ports.time_service import get_current_clock
+        now = get_current_clock().now()
         et = self.event_time if self.event_time.tzinfo else self.event_time.replace(tzinfo=timezone.utc)
         return (now - et).total_seconds()
 

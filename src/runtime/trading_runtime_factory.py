@@ -14,12 +14,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from application.oms.context import TradingContext
-from application.oms.order_manager import OrderResult
 from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
 from infrastructure.lifecycle import LifecycleManager
 
 if TYPE_CHECKING:
-    from application.execution.execution_mode_adapter import ExecutionModeAdapter
     from application.trading.trading_orchestrator import TradingOrchestrator
     from infrastructure.broker_infrastructure import BrokerInfrastructure
     from infrastructure.event_bus.event_bus import EventBus
@@ -44,10 +42,19 @@ class Runtime:
     broker_infrastructure: BrokerInfrastructure | None = None
     broker_service: Any | None = None
     event_bus: EventBus | None = None
-    execution_adapter: ExecutionModeAdapter | None = None
     resilience: ResilienceConfig | None = None
     pattern_engine: Any | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    _streams_started: bool = field(default=False, init=False, repr=False)
+
+    async def start(self) -> None:
+        """Start deferred broker stream orchestration (safe under a running loop)."""
+        if self._streams_started:
+            return
+        infra = self.broker_infrastructure
+        if infra is not None:
+            await infra.streams.start()
+        self._streams_started = True
 
 
 class TradingRuntimeFactory:
@@ -83,10 +90,20 @@ class TradingRuntimeFactory:
 
     def build_from_broker_service(self, bs: Any) -> Runtime:
         """Wire runtime from an existing :class:`BrokerService`."""
+        from runtime.composition import wire_domain_port_sinks
         from runtime.parity_gate import assert_runtime_parity_or_raise
         from runtime.production_config import validate_production_config
 
+        wire_domain_port_sinks()
         validate_production_config(surface="runtime")
+
+        from runtime.production_config import is_production_environment
+
+        if self._skip_parity_gate and is_production_environment():
+            raise RuntimeError(
+                "skip_parity_gate=True is forbidden in production "
+                "(quant parity must pass before live boot)"
+            )
 
         if not self._skip_parity_gate and self._resilience.parity_gate_enabled:
             assert_runtime_parity_or_raise()
@@ -122,11 +139,6 @@ class TradingRuntimeFactory:
                 tc, gateway, bs.lifecycle
             )
 
-        execution_adapter = None
-        # Note: "live" mode is handled directly in ExecutionService,
-        # no adapter needed. Only paper/replay/backtest need adapters.
-        # See application/execution/execution_mode_adapter.py docstring.
-
         # D6: OmsService retired — BrokerService owns order place/cancel + live_actionable.
         return Runtime(
             broker_name=bs.active_broker_name,
@@ -141,7 +153,6 @@ class TradingRuntimeFactory:
             broker_infrastructure=broker_infrastructure,
             broker_service=bs,
             event_bus=event_bus,
-            execution_adapter=execution_adapter,
             resilience=self._resilience,
             pattern_engine=pattern_engine,
         )
@@ -199,31 +210,13 @@ class TradingRuntimeFactory:
         )
         # ADR-012: route signals through a CommandDispatcher so the orchestrator
         # never calls the OMS/broker directly. Built here (runtime layer) wrapping
-        # the context's OrderManager; the critical path stays synchronous. The
-        # orchestrator receives a closure (order_command_fn) so it does not import
-        # runtime.commands itself (keeps application -> runtime cycle-free).
-        from runtime.commands import CommandDispatcher, OrderCommandHandler, PlaceOrderCommand
+        # the context's OrderManager; the critical path stays synchronous.
+        from runtime.commands import build_order_dispatcher
 
-        command_dispatcher = CommandDispatcher(event_bus=tc.event_bus)
-        command_dispatcher.register_handler(OrderCommandHandler(tc.order_manager))
-
-        def order_command_fn(oms_cmd: Any) -> Any:
-            cmd = PlaceOrderCommand(
-                correlation_id=oms_cmd.correlation_id,
-                symbol=oms_cmd.symbol,
-                exchange=oms_cmd.exchange,
-                side=oms_cmd.side,
-                quantity=oms_cmd.quantity,
-                price=oms_cmd.price,
-                order_type=oms_cmd.order_type,
-                product_type=oms_cmd.product_type,
-            )
-            result = command_dispatcher.dispatch(cmd)
-            return OrderResult(
-                success=result.success,
-                order=result.data,
-                error=result.error or "",
-            )
+        order_command_fn = build_order_dispatcher(
+            tc.order_manager,
+            event_bus=tc.event_bus,
+        )
 
         orchestrator = TradingOrchestrator(
             event_bus=tc.event_bus,
@@ -247,12 +240,9 @@ class TradingRuntimeFactory:
     ) -> Any | None:
         """Build BrokerInfrastructure from available broker gateways.
 
-        Uses ``bootstrap_from_gateways`` to create a fully-wired
-        ``BrokerInfrastructure`` with ``BrokerRouter``, ``HistoricalDataCoordinator``,
-        ``QuotaScheduler``, and ``StreamOrchestrator``.
+        Sync composition — does not call ``asyncio.run``. Stream orchestrator
+        start is deferred to :meth:`Runtime.start`.
         """
-        import asyncio
-
         from domain.policies.source_selection import auto_dual_broker_policy
         from runtime.broker_infrastructure import build_infrastructure
 
@@ -269,11 +259,9 @@ class TradingRuntimeFactory:
             return None
         execution_account = gateway_pairs[0][0]
         try:
-            infra = asyncio.run(
-                build_infrastructure(
-                    gateways=[gw for _, gw in gateway_pairs],
-                    policy=auto_dual_broker_policy(execution_account=execution_account),
-                )
+            infra = build_infrastructure(
+                gateways=[gw for _, gw in gateway_pairs],
+                policy=auto_dual_broker_policy(execution_account=execution_account),
             )
             logger.info("BrokerInfrastructure wired for multi-broker routing")
             return infra

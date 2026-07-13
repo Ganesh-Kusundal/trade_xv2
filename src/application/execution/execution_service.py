@@ -1,4 +1,9 @@
-"""Unified execution facade — single entry for OMS-first order placement."""
+"""Unified execution facade — single entry for OMS-first order placement.
+
+.. deprecated::
+    Use :class:`ExecutionEngine` with :class:`FillSource` instead.
+    This module is retained for backtest/replay compatibility only.
+"""
 
 from __future__ import annotations
 

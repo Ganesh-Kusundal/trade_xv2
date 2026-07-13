@@ -11,9 +11,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from domain.enums import OrderType, ProductType
 from domain.types import Side
+
+if TYPE_CHECKING:
+    from domain.ports.time_service import ClockPort
 
 
 class SubmissionState(str, Enum):
@@ -74,30 +78,33 @@ class SubmissionOutcome:
             raise ValueError("accepted submission requires broker_order_id")
 
     @classmethod
-    def accepted(cls, intent_id: str, broker_order_id: str) -> SubmissionOutcome:
+    def accepted(cls, intent_id: str, broker_order_id: str, clock: ClockPort | None = None) -> SubmissionOutcome:
+        from domain.ports.time_service import get_current_clock
         return cls(
             intent_id=intent_id,
             state=SubmissionState.ACCEPTED,
             broker_order_id=broker_order_id,
-            observed_at=datetime.now(timezone.utc),
+            observed_at=(clock or get_current_clock()).now(),
         )
 
     @classmethod
-    def rejected(cls, intent_id: str, reason: str) -> SubmissionOutcome:
+    def rejected(cls, intent_id: str, reason: str, clock: ClockPort | None = None) -> SubmissionOutcome:
+        from domain.ports.time_service import get_current_clock
         return cls(
             intent_id=intent_id,
             state=SubmissionState.REJECTED,
             reason=reason,
-            observed_at=datetime.now(timezone.utc),
+            observed_at=(clock or get_current_clock()).now(),
         )
 
     @classmethod
-    def unknown(cls, intent_id: str, reason: str) -> SubmissionOutcome:
+    def unknown(cls, intent_id: str, reason: str, clock: ClockPort | None = None) -> SubmissionOutcome:
+        from domain.ports.time_service import get_current_clock
         return cls(
             intent_id=intent_id,
             state=SubmissionState.UNKNOWN,
             reason=reason,
-            observed_at=datetime.now(timezone.utc),
+            observed_at=(clock or get_current_clock()).now(),
         )
 
 
