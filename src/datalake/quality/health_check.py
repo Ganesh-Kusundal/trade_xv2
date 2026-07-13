@@ -19,10 +19,13 @@ Exit code 0 = all healthy, 1 = issues found.
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 import duckdb
+
+logger = logging.getLogger(__name__)
 
 
 def check_market_hours(conn: duckdb.DuckDBPyConnection) -> list[str]:
@@ -116,17 +119,19 @@ def check_coverage(conn: duckdb.DuckDBPyConnection, min_rows: int = 100000) -> l
     return issues
 
 
-def run_health_check(db_path: str = "market_data/catalog.duckdb", min_rows: int = 100000) -> int:
+def run_health_check(db_path: str | None = None, min_rows: int = 100000) -> int:
+    if db_path is None:
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        db_path = str(DEFAULT_DATA_PATHS.catalog_path)
     """Run all health checks. Returns 0 if healthy, 1 if issues found."""
     if not Path(db_path).exists():
-        print(f"ERROR: Database not found: {db_path}")
+        logger.error("Database not found: %s", db_path)
         return 1
 
     conn = duckdb.connect(db_path, read_only=True)
-    print("=" * 60)
-    print("DATA HEALTH CHECK")
-    print("=" * 60)
-    print()
+    logger.info("=" * 60)
+    logger.info("DATA HEALTH CHECK")
+    logger.info("=" * 60)
 
     all_issues: list[str] = []
 
@@ -140,31 +145,31 @@ def run_health_check(db_path: str = "market_data/catalog.duckdb", min_rows: int 
     ]
 
     for name, check_fn in checks:
-        print(f"Checking: {name}...", end=" ")
+        logger.info("Checking: %s...", name)
         issues = check_fn(conn)
         if issues:
-            print(f"FAIL ({len(issues)} issue(s))")
+            logger.warning("FAIL (%d issue(s))", len(issues))
             for issue in issues:
                 all_issues.append(issue)
-                print(issue)
+                logger.warning(issue)
         else:
-            print("OK")
-        print()
+            logger.info("OK")
 
     conn.close()
 
-    print("=" * 60)
+    logger.info("=" * 60)
     if all_issues:
-        print(f"FAILED: {len(all_issues)} issue(s) found")
+        logger.warning("FAILED: %d issue(s) found", len(all_issues))
         return 1
     else:
-        print("ALL CHECKS PASSED")
+        logger.info("ALL CHECKS PASSED")
         return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Data health check")
-    parser.add_argument("--db", default="market_data/catalog.duckdb", help="Path to DuckDB catalog")
+    from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+    parser.add_argument("--db", default=str(DEFAULT_DATA_PATHS.catalog_path), help="Path to DuckDB catalog")
     parser.add_argument("--min-rows", type=int, default=100000, help="Minimum rows per symbol")
     args = parser.parse_args()
     return run_health_check(args.db, min_rows=args.min_rows)

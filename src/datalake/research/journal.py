@@ -21,7 +21,9 @@ from typing import Any
 
 from domain.symbols import normalize_symbol
 
-DEFAULT_JOURNAL_PATH = Path("market_data/journal.sqlite")
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
+DEFAULT_JOURNAL_PATH = DEFAULT_DATA_PATHS.journal_path
 
 logger = logging.getLogger(__name__)
 

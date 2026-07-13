@@ -30,13 +30,14 @@ class DataPaths:
     - **state_root**: OMS SQLite, execution ledger, event log, research cache
     - **catalog_path**: Single DuckDB catalog (must be under lake_root)
 
-    Defaults match the current layout for backward compatibility.
-    Override via ``AppConfig`` or environment variables.
+    After running ``scripts/migrate/split_market_data.py``, defaults point
+    at the new split layout. Override via ``AppConfig`` or environment
+    variables for custom deployments.
     """
 
-    lake_root: str = "market_data"
-    state_root: str = "market_data"
-    catalog_path: Path = Path("market_data/catalog.duckdb")
+    lake_root: str = "data/lake"
+    state_root: str = "data/state"
+    catalog_path: Path = Path("data/lake/catalog.duckdb")
 
     # ── Derived paths (read-only) ───────────────────────────────────
 

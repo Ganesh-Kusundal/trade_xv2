@@ -72,11 +72,12 @@ class DuckDBReadPool:
 
     Usage:
         pool = DuckDBReadPool()
-        conn = pool.acquire("market_data/catalog.duckdb")
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        conn = pool.acquire(str(DEFAULT_DATA_PATHS.catalog_path))
         try:
             result = conn.execute("SELECT ...").fetchdf()
         finally:
-            pool.release("market_data/catalog.duckdb")
+            pool.release(str(DEFAULT_DATA_PATHS.catalog_path))
     """
 
     MAX_PER_PATH = 32
@@ -286,7 +287,8 @@ def duckdb_connection(
 
     Example::
 
-        with duckdb_connection("market_data/catalog.duckdb", read_only=True) as conn:
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        with duckdb_connection(DEFAULT_DATA_PATHS.catalog_path, read_only=True) as conn:
             rows = conn.execute("SELECT 1").fetchall()
     """
     path = Path(db_path)
