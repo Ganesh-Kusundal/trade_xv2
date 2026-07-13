@@ -1,10 +1,23 @@
-"""Unified broker settings — base dataclass + base loader for all broker config.
+"""Broker settings — base dataclass + base loader for broker-specific config.
 
-Phase 3 (Configuration Centralization) of the cross-cutting remediation plan.
-Both :class:`DhanConnectionSettings` and :class:`UpstoxConnectionSettings`
-inherit from :class:`BrokerSettings`, and their loaders inherit from
-:class:`SettingsLoaderBase`, eliminating duplicated field definitions and
-env-var parsing logic.
+Intentional separation from :mod:`config.schema` (``AppConfig``):
+
+* ``AppConfig`` = application-level configuration (env, log_level, redis,
+  API server ports, rate limiting).  Pydantic model, loaded via
+  ``AppConfig.from_env()``.
+* ``BrokerSettings`` / ``SettingsLoaderBase`` = broker-specific configuration
+  (client_id, access_token, PIN, TOTP, timeouts, sandbox endpoints, resilience).
+  Loaded per-broker via ``DhanSettingsLoader``, ``UpstoxSettingsLoader`` etc.
+  These handle broker-prefixed env vars (``DHAN_*``, ``UPSTOX_*``),
+  ``.env`` file discovery, and ``SecretsManager`` integration.
+
+The two systems serve different consumers and different env-var namespaces,
+so the dual-config architecture is intentional.  Do NOT merge them.
+
+Phase 3 (Configuration Centralization) — both :class:`DhanConnectionSettings`
+and :class:`UpstoxConnectionSettings` inherit from :class:`BrokerSettings`,
+and their loaders inherit from :class:`SettingsLoaderBase`, eliminating
+duplicated field definitions and env-var parsing logic.
 
 Usage::
 
@@ -54,6 +67,9 @@ class SettingsLoaderBase:
 
     Subclasses set :attr:`PREFIX` and call :meth:`from_env` or
     :meth:`from_dict`.
+
+    This is intentionally separate from :class:`config.schema.AppConfig`.
+    See module docstring for rationale.
     """
 
     PREFIX: str = ""

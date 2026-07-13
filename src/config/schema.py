@@ -1,8 +1,12 @@
 """Central configuration schema for TradeXV2.
 
-Defines typed defaults for all environment variables used across the system.
+Defines typed defaults for all *application-level* environment variables.
 Operators should set values in .env.local; this module provides the schema
 and defaults so every consumer has a single source of truth.
+
+This module handles: app_env, log_level, redis, API server ports, rate limiting.
+Broker-specific config (credentials, endpoints, timeouts) lives in
+``brokers/*/config/settings.py`` via ``SettingsLoaderBase`` — see G4 resolution.
 """
 
 from __future__ import annotations
