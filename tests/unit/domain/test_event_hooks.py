@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from domain.events.bus import DomainEventBus
 from domain.instruments.event_hooks import EventHooks, InstrumentEvent
 
 
-class _StubBus(DomainEventBus):
+class _StubBus:
     def __init__(self) -> None:
         self.published: list[tuple[str, object]] = []
 

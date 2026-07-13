@@ -3,7 +3,7 @@
 This is a pure domain utility: it holds no broker logic, no transport
 awareness, and no global state. Each :class:`EventHooks` instance keeps
 its own callback registries. It can optionally publish emitted events to
-a :class:`~domain.events.bus.DomainEventBus` (dependency-injected), but
+an :class:`~domain.ports.event_publisher.EventBusPort` (dependency-injected), but
 never imports infrastructure directly.
 """
 
@@ -13,10 +13,12 @@ import logging
 import warnings
 from collections.abc import Callable
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from domain.events.bus import DomainEventBus
 from domain.events.types import DomainEvent
+
+if TYPE_CHECKING:
+    from domain.ports.event_publisher import EventBusPort
 
 __all__ = ["InstrumentEvent", "EventHooks"]
 
@@ -44,8 +46,8 @@ class EventHooks:
     global mutable state — each instance owns its callback dicts.
     """
 
-    def __init__(self, bus: DomainEventBus | None = None) -> None:
-        self._bus: DomainEventBus | None = bus
+    def __init__(self, bus: EventBusPort | None = None) -> None:
+        self._bus: EventBusPort | None = bus
         self._callbacks: dict[InstrumentEvent, list[Callable[[Any], None]]] = {
             event: [] for event in InstrumentEvent
         }
@@ -71,7 +73,7 @@ class EventHooks:
     def emit(self, event: InstrumentEvent, payload: Any) -> None:
         """Invoke all callbacks for ``event`` (plus wildcard callbacks).
 
-        If a :class:`DomainEventBus` was injected, the event is also
+        If an :class:`EventBusPort` was injected, the event is also
         published to it via ``bus.publish(DomainEvent.now(str(event), payload))``.
 
         A single failing listener never aborts dispatch; the error is

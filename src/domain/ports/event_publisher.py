@@ -40,8 +40,8 @@ class EventPublisher(Protocol):
         """
         ...
 
-    def subscribe(self, event_type: str, handler: Any) -> None:
-        """Register an event handler."""
+    def subscribe(self, event_type: str, handler: Any) -> str:
+        """Register an event handler. Returns a token for later unsubscribe."""
         ...
 
 

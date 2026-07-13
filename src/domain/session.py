@@ -14,7 +14,7 @@ from domain.ports.session_context import (
 )
 
 if TYPE_CHECKING:
-    from domain.events.bus import DomainEventBus
+    from domain.ports.event_publisher import EventBusPort
     from domain.ports.order_service import OrderServicePort
     from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult
     from domain.universe import Universe
@@ -27,7 +27,7 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
         self,
         provider: DataProvider,
         *,
-        event_bus: DomainEventBus | None = None,
+        event_bus: EventBusPort | None = None,
         execution_provider: ExecutionProvider | None = None,
         order_service: OrderServicePort | None = None,
         status: Any | None = None,
@@ -66,7 +66,7 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
         return self._order_service
 
     @property
-    def event_bus(self) -> DomainEventBus | None:
+    def event_bus(self) -> EventBusPort | None:
         return self._event_bus
 
     @property

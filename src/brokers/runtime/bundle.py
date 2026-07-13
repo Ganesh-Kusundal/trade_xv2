@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from brokers.runtime.capability_manager import CapabilityManager
-from brokers.runtime.event_bus import EventBusFacade
 from brokers.runtime.execution_manager import ExecutionManager
 from brokers.runtime.historical_manager import HistoricalManager
 from brokers.runtime.quote_manager import QuoteManager
@@ -32,14 +31,11 @@ class RuntimeBundle:
     execution: ExecutionManager | None = field(default=None, repr=False)
     capabilities: CapabilityManager = field(default_factory=CapabilityManager)
     symbols: SymbolRegistry = field(default_factory=SymbolRegistry)
-    events: EventBusFacade | None = field(default=None, repr=False)
     checkpoints: list[StartupCheckpoint] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         broker_id = getattr(getattr(self.session, "status", None), "broker_id", "paper")
         self.execution = ExecutionManager(self.session, broker_id=broker_id)
-        bus = getattr(self.session, "event_bus", None)
-        self.events = EventBusFacade(bus) if bus is not None else EventBusFacade(None)
 
     def record_startup(self) -> list[StartupCheckpoint]:
         """Observable startup checkpoints for doctor / self-test."""

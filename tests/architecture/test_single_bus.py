@@ -13,11 +13,11 @@ def test_canonical_event_bus_is_infrastructure():
 
 
 @pytest.mark.architecture
-def test_domain_event_bus_is_abstract():
-    """DomainEventBus should be an abstract base, not instantiated directly."""
-    from domain.events.bus import DomainEventBus
-    import inspect
-    assert inspect.isabstract(DomainEventBus)
+def test_event_bus_port_is_canonical_protocol():
+    """EventBusPort Protocol (domain.ports.event_publisher) is the canonical port."""
+    from domain.ports.event_publisher import EventBusPort
+    from typing import Protocol
+    assert issubclass(EventBusPort, Protocol)
 
 
 @pytest.mark.architecture

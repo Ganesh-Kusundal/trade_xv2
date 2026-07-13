@@ -15,7 +15,7 @@ from domain.events.types import DomainEvent, EventType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from domain.events.bus import DomainEventBus
+    from domain.ports.event_publisher import EventBusPort
     from domain.instruments.instrument_id import InstrumentId
     from domain.ports.protocols import Subscription as ProviderSubscription
 
@@ -31,7 +31,7 @@ class Subscription:
         self,
         instrument_id: "InstrumentId",
         *,
-        event_bus: "DomainEventBus | None" = None,
+        event_bus: "EventBusPort | None" = None,
         depth: bool = False,
     ) -> None:
         self._instrument_id = instrument_id

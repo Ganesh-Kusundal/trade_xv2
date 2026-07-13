@@ -21,7 +21,7 @@ from infrastructure.gateway.base import MarketDataGateway
 if TYPE_CHECKING:
     from typing import Any
 
-    from domain.events.bus import DomainEventBus as EventBus
+    from domain.ports.event_publisher import EventBusPort as EventBus
 
 
 class BrokerProviderFactory(ABC):

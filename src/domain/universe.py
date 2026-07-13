@@ -31,7 +31,7 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 if TYPE_CHECKING:
-    from domain.events.bus import DomainEventBus
+    from domain.ports.event_publisher import EventBusPort
     from domain.ports.order_service import OrderServicePort
     from domain.ports.protocols import DataProvider, ExecutionProvider
 
@@ -46,7 +46,7 @@ class Universe:
         self,
         provider: DataProvider,
         *,
-        event_bus: DomainEventBus | None = None,
+        event_bus: EventBusPort | None = None,
         execution_provider: ExecutionProvider | None = None,
         order_service: OrderServicePort | None = None,
     ) -> None:
