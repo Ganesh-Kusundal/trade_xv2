@@ -28,7 +28,7 @@ from the browser), use:
 ```bash
 # from repo root
 TRADEX_ALLOW_AUTH_NONE=1 AUTH_MODE=none \
-  python -m interface.api.api_server
+  python scripts/run_api_server.py
 ```
 
 The server listens on `127.0.0.1:8080` and mounts routes under

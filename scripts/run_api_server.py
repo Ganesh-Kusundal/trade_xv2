@@ -6,7 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 # Library packages live under src/ (single package root).
 sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root))
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def create_api_app():
     """Create API app with all services initialized via runtime bootstrap."""
     configure_logging()
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).parent.parent
     bootstrap_environment(project_root)
     services = initialize_api_services(project_root)
 
