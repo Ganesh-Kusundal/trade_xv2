@@ -1,8 +1,7 @@
-"""Execution mode adapters — unify paper and replay fill paths through OMS.
+"""Execution mode adapters for backtest/paper trading only.
 
-Live mode is inlined directly in :class:`ExecutionService` and no longer
-needs a dedicated adapter. Paper and replay modes share a single
-parameterized adapter that supplies simulated fill callbacks.
+DEPRECATED: Live mode now uses ExecutionEngine directly. These adapters
+exist solely for backtest compatibility via OmsBacktestAdapter.
 """
 
 from __future__ import annotations
@@ -58,10 +57,7 @@ def create_execution_adapter(
 ) -> ExecutionModeAdapter:
     """Factory for execution mode adapters.
 
-    Note: ``"live"`` mode is NOT handled here — it is inlined directly
-    in :class:`~application.execution.execution_service.ExecutionService`.
-    Callers that need a live adapter should call
-    ``OrderManager.place_order`` directly.
+    Note: ``"live"`` mode is NOT handled here — use ExecutionEngine directly.
     """
     mode = mode.lower()
     if mode == "paper":

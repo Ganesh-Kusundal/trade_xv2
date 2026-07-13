@@ -25,7 +25,7 @@ def create_reconciliation_service(
     order_client: UpstoxRestOrderClient,
     portfolio_client: UpstoxPortfolioClient,
     oms: Any = None,
-    auto_repair: bool = False,
+    auto_repair: bool = True,
 ) -> UpstoxReconciliationService:
     """Factory function to create an UpstoxReconciliationService."""
     return UpstoxReconciliationService(
@@ -45,7 +45,7 @@ class UpstoxReconciliationService:
         portfolio_client: UpstoxPortfolioClient,
         oms: Any = None,
         *,
-        auto_repair: bool = False,
+        auto_repair: bool = True,
     ) -> None:
         self._order_client = order_client
         self._portfolio_client = portfolio_client
@@ -113,6 +113,11 @@ class UpstoxReconciliationService:
             drift += engine.compare_positions(local_position_domain, broker_positions)
 
         report.drift_items = drift
+        # I6: Attach actual broker objects so ExecutionEngine.apply_mass_status() can heal
+        report.broker_order_list = broker_orders
+        report.broker_position_list = broker_positions
+
+        # I6: auto_repair disabled — apply goes through ExecutionEngine, not broker adapter
         orders_repaired = 0
         positions_repaired = 0
         if self._auto_repair:

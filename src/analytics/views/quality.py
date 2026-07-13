@@ -12,16 +12,21 @@ import logging
 
 import duckdb
 
-# Defined locally to avoid circular import with analytics.views.manager
-TRADING_MINUTES_PER_DAY = 375  # NSE market hours: 9:15-15:30 = 375 minutes
+# Session constants derived from the active exchange calendar at runtime.
+# ADR-005 / G3: NSE-specific hardcoding removed.
+
+
+def _get_session_constants() -> tuple[int, int]:
+    """Return (trading_minutes_per_day, trading_minutes_partial) from the active calendar."""
+    try:
+        from datalake.exchange_registry import get_session_minutes
+        minutes = get_session_minutes()
+    except Exception:
+        minutes = 375  # fallback if no exchange configured
+    return minutes, int(minutes * 0.92)  # partial = 92% of full day
+
 
 logger = logging.getLogger(__name__)
-
-MARKET_OPEN_HOUR = 9
-MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 15
-MARKET_CLOSE_MINUTE = 30
-TRADING_MINUTES_PARTIAL = 345  # >= 92% of full day
 
 
 class QualityViews:
@@ -79,10 +84,11 @@ class QualityViews:
         ]
 
     def _create_missing_candles(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """v_missing_candles — detect missing 1m candles during NSE market hours.
+        """v_missing_candles — detect missing 1m candles during market hours.
 
         Reads from materialized m_missing_candles table.
         """
+        trading_minutes, partial_minutes = _get_session_constants()
         conn.execute(
             """
             CREATE OR REPLACE VIEW v_missing_candles AS
@@ -99,7 +105,7 @@ class QualityViews:
             WHERE minute_count < ?
             ORDER BY trade_date DESC, symbol
         """,
-            [TRADING_MINUTES_PARTIAL, TRADING_MINUTES_PER_DAY, TRADING_MINUTES_PER_DAY],
+            [partial_minutes, trading_minutes, trading_minutes],
         )
         logger.debug("Created v_missing_candles")
 
@@ -127,6 +133,7 @@ class QualityViews:
         Also previously used COUNT(days with < 375 candles) which gave
         near-100% scores even for symbols missing 1 candle per day.
         """
+        trading_minutes, _ = _get_session_constants()
         conn.execute(
             "CREATE OR REPLACE VIEW v_quality_score AS "
             "WITH completeness AS ("
@@ -140,7 +147,7 @@ class QualityViews:
             "), "
             "missing AS ("
             "SELECT symbol, "
-            f"COALESCE(SUM({TRADING_MINUTES_PER_DAY} - minute_count), 0) as missing_minutes "
+            f"COALESCE(SUM({trading_minutes} - minute_count), 0) as missing_minutes "
             "FROM m_missing_candles GROUP BY symbol"
             ") "
             "SELECT c.symbol, c.trading_days, c.first_candle, c.last_candle, "
@@ -148,8 +155,8 @@ class QualityViews:
             "CAST(COALESCE(m.missing_minutes, 0) AS BIGINT) as missing_count, "
             "CASE WHEN c.trading_days = 0 THEN 0 "
             "ELSE ROUND("
-            f"(1.0 - COALESCE(m.missing_minutes, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) * "
-            f"(1.0 - COALESCE(d.dup_count, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) * "
+            f"(1.0 - COALESCE(m.missing_minutes, 0) / NULLIF(c.trading_days * {trading_minutes}.0, 0)) * "
+            f"(1.0 - COALESCE(d.dup_count, 0) / NULLIF(c.trading_days * {trading_minutes}.0, 0)) * "
             "100, 2) END as quality_score "
             "FROM completeness c "
             "LEFT JOIN duplicates d ON c.symbol = d.symbol "

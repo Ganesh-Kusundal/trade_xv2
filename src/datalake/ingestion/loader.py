@@ -20,8 +20,8 @@ import pyarrow as pa
 from infrastructure.batch_executor import batch_execute
 from datalake.core.paths import symbol_partition_path
 from datalake.core.io import atomic_parquet_write
-from datalake.core.constants import EXPECTED_CANDLES_PER_DAY
-from datalake.core.symbols import normalize_symbol
+
+from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
 from datalake.quality.validation import validate_candles
 
@@ -55,7 +55,7 @@ class HistoricalDataLoader:
         -------
         Dict with keys: rows, duplicates_dropped, invalid_dropped.
         """
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         if exchange is None:
             exchange = get_active_exchange_code()
         try:
@@ -153,7 +153,7 @@ class HistoricalDataLoader:
         )
 
         # Normalize keys (download_symbol also normalizes internally)
-        results = {normalize_symbol(sym): res for sym, res in raw_results.items()}
+        results = {normalize_symbol_for_storage(sym): res for sym, res in raw_results.items()}
 
         total_rows = sum(r["rows"] for r in results.values())
         logger.info(
@@ -173,7 +173,7 @@ class HistoricalDataLoader:
         Uses actual candle count comparison, not just last date,
         to detect gaps within the date range.
         """
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         existing_path = self._parquet_path(symbol, timeframe)
         if not existing_path.exists():
             return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
@@ -247,7 +247,7 @@ class HistoricalDataLoader:
         return len(df), invalid_count
 
     def _parquet_path(self, symbol: str, timeframe: str = "1m") -> Path:
-        return symbol_partition_path(str(self._root), normalize_symbol(symbol), timeframe)
+        return symbol_partition_path(str(self._root), normalize_symbol_for_storage(symbol), timeframe)
 
     def _check_intraday_completeness(self, df: pd.DataFrame, timeframe: str) -> float:
         """Check intraday data completeness.

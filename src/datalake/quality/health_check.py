@@ -6,7 +6,7 @@ Run this:
 - As a cron job for continuous monitoring
 
 Detects:
-- Timestamps outside IST market hours (9:15-15:30)
+- Timestamps outside market hours (derived from active exchange calendar)
 - Duplicate timestamps
 - Missing trading days
 - OHLCV inconsistencies
@@ -28,20 +28,22 @@ import duckdb
 logger = logging.getLogger(__name__)
 
 
-def check_market_hours(conn: duckdb.DuckDBPyConnection) -> list[str]:
-    """Check that all timestamps are within NSE market hours (9:15-15:30 IST)."""
+def check_market_hours(conn: duckdb.DuckDBPyConnection, open_h: int = 9, open_m: int = 15, close_h: int = 15, close_m: int = 30) -> list[str]:
+    """Check that all timestamps are within market hours for the active exchange."""
     issues = []
-    r = conn.execute("""
+    # Build SQL dynamically from the open/close bounds
+    sql = f"""
         SELECT COUNT(*) FROM v_candles_1m
         WHERE NOT (
-            (EXTRACT(HOUR FROM timestamp) = 9 AND EXTRACT(MINUTE FROM timestamp) >= 15)
-            OR (EXTRACT(HOUR FROM timestamp) BETWEEN 10 AND 14)
-            OR (EXTRACT(HOUR FROM timestamp) = 15 AND EXTRACT(MINUTE FROM timestamp) <= 30)
+            (EXTRACT(HOUR FROM timestamp) = {open_h} AND EXTRACT(MINUTE FROM timestamp) >= {open_m})
+            OR (EXTRACT(HOUR FROM timestamp) BETWEEN {open_h + 1} AND {close_h - 1})
+            OR (EXTRACT(HOUR FROM timestamp) = {close_h} AND EXTRACT(MINUTE FROM timestamp) <= {close_m})
         )
-    """).fetchone()
+    """
+    r = conn.execute(sql).fetchone()
     count = r[0]
     if count > 0:
-        issues.append(f"  {count:,} candles outside market hours (9:15-15:30 IST)")
+        issues.append(f"  {count:,} candles outside market hours ({open_h}:{open_m:02d}-{close_h}:{close_m:02d})")
     return issues
 
 
@@ -135,8 +137,20 @@ def run_health_check(db_path: str | None = None, min_rows: int = 100000) -> int:
 
     all_issues: list[str] = []
 
+    # Derive market hours from the active exchange calendar
+    try:
+        from datalake.exchange_registry import get_market_open_time, get_market_close_time
+        open_t = get_market_open_time()
+        close_t = get_market_close_time()
+        open_h, open_m = open_t.hour, open_t.minute
+        close_h, close_m = close_t.hour, close_t.minute
+    except Exception:
+        open_h, open_m, close_h, close_m = 9, 15, 15, 30
+
+    market_label = f"Market hours ({open_h}:{open_m:02d}-{close_h}:{close_m:02d})"
+
     checks = [
-        ("Market hours (9:15-15:30 IST)", check_market_hours),
+        (market_label, lambda c: check_market_hours(c, open_h, open_m, close_h, close_m)),
         ("Duplicate timestamps", check_duplicates),
         ("OHLCV consistency", check_ohlcv_consistency),
         ("Symbol normalization", check_symbols),

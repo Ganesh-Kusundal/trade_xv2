@@ -175,11 +175,11 @@ class ReconciliationService(ManagedServicePort):
                 logger.error("Reconciliation loop error: %s", exc)
 
     def _run_ledger_shadow_compare(self) -> None:
-        lifecycle = getattr(self._order_manager, "_lifecycle", None)
-        ledger = getattr(lifecycle, "_execution_ledger", None)
+        lifecycle = self._order_manager.lifecycle if hasattr(self._order_manager, 'lifecycle') else None
+        ledger = lifecycle.execution_ledger if lifecycle is not None and hasattr(lifecycle, 'execution_ledger') else None
         if ledger is None:
-            recorder = getattr(self._order_manager, "_trade_recorder", None)
-            ledger = getattr(recorder, "_execution_ledger", None)
+            recorder = self._order_manager.trade_recorder if hasattr(self._order_manager, 'trade_recorder') else None
+            ledger = recorder.execution_ledger if recorder is not None and hasattr(recorder, 'execution_ledger') else None
         try:
             from application.oms.ledger_shadow import compare_ledger_vs_positions
 
@@ -200,13 +200,14 @@ class ReconciliationService(ManagedServicePort):
                 local_orders=self._order_manager.get_orders(),
                 local_positions=self._position_manager.get_positions(),
             )
+            # I6: apply drift inside ExecutionEngine, not in broker adapter
             if self._execution_engine is not None and hasattr(report, "drift_items"):
-                broker_orders = getattr(report, "broker_orders", [])
-                broker_positions = getattr(report, "broker_positions", [])
+                broker_order_list = getattr(report, "broker_order_list", [])
+                broker_position_list = getattr(report, "broker_position_list", [])
                 broker_funds = getattr(report, "broker_funds", None)
                 self._execution_engine.apply_mass_status(
-                    orders=broker_orders,
-                    positions=broker_positions,
+                    orders=broker_order_list,
+                    positions=broker_position_list,
                     funds=broker_funds,
                 )
             self._run_ledger_shadow_compare()

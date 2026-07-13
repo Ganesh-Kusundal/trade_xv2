@@ -12,6 +12,16 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _date_range(start: date, end: date) -> list[date]:
+    """Yield all dates from start to end inclusive."""
+    days = []
+    current = start
+    while current <= end:
+        days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
 @dataclass
 class QualityReport:
     """Data quality report for a symbol."""
@@ -129,12 +139,16 @@ class DataQualityEngine:
             if zero_vol > 0:
                 report.issues.append(f"{zero_vol} rows with zero volume")
 
-        # Completeness (uses NSE calendar when available)
+        # Completeness (uses exchange calendar when available)
         if report.gap_days > 0 and report.min_date and report.max_date:
             try:
-                from datalake.core.nse_calendar import count_trading_days
-                expected_trading_days = count_trading_days(report.min_date, report.max_date)
-            except ImportError:
+                from datalake.exchange_registry import get_active_adapter
+                calendar = get_active_adapter().calendar
+                expected_trading_days = sum(
+                    1 for d in _date_range(report.min_date, report.max_date)
+                    if calendar.is_trading_day(d)
+                )
+            except Exception:
                 total_days = (report.max_date - report.min_date).days
                 expected_trading_days = int(total_days * 5 / 7)
             if expected_trading_days > 0:
@@ -202,7 +216,7 @@ class DataQualityEngine:
             report.status = "WARNING"
 
     def _check_daily_gaps(self, ts: pd.Series, report: QualityReport) -> None:
-        """Check for gaps in daily data, using NSE calendar when available."""
+        """Check for gaps in daily data, using exchange calendar when available."""
         sorted_ts = ts.sort_values()
         dates = sorted_ts.dt.date.unique()
         if len(dates) < 2:
@@ -211,14 +225,16 @@ class DataQualityEngine:
         dates_sorted = sorted(dates)
 
         try:
-            from datalake.core.nse_calendar import is_trading_day, trading_days_between
-
-            gaps = 0
-            expected = trading_days_between(dates_sorted[0], dates_sorted[-1])
+            from datalake.exchange_registry import get_active_adapter
+            calendar = get_active_adapter().calendar
+            expected = [
+                d for d in _date_range(dates_sorted[0], dates_sorted[-1])
+                if calendar.is_trading_day(d)
+            ]
             expected_set = set(expected)
             actual_set = set(dates_sorted)
             gaps = len(expected_set - actual_set)
-        except ImportError:
+        except Exception:
             gaps = 0
             for i in range(1, len(dates_sorted)):
                 diff = (dates_sorted[i] - dates_sorted[i - 1]).days

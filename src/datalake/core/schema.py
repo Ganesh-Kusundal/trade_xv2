@@ -9,13 +9,11 @@ from __future__ import annotations
 
 from datetime import date
 
-from datalake.core.constants import (
-    MARKET_CLOSE_HOUR,
-    MARKET_CLOSE_MINUTE,
-    MARKET_OPEN_HOUR,
-    MARKET_OPEN_MINUTE,
-    TRADING_MINUTES_PER_DAY,
-)
+# Session constants removed from constants.py (ADR-005 / G3).
+# Import from datalake.exchange_registry if needed:
+#   from datalake.exchange_registry import (
+#       get_market_open_time, get_market_close_time, get_session_minutes,
+#   )
 
 import pyarrow as pa
 

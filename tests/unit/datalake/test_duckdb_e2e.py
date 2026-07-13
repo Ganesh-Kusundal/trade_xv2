@@ -13,7 +13,9 @@ import pytest
 from analytics.views.base import BaseViews
 from analytics.views.features import FeatureViews
 from analytics.views.manager import ViewManager
-from analytics.views.quality import TRADING_MINUTES_PARTIAL, TRADING_MINUTES_PER_DAY
+from analytics.views.quality import _get_session_constants
+
+TRADING_MINUTES_PER_DAY, TRADING_MINUTES_PARTIAL = _get_session_constants()
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.validator import VALID_VIEWS, PointInTimeValidator
@@ -780,8 +782,9 @@ class TestDeterminism:
 
 class TestNamedConstants:
     def test_quality_constants(self) -> None:
-        assert TRADING_MINUTES_PER_DAY == 375
-        assert TRADING_MINUTES_PARTIAL == 345
+        # Values derived from the active exchange calendar
+        assert TRADING_MINUTES_PER_DAY == 375  # NSE default
+        assert TRADING_MINUTES_PARTIAL == 345  # 92% of 375
 
     def test_manager_constants(self) -> None:
         from analytics.views.manager import (

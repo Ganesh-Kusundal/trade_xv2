@@ -10,6 +10,11 @@ from decimal import Decimal
 from typing import Any  # Only for signal handler frame type
 
 from application.oms.event_log_replay import EventLogReplayService
+from application.oms.lifecycle import (
+    register_daily_pnl_reset as _register_daily_pnl_reset_fn,
+    register_dlq_monitor as _register_dlq_monitor_fn,
+    register_processed_trade_cleanup as _register_processed_trade_cleanup_fn,
+)
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from application.oms.shutdown_coordinator import ShutdownCoordinator
@@ -45,93 +50,19 @@ from domain.ports.lifecycle import LifecycleManagerPort
 logger = logging.getLogger(__name__)
 
 
-# ── Managed services extracted to module level for testability ────────────────
-
-
-class DlqMonitorService:
-    """Lightweight DLQ depth monitor — logs depth periodically, drains on shutdown.
-
-    Registered with :class:`LifecycleManager` so the DLQ is drained
-    deterministically and its entries are visible in logs on shutdown.
-    """
-
-    name = "oms.dlq_monitor"
-
-    def __init__(self, queue: DeadLetterQueuePort) -> None:
-        self._queue = queue
-        self._thread: threading.Thread | None = None
-        self._stop = threading.Event()
-        self._last_depth = 0
-        self._total_drained = 0
-
-    def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="dlq-monitor")
-        self._thread.start()
-
-    def stop(self, timeout_seconds: float = 30.0) -> None:
-        self._stop.set()
-        if self._thread:
-            self._thread.join(timeout=timeout_seconds)
-            self._thread = None
-        try:
-            drained = self._queue.drain()
-            self._total_drained += len(drained)
-            if drained:
-                logger.warning(
-                    "DLQ drain on shutdown: %d entries. First: %s",
-                    len(drained),
-                    drained[0].to_dict() if drained else "none",
-                )
-        except Exception as exc:
-            logger.debug("dlq_shutdown_drain_failed: %s", exc)
-
-    def health(self):
-        from domain.lifecycle_health import HealthState, build_health
-
-        return build_health(
-            self.name,
-            HealthState.HEALTHY if self._last_depth == 0 else HealthState.DEGRADED,
-            detail=f"depth={self._last_depth}, total_drained={self._total_drained}",
-            metrics={"depth": self._last_depth, "total_drained": self._total_drained},
-        )
-
-    def _loop(self) -> None:
-        while not self._stop.wait(timeout=60.0):
-            stats = self._queue.stats()
-            self._last_depth = stats["size"]
-            if self._last_depth > 0:
-                logger.warning(
-                    "DLQ depth: %d entries, %d dropped (lifetime)",
-                    self._last_depth,
-                    stats.get("dropped", 0),
-                )
-
-
-class ProcessedTradeCleanupService:
-    """Stops ProcessedTradeRepository auto-cleanup on lifecycle shutdown."""
-
-    name = "oms.processed_trade_cleanup"
-
-    def __init__(self, repo: ProcessedTradeRepositoryPort) -> None:
-        self._repo = repo
-
-    def start(self) -> None:
-        return
-
-    def stop(self, timeout_seconds: float = 30.0) -> None:
-        self._repo.stop_auto_cleanup(timeout_seconds=timeout_seconds)
-
-    def health(self):
-        from domain.lifecycle_health import HealthState, build_health
-
-        return build_health(
-            self.name,
-            HealthState.HEALTHY,
-            detail="processed trade ledger active",
-        )
+def _as_decimal(value: object) -> Decimal:
+    """Coerce Money/Quantity/scalars to Decimal for equity math."""
+    if value is None:
+        return Decimal("0")
+    if isinstance(value, Decimal):
+        return value
+    amount = getattr(value, "amount", None)
+    if amount is not None:
+        return Decimal(str(amount))
+    magnitude = getattr(value, "magnitude", None)
+    if magnitude is not None:
+        return Decimal(str(magnitude))
+    return Decimal(str(value))
 
 
 from dataclasses import dataclass as _dataclass
@@ -229,7 +160,7 @@ class TradingContext:
         if (
             event_log is not None
             and hasattr(self._event_bus, "set_event_log")
-            and getattr(self._event_bus, "_event_log", None) is None
+            and self._event_bus.event_log is None
         ):
             self._event_bus.set_event_log(event_log)
 
@@ -275,12 +206,10 @@ class TradingContext:
             EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied
         )
 
-        # R2 / Q1: feed live position PnL into the risk engine so the daily
-        # loss limit and rolling loss circuit breaker actually observe fills
-        # and mark-to-market. update_daily_pnl() stores the absolute daily PnL
-        # and records the delta internally, so we pass the total book PnL
-        # (realized + unrealized) computed from the position manager's book.
-        # This is the composition root, so no new import cycle is introduced.
+        # F5: feed session equity delta (current − session-open) into the risk
+        # engine so daily-loss is not absolute MTM. Baseline is re-frozen after
+        # event-log replay (below) so overnight book is the open, not a loss.
+        self._session_open_equity = self._compute_equity()
         self._event_bus.subscribe(
             EventType.POSITION_UPDATED.value, self._feed_daily_pnl
         )
@@ -296,6 +225,16 @@ class TradingContext:
         self._reconciliation_service: ReconciliationService | None = None
         self._reconciliation_ready = reconciliation_service is None
         if reconciliation_service is not None and reconciliation_interval_seconds > 0:
+            # I6: Create a lightweight ExecutionEngine for reconciliation heal.
+            # apply_mass_status() only touches OrderManager/PositionManager,
+            # never the FillSource, so a SimulatedFillSource is safe here.
+            from application.execution.execution_engine import ExecutionEngine
+            from application.execution.fill_source import SimulatedFillSource
+
+            self._reconciliation_engine = ExecutionEngine(
+                fill_source=SimulatedFillSource(),
+                trading_context=self,
+            )
             self._reconciliation_service = ReconciliationService(
                 order_manager=self._order_manager,
                 position_manager=self._position_manager,
@@ -303,6 +242,7 @@ class TradingContext:
                 interval_seconds=reconciliation_interval_seconds,
                 event_bus=self._event_bus,
                 on_first_success=self._mark_reconciliation_ready,
+                execution_engine=self._reconciliation_engine,
             )
             self._order_manager.set_placement_gate(self._reconciliation_placement_gate)
             # G6: hot-path reconciliation — wake the reconciliation loop on
@@ -333,6 +273,12 @@ class TradingContext:
         if replay_events and self._event_log is not None:
             self._replay_log_into_oms()
 
+        # F5: freeze session-open equity after replay; clear any feed noise from
+        # rebuild so daily-loss measures only post-open moves.
+        self._session_open_equity = self._compute_equity()
+        if self._risk_manager is not None:
+            self._risk_manager.reset_daily_pnl()
+
         self._orchestrator: ITradingOrchestrator | None = orchestrator
 
         # Shutdown thread-safety: _shutdown_lock prevents concurrent shutdown
@@ -352,18 +298,9 @@ class TradingContext:
             lifecycle.register(self._reconciliation_service)
             if os.getenv("TRADEX_SKIP_STARTUP_RECONCILIATION") != "1":
                 self._reconciliation_service.run_now()
-        # Register deterministic shutdown for the trade-id ledger cleanup thread.
-        self._register_processed_trade_cleanup(lifecycle)
-        # Register a lightweight DLQ monitor that periodically checks
-        # dead-letter queue depth and drains on shutdown so operators
-        # don't lose visibility of handler failures.
-        self._register_dlq_monitor(lifecycle)
-        # Auto-wire DailyPnlResetScheduler — resets _daily_pnl at
-        # IST 00:00 so yesterday's loss doesn't block today's orders.
-        # Previously only wired by BrokerService; callers that use
-        # TradingContext directly (tests, scripts, custom entry points)
-        # would silently accumulate PnL across days.
-        self._register_daily_pnl_reset(lifecycle)
+        _register_processed_trade_cleanup_fn(lifecycle, self._processed_trades)
+        _register_dlq_monitor_fn(lifecycle, self._dead_letter_queue)
+        _register_daily_pnl_reset_fn(lifecycle, self._risk_manager)
 
         # Register TradingContext itself as a ManagedService so
         # it participates in deterministic start/stop via the lifecycle.
@@ -418,16 +355,16 @@ class TradingContext:
         attribute after construction; TradingContext does not build it itself
         to avoid an application -> runtime dependency cycle.
         """
-        return getattr(self, "_command_dispatcher", None)
+        return self._command_dispatcher if hasattr(self, "_command_dispatcher") else None
 
     @property
     def query_dispatcher(self) -> Any | None:
         """CQRS QueryDispatcher if attached by the composition root (ADR-012)."""
-        return getattr(self, "_query_dispatcher", None)
+        return self._query_dispatcher if hasattr(self, "_query_dispatcher") else None
 
     def health(self) -> dict[str, Any]:
         """Snapshot of observability state for the SRE / alerting layer."""
-        order_store = getattr(self._order_manager, "_order_store", None)
+        order_store = self._order_manager.order_store if hasattr(self._order_manager, 'order_store') else None
         return {
             "metrics": self._metrics.snapshot() if self._metrics is not None else {},
             "dead_letter": self._dead_letter_queue.stats(),
@@ -469,50 +406,46 @@ class TradingContext:
             return
         self._reconciliation_service.stop()
 
+    def _compute_equity(self) -> Decimal:
+        """Session equity proxy: capital + book PnL (realized + unrealized).
+
+        Fixed capital providers keep capital constant so the session delta is
+        driven by the book; broker-funds providers already mark cash — book PnL
+        still moves with open MTM. Daily-loss uses the delta from
+        ``_session_open_equity``, not this absolute level.
+        """
+        book = Decimal("0")
+        for p in self._position_manager.get_positions():
+            realized = getattr(p, "realized_pnl", Decimal("0")) or Decimal("0")
+            unrealized = getattr(p, "unrealized_pnl", Decimal("0")) or Decimal("0")
+            book += _as_decimal(realized) + _as_decimal(unrealized)
+        capital = Decimal("0")
+        if self._risk_manager is not None:
+            try:
+                capital = _as_decimal(
+                    self._risk_manager.capital_provider.get_available_balance()
+                )
+            except Exception:
+                capital = Decimal("0")
+        return capital + book
+
     def _feed_daily_pnl(self, event: DomainEvent | None = None) -> None:
-        """Push the current book PnL into the risk engine.
+        """Push session equity delta into the risk engine (F5).
 
-        Wires the position book to :meth:`RiskManager.update_daily_pnl` so the
-        daily loss limit and loss circuit breaker observe live fills and
-        mark-to-market. Called on every ``POSITION_UPDATED`` / ``POSITION_CLOSED``
-        event published by the position manager.
-
-        The risk engine stores the absolute daily PnL and derives the delta
-        internally, so we pass the total book PnL (sum of realized + unrealized
-        across all positions). Passing the absolute total on each tick yields
-        the correct incremental delta for the loss circuit breaker.
+        Daily-loss = ``current_equity − session_open_equity``, not absolute
+        book MTM. Called on every ``POSITION_UPDATED`` / ``POSITION_CLOSED``.
+        The tracker stores this session delta and records incremental changes
+        for the loss circuit breaker.
         """
         if self._risk_manager is None:
             return
-        positions = self._position_manager.get_positions()
-        total = Decimal("0")
-        for p in positions:
-            realized = getattr(p, "realized_pnl", Decimal("0")) or Decimal("0")
-            unrealized = getattr(p, "unrealized_pnl", Decimal("0")) or Decimal("0")
-            total += realized + unrealized
         try:
-            self._risk_manager.update_daily_pnl(total)
+            session_delta = _as_decimal(self._compute_equity()) - _as_decimal(
+                self._session_open_equity
+            )
+            self._risk_manager.update_daily_pnl(session_delta)
         except Exception:  # pragma: no cover - defensive: never block the bus
             logger.exception("daily_pnl_feed_failed")
-
-    def _register_daily_pnl_reset(self, lifecycle: LifecycleManagerPort) -> None:
-        """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.
-
-        This is the SINGLE registration point for the scheduler.
-        BrokerService no longer registers a duplicate (fixed P2-1).
-        """
-        from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
-
-        scheduler = DailyPnlResetScheduler(risk_manager=self._risk_manager)
-        lifecycle.register(scheduler)
-
-    def _register_dlq_monitor(self, lifecycle: LifecycleManagerPort) -> None:
-        """Register a lightweight DLQ depth monitor with the lifecycle."""
-        lifecycle.register(DlqMonitorService(self._dead_letter_queue))
-
-    def _register_processed_trade_cleanup(self, lifecycle: LifecycleManagerPort) -> None:
-        """Stop ProcessedTradeRepository auto-cleanup on lifecycle shutdown."""
-        lifecycle.register(ProcessedTradeCleanupService(self._processed_trades))
 
     def _replay_log_into_oms(self) -> None:
         """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state.

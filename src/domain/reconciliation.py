@@ -30,6 +30,10 @@ class ReconciliationReport:
     orders_repaired: int = 0
     positions_repaired: int = 0
     timestamp_ms: int = 0
+    # I6: Actual broker domain objects for ExecutionEngine.apply_mass_status()
+    broker_order_list: list = field(default_factory=list)
+    broker_position_list: list = field(default_factory=list)
+    broker_funds: dict | None = None
 
     @property
     def has_drift(self) -> bool:

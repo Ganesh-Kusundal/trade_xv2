@@ -44,23 +44,9 @@ BATCH_MAX_WORKERS: int = 4
 DEFAULT_COMPRESSION: str = "snappy"
 """Default compression algorithm for Parquet files."""
 
-# Data quality
-EXPECTED_CANDLES_PER_DAY: int = 375
-"""Expected number of 1-minute candles in a full trading day."""
-
-# NSE trading session length (9:15–15:30 IST)
-TRADING_MINUTES_PER_DAY: int = EXPECTED_CANDLES_PER_DAY
-"""Total traded minute-marks in a full session; alias of EXPECTED_CANDLES_PER_DAY."""
-
-# NSE trading hours
-MARKET_OPEN_HOUR: int = 9
-"""Market open hour (IST)."""
-MARKET_OPEN_MINUTE: int = 15
-"""Market open minute (IST)."""
-MARKET_CLOSE_HOUR: int = 15
-"""Market close hour (IST)."""
-MARKET_CLOSE_MINUTE: int = 30
-"""Market close minute (IST)."""
+# Data quality — session constants derived from the active exchange calendar
+# via datalake.exchange_registry.  The NSE-specific hardcoding has been removed
+# (ADR-005 / G3).  Import from exchange_registry for new code.
 
 __all__ = [
     "DEFAULT_DATA_ROOT",
@@ -74,10 +60,4 @@ __all__ = [
     "BATCH_MAX_WORKERS",
     "DEFAULT_COMPRESSION",
     "DEFAULT_CATALOG_PATH",
-    "EXPECTED_CANDLES_PER_DAY",
-    "TRADING_MINUTES_PER_DAY",
-    "MARKET_OPEN_HOUR",
-    "MARKET_OPEN_MINUTE",
-    "MARKET_CLOSE_HOUR",
-    "MARKET_CLOSE_MINUTE",
 ]

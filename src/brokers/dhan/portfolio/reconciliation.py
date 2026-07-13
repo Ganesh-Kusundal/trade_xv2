@@ -23,7 +23,7 @@ def create_reconciliation_service(
     orders_adapter: OrdersAdapter,
     portfolio_adapter: PortfolioAdapter,
     oms: Any = None,
-    auto_repair: bool = False,
+    auto_repair: bool = True,
 ) -> DhanReconciliationService:
     """Factory that creates a DhanReconciliationService with the right wiring.
 
@@ -57,7 +57,7 @@ class DhanReconciliationService:
         report = recon.reconcile()
         if report.has_drift:
             for item in report.drift_items:
-                print(f"{item.severity}: {item.kind} — {item.symbol}: {item.details}")
+                logger.info(f"{item.severity}: {item.kind} — {item.symbol}: {item.details}")
     """
 
     def __init__(
@@ -66,7 +66,7 @@ class DhanReconciliationService:
         portfolio: PortfolioAdapter,
         oms: Any = None,
         *,
-        auto_repair: bool = False,
+        auto_repair: bool = True,
     ):
         self._orders = orders
         self._portfolio = portfolio
@@ -138,8 +138,12 @@ class DhanReconciliationService:
             drift += engine.compare_funds(local_funds, broker_funds)
 
         report.drift_items = drift
+        # I6: Attach actual broker objects so ExecutionEngine.apply_mass_status() can heal
+        report.broker_order_list = broker_orders
+        report.broker_position_list = broker_positions
 
         # 3. Correct-then-heal (policy-gated): broker is authoritative for local OMS
+        # I6: auto_repair disabled — apply goes through ExecutionEngine, not broker adapter
         if self._auto_repair and self._oms is not None:
             repaired_o, repaired_p = self._repair_local_oms(
                 broker_orders, broker_positions, drift
