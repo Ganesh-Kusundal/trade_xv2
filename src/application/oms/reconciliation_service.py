@@ -79,6 +79,7 @@ class ReconciliationService(ManagedServicePort):
         self._first_success_notified = False
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._immediate_request = threading.Event()
         self._last_run_at: float | None = None
         self._last_drift_count: int = 0
         self._last_error: str | None = None
@@ -96,6 +97,7 @@ class ReconciliationService(ManagedServicePort):
 
     def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         self._stop_event.set()
+        self._immediate_request.set()
         if self._thread:
             self._thread.join(timeout=timeout_seconds)
             if self._thread.is_alive():
@@ -130,6 +132,16 @@ class ReconciliationService(ManagedServicePort):
 
     # ── Public API ───────────────────────────────────────────────────────
 
+    def request_reconciliation(self) -> None:
+        """Signal the loop to run reconciliation at the next opportunity.
+
+        Intended to be subscribed to hot-path events (TRADE_APPLIED,
+        ORDER_UPDATED).  Multiple rapid calls coalesce into a single
+        reconciliation run — the flag is cleared only when the loop
+        picks it up.
+        """
+        self._immediate_request.set()
+
     @trace_operation("reconciliation.run_now")
     def run_now(self) -> ReconciliationReport | None:
         """Run reconciliation immediately."""
@@ -151,8 +163,11 @@ class ReconciliationService(ManagedServicePort):
 
     def _loop(self) -> None:
         while not self._stop_event.is_set():
-            if self._stop_event.wait(timeout=self._interval):
+            # Wake on interval OR immediate event-driven request
+            self._immediate_request.wait(timeout=self._interval)
+            if self._stop_event.is_set():
                 break
+            self._immediate_request.clear()
             try:
                 self._run_once()
             except Exception as exc:

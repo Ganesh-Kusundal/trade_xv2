@@ -305,6 +305,17 @@ class TradingContext:
                 on_first_success=self._mark_reconciliation_ready,
             )
             self._order_manager.set_placement_gate(self._reconciliation_placement_gate)
+            # G6: hot-path reconciliation — wake the reconciliation loop on
+            # order lifecycle events so drift is detected immediately rather
+            # than waiting for the next timer tick.
+            self._event_bus.subscribe(
+                EventType.TRADE_APPLIED.value,
+                self._reconciliation_service.request_reconciliation,
+            )
+            self._event_bus.subscribe(
+                EventType.ORDER_UPDATED.value,
+                self._reconciliation_service.request_reconciliation,
+            )
 
         self._shutdown_coordinator = ShutdownCoordinator(
             risk_manager=self._risk_manager,
