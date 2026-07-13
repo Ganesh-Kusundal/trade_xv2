@@ -214,6 +214,49 @@ class TestDhanDepth20Feed:
         assert received[0].depth_type == "DEPTH_20"
         assert len(received[0].bids) == 2
 
+    def test_binary_message_with_concatenated_bid_and_ask_subpackets(self):
+        """Live Dhan frames batch a bid sub-packet immediately followed by an
+        ask sub-packet in the same WS message (each exactly
+        ``HEADER_SIZE + total_slots * LEVEL_SIZE`` bytes). A frame that only
+        parsed the first sub-packet silently dropped every ask update — this
+        pins the fix that walks all complete sub-packets in the buffer."""
+        feed = _make_feed20()
+        received = []
+        feed.on_depth(received.append)
+
+        bid_levels = [(24500.0, 50, 2), (24499.5, 100, 5)]
+        ask_levels = [(24501.0, 30, 1), (24501.5, 60, 4)]
+        bid_packet = _make_depth_packet(41, 500325, bid_levels)
+        ask_packet = _make_depth_packet(51, 500325, ask_levels)
+        combined_frame = bid_packet + ask_packet
+
+        feed._process_binary_message(combined_frame)
+
+        # Both sub-packets must dispatch — one callback per side.
+        assert len(received) == 2
+        assert received[0].bids and not received[0].asks
+        # By the second dispatch the cache carries both sides merged.
+        assert len(received[1].bids) == 2
+        assert len(received[1].asks) == 2
+        assert received[1].asks[0].price == Decimal("24501.0")
+
+    def test_binary_message_with_three_concatenated_subpackets(self):
+        """Frames observed in production also arrive as bid/ask/bid triples
+        (multiples of the sub-packet size beyond just 2) — all must parse."""
+        feed = _make_feed20()
+        received = []
+        feed.on_depth(received.append)
+
+        p1 = _make_depth_packet(41, 42, [(100.0, 10, 1)])
+        p2 = _make_depth_packet(51, 42, [(101.0, 20, 2)])
+        p3 = _make_depth_packet(41, 42, [(99.5, 15, 1)])
+        feed._process_binary_message(p1 + p2 + p3)
+
+        assert len(received) == 3
+        with feed._depth_cache_lock:
+            assert feed._depth_cache[42]["bids"][0].price == Decimal("99.5")
+            assert feed._depth_cache[42]["asks"][0].price == Decimal("101.0")
+
     def test_send_subscription_no_ws_loop_drops_with_counter(self):
         # When the feed WebSocket loop is not running, the send is dropped
         # rather than silently swallowed. The dropped_depths counter must

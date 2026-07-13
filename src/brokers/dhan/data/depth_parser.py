@@ -109,6 +109,14 @@ class DepthPacketParser:
         if counters is None:
             counters = {}
 
+        # Dhan batches multiple bid/ask sub-packets (observed: alternating
+        # BID then ASK) back-to-back into a single WS frame — each exactly
+        # ``packet_size`` bytes. A frame is not always exactly one packet;
+        # walk every complete sub-packet in the buffer instead of only the
+        # first, otherwise every side after the first is silently dropped
+        # (in practice this meant the ask side never reached callbacks).
+        packet_size = HEADER_SIZE + self.total_slots * LEVEL_SIZE
+
         try:
             if len(data) < HEADER_SIZE:
                 logger.warning(
@@ -118,36 +126,49 @@ class DepthPacketParser:
                 )
                 return
 
-            response_code = data[2]
-
-            if self.header_carries_security_id:
-                # depth-20 layout: offset 4 = security_id
-                header_value = struct.unpack_from("<I", data, 4)[0]
-            else:
-                # depth-200 layout: offset 8 = num_rows
-                header_value = struct.unpack_from("<I", data, 8)[0]
-
             # Notify the caller that a message was received (for health tracking).
             if callable(note_message_received):
                 note_message_received()
 
-            if response_code in (self.BID_RESPONSE_CODE, self.ASK_RESPONSE_CODE):
-                depth_data = self.parse_packet(data, header_value, response_code)
-                self._dispatch_depth(
-                    depth_data,
-                    subscriptions=subscriptions or [],
-                    depth_cache=depth_cache or {},
-                    depth_cache_lock=depth_cache_lock,
-                    sec_id_to_symbol=sec_id_to_symbol or {},
-                    depth_callbacks=depth_callbacks or [],
-                    callback_lock=callback_lock,
-                    event_bus=event_bus,
-                    event_name=event_name,
-                    feed_name=feed_name,
-                    snapshot_callbacks=snapshot_callbacks,
-                    next_correlation_id=next_correlation_id,
-                    counters=counters,
-                )
+            offset = 0
+            while offset + HEADER_SIZE <= len(data):
+                chunk = data[offset : offset + packet_size]
+                if len(chunk) < HEADER_SIZE:
+                    break
+
+                response_code = chunk[2]
+                if self.header_carries_security_id:
+                    # depth-20 layout: offset 4 = security_id
+                    header_value = struct.unpack_from("<I", chunk, 4)[0]
+                else:
+                    # depth-200 layout: offset 8 = num_rows
+                    header_value = struct.unpack_from("<I", chunk, 8)[0]
+
+                if response_code in (self.BID_RESPONSE_CODE, self.ASK_RESPONSE_CODE):
+                    depth_data = self.parse_packet(chunk, header_value, response_code)
+                    self._dispatch_depth(
+                        depth_data,
+                        subscriptions=subscriptions or [],
+                        # NOTE: must be `is not None`, not `depth_cache or {}` —
+                        # an empty (but real) dict is falsy, so `or {}` would
+                        # silently substitute a throwaway dict on every call
+                        # where the cache happens to be empty, meaning the
+                        # feed's real cache (mutated via setdefault below)
+                        # would never persist across messages.
+                        depth_cache=depth_cache if depth_cache is not None else {},
+                        depth_cache_lock=depth_cache_lock,
+                        sec_id_to_symbol=sec_id_to_symbol or {},
+                        depth_callbacks=depth_callbacks or [],
+                        callback_lock=callback_lock,
+                        event_bus=event_bus,
+                        event_name=event_name,
+                        feed_name=feed_name,
+                        snapshot_callbacks=snapshot_callbacks,
+                        next_correlation_id=next_correlation_id,
+                        counters=counters,
+                    )
+
+                offset += packet_size
 
         except Exception as exc:
             logger.exception("%s_parse_error: %s", self.DEPTH_TYPE.lower(), exc)

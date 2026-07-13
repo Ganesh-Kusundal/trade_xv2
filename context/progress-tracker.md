@@ -118,14 +118,22 @@
 
 ## Next Up
 
-- Complete G1: migrate remaining ~30 string comparisons in `interface/ui/`, `interface/api/`, `brokers/cli/` to use `BrokerId` enum or capability-driven dispatch
-- Phase 2: Unify infrastructure (G5: event bus, idempotency; G4: config merge)
-- Accept E2E suite (architecture council); then execute Phase A (Order FSM, Clock in fills,
-  fail-closed risk, daily-PnL self-heal) per `docs/architecture/e2e-spec/11-asbuilt-gaps-and-migration.md`.
-- Resume roadmap phases; pick the next unit from `docs/architecture/roadmap.md` and write a
-  spec under `context/specs/` before implementing.
+- **Await approval** of code-only audit pack before any money-path `src/` changes:
+  `docs/architecture/CURRENT_STATE.md`, `AUDIT.md`, `TARGET_AND_MIGRATION.md`.
+- On approval: execute **Phase A** from `TARGET_AND_MIGRATION.md` (fail-closed risk,
+  required submit_fn, delete Session EP place bypass, Clock on OMS stamps, no phantom
+  capital in LIVE).
+- Do not start Phase B until Phase A exit tests are green.
 
 ## Work Log
+
+### Session: Code-only architecture audit pack
+- Date: 2026-07-13
+- Reverse-engineered as-built architecture from `src/` + graphify (docs not used as evidence).
+- Wrote `docs/architecture/CURRENT_STATE.md`, `AUDIT.md`, `TARGET_AND_MIGRATION.md`.
+- P0 findings: null submit_fn success, risk None→allow, Session EP place bypass,
+  recon optional/report_only, phantom capital default.
+- **No `src/` changes** — waiting for Phase A implementation approval.
 
 ### Session: Dhan broker connectivity verification + fixes
 - Date: 2026-07-13
@@ -162,6 +170,29 @@
   pre-fix baseline via `git stash`/`pop` — identical failure set except the new race test
   flipping from fail to pass (74 failed / 507 passed vs 75 failed / 506 passed baseline; all
   other failures are pre-existing/unrelated, confirmed before touching any code).
+- Live soak-tested tick feed (LTP/QUOTE/FULL) and depth20 for sustained flow: 90s tick soak,
+  102 ticks, zero drops; found and fixed two compounding bugs in Dhan's depth20/200 binary
+  WS parser (`brokers/dhan/data/depth_parser.py`) that meant the **ask side of market depth
+  never actually flowed live**, only bids:
+  1. Dhan batches multiple 332-byte bid/ask sub-packets (alternating `response_code` 41=bid,
+     51=ask) concatenated into a single WS frame — confirmed via raw wire capture (80 bid +
+     80 ask sub-packets across 39 frames, always paired). `process_binary_message` only ever
+     parsed the first 332 bytes of each frame; everything after (always the ask side, since
+     Dhan sends bid first) was silently discarded. Fixed by looping over every complete
+     sub-packet in the buffer.
+  2. Separate, compounding bug: `depth_cache or {}` treated an empty-but-real dict as falsy,
+     substituting a throwaway dict on every call where the cache happened to be empty — so
+     `feed._depth_cache` never actually persisted mutations across messages, forcing
+     `subscribe_depth_20()` to always fall back to REST instead of ever reading the live WS
+     cache. Fixed with an explicit `is not None` check.
+- New regression tests in `tests/unit/brokers/dhan/test_depth_feeds.py`
+  (`test_binary_message_with_concatenated_bid_and_ask_subpackets`,
+  `test_binary_message_with_three_concatenated_subpackets`) reproduce both bugs with
+  synthetic packets; 23/23 `TestDhanDepth20Feed` tests pass. 16 pre-existing failures in
+  `TestDhanDepth200Feed`/`TestGatewayDepth20`/`TestGatewayDepth200` (stale API drift,
+  unrelated) confirmed identical with/without the fix via `git stash`.
+- Live re-verification after the fix: 60s depth20 soak went from 120 updates/0 asks to 490
+  updates with both `bid_levels=20` and `ask_levels=20` populated throughout.
 
 ### Session: Ports Purity — Extract Concrete Implementations
 - Date: 2026-07-13
