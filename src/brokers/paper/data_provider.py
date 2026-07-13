@@ -121,7 +121,13 @@ class PaperDataProvider(DataProvider):
                 instrument=ref,
                 timeframe=timeframe,
             )
-        return HistoricalSeries.from_dataframe(df, ref, timeframe)
+        return HistoricalSeries.from_broker_df(
+            df,
+            ref,
+            timeframe,
+            broker_id="paper",
+            request_id="paper.history",
+        )
 
     def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
         try:

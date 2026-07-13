@@ -6,7 +6,7 @@ import logging
 
 import pandas as pd
 
-from brokers.dhan.exceptions import MarketDataError
+from brokers.dhan.exceptions import DhanError, MarketDataError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
@@ -95,7 +95,19 @@ class HistoricalAdapter:
         # PR-B: defence-in-depth invariant assertion.
         assert_dhan_payload(payload, context="historical.get_historical")
 
-        data = self._client.post(endpoint, json=payload)
+        try:
+            data = self._client.post(endpoint, json=payload)
+        except DhanError as exc:
+            # DH-905 (Input_Exception) almost always means the Data API /
+            # charts entitlement is not provisioned for this client ID, or the
+            # request params are wrong. Surface it instead of returning empty.
+            if "DH-905" in str(exc) or "DH-904" in str(exc):
+                raise MarketDataError(
+                    "Dhan charts/historical request rejected (DH-905): verify the "
+                    "Data API subscription is active for this client ID and that "
+                    "securityId/segment/instrument are correct."
+                ) from exc
+            raise
         df = self._parse(data, symbol=symbol, exchange=exchange, timeframe=timeframe)
         logger.info(
             "historical_fetched",

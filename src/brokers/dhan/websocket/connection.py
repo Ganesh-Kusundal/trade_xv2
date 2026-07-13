@@ -79,6 +79,13 @@ class MarketFeedConnection:
         self._feed: Any | None = None
         self._thread: threading.Thread | None = None
 
+        # Set by ``_run()`` immediately before it hands the SDK feed's private
+        # event loop to ``feed.run()``. ``stop()`` waits on this before
+        # touching the feed, so it never races the background thread's first
+        # ``loop.run_until_complete()`` call for ownership of that loop (see
+        # ``_close_sdk_feed`` docstring for the underlying SDK quirk).
+        self._run_claimed = threading.Event()
+
         # Connection state.
         self._is_connected = False
         self._connected_at: datetime | None = None
@@ -127,6 +134,7 @@ class MarketFeedConnection:
                 return False
 
             self._stop_event.clear()
+            self._run_claimed.clear()
             self._is_connected = False
             self._build_sdk_feed_locked()
 
@@ -157,6 +165,14 @@ class MarketFeedConnection:
             feed = self._feed
             thread = self._thread
         if feed:
+            # Give the background thread a chance to claim the SDK feed's
+            # event loop (via ``feed.run()``) before we touch it. Without
+            # this, a stop() that lands before the thread reaches that call
+            # races the thread's first ``loop.run_until_complete()`` for
+            # ownership of the same loop object and raises "This event loop
+            # is already running". Only waited when a feed actually exists —
+            # a connection that was never started has nothing to claim.
+            self._run_claimed.wait(timeout=2.0)
             self._close_sdk_feed(feed)
         if thread and thread.is_alive():
             thread.join(timeout=timeout_seconds)
@@ -295,6 +311,7 @@ class MarketFeedConnection:
             try:
                 with self._lock:
                     feed = self._feed or self._build_sdk_feed_locked()
+                self._run_claimed.set()
                 feed.run()
                 # Successful return → clean close → reset backoff fast
                 backoff = 1.0

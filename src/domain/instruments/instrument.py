@@ -30,6 +30,9 @@ from domain.instruments.composition import (
     TradingSpec,
 )
 from domain.instruments.instrument_id import InstrumentId
+from domain.instruments.instrument_market_data import InstrumentMarketDataMixin
+from domain.instruments.instrument_streaming import InstrumentStreamingMixin
+from domain.instruments.instrument_trading import InstrumentTradingMixin
 from domain.value_objects.state import InstrumentState
 
 if TYPE_CHECKING:
@@ -71,7 +74,11 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-class Instrument:
+class Instrument(
+    InstrumentMarketDataMixin,
+    InstrumentStreamingMixin,
+    InstrumentTradingMixin,
+):
     """Pure domain object. Users work with this directly.
 
     Owns:

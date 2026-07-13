@@ -157,6 +157,18 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
 
     def close(self) -> None:
         """Release default provider and ambient if still owned by this Session."""
+        lifecycle = getattr(self, "_lifecycle", None)
+        if lifecycle is not None:
+            try:
+                stop = getattr(lifecycle, "stop_all", None)
+                if callable(stop):
+                    stop()
+            except Exception:
+                pass
+            try:
+                self._lifecycle = None
+            except Exception:
+                pass
         recorder = getattr(self, "_session_recorder", None)
         if recorder is not None:
             try:

@@ -116,9 +116,19 @@ def open_session(
     # Production path: create → structural check → network probe → one
     # token remint on rejection. Never hand out a dead live gateway.
     _session_kernel = None
+    _lifecycle = None
     if gw is None and data is None and executor is None:
         from domain.ports.bootstrap import BootstrapStatus
         from infrastructure.gateway.factory import bootstrap_gateway
+
+        # Live brokers own background services (TOTP refresh, WS streams).
+        # Create a LifecycleManager here (composition root only) so the
+        # gateway factory can register ManagedServices and we start them
+        # deterministically — mirrors the TUI BrokerService model.
+        if broker_id not in {"paper", "datalake"}:
+            from infrastructure.lifecycle import LifecycleManager
+
+            _lifecycle = LifecycleManager()
 
         try:
             boot = bootstrap_gateway(
@@ -127,6 +137,7 @@ def open_session(
                 load_instruments=load_instruments,
                 event_bus=event_bus,
                 require_authenticated=True,
+                lifecycle=_lifecycle,
             )
         except Exception as exc:
             raise ConnectError(
@@ -179,6 +190,18 @@ def open_session(
                 },
             )
         gw = boot.gateway
+
+    # Start background services (TOTP refresh, WS streams) once the gateway
+    # is live. Lifecycle is None for paper/datalake, so this is a no-op there.
+    if _lifecycle is not None:
+        try:
+            _lifecycle.start_all()
+        except Exception as exc:  # defensive — never block connect on lifecycle
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "session lifecycle start failed for %s: %s", broker_id, exc
+            )
 
     # P0-I: register quota profiles + router whenever we have a concrete gateway
     if gw is not None and broker_id not in {"datalake"}:
@@ -316,6 +339,11 @@ def open_session(
         )
     if _session_kernel is not None:
         setattr(session, "kernel", _session_kernel)
+    if _lifecycle is not None:
+        # Attach so the session's close() stops background services (TOTP
+        # refresh, WS streams) deterministically. setattr keeps the domain
+        # layer free of lifecycle imports.
+        setattr(session, "_lifecycle", _lifecycle)
 
     # ── CQRS dispatchers (ADR-012) ───────────────────────────────────
     # Build the CommandDispatcher / QueryDispatcher at the composition root so

@@ -77,13 +77,15 @@ class HistoryService:
                     timeframe=timeframe,
                 )
             else:
-                series = HistoricalSeries.from_dataframe(
+                series = HistoricalSeries.from_broker_df(
                     raw,
                     InstrumentRef(
                         symbol=instrument_id.underlying,
                         exchange=instrument_id.exchange,
                     ),
                     timeframe,
+                    broker_id=getattr(self._provider, "name", "unknown"),
+                    request_id="legacy_dataframe_fallback",
                 )
 
         return series.to_dataframe() if as_dataframe else series

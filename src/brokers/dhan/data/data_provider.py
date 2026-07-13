@@ -22,13 +22,23 @@ from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdenti
 
 
 class _DhanSubscriptionHandle(SubscriptionHandle):
-    def __init__(self, stop_fn: Callable[[], None] | None = None) -> None:
+    def __init__(
+        self,
+        stop_fn: Callable[[], None] | None = None,
+        is_connected_fn: Callable[[], bool] | None = None,
+    ) -> None:
         self._active = True
         self._stop = stop_fn
+        self._is_connected_fn = is_connected_fn
 
     @property
     def is_active(self) -> bool:
         return self._active
+
+    @property
+    def is_connected(self) -> bool:
+        """Best-effort live-connection check (for probes/health checks)."""
+        return bool(self._is_connected_fn()) if self._is_connected_fn is not None else False
 
     def unsubscribe(self) -> None:
         self._active = False
@@ -135,7 +145,11 @@ class DhanDataProvider(DataProvider):
                 to_date,
             )
         except Exception:
-            return pd.DataFrame()
+            # ponytail: re-raise broker/provider errors so callers can see
+            # entitlement/param failures (e.g. DH-905) instead of silent empty.
+            # A genuinely empty payload (df with no rows) is handled by the
+            # caller, not here.
+            raise
 
     def get_history_series(
         self,
@@ -160,7 +174,13 @@ class DhanDataProvider(DataProvider):
             return HistoricalSeries(
                 bars=[], coverage=None, instrument=ref, timeframe=timeframe
             )
-        return HistoricalSeries.from_dataframe(df, ref, timeframe)
+        return HistoricalSeries.from_broker_df(
+            df,
+            ref,
+            timeframe,
+            broker_id=self._broker_id,
+            request_id="dhan.history",
+        )
 
     def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
         try:
@@ -260,7 +280,10 @@ class DhanDataProvider(DataProvider):
                 on_tick=_on_tick,
             )
             stop = getattr(handle, "stop", None) or getattr(handle, "disconnect", None)
-            return _DhanSubscriptionHandle(stop_fn=stop if callable(stop) else None)
+            return _DhanSubscriptionHandle(
+                stop_fn=stop if callable(stop) else None,
+                is_connected_fn=lambda: getattr(handle, "is_connected", False),
+            )
         except Exception:
             return _DhanSubscriptionHandle()
 

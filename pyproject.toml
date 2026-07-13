@@ -158,10 +158,13 @@ markers = [
     "property: property-based tests (hypothesis)",
     "component: component tests with mocked/doubled collaborators",
     "mutation: mutation testing (tests verify behavior, not implementation)",
+    "real_broker: e2e tests that place/cancel on a real broker (never in default run)",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-ra --strict-markers --tb=short --durations=10"
+# Default run is offline-safe: exclude tests that require a live broker / network /
+# credentials. Live suites stay runnable on demand with explicit -m markers.
+addopts = "-ra --strict-markers --tb=short --durations=10 -m 'not live_readonly and not upstox_live_readonly and not off_market_safe and not market_hours and not auth_integration and not cli_endpoint_live and not live_backtest_parity and not live_orders and not sandbox and not upstox_sandbox and not cli_endpoint_sandbox and not dhan and not oms_integration and not integration and not upstox_integration and not real_broker'"
 
 # Parity enforcement - register custom pytest plugin
 python_files = ["test_*.py", "*_test.py"]

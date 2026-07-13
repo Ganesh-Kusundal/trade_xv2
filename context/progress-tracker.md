@@ -127,6 +127,52 @@
 
 ## Work Log
 
+### Session: Dhan broker connectivity verification + fixes
+- Date: 2026-07-13
+- Verified Dhan and Upstox broker connect + real data retrieval end-to-end via `broker` CLI/venv
+- Fixed provenance mislabeling: `HistoricalSeries.from_dataframe()` (a replay/backtest-only
+  constructor hardcoding `broker_id="replay"`) was being reused for live Dhan and paper
+  historical data, and for two generic legacy fallback paths. Switched all four call sites
+  (`brokers/dhan/data/data_provider.py`, `brokers/paper/data_provider.py`,
+  `domain/candles/instrument_history.py`, `domain/services/history.py`) to
+  `HistoricalSeries.from_broker_df(..., broker_id=...)` — now stamps the correct broker id
+  and `AUTHORITATIVE` confidence instead of `DERIVED`.
+- Fixed a ~100%-reproducible race condition in Dhan's live tick market-feed WebSocket:
+  `MarketFeedConnection.stop()` (`brokers/dhan/websocket/connection.py`) could call the
+  dhanhq SDK's `close_connection()` before the background thread had taken ownership of the
+  SDK feed's private event loop via `feed.run()` → `loop.run_until_complete()`, racing two
+  threads on the same loop object and raising `RuntimeError: This event loop is already
+  running`, with the thread then failing to join within its 5s timeout (abandoned).
+  Root-caused by reading the installed `dhanhq` SDK source directly (site-packages), not
+  just our wrapper. Fix: added a `threading.Event` (`_run_claimed`) set by the background
+  thread immediately before `feed.run()`; `stop()` now waits on it (2s bound, only when a
+  feed exists) before touching the SDK feed. Also tightened
+  `brokers/services/market_data.py::run_subscribe_probe()` to poll real connection state
+  (via a new `is_connected` passthrough on `_DhanSubscriptionHandle`) for up to 2s before
+  unsubscribing, instead of tearing down immediately — so `broker health`'s "Subscription
+  Active" check reflects a genuine connection, not just a non-null handle.
+- New regression test `tests/unit/brokers/dhan/test_market_feed_connection_race.py` —
+  deterministically reproduces the race with a fake SDK feed (no real network/asyncio
+  needed); confirmed it fails on the pre-fix code and passes after the fix via `git stash`.
+- A secondary cosmetic symptom (spurious "Market feed already connected" WARNING during
+  `broker subscribe`/`health`) persists after the fix but no longer causes any error or
+  abandoned thread — likely benign feed-object reuse within a single CLI process; not
+  chased further, flagged as a possible follow-up.
+- Tests: full `tests/unit/brokers/dhan/` + `tests/unit/brokers/paper/` suite diffed against
+  pre-fix baseline via `git stash`/`pop` — identical failure set except the new race test
+  flipping from fail to pass (74 failed / 507 passed vs 75 failed / 506 passed baseline; all
+  other failures are pre-existing/unrelated, confirmed before touching any code).
+
+### Session: Ports Purity — Extract Concrete Implementations
+- Date: 2026-07-13
+- Moved `NSEExchangeAdapter`, `BSEExchangeAdapter`, `MCXExchangeAdapter`, `_EXCHANGE_REGISTRY`, `get_exchange_adapter()` from `domain/ports/exchange_adapter.py` → `domain/market/exchange_adapters.py`
+- Moved `RealClock`, `VirtualClock`, `_EXCHANGE_TZ` from `domain/ports/time_service.py` → `domain/ports/time_service_impls.py`
+- `domain/ports/exchange_adapter.py` now contains only `ExchangeAdapter` and `ExchangeAdapterPort` Protocols
+- `domain/ports/time_service.py` now contains only `ClockPort` Protocol, `get_current_clock()`, `set_current_clock()`, `use_clock()`
+- Backward-compatible re-exports with `DeprecationWarning` in old locations
+- Updated imports in 8 files: `infrastructure/time/clock.py`, `tests/unit/domain/test_exchange_adapter.py`, `tests/unit/domain/ports/test_clock_port.py`, `tests/unit/application/oms/test_daily_pnl_reset_scheduler_fires_at_virtual_time.py`, `tests/unit/application/streaming/test_streaming_consumer_uses_virtual_clock.py`, `tests/integration/test_replay_determinism.py`
+- Tests: 605 architecture tests passed (5 skipped, pre-existing), 21 unit tests for moved classes passed, zero new failures
+
 ### Session: Architecture Migration Phase 3
 - Date: Current
 - G6: Reconciliation moved to hot path — event-driven via TRADE_APPLIED/ORDER_UPDATED subscriptions

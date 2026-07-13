@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from brokers.session import BrokerSession
@@ -49,13 +50,24 @@ def run_subscribe_probe(
     exchange: str = "NSE",
     *,
     session: BrokerSession | None = None,
+    wait_seconds: float = 2.0,
     **kwargs: Any,
 ) -> bool:
+    """Subscribe, briefly wait for a real connection, then unsubscribe.
+
+    Waiting (bounded by *wait_seconds*) before tearing down means the probe
+    actually observes whether the feed connected rather than just checking
+    that a handle object was returned — a non-null handle alone doesn't mean
+    data is flowing.
+    """
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
         inst = s.stock(symbol, exchange=exchange)
         handle = s.subscribe(inst)
         if handle is not None:
+            deadline = time.monotonic() + wait_seconds
+            while time.monotonic() < deadline and not getattr(handle, "is_connected", False):
+                time.sleep(0.05)
             s.unsubscribe(inst)
         return handle is not None
     finally:

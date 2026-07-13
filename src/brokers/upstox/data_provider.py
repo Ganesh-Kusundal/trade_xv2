@@ -126,7 +126,9 @@ class UpstoxDataProvider(DataProvider):
                 to_date,
             )
         except Exception:
-            return pd.DataFrame()
+            # ponytail: re-raise broker/provider errors so failures are visible
+            # (entitlement/param/network) instead of masked as empty history.
+            raise
 
     def get_history_series(
         self,

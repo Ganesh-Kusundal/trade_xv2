@@ -143,18 +143,25 @@ class InstrumentHistory:
                     instrument=InstrumentRef(symbol=owner.symbol, exchange=owner.exchange),
                     timeframe=timeframe,
                 )
-            return HistoricalSeries.from_dataframe(
+            return HistoricalSeries.from_broker_df(
                 bars,
                 InstrumentRef(symbol=owner.symbol, exchange=owner.exchange),
                 timeframe,
+                broker_id=getattr(provider, "name", "unknown"),
+                request_id="legacy_dataframe_fallback",
             )
-        except Exception:
-            return HistoricalSeries(
-                bars=[],
-                coverage=None,
-                instrument=InstrumentRef(symbol=owner.symbol, exchange=owner.exchange),
-                timeframe=timeframe,
-            )
+        except Exception as exc:
+            # ponytail: only swallow non-provider errors. Provider/broker
+            # failures (entitlement, auth, network) must propagate so the CLI
+            # and callers can surface them — an empty series hides real bugs.
+            if isinstance(exc, (AttributeError, NotImplementedError, TypeError)):
+                return HistoricalSeries(
+                    bars=[],
+                    coverage=None,
+                    instrument=InstrumentRef(symbol=owner.symbol, exchange=owner.exchange),
+                    timeframe=timeframe,
+                )
+            raise
 
     @property
     def series(self) -> HistoricalSeries | None:

@@ -197,6 +197,12 @@ class UpstoxWireAdapter(BatchFetchMixin):
     def capabilities(self) -> BrokerCapabilities:
         return upstox_capabilities()
 
+    def list_capabilities(self):
+        """CommonBrokerGateway-compatible capability descriptor (session kernel)."""
+        from brokers.common.broker_capabilities import CapabilityDescriptor
+
+        return CapabilityDescriptor.build(self.capabilities(), frozenset())
+
     @staticmethod
     def _canonical_symbol_for_defn(defn: Any, fallback_key: str = "") -> str:
         from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
