@@ -27,7 +27,7 @@ import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
 from datalake.core.schema import CANONICAL_COLUMNS
-from datalake.core.symbols import normalize_symbol
+from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
 from datalake.quality.validation import validate_candles
 
@@ -126,7 +126,7 @@ def convert_tradej_parquet(
             df[col] = df[col] / adapter.price_scale
 
     # Add missing columns
-    df["symbol"] = normalize_symbol(symbol)
+    df["symbol"] = normalize_symbol_for_storage(symbol)
     df["exchange"] = exchange
     if "oi" not in df.columns:
         df["oi"] = 0
@@ -180,16 +180,16 @@ def convert_tradej_directory(
 
     symbol_dirs = sorted(tradej_bars_dir.iterdir())
     if symbols:
-        symbol_set = {normalize_symbol(s) for s in symbols}
+        symbol_set = {normalize_symbol_for_storage(s) for s in symbols}
         symbol_dirs = [
-            d for d in symbol_dirs if normalize_symbol(d.name.replace("symbol=", "")) in symbol_set
+            d for d in symbol_dirs if normalize_symbol_for_storage(d.name.replace("symbol=", "")) in symbol_set
         ]
 
     for sym_dir in symbol_dirs:
         if not sym_dir.is_dir():
             continue
 
-        symbol = normalize_symbol(sym_dir.name.replace("symbol=", ""))
+        symbol = normalize_symbol_for_storage(sym_dir.name.replace("symbol=", ""))
         logger.info("Converting %s...", symbol)
 
         parquet_files = sorted(sym_dir.glob("*.parquet"))

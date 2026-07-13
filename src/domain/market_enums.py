@@ -25,12 +25,33 @@ class ExchangeSegment(str, Enum):
     IDX_I = "IDX_I"
 
 
+class Exchange(str, Enum):
+    """Short exchange codes used in broker APIs and instrument metadata."""
+
+    NSE = "NSE"
+    BSE = "BSE"
+    NFO = "NFO"
+    BFO = "BFO"
+    MCX = "MCX"
+    CDS = "CDS"
+    INDEX = "INDEX"
+
+
 class InstrumentType(str, Enum):
     """Canonical instrument type categories."""
 
     EQUITY = "EQUITY"
     FUTURES = "FUTURES"
+    FUTURE = "FUTURE"
     OPTIONS = "OPTIONS"
+    OPTION = "OPTION"
     CURRENCY = "CURRENCY"
     COMMODITY = "COMMODITY"
     INDEX = "INDEX"
+
+
+class OptionType(str, Enum):
+    """Option flavour — CALL or PUT."""
+
+    CALL = "CALL"
+    PUT = "PUT"

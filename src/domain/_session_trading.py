@@ -73,7 +73,7 @@ class SessionTradingMixin:
         """Submit an intent via the injected order-command fn or OMS (fallback)."""
         self._assert_orders_enabled()
 
-        fn = getattr(self, "_order_command_fn", None)
+        fn = self._order_command_fn if hasattr(self, "_order_command_fn") else None
         if callable(fn):
             return fn(intent)
 

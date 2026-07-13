@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 # Brokers that require the production readiness gate before order placement.
 LIVE_BROKERS: frozenset[str] = frozenset({"dhan", "upstox"})
 
-# Module-level gate callable — set by the composition root (runtime).
-# Signature: () -> bool. Returns True when live orders are permitted.
-_live_actionable_gate: Callable[[], bool] | None = None
+
+class _LiveGateState:
+    """Module-level live-actionable gate (class-based state holder)."""
+
+    gate: Callable[[], bool] | None = None
 
 
 def set_live_actionable_gate(gate: Callable[[], bool] | None) -> None:
@@ -31,8 +33,7 @@ def set_live_actionable_gate(gate: Callable[[], bool] | None) -> None:
     Called once during startup by the runtime layer. The gate is a simple
     callable that returns ``True`` when the system is ready for live orders.
     """
-    global _live_actionable_gate
-    _live_actionable_gate = gate
+    _LiveGateState.gate = gate
     logger.debug("Live-actionable gate registered: %s", gate is not None)
 
 
@@ -48,7 +49,7 @@ def check_live_actionable(broker: str) -> None:
     """
     if broker.lower() not in LIVE_BROKERS:
         return  # paper / mock — always allowed
-    gate = _live_actionable_gate
+    gate = _LiveGateState.gate
     if gate is None:
         raise LiveBrokerBlockedError(
             f"OMS refused: no live-actionable gate registered for broker '{broker}'. "

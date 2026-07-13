@@ -16,9 +16,13 @@ import type {
   DepthResponse,
   HealthResponse,
   HoldingsResponse,
+  IVSurfaceResponse,
+  MaxPainResponse,
   OrderRequest,
   OrderResponse,
+  OptionChainResponse,
   OrdersResponse,
+  PCRResponse,
   PositionsResponse,
   PortfolioSummary,
   QuoteResponse,
@@ -26,6 +30,7 @@ import type {
   ScannerCandidatesResponse,
   TradeResponse,
   TradesResponse,
+  VolumeProfileResponse,
 } from "../types";
 import { API_BASE, API_KEY } from "./config";
 
@@ -66,6 +71,12 @@ export interface TradingApi {
     limit?: number;
   }): Promise<CandlesResponse>;
   depth(symbol: string, exchange?: string): Promise<DepthResponse>;
+
+  optionChain(underlying: string, params?: { expiry?: string; strike_range?: number }): Promise<OptionChainResponse>;
+  pcr(underlying: string, expiry?: string): Promise<PCRResponse>;
+  maxPain(underlying: string, expiry?: string): Promise<MaxPainResponse>;
+  ivSurface(underlying: string, params?: { expiry?: string; option_type?: string }): Promise<IVSurfaceResponse>;
+  volumeProfile(underlying: string, expiry?: string): Promise<VolumeProfileResponse>;
 
   positions(status?: string): Promise<PositionsResponse>;
   holdings(): Promise<HoldingsResponse>;
@@ -178,6 +189,43 @@ export class ApiClient implements TradingApi {
       `/live/depth/${encodeURIComponent(symbol)}`,
       undefined,
       { exchange },
+    );
+  }
+
+  // ── Options Analytics ───────────────────────────────────────────────────
+  optionChain(underlying: string, params?: { expiry?: string; strike_range?: number }) {
+    return this.request<OptionChainResponse>(
+      `/options/chain/${encodeURIComponent(underlying.toUpperCase())}`,
+      undefined,
+      { expiry: params?.expiry, strike_range: params?.strike_range },
+    );
+  }
+  pcr(underlying: string, expiry?: string) {
+    return this.request<PCRResponse>(
+      `/options/pcr/${encodeURIComponent(underlying.toUpperCase())}`,
+      undefined,
+      { expiry },
+    );
+  }
+  maxPain(underlying: string, expiry?: string) {
+    return this.request<MaxPainResponse>(
+      `/options/max-pain/${encodeURIComponent(underlying.toUpperCase())}`,
+      undefined,
+      { expiry },
+    );
+  }
+  ivSurface(underlying: string, params?: { expiry?: string; option_type?: string }) {
+    return this.request<IVSurfaceResponse>(
+      `/options/iv-surface/${encodeURIComponent(underlying.toUpperCase())}`,
+      undefined,
+      { expiry: params?.expiry, option_type: params?.option_type },
+    );
+  }
+  volumeProfile(underlying: string, expiry?: string) {
+    return this.request<VolumeProfileResponse>(
+      `/options/volume-profile/${encodeURIComponent(underlying.toUpperCase())}`,
+      undefined,
+      { expiry },
     );
   }
 

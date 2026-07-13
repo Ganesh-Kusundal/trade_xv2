@@ -63,6 +63,11 @@ register_execution_provider("upstox", UpstoxExecutionProvider)
 
 from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
+def _load_upstox_capabilities():
+    from brokers.upstox.capabilities.snapshot import upstox_capabilities
+    return upstox_capabilities()
+
+
 register_broker_plugin(
     BrokerPlugin(
         broker_id="upstox",
@@ -70,8 +75,7 @@ register_broker_plugin(
         default_mode="market",
         supported_modes=frozenset({"market", "trade"}),
         is_live=True,
-        capabilities_module="brokers.upstox.capabilities.snapshot",
-        capabilities_fn="upstox_capabilities",
+        capabilities_loader=_load_upstox_capabilities,
     )
 )
 

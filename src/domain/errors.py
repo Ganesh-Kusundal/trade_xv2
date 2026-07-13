@@ -111,7 +111,7 @@ class NotConfiguredError(TradeXV2Error):
 # ---------------------------------------------------------------------------
 
 
-class BrokerUnavailableError(RuntimeError):
+class BrokerUnavailableError(TradeXV2Error, RuntimeError):
     """Raised when a broker is not registered or its health is not usable."""
 
     def __init__(self, broker_id: str, *, reason: str = "") -> None:
@@ -124,7 +124,7 @@ class BrokerUnavailableError(RuntimeError):
         )
 
 
-class UnsupportedExtensionError(NotImplementedError):
+class UnsupportedExtensionError(TradeXV2Error, NotImplementedError):
     """Raised when a broker does not support a requested extension."""
 
     def __init__(
@@ -142,7 +142,7 @@ class UnsupportedExtensionError(NotImplementedError):
         super().__init__(msg)
 
 
-class MergeConflictError(ValueError):
+class MergeConflictError(TradeXV2Error, ValueError):
     """Raised when overlapping historical data sources have irreconcilable conflicts."""
 
     def __init__(self, conflict_count: int, chunk_ids: list[str]) -> None:
@@ -151,7 +151,7 @@ class MergeConflictError(ValueError):
         super().__init__(f"{conflict_count} merge conflict(s) in chunks: {chunk_ids}")
 
 
-class RoutingError(RuntimeError):
+class RoutingError(TradeXV2Error, RuntimeError):
     """Raised when no eligible broker can be selected for a routing request."""
 
     def __init__(self, operation: str, reason: str) -> None:
@@ -160,7 +160,7 @@ class RoutingError(RuntimeError):
         super().__init__(f"Cannot route {operation}: {reason}")
 
 
-class QuotaExhaustedError(RuntimeError):
+class QuotaExhaustedError(TradeXV2Error, RuntimeError):
     """Raised when API quota is exhausted and the wait deadline has passed."""
 
     def __init__(

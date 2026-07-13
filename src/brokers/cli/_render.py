@@ -8,11 +8,14 @@ JSON is emitted when ``--json`` is passed or when stdout is not a TTY
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
 from rich.table import Table
 
 from brokers.services import safe_serialize
@@ -326,7 +329,7 @@ def present(
     """Render ``data`` as Rich (default) or JSON (machine mode)."""
     target = out or console
     if json_mode(ctx):
-        print(json.dumps(safe_serialize(data), default=str, indent=2))
+        logger.info(json.dumps(safe_serialize(data), default=str, indent=2))
         return
 
     kind = _domain_type_name(data)

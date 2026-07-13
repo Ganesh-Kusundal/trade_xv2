@@ -10,9 +10,9 @@ This is the universal data download engine that handles:
 
 Usage:
     from application.services.download_engine import HistoricalDownloadEngine
-    from infrastructure.gateway.base import MarketDataGateway
+    from domain.ports.market_data import MarketDataPort
 
-    gw: MarketDataGateway = PaperGateway()  # Any broker implementing the contract
+    gw: MarketDataPort = ...  # Any broker implementing the contract
     engine = HistoricalDownloadEngine(gw)
 
     # Single symbol, 5 years
@@ -39,7 +39,7 @@ from typing import Any, ClassVar
 import pandas as pd
 import pyarrow as pa
 
-from infrastructure.io.parquet import atomic_parquet_write
+from domain.ports.io import atomic_parquet_write
 
 logger = logging.getLogger(__name__)
 

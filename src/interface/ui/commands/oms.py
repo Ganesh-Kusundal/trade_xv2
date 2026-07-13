@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from interface.ui.services.broker_service import BrokerService
+from interface.ui.utils.time_formatter import format_ist_time
 
 
 def _parse_place_order_args(args: list[str]) -> dict | None:
@@ -119,7 +120,7 @@ def show_orders(
     """Print the orders book with optional status filtering."""
     gw = broker_service.active_broker
     try:
-        orders = gw.orders.get_orderbook()
+        orders = gw.get_orderbook()
 
         # Apply status filter
         if status_filter:
@@ -159,7 +160,7 @@ def show_orders(
             else:
                 status_style = "red"
 
-            time_str = o.order_timestamp.strftime("%H:%M:%S") if o.order_timestamp else "N/A"
+            time_str = format_ist_time(o.timestamp)
 
             limit_price = o.price
             avg_price = o.average_price
@@ -185,7 +186,7 @@ def show_trades(broker_service: BrokerService, console: Console) -> None:
     """Print the trades execution list."""
     gw = broker_service.active_broker
     try:
-        trades = gw.orders.get_trade_book()
+        trades = gw.get_trade_book()
         table = Table(title="Today's Trades Execution Book", header_style="bold yellow")
         table.add_column("Trade ID", style="bold white")
         table.add_column("Order ID", style="dim white")
@@ -198,7 +199,7 @@ def show_trades(broker_service: BrokerService, console: Console) -> None:
 
         for t in trades:
             side_style = "green" if t.side.value == "BUY" else "red"
-            time_str = t.timestamp.strftime("%H:%M:%S") if t.timestamp else "N/A"
+            time_str = format_ist_time(t.timestamp)
             trade_value = t.price * t.quantity
             table.add_row(
                 t.trade_id,
@@ -220,7 +221,7 @@ def show_oms_summary(broker_service: BrokerService, console: Console) -> None:
     """Print the general OMS dashboard."""
     gw = broker_service.active_broker
     try:
-        orders = gw.orders.get_orderbook()
+        orders = gw.get_orderbook()
 
         stats = {
             "open": 0,

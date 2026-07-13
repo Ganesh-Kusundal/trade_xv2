@@ -23,8 +23,7 @@ def _account_snapshot() -> Any:
             detail="Live broker not configured",
             headers={"Retry-After": "30"},
         )
-    from interface.ui.services.active_session import get_active_session
-    from interface.ui.services.market_access import refresh_account
+    from application.portfolio.active_session import get_active_session, refresh_account
 
     session = get_active_session(svc)
     try:

@@ -21,15 +21,13 @@ class BrokerPlugin:
         default_factory=lambda: frozenset({"market", "trade"})
     )
     is_live: bool = True
-    # Optional factories (gateway still via create_gateway for now)
+    # Optional factories (gateway via bootstrap_gateway / require_gateway)
     data_provider_factory: Callable[[Any], Any] | None = None
     execution_provider_factory: Callable[[Any], Any] | None = None
-    # Capability declaration (DR-B3): the broker declares *where* its
-    # ``BrokerCapabilities`` are built.  The resilience layer resolves the
-    # loader from these strings instead of hard-coding broker names, so adding
-    # a broker requires no edits to ``infrastructure.resilience.rate_limiter``.
-    capabilities_module: str | None = None
-    capabilities_fn: str | None = None
+    # Capability declaration (DR-B3): the broker supplies a callable that
+    # returns its ``BrokerCapabilities``.  The resilience layer calls this
+    # directly instead of hard-coding broker names or doing importlib magic.
+    capabilities_loader: Callable[[], Any] | None = None
 
 
 _PLUGINS: dict[str, BrokerPlugin] = {}
@@ -90,8 +88,7 @@ def ensure_core_plugins() -> None:
                 default_mode="market",
                 supported_modes=frozenset({"market", "trade"}),
                 is_live=True,
-                capabilities_module="brokers.dhan.config.capabilities",
-                capabilities_fn="dhan_capabilities",
+                capabilities_loader=None,  # broker __init__.py fills this
             )
         )
     if "upstox" not in _PLUGINS:
@@ -102,8 +99,7 @@ def ensure_core_plugins() -> None:
                 default_mode="market",
                 supported_modes=frozenset({"market", "trade"}),
                 is_live=True,
-                capabilities_module="brokers.upstox.capabilities.snapshot",
-                capabilities_fn="upstox_capabilities",
+                capabilities_loader=None,  # broker __init__.py fills this
             )
         )
     if "datalake" not in _PLUGINS:

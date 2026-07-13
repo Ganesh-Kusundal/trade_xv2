@@ -26,21 +26,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
-_backtest_cache: dict[str, BacktestResultResponse] = {}
-_backtest_cache_lock = threading.Lock()
-_cache_store = BacktestCacheStore()
-_hydrated = False
+class _BacktestCache:
+    """Module-level backtest cache state."""
+
+    _cache: dict[str, BacktestResultResponse] = {}
+    _lock = threading.Lock()
+    _store = BacktestCacheStore()
+    _hydrated = False
+
+    @classmethod
+    def ensure_hydrated(cls) -> None:
+        if cls._hydrated:
+            return
+        with cls._lock:
+            if cls._hydrated:
+                return
+            cls._cache.update(cls._store.load_all())
+            cls._hydrated = True
+
+    @classmethod
+    def cache_result(cls, resp: BacktestResultResponse) -> None:
+        cls.ensure_hydrated()
+        with cls._lock:
+            cls._cache[resp.run_id] = resp
+        cls._store.save(resp)
+
+    @classmethod
+    def get(cls, run_id: str) -> BacktestResultResponse | None:
+        cls.ensure_hydrated()
+        with cls._lock:
+            return cls._cache.get(run_id)
+
+    @classmethod
+    def get_all(cls) -> dict[str, BacktestResultResponse]:
+        cls.ensure_hydrated()
+        with cls._lock:
+            return dict(cls._cache)
+
+    @classmethod
+    def delete(cls, run_id: str) -> bool:
+        cls.ensure_hydrated()
+        with cls._lock:
+            if run_id in cls._cache:
+                del cls._cache[run_id]
+                return True
+            return False
 
 
 def _ensure_hydrated() -> None:
-    global _hydrated
-    if _hydrated:
-        return
-    with _backtest_cache_lock:
-        if _hydrated:
-            return
-        _backtest_cache.update(_cache_store.load_all())
-        _hydrated = True
+    _BacktestCache.ensure_hydrated()
 
 
 def _cache_result(resp: BacktestResultResponse) -> None:
@@ -132,7 +166,7 @@ async def run_backtest(
             ),
         )
 
-        _cache_result(resp)
+        _BacktestCache.cache_result(resp)
         return resp
 
     except HTTPException:
@@ -148,14 +182,11 @@ async def run_backtest(
 @router.get("/results/{backtest_id}", response_model=BacktestResultResponse)
 async def get_backtest_result(backtest_id: str):
     """Get backtest results for a completed run."""
-    _ensure_hydrated()
-    with _backtest_cache_lock:
-        result = _backtest_cache.get(backtest_id)
+    result = _BacktestCache.get(backtest_id)
     if not result:
-        result = _cache_store.get(backtest_id)
+        result = _BacktestCache._store.get(backtest_id)
         if result:
-            with _backtest_cache_lock:
-                _backtest_cache[backtest_id] = result
+            _BacktestCache.cache_result(result)
     if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -178,7 +209,6 @@ async def compare_backtests(
     run_ids: str | None = Query(None, description="Comma-separated run IDs to compare"),
 ):
     """Compare multiple backtest runs side by side."""
-    _ensure_hydrated()
     ids = _resolve_run_ids(run_id, run_ids)
     if len(ids) < 2 and run_ids:
         raise HTTPException(
@@ -188,10 +218,9 @@ async def compare_backtests(
 
     comparisons = []
     for rid in ids:
-        with _backtest_cache_lock:
-            result = _backtest_cache.get(rid)
+        result = _BacktestCache.get(rid)
         if not result:
-            result = _cache_store.get(rid)
+            result = _BacktestCache._store.get(rid)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

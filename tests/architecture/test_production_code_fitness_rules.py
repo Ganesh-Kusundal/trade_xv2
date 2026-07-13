@@ -330,6 +330,7 @@ class TestRetryUsage:
             "src/brokers/dhan/execution/forever_orders.py",  # Idempotency poll-wait
             "src/interface/ui/services/feed_probe.py",  # Live-feed probe window (not HTTP retry)
             "src/interface/ui/utils/retry_handler.py",  # Shared UI retry helper
+            "src/brokers/services/market_data.py",  # Subscribe probe window (not HTTP retry)
         ]
         violations = [
             v for v in violations

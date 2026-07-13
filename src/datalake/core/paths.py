@@ -229,9 +229,9 @@ def get_candle_path(
     root:
         Datalake root directory.  Defaults to :data:`DEFAULT_DATA_ROOT`.
     """
-    from datalake.core.symbols import normalize_symbol
+    from datalake.core.symbols import normalize_symbol_for_storage
 
-    symbol = normalize_symbol(symbol)
+    symbol = normalize_symbol_for_storage(symbol)
     return (
         Path(root)
         / "equities"

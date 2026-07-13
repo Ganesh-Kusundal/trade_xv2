@@ -64,6 +64,7 @@ def _quote_from_instrument_dict(
         low=UpstoxPriceParser.parse(ohlc.get("low") or 0),
         close=UpstoxPriceParser.parse(close or 0),
         volume=to_int(data.get("volume") or ohlc.get("volume")),
+        oi=to_int(data.get("oi") or 0),
         bid=UpstoxPriceParser.parse(bid[0].get("price"))
         if isinstance(bid, list) and bid
         else None,

@@ -1,4 +1,14 @@
-"""Multi-strategy runtime — execute multiple registered strategies concurrently."""
+"""Multi-strategy runtime — discover and build a StrategyPipeline from builtins.
+
+This is a **strategy-pipeline builder**, not a trading executor.  The
+``TradingOrchestrator`` handles the full Scanner→Strategy→OMS flow.
+Runtime usage: ``trading_runtime_factory`` builds a pipeline here and
+wires it into the orchestrator.
+
+.. note::
+   Added by SM-19 (Phase 4a): documented as pipeline-builder, not
+   competitor to the orchestrator.
+"""
 
 from __future__ import annotations
 

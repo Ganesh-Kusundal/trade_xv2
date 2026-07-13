@@ -3,17 +3,58 @@
 from __future__ import annotations
 
 import json
+import logging
 import shlex
 import sys
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 import click
 from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.table import Table
 
+logger = logging.getLogger(__name__)
+
 from brokers.cli._render import console, json_mode
+from brokers.cli._shell_types import (
+    Back,
+    EnterSection,
+    Help,
+    Quit,
+    ResolvedAction,
+    RetryConnect,
+    RunCommand,
+    ShellItem,
+    ShellMenu,
+    Unknown,
+)
+
+# Re-export types for backward compatibility.
+__all__ = [
+    "Back",
+    "EnterSection",
+    "Help",
+    "Quit",
+    "ResolvedAction",
+    "RetryConnect",
+    "RunCommand",
+    "ShellItem",
+    "ShellMenu",
+    "Unknown",
+    "RECOVERY_MENU",
+    "arg_hint_display",
+    "ask_menu_line",
+    "build_main_menu",
+    "click_command_name",
+    "command_needs_args",
+    "commands_needing_args",
+    "filter_extension_commands",
+    "print_unknown",
+    "prompt_for_args",
+    "render_help_for_menu",
+    "render_menu",
+    "resolve_input",
+]
 from brokers.cli._shell_ui import render_header
 from domain.ports.broker_id import BrokerId
 from infrastructure.adapter_factory import get_broker_extension_classes
@@ -159,24 +200,6 @@ def filter_extension_commands(broker_id: str, declared: list[str] | None) -> lis
     ]
 
 
-@dataclass
-class ShellItem:
-    number: int
-    name: str
-    help: str
-    kind: Literal["section", "command", "retry", "quit"] = "command"
-    arg_hint: str | None = None
-    child: ShellMenu | None = None
-
-
-@dataclass
-class ShellMenu:
-    title: str
-    items: list[ShellItem] = field(default_factory=list)
-    is_main: bool = False
-    is_recovery: bool = False
-
-
 def _command_help(group: Any, name: str) -> str:
     cmd = group.commands.get(name)
     if cmd is None:
@@ -233,44 +256,6 @@ RECOVERY_MENU = ShellMenu(
         ShellItem(3, "quit", "Leave shell", kind="quit"),
     ],
 )
-
-
-class Quit:
-    pass
-
-
-@dataclass
-class Back:
-    pass
-
-
-@dataclass
-class Help:
-    pass
-
-
-@dataclass
-class RetryConnect:
-    pass
-
-
-@dataclass
-class EnterSection:
-    menu: ShellMenu
-
-
-@dataclass
-class RunCommand:
-    name: str
-    args: list[str]
-
-
-@dataclass
-class Unknown:
-    token: str
-
-
-ResolvedAction = Quit | Back | Help | RetryConnect | EnterSection | RunCommand | Unknown
 
 
 def _item_by_number(menu: ShellMenu, num: int) -> ShellItem | None:
@@ -466,7 +451,7 @@ def render_menu(
             ],
             "hints": _RECOVERY_FOOTER if menu.is_recovery else _FOOTER_HINTS,
         }
-        print(json.dumps(payload, default=str, indent=2))
+        logger.info(json.dumps(payload, default=str, indent=2))
         return
 
     render_header(session_info, broker_id, out=target)

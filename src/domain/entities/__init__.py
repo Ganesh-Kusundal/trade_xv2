@@ -75,7 +75,7 @@ from domain.entities.position import (
 )
 
 # Trade
-from domain.entities.trade import Trade
+from domain.entities.trade import Trade, build_domain_trade
 
 __all__ = [
     "ORDER_STATUS_TRANSITIONS",
@@ -109,4 +109,5 @@ __all__ = [
     "Quote",
     "QuoteSnapshot",
     "Trade",
+    "build_domain_trade",
 ]

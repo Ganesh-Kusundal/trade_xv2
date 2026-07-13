@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta, timezone
 from enum import Enum
 
 from brokers.session import BrokerSession
+
+logger = logging.getLogger(__name__)
 
 try:
     from domain.constants import (
@@ -108,9 +111,10 @@ class MarketHoursReport:
     def print_report(self) -> None:
         for r in self.results:
             mark = "PASS" if r.expectations_met else "WARN"
-            print(
-                f"  [{mark}] {r.phase}: quote={r.quote_available} sub={r.subscription_ok} "
-                f"hist={r.history_available} orders={r.orders_allowed} ({r.detail})"
+            logger.info(
+                "  [%s] %s: quote=%s sub=%s hist=%s orders=%s (%s)",
+                mark, r.phase, r.quote_available, r.subscription_ok,
+                r.history_available, r.orders_allowed, r.detail,
             )
 
 

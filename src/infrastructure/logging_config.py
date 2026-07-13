@@ -29,8 +29,14 @@ import logging.config
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+# Log display timezone. Internal clocks (``TimeService.now``) stay UTC-canonical
+# for storage/audit/replay parity; this only affects how operators read logs.
+# IST = UTC+5:30, no DST — same value as domain.constants.IST_OFFSET, redefined
+# here to keep the logging bootstrap stdlib-only (no domain import at startup).
+_LOG_TZ = timezone(timedelta(hours=5, minutes=30))
 
 # Token redaction patterns
 _TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -126,7 +132,7 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=_LOG_TZ).isoformat(),
             "service": self._service,
             "level": record.levelname,
             "logger": record.name,
@@ -165,7 +171,7 @@ class HumanReadableFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
-        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).strftime("%H:%M:%S.%f")[:-3]
+        timestamp = datetime.fromtimestamp(record.created, tz=_LOG_TZ).strftime("%H:%M:%S.%f")[:-3]
         color = self.COLORS.get(record.levelname, "")
         level = f"{record.levelname:<8}"
         correlation_id = getattr(record, "correlation_id", "")

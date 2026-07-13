@@ -82,15 +82,16 @@ def evaluate_api_readiness(container: Any) -> ApiReadinessReport:
     if broker_service is not None:
         gw = getattr(broker_service, "active_broker", None)
         live = bool(getattr(broker_service, "live_actionable", False))
+        live_intent = broker_service.live_intent if hasattr(broker_service, 'live_intent') else False
         gates.append(
             _gate(
                 "broker_session",
-                gw is not None or not getattr(broker_service, "_live_intent", False),
+                gw is not None or not live_intent,
                 message="gateway wired" if gw is not None else "no live gateway",
-                blocked=gw is None and getattr(broker_service, "_live_intent", False),
+                blocked=gw is None and live_intent,
             )
         )
-        if getattr(broker_service, "_live_intent", False):
+        if live_intent:
             from application.services.production_readiness import ProductionReadinessChecker
 
             prod = ProductionReadinessChecker(broker_service).run()

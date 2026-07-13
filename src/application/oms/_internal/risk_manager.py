@@ -101,8 +101,8 @@ class RiskManager:
 
     * ``_config`` — frozen :class:`RiskConfig`; replaced atomically on
       :meth:`set_kill_switch`.
-    * ``_daily_pnl`` — running total of realised + unrealised PnL for
-      the current day. Reset to 0 by :meth:`reset_daily_pnl`.
+    * ``_daily_pnl`` — session equity delta (current − session-open equity).
+      Reset to 0 by :meth:`reset_daily_pnl`.
     * ``_loss_cb`` — :class:`LossCircuitBreaker` for rolling-window loss
       detection (B1).
 
@@ -281,11 +281,11 @@ class RiskManager:
                     f"(MARKET orders require LTP/ref price)",
                 )
 
-            # Per-symbol concentration
+            # Per-symbol concentration (includes in-flight pending — R4)
             current = self._position_manager.get_position(order.symbol, order.exchange)
             current_notional = (
-                Decimal(abs(current.quantity))
-                * current.avg_price
+                Decimal(str(abs(int(current.quantity))))
+                * (current.avg_price.to_decimal() if hasattr(current.avg_price, "to_decimal") else Decimal(str(current.avg_price)))
                 * (current.multiplier if getattr(current, "multiplier", None) else Decimal("1"))
                 if current
                 else Decimal("0")
@@ -299,9 +299,11 @@ class RiskManager:
             # Gross exposure
             positions = self._position_manager.get_positions()
             gross = sum(
-                Decimal(abs(p.quantity))
-                * p.avg_price
-                * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
+                (
+                    Decimal(str(abs(int(p.quantity))))
+                    * (p.avg_price.to_decimal() if hasattr(p.avg_price, "to_decimal") else Decimal(str(p.avg_price)))
+                    * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
+                )
                 for p in positions
             )
             pending_gross = self._margin_checker.pending_gross()
@@ -322,17 +324,14 @@ class RiskManager:
             return RiskResult(True)
 
     def update_daily_pnl(self, pnl: Decimal) -> None:
-        """Update running daily PnL (called by portfolio manager).
+        """Update session equity delta (F5 — not absolute book MTM).
 
-        Thread-safe. Replaces the running total atomically; readers
-        under ``_lock`` will see either the old or the new value, not a
-        partially-written one.
-
-        B1: Also records the PnL delta in the loss circuit breaker so
-        the rolling-window loss threshold is updated.
+        ``pnl`` must be ``current_equity − session_open_equity``. Thread-safe.
+        Also records the tick-to-tick change in the loss circuit breaker.
         """
+        amount = Decimal(str(getattr(pnl, "amount", pnl)))
         with self._lock:
-            self._daily_pnl_tracker.update(pnl)
+            self._daily_pnl_tracker.update(amount)
 
     def set_kill_switch(self, active: bool) -> None:
         """Enable or disable the kill switch by replacing the frozen config.
@@ -423,6 +422,11 @@ class RiskManager:
     def throttler(self) -> Throttler:
         """Access the submit/modify rate throttler for inspection."""
         return self._throttler
+
+    @property
+    def capital_provider(self):
+        """Public accessor for capital provider (used by OrderPlacer)."""
+        return self._capital_provider
 
     def snapshot(self) -> dict:
         """Return a JSON-serializable view of risk-manager state.

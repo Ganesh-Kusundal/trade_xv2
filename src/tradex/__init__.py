@@ -59,6 +59,10 @@ from tradex.session import connect, open_session
 # Public factory — ``tradex.Session(broker="paper")`` / ``tradex.connect("paper")``
 Session = open_session
 
+# SM-20: The domain imports above are part of the public SDK surface.
+# Users are expected to do: ``from tradex import Equity, OptionChain, ...``
+# This is intentional, not an internal leak.  See docs/OBJECT_MODEL.md.
+
 __all__ = [
     "AssetKind",
     "Commodity",

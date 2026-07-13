@@ -8,6 +8,21 @@ The BacktestEngine uses the ReplayEngine for the bar-by-bar loop
     - Benchmark comparison (alpha, beta, IR)
     - Trade analysis
 
+=============================================================================
+WARNING — ResearchMode.PURE_SIM (DEFAULT) IS NOT LIVE-PARITY
+=============================================================================
+Default ``mode=ResearchMode.PURE_SIM`` runs fills through ReplayEngine's
+direct simulation path (``oms_adapter=None``): **no** OMS risk gates,
+**no** idempotency ledger, **no** order-lifecycle events.
+
+Do NOT treat PURE_SIM equity / trade counts as a live-trading guarantee.
+For zero-parity with paper/live, construct with::
+
+    BacktestEngine(..., mode=ResearchMode.PARITY, trading_context=ctx)
+
+or pass ``oms_adapter=...``. CI / release parity jobs must use PARITY.
+=============================================================================
+
 Usage:
     from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
     from analytics.strategy import StrategyPipeline, MomentumStrategy
@@ -45,14 +60,16 @@ logger = logging.getLogger(__name__)
 
 
 class ResearchMode(str, Enum):
-    """ENG-012: explicit research vs live-parity simulation modes.
+    """ENG-012 / F2f: explicit research vs live-parity simulation modes.
+
+    !! PURE_SIM (default) IS RESEARCH-ONLY — NOT A LIVE GUARANTEE !!
 
     pure_sim
-        Fast research loop; may skip OMS risk. Results are **not** a live
-        guarantee.
+        Fast research loop; may skip OMS risk / idempotency / order events.
+        Results must **never** be cited as proof the strategy is live-safe.
     parity
         Requires OMS/trading_context wiring; risk gates and order path mirror
-        live as closely as the stack allows.
+        live as closely as the stack allows. Use this for CI parity jobs.
     """
 
     PURE_SIM = "pure_sim"

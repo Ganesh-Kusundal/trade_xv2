@@ -30,7 +30,7 @@ def wire_gateway_for_session(
     existing_kernel: SessionKernel | None = None,
 ) -> SessionKernel:
     """Register gateway with session-scoped registry and shared quota profiles."""
-    global _shared_quota
+    global _shared_quota  # intentional module singleton — shared QuotaScheduler
 
     from application.composer.registry import BrokerRegistry
     from application.composer.router import BrokerRouter

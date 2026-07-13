@@ -18,22 +18,32 @@ from domain.universe import Session
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
-# ── Session DI ──────────────────────────────────────────────────────
-_session: Session | None = None
+
+class _SessionState:
+    """Module-level session state (set once at startup)."""
+
+    _session: Session | None = None
+
+    @classmethod
+    def set(cls, session: Session) -> None:
+        cls._session = session
+
+    @classmethod
+    def get(cls) -> Session:
+        if cls._session is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Session not wired — call set_session() at startup",
+            )
+        return cls._session
 
 
 def set_session(session: Session) -> None:
-    global _session
-    _session = session
+    _SessionState.set(session)
 
 
 def _get_session() -> Session:
-    if _session is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Session not wired — call set_session() at startup",
-        )
-    return _session
+    return _SessionState.get()
 
 
 @router.get("/quote/{symbol}")

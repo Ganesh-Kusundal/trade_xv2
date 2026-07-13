@@ -48,7 +48,15 @@ def file_lock(path: Path, timeout: float = 30.0):
 
 
 def _temp_path(path: Path) -> Path:
-    """Return a temp-file path next to the final destination."""
+    """Return a temp-file path next to the final destination.
+
+    Ensures the parent directory exists first -- both atomic_parquet_write
+    and atomic_text_write write to this path *before* _fsync_and_replace
+    runs (which was the only place doing mkdir, too late for the first
+    write to a brand-new symbol/directory that's never been synced
+    before).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
     return path.with_suffix(f"{path.suffix}.tmp")
 
 

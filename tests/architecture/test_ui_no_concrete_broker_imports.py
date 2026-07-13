@@ -53,8 +53,12 @@ def test_compose_delegates_to_runtime_factory() -> None:
     import inspect
 
     import interface.ui.services.compose as compose_mod
+    import runtime.api_compose as api_compose
 
-    for name in ("build_runtime", "build_for_api"):
-        src = inspect.getsource(getattr(compose_mod, name))
-        assert "build(" in src, f"{name} must call runtime.factory.build"
-        assert "TradingRuntimeFactory(" not in src
+    src = inspect.getsource(compose_mod.build_runtime)
+    assert "build(" in src, "build_runtime must call runtime.factory.build"
+    assert "TradingRuntimeFactory(" not in src
+
+    api_src = inspect.getsource(api_compose.build_for_api)
+    assert "build(" in api_src, "build_for_api must call runtime.factory.build"
+    assert "TradingRuntimeFactory(" not in api_src

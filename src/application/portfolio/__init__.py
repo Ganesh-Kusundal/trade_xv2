@@ -7,6 +7,7 @@ and P&L queries. It operates exclusively on the canonical domain value objects
 
 from __future__ import annotations
 
+from application.portfolio.active_session import get_active_session, refresh_account
 from application.portfolio.context import PortfolioContext
 from application.portfolio.portfolio_service import (
     HoldingsSummary,
@@ -31,4 +32,6 @@ __all__ = [
     "PositionSummary",
     "TradeStore",
     "TradeSummary",
+    "get_active_session",
+    "refresh_account",
 ]

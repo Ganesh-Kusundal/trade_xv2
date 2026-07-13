@@ -25,6 +25,7 @@ _ALLOWLIST = {
     PROJECT_ROOT / "src" / "infrastructure" / "gateway" / "factory.py",
     PROJECT_ROOT / "src" / "brokers" / "dhan" / "identity" / "factory.py",
     PROJECT_ROOT / "src" / "brokers" / "upstox" / "factory.py",
+    PROJECT_ROOT / "src" / "runtime" / "broker_builders.py",
 }
 
 # Unit tests for factories may import BrokerFactory directly.

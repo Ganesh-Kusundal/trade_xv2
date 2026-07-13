@@ -48,6 +48,7 @@ from analytics.paper.bar_window import BarWindowManager
 from analytics.paper.position_closer import PaperPositionCloser
 from analytics.paper.signal_processor import PaperSignalProcessor
 from analytics.pipeline.pipeline import FeaturePipeline
+from analytics.replay.models import FillModel
 from domain.candles.historical import HistoricalBar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
@@ -171,6 +172,13 @@ class PaperTradingEngine:
         """
         session.bar_count += 1
 
+        # Flush NEXT_OPEN pending from prior bar at this bar's open
+        pending: list[tuple[Signal, HistoricalBar]] = getattr(session, "_pending_signals", [])
+        if pending:
+            for sig, _sig_bar in pending:
+                self._signal_processor.process(sig, bar, session, fill_price=bar.open)
+            pending.clear()
+
         # Check stop-loss / take-profit on existing positions
         self._closer.check_exits(session, bar)
 
@@ -201,9 +209,14 @@ class PaperTradingEngine:
         # Run StrategyPipeline
         signals = self._strategy.evaluate_single(candidate, features)
 
-        # Process signals
+        # Process signals (NEXT_OPEN defers to next bar open — same as ReplayEngine)
+        if not hasattr(session, "_pending_signals"):
+            session._pending_signals = []  # type: ignore[attr-defined]
         for signal in signals:
-            self._signal_processor.process(signal, bar, session)
+            if self._config.fill_model == FillModel.NEXT_OPEN:
+                session._pending_signals.append((signal, bar))  # type: ignore[attr-defined]
+            else:
+                self._signal_processor.process(signal, bar, session)
 
         # Update equity
         equity = session.total_equity
@@ -226,14 +239,15 @@ class PaperTradingEngine:
         ``_run_multi_symbol`` (REF-002 DRY remediation).
 
         For each ``HistoricalBar`` yielded by *bars*:
-        1. Append to a growing sliding window.
-        2. Skip warmup bars.
-        3. Check stop-loss / take-profit exits.
-        4. Update position mark-to-market prices.
-        5. Run the feature pipeline to compute indicators.
-        6. Construct a ``Candidate`` and evaluate it through the strategy pipeline.
-        7. Process every actionable signal (place/close simulated orders).
-        8. Record the resulting equity in the session's equity curve.
+        1. Flush pending NEXT_OPEN signals at this bar's open.
+        2. Append to a growing sliding window.
+        3. Skip warmup bars.
+        4. Check stop-loss / take-profit exits.
+        5. Update position mark-to-market prices.
+        6. Run the feature pipeline to compute indicators.
+        7. Construct a ``Candidate`` and evaluate it through the strategy pipeline.
+        8. Process every actionable signal (or defer for NEXT_OPEN).
+        9. Record the resulting equity in the session's equity curve.
 
         Parameters
         ----------
@@ -251,10 +265,21 @@ class PaperTradingEngine:
         window: list[dict] = []
         warmup_done = False
         signals_all: list[Signal] = []
+        # symbol -> pending (signal, bar) for FillModel.NEXT_OPEN
+        pending_by_symbol: dict[str, list[tuple[Signal, HistoricalBar]]] = {}
+        last_bars: dict[str, HistoricalBar] = {}
 
         for bar in bars:
+            last_bars[bar.symbol] = bar
             window.append(bar.to_dict())
             session.bar_count += 1
+
+            # Flush prior-bar NEXT_OPEN signals at this bar's open
+            sym_pending = pending_by_symbol.setdefault(bar.symbol, [])
+            if sym_pending:
+                for sig, _sig_bar in sym_pending:
+                    self._signal_processor.process(sig, bar, session, fill_price=bar.open)
+                sym_pending.clear()
 
             # Warmup phase — skip bars until the warmup window is full
             if not warmup_done:
@@ -281,16 +306,31 @@ class PaperTradingEngine:
             candidate = Candidate(symbol=bar.symbol, score=50.0, reasons=["paper"])
             signals = self._strategy.evaluate_single(candidate, features)
 
-            # Process every actionable signal
             for signal in signals:
                 signals_all.append(signal)
-                self._signal_processor.process(signal, bar, session)
+                if config.fill_model == FillModel.NEXT_OPEN:
+                    sym_pending.append((signal, bar))
+                else:
+                    self._signal_processor.process(signal, bar, session)
 
             # Record equity after all signals for this bar have been processed
             equity = session.total_equity
             session.equity_curve.append((bar.timestamp, equity))
             if equity > session.peak_equity:
                 session.peak_equity = equity
+
+        # Remaining pending: no next bar — fill at last bar open (matches ReplayEngine)
+        for symbol, sym_pending in pending_by_symbol.items():
+            if not sym_pending:
+                continue
+            fill_bar = last_bars.get(symbol)
+            if fill_bar is None:
+                continue
+            for sig, _sig_bar in sym_pending:
+                self._signal_processor.process(
+                    sig, fill_bar, session, fill_price=fill_bar.open
+                )
+            sym_pending.clear()
 
         return signals_all
 

@@ -35,25 +35,25 @@ _runtime_hooks = RuntimeHooks()
 
 def set_runtime_hooks(hooks: RuntimeHooks) -> None:
     """Replace the module-level runtime hooks (preferred for DI)."""
-    global _runtime_hooks
+    global _runtime_hooks  # intentional module singleton — backward-compatible DI
     _runtime_hooks = hooks
 
 
 def register_oms_backtest_factory(factory: Callable[..., Any]) -> None:
     """Register factory used by analytics engines when ``trading_context`` is set."""
-    global _runtime_hooks
+    global _runtime_hooks  # intentional module singleton — backward-compatible DI
     _runtime_hooks = replace(_runtime_hooks, oms_backtest_factory=factory)
 
 
 def register_domain_event_factory(factory: Callable[..., Any]) -> None:
     """Register factory for creating domain events from analytics engines."""
-    global _runtime_hooks
+    global _runtime_hooks  # intentional module singleton — backward-compatible DI
     _runtime_hooks = replace(_runtime_hooks, domain_event_factory=factory)
 
 
 def register_trading_context_factory(factory: Callable[..., Any]) -> None:
     """Register factory for creating TradingContext from orchestrators."""
-    global _runtime_hooks
+    global _runtime_hooks  # intentional module singleton — backward-compatible DI
     _runtime_hooks = replace(_runtime_hooks, trading_context_factory=factory)
 
 

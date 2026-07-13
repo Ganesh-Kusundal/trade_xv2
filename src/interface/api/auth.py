@@ -54,9 +54,27 @@ def _normalize_auth_mode(mode: str) -> str:
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-AUTH_MODE: str = _normalize_auth_mode(os.getenv("AUTH_MODE", "api_key"))
-API_KEY: str = os.getenv("API_KEY", "")
-ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
+
+class _AuthConfig:
+    """Module-level auth configuration state."""
+
+    AUTH_MODE: str = _normalize_auth_mode(os.getenv("AUTH_MODE", "api_key"))
+    API_KEY: str = os.getenv("API_KEY", "")
+    ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
+
+    @classmethod
+    def configure(cls, *, auth_mode: str, api_key: str = "") -> None:
+        """Override auth settings from APIConfig (called by ``create_app``)."""
+        cls.AUTH_MODE = _normalize_auth_mode(auth_mode)
+        if api_key:
+            cls.API_KEY = api_key
+        elif cls.AUTH_MODE == "api_key" and not cls.API_KEY:
+            cls.API_KEY = secrets.token_urlsafe(32)
+
+
+AUTH_MODE = _AuthConfig.AUTH_MODE  # intentional module singleton — read by FastAPI deps
+API_KEY = _AuthConfig.API_KEY  # intentional module singleton — read by FastAPI deps
+ADMIN_API_KEY = _AuthConfig.ADMIN_API_KEY
 
 if AUTH_MODE == "api_key" and not API_KEY:
     API_KEY = secrets.token_urlsafe(32)
@@ -68,12 +86,10 @@ if AUTH_MODE == "api_key" and not API_KEY:
 
 def configure(*, auth_mode: str, api_key: str = "") -> None:
     """Override auth settings from APIConfig (called by ``create_app``)."""
-    global AUTH_MODE, API_KEY
-    AUTH_MODE = _normalize_auth_mode(auth_mode)
-    if api_key:
-        API_KEY = api_key
-    elif AUTH_MODE == "api_key" and not API_KEY:
-        API_KEY = secrets.token_urlsafe(32)
+    _AuthConfig.configure(auth_mode=auth_mode, api_key=api_key)
+    global AUTH_MODE, API_KEY  # intentional module singleton — updated once at startup
+    AUTH_MODE = _AuthConfig.AUTH_MODE
+    API_KEY = _AuthConfig.API_KEY
 
 
 def _is_production_docs_gated() -> bool:

@@ -10,12 +10,15 @@ re-implements broker connectivity logic.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
 
 from brokers.session import BrokerSession
+
+logger = logging.getLogger(__name__)
 
 
 class CheckStatus(str, Enum):
@@ -73,11 +76,11 @@ class DiagnosticReport:
         return [c for c in self.checks if c.status == CheckStatus.FAIL]
 
     def print_report(self) -> None:
-        print(f"Diagnostics for broker '{self.broker_id}':")
+        logger.info("Diagnostics for broker '%s':", self.broker_id)
         for c in self.checks:
-            print(f"  [{c.status.value}] {c.name}: {c.detail}  ({c.latency_ms}ms)")
+            logger.info("  [%s] %s: %s  (%.2fms)", c.status.value, c.name, c.detail, c.latency_ms)
         verdict = "PASS" if self.all_passed else f"{len(self.failed)} FAILED"
-        print(f"Overall: {verdict}")
+        logger.info("Overall: %s", verdict)
 
     def to_dict(self) -> dict[str, Any]:
         return {

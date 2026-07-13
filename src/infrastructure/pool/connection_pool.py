@@ -254,7 +254,7 @@ def get_connection_pool() -> ConnectionPoolManager:
         pool = get_connection_pool()
         session = pool.get_session("upstox")
     """
-    global _connection_pool
+    global _connection_pool  # intentional module singleton — double-checked locking
 
     # Fast path: singleton already created (no lock needed)
     if _connection_pool is not None:
@@ -278,7 +278,7 @@ def reset_connection_pool() -> None:
 
     WARNING: Do NOT call this in production code. Only use in tests.
     """
-    global _connection_pool
+    global _connection_pool  # intentional module singleton — reset for tests only
 
     with _pool_lock:
         if _connection_pool is not None:

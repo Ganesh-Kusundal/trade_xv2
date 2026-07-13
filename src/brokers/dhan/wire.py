@@ -49,13 +49,44 @@ class DhanWireAdapter:
         return False
 
     def authenticate(self) -> bool:
-        """BrokerAdapter lifecycle hook.
+        """Ensure Dhan session token is usable — parity with Upstox.connect().
 
-        Dhan auth (token bootstrap) is performed by the connection's token
-        manager during connect(); the wire adapter only reflects current
-        liveness so the structural BrokerAdapter contract holds.
+        Prefers ``AuthManager.ensure_valid()`` when the factory wired auth onto
+        the connection; otherwise ensures the HTTP client's access token via
+        refresh. Does **not** report WebSocket feed liveness (that is
+        ``is_connected``).
         """
-        return self.is_connected
+        conn = self._conn
+        auth = getattr(conn, "_auth", None)
+        if auth is None:
+            sm = getattr(conn, "_session_manager", None)
+            auth = getattr(sm, "auth", None) if sm is not None else None
+        if auth is not None:
+            ensure = getattr(auth, "ensure_valid", None)
+            if callable(ensure):
+                try:
+                    if ensure():
+                        state = getattr(auth, "state", None)
+                        token = getattr(state, "access_token", None) if state else None
+                        client = getattr(conn, "_client", None)
+                        if token and client is not None and hasattr(client, "update_token"):
+                            client.update_token(token)
+                        return True
+                except Exception as exc:
+                    logger.warning("dhan_authenticate_ensure_failed: %s", exc)
+        client = getattr(conn, "_client", None)
+        if client is None:
+            return False
+        if (getattr(client, "access_token", None) or "").strip():
+            return True
+        refresh = getattr(client, "_try_refresh_token", None)
+        if callable(refresh):
+            try:
+                return bool(refresh())
+            except Exception as exc:
+                logger.warning("dhan_authenticate_refresh_failed: %s", exc)
+                return False
+        return False
 
     @property
     def extended(self) -> Any:
@@ -385,4 +416,3 @@ def create_wire_adapter(connection: DhanConnection | DhanWireAdapter) -> DhanWir
 
 
 DhanBrokerGateway = DhanWireAdapter
-BrokerGateway = DhanWireAdapter

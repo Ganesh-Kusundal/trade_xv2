@@ -66,6 +66,14 @@ async def lifespan(app: FastAPI):
         return
 
     ctx = container.trading_context
+    runtime = getattr(container, "runtime", None)
+    if runtime is not None:
+        try:
+            await runtime.start()
+            logger.info("TradingRuntime streams started")
+        except Exception as exc:
+            logger.warning("TradingRuntime.start() failed: %s", exc)
+
     if ctx is None:
         logger.warning(
             "No TradingContext in container — OMS endpoints disabled. "

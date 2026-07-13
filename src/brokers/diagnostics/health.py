@@ -7,11 +7,14 @@ a :class:`BrokerSession`.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from brokers.diagnostics.core import CheckResult, CheckStatus, DiagnosticReport
 from brokers.session import BrokerSession
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -23,11 +26,11 @@ class HealthReport:
         self.checks.append(CheckResult(name, status, detail))
 
     def print_report(self) -> None:
-        print(f"broker health — '{self.broker_id}':")
+        logger.info("broker health — '%s':", self.broker_id)
         for c in self.checks:
-            print(f"  [{c.status.value}] {c.name}: {c.detail}")
+            logger.info("  [%s] %s: %s", c.status.value, c.name, c.detail)
         failed = [c for c in self.checks if c.status == CheckStatus.FAIL]
-        print(f"Overall: {'HEALTHY' if not failed else f'{len(failed)} unhealthy'}")
+        logger.info("Overall: %s", "HEALTHY" if not failed else f"{len(failed)} unhealthy")
 
     def to_dict(self) -> dict[str, Any]:
         return {"broker_id": self.broker_id, "checks": [vars(c) for c in self.checks]}

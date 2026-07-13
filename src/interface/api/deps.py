@@ -21,6 +21,10 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from domain.ports.event_publisher import EventBusPort
+from domain.ports.market_data import MarketDataPort
+from domain.ports.order_service import OrderServicePort
+from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.di import container as di_container
 
 logger = logging.getLogger(__name__)
@@ -45,7 +49,7 @@ def get_container() -> SimpleNamespace:
 
 def set_container(services: SimpleNamespace | dict[str, Any]) -> None:
     """Set services and register them in the DI container. Idempotent."""
-    global _container
+    global _container  # intentional module singleton — DI container
     if _container is not None:
         logger.warning("Service container already initialized — ignoring duplicate")
         return
@@ -77,7 +81,7 @@ def reset_container() -> None:
     This bypasses the idempotent guard in set_container to allow
     tests to isolate their service state. Never call in production.
     """
-    global _container, _trade_journal_instance
+    global _container, _trade_journal_instance  # intentional module singleton — test reset only
     _container = None
     _trade_journal_instance = None
     di_container.reset()
@@ -101,9 +105,9 @@ def get_data_catalog() -> Any:
     return di_container.resolve("data_catalog")
 
 
-def get_event_bus() -> Any:
+def get_event_bus() -> EventBusPort:
     """Get EventBus instance for real-time events."""
-    return di_container.resolve("event_bus")
+    return di_container.resolve("event_bus")  # type: ignore[no-any-return]
 
 
 def get_trading_context() -> Any:
@@ -121,7 +125,7 @@ def get_trading_context() -> Any:
     return ctx
 
 
-def get_order_manager() -> Any:
+def get_order_manager() -> OrderServicePort:
     """Get OrderManager from TradingContext.
 
     Raises 503 if TradingContext or OrderManager is not available.
@@ -129,7 +133,7 @@ def get_order_manager() -> Any:
     # Check direct registration first (higher priority)
     om = di_container.resolve("order_manager")
     if om is not None:
-        return om
+        return om  # type: ignore[no-any-return]
 
     # Fall back to TradingContext
     ctx = di_container.resolve("trading_context")
@@ -143,7 +147,7 @@ def get_order_manager() -> Any:
             ),
         )
 
-    return ctx.order_manager
+    return ctx.order_manager  # type: ignore[no-any-return]
 
 
 def get_position_manager() -> Any:
@@ -171,7 +175,7 @@ def get_position_manager() -> Any:
     return ctx.position_manager
 
 
-def get_risk_manager() -> Any:
+def get_risk_manager() -> RiskManagerPort:
     """Get RiskManager from TradingContext.
 
     Raises 503 if TradingContext or RiskManager is not available.
@@ -179,7 +183,7 @@ def get_risk_manager() -> Any:
     # Check direct registration first (higher priority)
     rm = di_container.resolve("risk_manager")
     if rm is not None:
-        return rm
+        return rm  # type: ignore[no-any-return]
 
     # Fall back to TradingContext
     ctx = di_container.resolve("trading_context")
@@ -193,7 +197,7 @@ def get_risk_manager() -> Any:
             ),
         )
 
-    return ctx.risk_manager
+    return ctx.risk_manager  # type: ignore[no-any-return]
 
 
 def get_order_repository() -> Any:
@@ -215,7 +219,7 @@ def get_broker_service() -> Any:
     return di_container.resolve("broker_service")
 
 
-def get_market_data_composer() -> Any:
+def get_market_data_composer() -> MarketDataPort:
     """Get MarketDataComposer for unified multi-broker historical/streaming data.
 
     Raises 503 if not initialized.
@@ -229,7 +233,7 @@ def get_market_data_composer() -> Any:
                 "Initialize composers via application.composer.factory.create_composers()."
             ),
         )
-    return composer
+    return composer  # type: ignore[no-any-return]
 
 
 def get_execution_composer() -> Any:
@@ -281,7 +285,7 @@ _trade_journal_instance: Any = None
 
 def get_trade_journal() -> Any:
     """Get TradeJournal for historical P&L queries (singleton)."""
-    global _trade_journal_instance
+    global _trade_journal_instance  # intentional module singleton — lazy init
     if _trade_journal_instance is None:
         from datalake.research.journal import TradeJournal
 

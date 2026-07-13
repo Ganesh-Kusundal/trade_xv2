@@ -256,7 +256,7 @@ class QuotaScheduler:
                     },
                 )
                 with contextlib.suppress(Exception):
-                    from infrastructure.observability.audit import emit_quota_event
+                    from domain.ports.audit import emit_quota_event
 
                     emit_quota_event(
                         broker_id,
@@ -285,7 +285,7 @@ class QuotaScheduler:
                     },
                 )
                 with contextlib.suppress(Exception):
-                    from infrastructure.observability.audit import emit_quota_event
+                    from domain.ports.audit import emit_quota_event
 
                     emit_quota_event(
                         broker_id,

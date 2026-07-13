@@ -1,8 +1,8 @@
 """Application layer must not import infrastructure (TRANS-P3-011).
 
-Mirrors ``Application infrastructure separation`` in pyproject.toml: known debt
-edges are allowlisted; any other ``application -> infrastructure`` import fails.
-``infrastructure.observability.tracing`` is never allowlisted (fixed in P3-008).
+Any ``application -> infrastructure`` import fails. Domain ports + composition-root
+wiring replace the former debt allowlist (audit Phase 0 / F1).
+``infrastructure.observability.tracing`` remains explicitly forbidden.
 """
 
 from __future__ import annotations
@@ -18,33 +18,8 @@ APPLICATION_ROOT = REPO_ROOT / "src" / "application"
 # Tests under application/oms/tests etc. may import infra for integration harnesses.
 _ALLOWLIST_SUBSTRINGS: tuple[str, ...] = ("/tests/", "\\tests\\")
 
-# Approved debt — keep in sync with pyproject.toml ignore_imports (TRANS-P3-008).
-_APPROVED_EDGES: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("application.composer.router", "infrastructure.observability.audit"),
-        ("application.composer.router", "infrastructure.time.clock"),
-        ("application.composer.gap_reconciler", "infrastructure.time.clock"),
-        ("application.services.download_engine", "infrastructure.io.parquet"),
-        ("application.services.historical_data", "infrastructure.historical_data"),
-        (
-            "application.services.production_readiness",
-            "infrastructure.security.ssl_hardening",
-        ),
-        ("application.data.provenance", "infrastructure.time.clock"),
-        (
-            "application.data.historical_coordinator",
-            "infrastructure.observability.audit",
-        ),
-        (
-            "application.streaming.orchestrator",
-            "infrastructure.observability.audit",
-        ),
-        (
-            "application.scheduling.quota_scheduler",
-            "infrastructure.observability.audit",
-        ),
-    }
-)
+# No approved debt — application must use domain.ports (wired at composition root).
+_APPROVED_EDGES: frozenset[tuple[str, str]] = frozenset()
 
 _FORBIDDEN_TARGETS: frozenset[str] = frozenset(
     {

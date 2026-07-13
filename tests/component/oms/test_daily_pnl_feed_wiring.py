@@ -44,8 +44,6 @@ def _publish_trade_applied(bus: EventBus, trade: Trade) -> None:
         DomainEvent.now(
             EventType.TRADE_APPLIED.value,
             {"trade": trade},
-            symbol=trade.symbol,
-            source="OrderManager",
         )
     )
 

@@ -1,9 +1,8 @@
 """Signal processing for paper trading — routes actionable signals through OMS.
 
 Extracted from ``analytics.paper.engine.PaperTradingEngine`` so the engine can
-stay a thin facade. The processor depends on the paper ``config``, an OMS
-backtest adapter for order routing, and a fill-recording callback supplied by
-the engine (it applies fills through the engine's FillReducer / PortfolioProjector).
+stay a thin facade. Slippage is applied **once** inside ``OmsBacktestAdapter``
+(same as replay) — this module passes the un-slipped base price.
 """
 
 from __future__ import annotations
@@ -11,12 +10,14 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from analytics.paper.models import PaperSession, PositionMeta, Side
+from analytics.oms_fill_price import resolve_oms_fill_price
+from analytics.paper.models import PaperSession, Side
 from analytics.strategy.models import Signal
 from domain.candles.historical import HistoricalBar
 from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from domain.trading_costs import apply_slippage as _apply_slippage
+from domain.simulation_position_meta import PositionMeta
+from domain.trading_costs import compute_commission
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +47,46 @@ class PaperSignalProcessor:
         self._oms_adapter = oms_adapter
         self._record_fill = record_fill
 
-    def process(self, signal: Signal, bar: HistoricalBar, session: PaperSession) -> None:
+    def _commission(self, notional: float, side: str) -> float:
+        cfg = self._config
+        return compute_commission(
+            notional,
+            side,
+            model=cfg.commission_model,
+            flat_fee=cfg.commission_flat,
+            fees=cfg.indian_market_fees,
+        )
+
+    def process(
+        self,
+        signal: Signal,
+        bar: HistoricalBar,
+        session: PaperSession,
+        *,
+        fill_price: float | None = None,
+    ) -> None:
         """Process a signal through OMS for backtest-live parity.
 
         Requires the OMS adapter supplied at construction time.
+        ``fill_price`` overrides bar.close (used for NEXT_OPEN fills).
         """
         if not signal.is_actionable:
             return
 
-        self._process_via_oms(signal, bar, session)
+        self._process_via_oms(signal, bar, session, fill_price=fill_price)
 
     def _process_via_oms(
-        self, signal: Signal, bar: HistoricalBar, session: PaperSession
+        self,
+        signal: Signal,
+        bar: HistoricalBar,
+        session: PaperSession,
+        *,
+        fill_price: float | None = None,
     ) -> None:
         """Route paper signals through OMS for parity with live/replay."""
         config = self._config
+        base = float(fill_price if fill_price is not None else bar.close)
+
         if signal.is_buy and not session.has_position(bar.symbol):
             if session.position_count >= config.max_positions:
                 return
@@ -79,9 +105,8 @@ class PaperSignalProcessor:
                         extra={"reason": loss_check.reason, "symbol": bar.symbol},
                     )
                     return
-            price = _apply_slippage(
-                Decimal(str(bar.close)), side="BUY", slippage_pct=config.slippage_pct
-            )
+            # Un-slipped base — OmsBacktestAdapter applies slippage once (F2a).
+            price = Decimal(str(base))
             qty = compute_order_quantity(
                 equity=session.capital,
                 price=float(price),
@@ -99,8 +124,15 @@ class PaperSignalProcessor:
                 reasons=list(signal.reasons),
             )
             if order_id:
-                cost = float(price) * qty + config.commission_flat
-                session.capital -= cost
+                fill_px = resolve_oms_fill_price(
+                    self._oms_adapter,
+                    order_id,
+                    base_price=price,
+                    side="BUY",
+                    slippage_pct=config.slippage_pct,
+                )
+                commission = self._commission(fill_px * qty, "BUY")
+                session.capital -= fill_px * qty + commission
                 self._record_fill(
                     session,
                     order_id=order_id,
@@ -108,7 +140,7 @@ class PaperSignalProcessor:
                     exchange="NSE",
                     side=Side.BUY,
                     quantity=qty,
-                    price=float(price),
+                    price=fill_px,
                     timestamp=bar.timestamp,
                     trade_tag="open",
                 )
@@ -125,9 +157,7 @@ class PaperSignalProcessor:
                 return
             qty = domain_pos.quantity
             entry_price = float(domain_pos.avg_price)
-            price = _apply_slippage(
-                Decimal(str(bar.close)), side="SELL", slippage_pct=config.slippage_pct
-            )
+            price = Decimal(str(base))
             order_id = self._oms_adapter.close_long(
                 symbol=bar.symbol,
                 exchange="NSE",
@@ -138,10 +168,16 @@ class PaperSignalProcessor:
                 reasons=list(signal.reasons),
             )
             if order_id:
-                proceeds = float(price) * qty - config.commission_flat
-                session.capital += proceeds
-                simple_pnl = (float(price) - entry_price) * qty - config.commission_flat
-                session.daily_pnl += simple_pnl
+                fill_px = resolve_oms_fill_price(
+                    self._oms_adapter,
+                    order_id,
+                    base_price=price,
+                    side="SELL",
+                    slippage_pct=config.slippage_pct,
+                )
+                commission = self._commission(fill_px * qty, "SELL")
+                session.capital += fill_px * qty - commission
+                session.daily_pnl += (fill_px - entry_price) * qty - commission
                 self._record_fill(
                     session,
                     order_id=order_id,
@@ -149,7 +185,7 @@ class PaperSignalProcessor:
                     exchange="NSE",
                     side=Side.SELL,
                     quantity=qty,
-                    price=float(price),
+                    price=fill_px,
                     timestamp=bar.timestamp,
                     trade_tag="close",
                 )

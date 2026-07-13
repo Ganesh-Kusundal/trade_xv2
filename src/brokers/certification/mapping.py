@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
 from brokers.runtime.symbol_registry import SymbolRegistry
 from brokers.session import BrokerSession
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,9 +32,11 @@ class MappingReport:
 
     def print_report(self) -> None:
         for r in self.results:
-            print(f"  [{'PASS' if r.passed else 'FAIL'}] {r.asset}/{r.exchange} "
-                  f"{r.symbol}: {r.detail}")
-        print(f"Overall: {'PASS' if self.all_passed else 'MAPPING ERRORS'}")
+            logger.info(
+                "  [%s] %s/%s %s: %s",
+                "PASS" if r.passed else "FAIL", r.asset, r.exchange, r.symbol, r.detail,
+            )
+        logger.info("Overall: %s", "PASS" if self.all_passed else "MAPPING ERRORS")
 
 
 _DEFAULT_CASES = [

@@ -1,8 +1,10 @@
 """Canonical candle schema — broker-agnostic, used across all modules.
 
-All timestamps are stored as **naive datetime in IST (Asia/Kolkata)**.
-The source data may be in any timezone, but must be converted to IST
-before writing. This is enforced by the converter and the quality views.
+All timestamps are stored as **naive datetime in IST (Asia/Kolkata),
+microsecond precision (``us``)**. The source data may be in any timezone
+or precision, but must be converted before writing — see
+:func:`enforce_canonical_schema`, called by every writer before
+``atomic_parquet_write``.
 """
 
 from __future__ import annotations
@@ -46,10 +48,15 @@ OPTIONAL_COLUMNS = [
 
 # NSE market hours in IST (defined in :mod:`datalake.core.constants`).
 
-# PyArrow schema for Parquet files
+# PyArrow schema for Parquet files.
+#
+# Timestamp unit is ``us`` (microsecond) -- chosen to match what
+# ingestion actually produces (Python `datetime` objects are
+# microsecond-precision) rather than the previously-declared `ns`, which
+# no writer ever honored: see `enforce_canonical_schema` below.
 ARROW_SCHEMA = pa.schema(
     [
-        pa.field("timestamp", pa.timestamp("ns")),
+        pa.field("timestamp", pa.timestamp("us")),
         pa.field("symbol", pa.utf8()),
         pa.field("exchange", pa.utf8()),
         pa.field("open", pa.float64()),
@@ -58,12 +65,41 @@ ARROW_SCHEMA = pa.schema(
         pa.field("close", pa.float64()),
         pa.field("volume", pa.int64()),
         pa.field("oi", pa.int64()),
-        pa.field("event_time", pa.timestamp("ns")),
-        pa.field("published_at", pa.timestamp("ns")),
-        pa.field("ingested_at", pa.timestamp("ns")),
+        pa.field("event_time", pa.timestamp("us")),
+        pa.field("published_at", pa.timestamp("us")),
+        pa.field("ingested_at", pa.timestamp("us")),
         pa.field("is_correction", pa.bool_()),
     ]
 )
+
+
+def enforce_canonical_schema(table: pa.Table) -> pa.Table:
+    """Cast every timestamp-typed column present in *table* to the
+    canonical unit (``ARROW_SCHEMA``'s declared type for that column).
+
+    Every writer must call this immediately before
+    :func:`infrastructure.io.parquet.atomic_parquet_write` so the
+    physical unit on disk always matches ``ARROW_SCHEMA``, regardless of
+    what unit the source data happened to arrive in (Python `datetime`
+    objects -> `us`; broker epoch-ms fields explicitly parsed with
+    `pd.to_datetime(..., unit="ms")` -> `ms`; etc).
+
+    Only touches columns that are both present in *table* and declared
+    as a timestamp type in ``ARROW_SCHEMA`` -- unknown/extra columns
+    pass through unchanged.
+    """
+    canonical_by_name = {f.name: f for f in ARROW_SCHEMA}
+    new_fields = []
+    for field in table.schema:
+        canonical = canonical_by_name.get(field.name)
+        if canonical is not None and pa.types.is_timestamp(canonical.type):
+            new_fields.append(pa.field(field.name, canonical.type, nullable=field.nullable))
+        else:
+            new_fields.append(field)
+    target_schema = pa.schema(new_fields)
+    if target_schema.equals(table.schema):
+        return table
+    return table.cast(target_schema)
 
 # Trade_J schema (source)
 TRADEJ_SCHEMA = {

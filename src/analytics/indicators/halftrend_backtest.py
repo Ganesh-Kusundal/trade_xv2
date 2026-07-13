@@ -232,13 +232,13 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
 
     gw = gateway or DataLakeMarketDataProvider(root=DEFAULT_DATA_ROOT)
     all_symbols = gw.list_symbols()
-    print(f"Universe: {len(all_symbols)} symbols")
+    logger.info("Universe: %d symbols", len(all_symbols))
 
     # Sample symbols
     sample = all_symbols[: min(top_n * 2, len(all_symbols))]
 
     # Load data and compute average volume for ranking
-    print("Loading data for ranking...")
+    logger.info("Loading data for ranking...")
     volume_data = {}
     for sym in sample:
         try:
@@ -252,7 +252,7 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
     # Sort by volume, take top N
     ranked = sorted(volume_data.items(), key=lambda x: x[1], reverse=True)[:top_n]
     symbols = [s for s, _ in ranked]
-    print(f"Selected {len(symbols)} symbols by volume")
+    logger.info("Selected %d symbols by volume", len(symbols))
 
     # Run HalfTrend backtest on each
     config = BacktestConfig(
@@ -264,7 +264,7 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
     )
 
     results = []
-    print(f"\nRunning HalfTrend backtest on {len(symbols)} symbols...")
+    logger.info("Running HalfTrend backtest on %d symbols...", len(symbols))
     for i, sym in enumerate(symbols, 1):
         try:
             data = gw.history(sym, timeframe="1m", lookback_days=years * 365)
@@ -277,42 +277,44 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
             results.append(result)
 
             if i % 20 == 0:
-                print(f"  [{i}/{len(symbols)}] processed...")
+                logger.info("  [%d/%d] processed...", i, len(symbols))
         except Exception as exc:
             logger.debug("backtest_failed: %s: %s", sym, exc)
 
     # Summary
     if not results:
-        print("No results")
+        logger.info("No results")
         return
 
     returns = [r["return"] for r in results]
     trades = [r["trades"] for r in results]
     win_rates = [r["win_rate"] for r in results if r["trades"] > 0]
 
-    print(f"\n{'=' * 60}")
-    print(f"HALFTREND RESULTS: {len(results)} symbols")
-    print(f"{'=' * 60}")
-    print(f"  Avg Return: {np.mean(returns):+.2f}%")
-    print(f"  Median Return: {np.median(returns):+.2f}%")
-    print(f"  Avg Trades: {np.mean(trades):.0f}")
-    print(f"  Avg Win Rate: {np.mean(win_rates):.1f}%")
-    print(f"  Positive: {sum(1 for r in returns if r > 0)}/{len(returns)}")
-    print(f"  Best: {max(returns):+.2f}%")
-    print(f"  Worst: {min(returns):+.2f}%")
+    logger.info("=" * 60)
+    logger.info("HALFTREND RESULTS: %d symbols", len(results))
+    logger.info("=" * 60)
+    logger.info("  Avg Return: %+.2f%%", np.mean(returns))
+    logger.info("  Median Return: %+.2f%%", np.median(returns))
+    logger.info("  Avg Trades: %.0f", np.mean(trades))
+    logger.info("  Avg Win Rate: %.1f%%", np.mean(win_rates))
+    logger.info("  Positive: %d/%d", sum(1 for r in returns if r > 0), len(returns))
+    logger.info("  Best: %+.2f%%", max(returns))
+    logger.info("  Worst: %+.2f%%", min(returns))
 
     # Top 10
     results.sort(key=lambda x: x["return"], reverse=True)
-    print("\nTop 10:")
+    logger.info("Top 10:")
     for r in results[:10]:
-        print(
-            f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}% | Sharpe {r['sharpe']:.3f}"
+        logger.info(
+            "  %s: %+.2f%% | %d trades | Win %.0f%% | Sharpe %.3f",
+            r['symbol'], r['return'], r['trades'], r['win_rate'], r['sharpe'],
         )
 
-    print("\nBottom 5:")
+    logger.info("Bottom 5:")
     for r in results[-5:]:
-        print(
-            f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}%"
+        logger.info(
+            "  %s: %+.2f%% | %d trades | Win %.0f%%",
+            r['symbol'], r['return'], r['trades'], r['win_rate'],
         )
 
 

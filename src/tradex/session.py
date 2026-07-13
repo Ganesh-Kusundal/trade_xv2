@@ -274,7 +274,6 @@ def open_session(
                 broker_service,
                 mode="trade",
                 broker=broker_id,
-                skip_parity_gate=True,
             )
             oms = runtime.oms_service
             if event_bus is None:
@@ -357,6 +356,7 @@ def open_session(
         HistoryCommandHandler,
         OrderCommandHandler,
         SubscribeCommandHandler,
+        build_order_dispatcher,
     )
     from runtime.queries import (
         CandleQueryHandler,
@@ -365,12 +365,17 @@ def open_session(
     )
 
     command_dispatcher = CommandDispatcher(event_bus=event_bus)
+    order_command_fn = None
     if oms is not None:
         order_manager = getattr(oms, "order_manager", None)
         submit_fn = getattr(oms, "_submit_fn", None)
         if order_manager is not None:
             command_dispatcher.register_handler(
                 OrderCommandHandler(order_manager, submit_fn=submit_fn)
+            )
+            # F7: single PlaceOrder mapping via build_order_dispatcher
+            order_command_fn = build_order_dispatcher(
+                order_manager, submit_fn=submit_fn, event_bus=event_bus
             )
     # Subscribe / history route through the session's DataProvider when present.
     if data is not None:
@@ -399,30 +404,8 @@ def open_session(
     session.attach_command_dispatcher(command_dispatcher)
     session.attach_query_dispatcher(query_dispatcher)
 
-    # ADR-012: wire Session.place() through the dispatcher via a closure built
-    # here (composition root) so domain stays independent of runtime.commands.
-    from domain.ports import OrderResult as PortOrderResult
-    from runtime.commands import PlaceOrderCommand
-
-    def _order_command_fn(intent: Any) -> Any:
-        cmd = PlaceOrderCommand(
-            correlation_id=intent.correlation_id,
-            symbol=intent.symbol,
-            exchange=intent.exchange,
-            side=intent.side,
-            quantity=intent.quantity,
-            price=intent.price,
-            order_type=intent.order_type,
-            product_type=intent.product_type,
-        )
-        result = command_dispatcher.dispatch(cmd)
-        return PortOrderResult(
-            success=result.success,
-            order=result.data,
-            error=result.error or "",
-        )
-
-    session.attach_order_command_fn(_order_command_fn)
+    if order_command_fn is not None:
+        session.attach_order_command_fn(order_command_fn)
 
     # Light resolver for doctor / resolve_name
     from domain.instruments.resolver import InstrumentResolver

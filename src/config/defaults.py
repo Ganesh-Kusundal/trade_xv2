@@ -30,7 +30,7 @@ _cached: AppConfig | None = None
 
 def get_config() -> AppConfig:
     """Return the cached AppConfig, loading from env on first call."""
-    global _cached
+    global _cached  # intentional module singleton — lazy cached config
     if _cached is None:
         _cached = AppConfig.from_env()
     return _cached
@@ -38,5 +38,5 @@ def get_config() -> AppConfig:
 
 def reset_config() -> None:
     """Clear the cached config so the next get_config() reloads from env."""
-    global _cached
+    global _cached  # intentional module singleton — reset for tests
     _cached = None

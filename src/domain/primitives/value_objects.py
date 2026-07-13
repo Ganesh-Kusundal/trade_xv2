@@ -24,10 +24,12 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Union
 
+from domain.exceptions import TradeXV2Error
+
 Number = Union[int, float, Decimal, str]
 
 
-class DomainValueError(ValueError):
+class DomainValueError(TradeXV2Error, ValueError):
     """Raised when a value object fails construction/validation."""
 
 
@@ -71,6 +73,23 @@ class Money:
     def to_decimal(self) -> Decimal:
         """Wire/legacy Decimal view of the amount."""
         return self.amount
+
+    @classmethod
+    def coerce(
+        cls,
+        value: "Money | Decimal | int | float | str | None",
+        currency: str = "INR",
+    ) -> "Money":
+        """Build Money from loose scalars; prefer over ``Money == int`` coercion."""
+        if value is None:
+            return cls(0, currency)
+        if isinstance(value, Money):
+            return value
+        # Quantity is numeric magnitude with a unit — take magnitude only.
+        mag = getattr(value, "magnitude", None)
+        if mag is not None and type(value).__name__ == "Quantity":
+            return cls(mag, currency)
+        return cls(value, currency)
 
     def __float__(self) -> float:
         return float(self.amount)
@@ -158,11 +177,6 @@ class Money:
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Money):
             return self.currency == other.currency and self.amount == other.amount
-        if isinstance(other, (int, float, Decimal, str)):
-            try:
-                return self.amount == _to_decimal(other, "other")
-            except DomainValueError:
-                return False
         return NotImplemented
 
     def __hash__(self) -> int:

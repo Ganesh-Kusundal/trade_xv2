@@ -11,11 +11,7 @@ from domain.types import ProductType, Side
 
 
 def _as_money(value: Money | Decimal | int | float | str | None) -> Money:
-    if value is None:
-        return Money(0)
-    if isinstance(value, Money):
-        return value
-    return Money(value)
+    return Money.coerce(value)
 
 
 def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quantity:
@@ -24,6 +20,37 @@ def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quanti
     if isinstance(value, Quantity):
         return value
     return Quantity(value)
+
+
+def build_domain_trade(
+    *,
+    trade_id: str,
+    symbol: str,
+    side: Side | str,
+    quantity: int | Quantity,
+    price: Money | Decimal | int | float | str,
+    trade_value: Money | Decimal | int | float | str | None = None,
+    exchange: str = "NSE",
+    order_id: str = "",
+) -> Trade:
+    """Shared paper/replay → domain Trade converter (zero-parity helper).
+
+    Analytics ``PaperTrade`` / ``SimulatedTrade`` stay thin session records;
+    both call this instead of duplicating Trade construction.
+    """
+    if isinstance(side, str):
+        side = Side.BUY if str(side).upper() == "BUY" else Side.SELL
+    tv = trade_value if trade_value is not None else Decimal("0")
+    return Trade(
+        trade_id=trade_id,
+        order_id=order_id,
+        symbol=symbol,
+        exchange=exchange,
+        side=side,
+        quantity=quantity,
+        price=price,
+        trade_value=tv,
+    )
 
 
 @dataclass(slots=True, frozen=True)

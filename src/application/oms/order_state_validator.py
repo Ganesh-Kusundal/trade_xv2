@@ -1,2 +1,2 @@
 """Backward-compatible re-export — implementation lives in ``_internal``."""
-from application.oms._internal.order_state_validator import *  # noqa: F401,F403
+from application.oms._internal.order_state_validator import OrderStateValidator  # noqa: F401

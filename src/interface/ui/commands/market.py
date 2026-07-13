@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from rich.console import Console
 from rich.live import Live
@@ -13,6 +13,7 @@ from rich.table import Table
 
 from interface.ui.services.broker_ops import fetch_depth, fetch_history, fetch_quote
 from interface.ui.services.broker_service import BrokerService
+from interface.ui.utils.time_formatter import format_ist_time
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def show_quote(
 
         if quote is not None:
             ts_str = (
-                quote.timestamp.strftime("%H:%M:%S")
+                format_ist_time(quote.timestamp)
                 if isinstance(quote.timestamp, datetime)
                 else str(quote.timestamp)
             )
@@ -442,9 +443,11 @@ def show_stream(
             else:
                 return
 
-            ts_str = (
-                ts.strftime("%H:%M:%S") if ts and hasattr(ts, "strftime") else datetime.now().strftime("%H:%M:%S")
-            )
+            # Tick's own timestamp is often missing (e.g. Dhan quotes) --
+            # fall back to "now" rather than the generic "N/A" since this
+            # is a live stream and the tick just arrived.
+            ts = ts if ts and hasattr(ts, "strftime") else datetime.now(timezone.utc)
+            ts_str = format_ist_time(ts)
             chg_str = f"[green]+{float(chg):,.2f}[/green]" if float(chg) >= 0 else f"[red]{float(chg):,.2f}[/red]"
 
             row = [

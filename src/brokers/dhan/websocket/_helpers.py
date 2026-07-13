@@ -42,22 +42,26 @@ def _sdk_order_update_class() -> type:
 
 # Module-level cache for the mode map (computed once, lazily on first access).
 # Avoids rebuilding the dict and re-importing MarketFeed on every call.
-_MODE_MAP: dict[str, int] | None = None
+
+
+class _ModeMapCache:
+    """Lazy-cached mode-name -> SDK constant mapping (class-based state holder)."""
+
+    _map: dict[str, int] | None = None
 
 
 def _mode_map() -> dict[str, int]:
     """Return the mode-name -> SDK constant mapping (cached at module level)."""
-    global _MODE_MAP
-    if _MODE_MAP is None:
+    if _ModeMapCache._map is None:
         mf = _sdk_market_feed_class()
-        _MODE_MAP = {
+        _ModeMapCache._map = {
             "LTP": mf.Ticker,
             "TICKER": mf.Ticker,
             "QUOTE": mf.Quote,
             "FULL": mf.Full,
             "DEPTH": mf.Quote,  # v2 does not support Depth (19)
         }
-    return _MODE_MAP
+    return _ModeMapCache._map
 
 
 # ---------------------------------------------------------------------------

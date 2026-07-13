@@ -35,6 +35,7 @@ import time
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar, runtime_checkable
 
 from infrastructure.idempotency.memory_cache import MemoryIdempotencyCache
+from infrastructure.idempotency.service import IdempotencyService
 
 T = TypeVar("T")
 
@@ -54,10 +55,10 @@ class IdempotencyCachePort(Protocol[T]):
 class IdempotencyCache(Generic[T]):
     """Thread-safe idempotency store keyed by correlation_id.
 
-    Storage (get/put/expiry) delegates to MemoryIdempotencyCache, which
-    already does the locked read-then-maybe-delete correctly in one
-    critical section — no separate unlocked read followed by a locked
-    delete, which is exactly the pattern that caused the original race.
+    Storage (get/put/expiry) delegates to the canonical
+    ``infrastructure.idempotency.service.IdempotencyService`` wrapping a
+    ``MemoryIdempotencyCache`` backend — reusing existing, already-tested,
+    race-free locking instead of writing a third dict+lock cache by hand.
 
     The reserve/commit/clear_reservation three-phase protocol (used by
     Dhan's OrderPlacer to stop two concurrent place_order calls with the
@@ -67,18 +68,21 @@ class IdempotencyCache(Generic[T]):
 
     def __init__(self, ttl: float = 300.0, max_size: int = 10_000) -> None:
         self._ttl = ttl
-        self._results: MemoryIdempotencyCache[T] = MemoryIdempotencyCache(
-            default_ttl_seconds=int(ttl), max_size=max_size
+        self._service: IdempotencyService[T] = IdempotencyService(
+            primary_backend=MemoryIdempotencyCache[T](
+                default_ttl_seconds=int(ttl), max_size=max_size,
+            ),
+            enable_fallback=False,
         )
         # pending reservations keyed by correlation_id
         self._pending: dict[str, float] = {}
         self._pending_lock = threading.Lock()
 
     def get(self, cid: str) -> T | None:
-        return self._results.get(cid)
+        return self._service.get(cid)
 
     def put(self, cid: str, value: T) -> None:
-        self._results.put(cid, value)
+        self._service.put(cid, value)
 
     def reserve(self, cid: str) -> bool:
         """Atomically try to reserve *cid*. Returns True if we got it."""
@@ -101,7 +105,7 @@ class IdempotencyCache(Generic[T]):
 
     def clear(self) -> None:
         """Clear all committed results and pending reservations."""
-        self._results.clear()
+        self._service.clear()
         with self._pending_lock:
             self._pending.clear()
 

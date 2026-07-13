@@ -154,10 +154,18 @@ class OrdersAdapter:
     def kill_switch(self, enable: bool) -> bool:
         return self._canceller.kill_switch(enable)
 
+    def status_kill_switch(self) -> dict:
+        return self._canceller.status_kill_switch()
+
     # ── Read-only queries ──────────────────────────────────────────────
 
     def get_order(self, order_id: str) -> Order:
         data = self._client.get(f"/orders/{order_id}")
+        raw = data.get("data", data) if isinstance(data, dict) else data
+        return self._parse_order(raw if isinstance(raw, dict) else {})
+
+    def get_order_by_correlation_id(self, correlation_id: str) -> Order:
+        data = self._client.get(f"/orders/external/{correlation_id}")
         raw = data.get("data", data) if isinstance(data, dict) else data
         return self._parse_order(raw if isinstance(raw, dict) else {})
 

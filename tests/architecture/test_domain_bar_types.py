@@ -10,17 +10,27 @@ SRC = PROJECT_ROOT / "src"
 
 _AGGREGATOR = SRC / "application" / "streaming" / "candle_aggregator.py"
 _REPLAY_MODELS = SRC / "analytics" / "replay" / "models.py"
-_API_SCHEMAS = SRC / "interface" / "api" / "schemas.py"
+_API_SCHEMAS = SRC / "interface" / "api" / "schemas"
 _MARKET_ROUTER = SRC / "interface" / "api" / "routers" / "market.py"
 _LIVE_MARKET_ROUTER = SRC / "interface" / "api" / "routers" / "live" / "market.py"
 _REQUESTS = SRC / "domain" / "orders" / "requests.py"
 _MAPPER = SRC / "interface" / "api" / "candle_mapper.py"
 
 _FORBIDDEN_BAR_CLASSES = {"Bar", "Candle", "HistoricalCandle"}
-_ALLOWED_CANDLE_CLASS = {("src/interface/api/schemas.py", "Candle")}
+_ALLOWED_CANDLE_CLASS = {
+    ("src/interface/api/schemas/__init__.py", "Candle"),
+    ("src/interface/api/schemas/_market.py", "Candle"),
+}
 
 
 def _class_defs(path: Path) -> list[str]:
+    if path.is_dir():
+        names = []
+        for py in sorted(path.glob("*.py")):
+            if py.name.startswith("_") and py.name != "__init__.py":
+                tree = ast.parse(py.read_text(encoding="utf-8"))
+                names.extend(node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
+        return names
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
 

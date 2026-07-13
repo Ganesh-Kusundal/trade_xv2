@@ -1,8 +1,11 @@
 """Daily PnL tracking with edge-triggered risk-limit breach events.
 
 Extracted from :class:`~application.oms._internal.risk_manager.RiskManager`.
-Owns the running daily PnL total, the rolling-window loss-circuit-breaker
-delta recording, and the ``RISK_LIMIT_BREACHED`` publish logic.
+Owns the running **session equity delta** (current equity − session-open
+equity), the rolling-window loss-circuit-breaker delta recording, and the
+``RISK_LIMIT_BREACHED`` publish logic.
+
+Callers must pass session equity delta — not absolute book MTM (F5).
 
 This module must NOT import from ``risk_manager`` (no circular deps).
 """
@@ -69,24 +72,25 @@ class DailyPnlTracker:
     # -- Mutators --
 
     def update(self, pnl: Decimal) -> None:
-        """Update running daily PnL (called by portfolio manager).
+        """Update session equity delta (called by TradingContext feed).
 
-        Records the PnL delta (not the absolute value) in the loss circuit
-        breaker so the rolling-window loss threshold is updated, then
-        publishes a RISK_LIMIT_BREACHED event if the budget is mostly
-        consumed.
+        ``pnl`` is the session equity delta from session-open equity
+        (``current_equity − session_open_equity``), not absolute MTM.
+
+        Records the change since the last feed tick in the loss circuit
+        breaker, then publishes RISK_LIMIT_BREACHED if the daily-loss
+        budget is mostly consumed.
         """
         previous_pnl = self._daily_pnl
-        self._daily_pnl = pnl
+        self._daily_pnl = Decimal(str(getattr(pnl, "amount", pnl)))
 
-        # Record the PnL delta (not the absolute value) in the
-        # loss circuit breaker. The delta represents the realised /
-        # unrealised change since the last update.
-        delta = pnl - previous_pnl
-        capital = self._capital_provider()
+        # Incremental move since last tick (for the rolling loss CB).
+        delta = self._daily_pnl - previous_pnl
+        capital_raw = self._capital_provider()
+        capital = Decimal(str(getattr(capital_raw, "amount", capital_raw)))
         self._loss_cb.record_loss(delta, capital)
 
-        self._maybe_publish_risk_limit_breach(pnl, capital)
+        self._maybe_publish_risk_limit_breach(self._daily_pnl, capital)
 
     def reset(self) -> None:
         """Reset the daily PnL to zero.

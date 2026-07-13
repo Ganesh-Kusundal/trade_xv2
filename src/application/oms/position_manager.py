@@ -373,12 +373,4 @@ class PositionManager:
         if self._event_bus is None:
             return
         data = payload if payload is not None else {"position": position}
-        symbol = position.symbol if position else payload.get("symbol", "") if payload else ""
-        self._event_bus.publish(
-            DomainEvent.now(
-                event_type,
-                data,
-                symbol=symbol,
-                source="PositionManager",
-            )
-        )
+        self._event_bus.publish(DomainEvent.now(event_type, data))

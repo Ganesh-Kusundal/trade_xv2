@@ -36,6 +36,11 @@ def _make_gateway_with_mock_broker() -> UpstoxBrokerGateway:
     broker.market_data_websocket = ws
     broker.instrument_resolver = MagicMock()
     broker.instrument_resolver.resolve.return_value = None
+    # StreamManagerAdapter resolves instrument keys via
+    # broker.instruments.resolve_instrument_key(), not the raw resolver
+    # directly (see resolve_instrument_key() in instruments/service.py for
+    # the real fallback: f"{segment}|{symbol}").
+    broker.instruments.resolve_instrument_key.return_value = "NSE_EQ|RELIANCE"
     return UpstoxBrokerGateway(broker)
 
 

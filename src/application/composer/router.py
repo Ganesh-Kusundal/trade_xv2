@@ -137,7 +137,7 @@ class BrokerRouter:
             policy_version=self._policy.policy_version,
         )
         with contextlib.suppress(Exception):
-            from infrastructure.observability.audit import emit_routing_decision
+            from domain.ports.audit import emit_routing_decision
 
             emit_routing_decision(decision)
         return decision

@@ -48,6 +48,8 @@ class TestMoney:
         assert Money(100, "INR") == Money(Decimal("100"), "INR")
         assert Money(100, "INR") != Money(100, "USD")
         assert Money(100, "INR") != Money(200, "INR")
+        assert Money(100, "INR") != 100
+        assert Money.coerce("50") == Money(50, "INR")
 
     def test_addition_same_currency(self):
         assert Money(40, "INR") + Money(60, "INR") == Money(100, "INR")

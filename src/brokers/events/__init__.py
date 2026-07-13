@@ -6,7 +6,18 @@ convenience surface so broker-layer code imports events from one place.
 
 from __future__ import annotations
 
-from domain.events import *  # noqa: F401,F403  (re-export domain event surface)
-from domain.events import __all__ as _domain_events_all
+from domain.events import (
+    DomainEvent,
+    EventPayload,
+    EventType,
+    canonical_event_types,
+    make_payload,
+)
 
-__all__ = list(_domain_events_all)
+__all__ = [
+    "DomainEvent",
+    "EventPayload",
+    "EventType",
+    "canonical_event_types",
+    "make_payload",
+]

@@ -9,6 +9,7 @@ pre-flight for developers, CI, and AI agents.
 
 from __future__ import annotations
 
+import logging
 import platform
 import sys
 from dataclasses import dataclass, field
@@ -16,6 +17,8 @@ from typing import Any
 
 from brokers.diagnostics.core import CheckResult, CheckStatus, DiagnosticReport
 from brokers.session import BrokerSession, available_brokers
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,11 +32,11 @@ class DoctorReport:
         self.checks.append(CheckResult(name, status, detail))
 
     def print_report(self) -> None:
-        print(f"broker doctor — broker '{self.broker_id}':")
+        logger.info("broker doctor — broker '%s':", self.broker_id)
         for c in self.checks:
-            print(f"  [{c.status.value}] {c.name}: {c.detail}")
+            logger.info("  [%s] %s: %s", c.status.value, c.name, c.detail)
         failed = [c for c in self.checks if c.status == CheckStatus.FAIL]
-        print(f"Overall: {'PASS' if not failed else f'{len(failed)} issue(s)'}")
+        logger.info("Overall: %s", "PASS" if not failed else f"{len(failed)} issue(s)")
 
     def to_dict(self, *, mode: str | None = None, live: bool = False) -> dict[str, Any]:
         from brokers.diagnostics.schema import format_doctor_dict

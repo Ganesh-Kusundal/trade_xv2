@@ -25,8 +25,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
-import struct
 import threading
 import time
 from collections.abc import Callable
@@ -197,23 +195,11 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             self._depth_callbacks.append(callback)
 
     def off_depth(self, callback: Callable[[MarketDepth], None]) -> None:
-        """Remove a previously registered depth callback.
-
-        Symmetric to :meth:`on_depth` (mirrors ``DhanMarketFeed.off_depth``).
-        Without it, consumers that unsubscribe leak their callback for the
-        entire lifetime of the feed.
-        """
+        """Remove a previously registered depth callback."""
         self._unregister_callback(self._depth_callbacks, callback)
 
     def off_quote(self, callback: Callable[[MarketDepth], None]) -> None:
-        """Remove a depth-feed callback via the ``off_quote`` alias.
-
-        The binary depth feed keeps every subscriber in the single
-        ``_depth_callbacks`` list that :meth:`on_depth` appends to, so this
-        is a symmetric alias for :meth:`off_depth` — it exists so callers
-        that use the ``DhanMarketFeed``-style ``off_quote`` API cannot leak
-        callbacks.
-        """
+        """Remove a depth-feed callback via the ``off_quote`` alias."""
         self._unregister_callback(self._depth_callbacks, callback)
 
     def register_symbol(self, security_id: int, symbol: str) -> None:
@@ -221,11 +207,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         self._sec_id_to_symbol[int(security_id)] = normalize_symbol(symbol)
 
     def subscribe(self, instruments: list[tuple[str, str]] | tuple[str, str]) -> None:
-        """Subscribe to one or more instruments.
-
-        Accepts either a single tuple (depth-200 style) or a list of tuples
-        (depth-20 style). Both call sites are preserved.
-        """
+        """Subscribe to one or more instruments."""
         new_instruments = [instruments] if isinstance(instruments, tuple) else list(instruments)
 
         new_instruments = [i for i in new_instruments if i not in self._subscriptions]
@@ -493,7 +475,22 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                             message = await asyncio.wait_for(ws.recv(), timeout=30.0)
 
                             if isinstance(message, bytes):
-                                self._process_binary_message(message)
+                                self._parser.process_binary_message(
+                                    message,
+                                    note_message_received=self._note_message_received,
+                                    subscriptions=self._subscriptions,
+                                    depth_cache=self._depth_cache,
+                                    depth_cache_lock=self._depth_cache_lock,
+                                    sec_id_to_symbol=self._sec_id_to_symbol,
+                                    depth_callbacks=self._depth_callbacks,
+                                    callback_lock=self._callback_lock,
+                                    event_bus=self._event_bus,
+                                    event_name=self.EVENT_NAME,
+                                    feed_name=self.name,
+                                    snapshot_callbacks=self._snapshot_callbacks,
+                                    next_correlation_id=self.next_correlation_id,
+                                    counters={"published_depths": 0, "dropped_depths": 0},
+                                )
 
                             backoff = 1.0
 
@@ -551,28 +548,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 backoff = min(backoff * 2, max_backoff)
 
     def _send_subscription(self, instruments: list[tuple[str, str]]) -> None:
-        """Send subscription JSON message over the live WebSocket.
-
-        The Dhan depth WebSocket is driven by an async event loop running
-        on a dedicated thread; we are called from the depth feed thread
-        (synchronous) and need to hand the send to that loop.
-
-        Previous implementation used ``loop.create_task(self._ws.send(...))``
-        and never awaited the task. If the loop closed between scheduling
-        and execution, the subscription message was silently dropped and
-        the reconnected connection would carry no instruments — depth
-        data would never arrive without any error or counter increment.
-
-        The new implementation uses ``asyncio.run_coroutine_threadsafe``,
-        which:
-        - returns a ``concurrent.futures.Future`` we can monitor for
-          delivery confirmation, and
-        - raises immediately if the loop has already closed (instead of
-          silently dropping the task).
-
-        In test contexts (no running loop) we log a warning and increment
-        a counter rather than swallowing the failure silently.
-        """
+        """Send subscription JSON message over the live WebSocket."""
         subscription_msg = {
             "RequestCode": self.REQUEST_CODE,
             "InstrumentCount": len(instruments),
@@ -626,53 +602,6 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
         future.add_done_callback(_on_send_done)
 
-    # ── Binary parsing ─────────────────────────────────────────────────────
-
-    def _process_binary_message(self, data: bytes) -> None:
-        """Delegate to :class:`DepthPacketParser` for binary packet parsing."""
-        self._parser.process_binary_message(
-            data,
-            note_message_received=self._note_message_received,
-            subscriptions=self._subscriptions,
-            depth_cache=self._depth_cache,
-            depth_cache_lock=self._depth_cache_lock,
-            sec_id_to_symbol=self._sec_id_to_symbol,
-            depth_callbacks=self._depth_callbacks,
-            callback_lock=self._callback_lock,
-            event_bus=self._event_bus,
-            event_name=self.EVENT_NAME,
-            feed_name=self.name,
-            snapshot_callbacks=self._snapshot_callbacks,
-            next_correlation_id=self.next_correlation_id,
-            counters={"published_depths": 0, "dropped_depths": 0},
-        )
-
-    def _parse_depth_packet(self, data: bytes, response_code: int, header_value: int) -> dict:
-        """Delegate to :class:`DepthPacketParser`."""
-        return self._parser.parse_packet(data, header_value, response_code)
-
-    def _resolve_implicit_security_id(self) -> int | None:
-        """Delegate to :class:`DepthPacketParser`."""
-        return self._parser.resolve_implicit_security_id(self._subscriptions, self._depth_cache)
-
-    def _dispatch_depth(self, depth_data: dict) -> None:
-        """Delegate to :class:`DepthPacketParser`."""
-        self._parser._dispatch_depth(
-            depth_data,
-            subscriptions=self._subscriptions,
-            depth_cache=self._depth_cache,
-            depth_cache_lock=self._depth_cache_lock,
-            sec_id_to_symbol=self._sec_id_to_symbol,
-            depth_callbacks=self._depth_callbacks,
-            callback_lock=self._callback_lock,
-            event_bus=self._event_bus,
-            event_name=self.EVENT_NAME,
-            feed_name=self.name,
-            snapshot_callbacks=self._snapshot_callbacks,
-            next_correlation_id=self.next_correlation_id,
-            counters={"published_depths": 0, "dropped_depths": 0},
-        )
-
     def _close_active_websocket(
         self,
         ws: Any,
@@ -702,11 +631,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             )
 
     def update_token(self, new_token: str) -> None:
-        """Token-refresh hook called by ``DhanConnection.register_token_receiver``.
-
-        Updates the cached token and closes the live socket so the reconnect
-        loop picks up the new credentials immediately.
-        """
+        """Token-refresh hook: updates cached token and triggers reconnect."""
         if not new_token or new_token == self._access_token:
             return
         self._access_token = new_token

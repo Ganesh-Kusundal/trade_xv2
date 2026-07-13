@@ -164,7 +164,11 @@ def normalize_to_canonical(
         if col not in df.columns:
             df[col] = 0 if col in ("volume", "oi") else ""
 
-    _cols = [*list(CANONICAL_COLUMNS), "event_time", "published_at", "ingested_at", "is_correction"]
+    # CANONICAL_COLUMNS already includes "event_time" -- don't duplicate it
+    # here, or df[_cols] selects two "event_time" columns and every
+    # downstream df["event_time"] access returns a 2-column DataFrame
+    # instead of a Series (breaks any comparison against it).
+    _cols = [*list(CANONICAL_COLUMNS), "published_at", "ingested_at", "is_correction"]
     df = df[_cols]
     df = df.dropna(subset=["timestamp"])
 

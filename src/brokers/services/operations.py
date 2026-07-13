@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -9,6 +10,8 @@ from brokers.session import BrokerSession, available_brokers
 
 from ._session import _open
 from .capabilities import format_session_capabilities
+
+logger = logging.getLogger(__name__)
 
 
 def run_mapping(
@@ -89,8 +92,8 @@ class VerifyReport:
         for step in self.steps:
             mark = "PASS" if step.passed else "FAIL"
             suffix = f" ({step.detail})" if step.detail else ""
-            print(f"[{mark}] {step.name}{suffix}")
-        print(f"Overall: {'PASS' if self.passed else 'FAIL'}")
+            logger.info("[%s] %s%s", mark, step.name, suffix)
+        logger.info("Overall: %s", "PASS" if self.passed else "FAIL")
 
     def to_dict(self) -> dict[str, Any]:
         from brokers.certification.schema_v2 import (

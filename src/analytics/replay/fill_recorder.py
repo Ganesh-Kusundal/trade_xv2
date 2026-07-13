@@ -62,7 +62,7 @@ class FillRecorder:
             side=side,
             quantity=quantity,
             price=Decimal(str(price)),
-            trade_value=Decimal(str(price)) * quantity,
+            trade_value=Decimal(str(price)) * Decimal(str(getattr(quantity, "magnitude", quantity))),
             timestamp=ts,
         )
         return session.fill_pipeline.apply_trade(trade, order_quantity=quantity)

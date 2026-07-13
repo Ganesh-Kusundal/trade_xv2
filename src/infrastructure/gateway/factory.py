@@ -19,15 +19,11 @@ Connect modes
   structural check → read-only probe → at most one remint on 401.
 * **Analytics** — ``bootstrap_gateway(skip_auth_probe=True)``: transport only,
   explicit TOTP-safe opt-out (still never call ``_create_transport_gateway`` directly).
-
-``create_gateway`` is deprecated; it delegates to ``_create_transport_gateway``.
 """
 
 from __future__ import annotations
 
-import importlib
 import logging
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -114,15 +110,25 @@ def register_gateway_builder(broker_id: str, builder: callable) -> None:
 
 
 def _ensure_default_builders() -> None:
-    """Register default gateway builders if not already registered."""
-    if "dhan" not in _GATEWAY_BUILDERS:
-        register_gateway_builder("dhan", _create_dhan)
-    if "upstox" not in _GATEWAY_BUILDERS:
-        register_gateway_builder("upstox", _create_upstox)
-    if "paper" not in _GATEWAY_BUILDERS:
-        register_gateway_builder("paper", _create_paper)
-    if "datalake" not in _GATEWAY_BUILDERS:
-        register_gateway_builder("datalake", _create_datalake)
+    """Register default gateway builders if not already registered.
+
+    Builders live in ``runtime.broker_builders`` (composition root) and are
+    imported lazily so ``infrastructure`` never statically depends on broker
+    packages.
+    """
+    if _GATEWAY_BUILDERS:
+        return
+    from runtime.broker_builders import (
+        create_dhan_gateway,
+        create_upstox_gateway,
+        create_paper_gateway,
+        create_datalake_gateway,
+    )
+
+    register_gateway_builder("dhan", create_dhan_gateway)
+    register_gateway_builder("upstox", create_upstox_gateway)
+    register_gateway_builder("paper", create_paper_gateway)
+    register_gateway_builder("datalake", create_datalake_gateway)
 
 
 def _create_transport_gateway(
@@ -142,37 +148,18 @@ def _create_transport_gateway(
             "Unknown broker %r. Expected one of: %s", broker, sorted(_GATEWAY_BUILDERS)
         )
         return None
-    return builder(
-        env_path,
-        load_instruments=load_instruments,
-        event_bus=event_bus,
-        lifecycle=lifecycle,
-        risk_manager=risk_manager,
-    )
-
-
-def create_gateway(
-    broker: str = "paper",
-    env_path: str | Path | None = None,
-    load_instruments: bool = True,
-    event_bus: Any | None = None,
-    lifecycle: Any | None = None,
-    risk_manager: Any | None = None,
-) -> Any | None:
-    """Deprecated: use :func:`bootstrap_gateway` or :func:`require_gateway`."""
-    warnings.warn(
-        "create_gateway is deprecated; use bootstrap_gateway or require_gateway",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return _create_transport_gateway(
-        broker,
-        env_path=env_path,
-        load_instruments=load_instruments,
-        event_bus=event_bus,
-        lifecycle=lifecycle,
-        risk_manager=risk_manager,
-    )
+    resolved = resolve_env_path(broker, env_path)
+    try:
+        return builder(
+            resolved,
+            load_instruments=load_instruments,
+            event_bus=event_bus,
+            lifecycle=lifecycle,
+            risk_manager=risk_manager,
+        )
+    except Exception as exc:
+        logger.error("gateway_create_failed broker=%s: %s", broker, exc)
+        return None
 
 
 def bootstrap_gateway(
@@ -379,88 +366,3 @@ def require_gateway(
     if not result.live_ready:
         raise BrokerNotReadyError.from_bootstrap(result)
     return result.gateway
-
-
-def _create_dhan(
-    env_path: str | Path | None,
-    *,
-    load_instruments: bool = True,
-    event_bus: Any | None = None,
-    lifecycle: Any | None = None,
-    risk_manager: Any | None = None,
-) -> Any | None:
-    try:
-        _mod = importlib.import_module("brokers.dhan.identity.factory")
-
-        resolved = Path(env_path) if env_path is not None else resolve_env_path("dhan")
-        return _mod.BrokerFactory().create(
-            env_path=resolved,
-            load_instruments=load_instruments,
-            event_bus=event_bus,
-            lifecycle=lifecycle,
-            risk_manager=risk_manager,
-        )
-    except ImportError:
-        logger.warning("Dhan broker package not available")
-        return None
-    except Exception as exc:
-        logger.error("Failed to create Dhan gateway: %s", exc)
-        return None
-
-
-def _create_upstox(
-    env_path: str | Path | None,
-    *,
-    load_instruments: bool = True,
-    event_bus: Any | None = None,
-    lifecycle: Any | None = None,
-    risk_manager: Any | None = None,
-) -> Any | None:
-    try:
-        _mod = importlib.import_module("brokers.upstox.factory")
-
-        resolved = Path(env_path) if env_path is not None else resolve_env_path("upstox")
-        return _mod.UpstoxBrokerFactory().create(
-            env_path=resolved,
-            load_instruments=load_instruments,
-            event_bus=event_bus,
-            lifecycle=lifecycle,
-            risk_manager=risk_manager,
-        )
-    except ImportError:
-        logger.warning("Upstox broker package not available")
-        return None
-    except Exception as exc:
-        logger.error("Failed to create Upstox gateway: %s", exc)
-        return None
-
-
-def _create_paper(
-    env_path: Path | None = None,  # noqa: ARG001
-    **kwargs: Any,  # noqa: ARG001
-) -> Any | None:
-    try:
-        _mod = importlib.import_module("brokers.paper")
-
-        return _mod.PaperGateway()
-    except ImportError:
-        logger.warning("Paper gateway not available")
-        return None
-
-
-def _create_datalake(
-    env_path: Path | None = None,  # noqa: ARG001
-    *,
-    root: str = "market_data",
-    **kwargs: Any,  # noqa: ARG001
-) -> Any | None:
-    try:
-        from datalake.gateway import DataLakeGateway
-
-        return DataLakeGateway(root=root)
-    except ImportError:
-        logger.warning("DataLake gateway not available")
-        return None
-    except Exception as exc:
-        logger.error("Failed to create DataLake gateway: %s", exc)
-        return None

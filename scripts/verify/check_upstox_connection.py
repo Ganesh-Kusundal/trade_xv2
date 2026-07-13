@@ -9,6 +9,7 @@ sys.path.insert(0, str(project_root))
 from brokers.upstox.auth.config import UpstoxSettingsLoader
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
 from brokers.upstox.auth.oauth_client import UpstoxOAuthClient
+from brokers.upstox.auth.exceptions import UpstoxAuthError
 
 def main():
     print("=" * 60)
@@ -33,9 +34,15 @@ def main():
         
         # Check profile (this is an account/admin endpoint and is expected to fail without static IP)
         print("\n[Optional] Sending live request to private user endpoint /v2/user/profile...")
-        expiry = client.fetch_profile(token)
+        try:
+            expiry = client.fetch_profile(token)
+        except UpstoxAuthError as exc:
+            expiry = -1
+            print(f"  ℹ Info: User Profile fetch failed (expected if current IP is not the registered Static IP): {exc}")
         if expiry > 0:
             print(f"  ✓ User Profile retrieved successfully (IP matches configured Static IP).")
+        elif expiry == -1:
+            pass
         else:
             print("  ℹ Info: User Profile fetch skipped/failed (expected if current IP is not the registered Static IP).")
             

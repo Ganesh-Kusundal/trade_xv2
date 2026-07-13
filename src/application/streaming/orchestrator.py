@@ -368,7 +368,7 @@ class StreamOrchestrator:
             },
         )
         with contextlib.suppress(Exception):
-            from infrastructure.observability.audit import emit_stream_state_change
+            from domain.ports.audit import emit_stream_state_change
 
             emit_stream_state_change(
                 session_id=session_id,

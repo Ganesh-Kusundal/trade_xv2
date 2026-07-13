@@ -5,7 +5,7 @@ Owns:
 
 * the derivative margin check (fail-closed),
 * the pending-exposure reservations between risk check and terminal order
-  state, and
+  state (with TTL sweep — R2), and
 * best-effort market-context resolution (LTP / ref price / multiplier) used
   for notional sizing upstream in :meth:`RiskManager.check_order`.
 
@@ -15,6 +15,7 @@ This module must NOT import from ``risk_manager`` (no circular deps).
 from __future__ import annotations
 
 import logging
+import time
 from decimal import Decimal
 from typing import Any
 
@@ -32,13 +33,19 @@ from application.oms._internal.risk_types import (
 
 logger = logging.getLogger(__name__)
 
+# R2: stuck non-terminal reservations eventually expire so a missed WS
+# terminal update cannot inflate exposure forever. Ceiling: 10 minutes;
+# upgrade path = release on every terminal upsert/fill (already wired).
+_PENDING_TTL_SECONDS = 600.0
+
 
 class MarginChecker:
     """Derivative margin check + pending-exposure tracking.
 
     Stateless with respect to portfolio/capital; it only consults the
     (optional) margin provider and tracks the notional reservations made by
-    :meth:`RiskManager.check_order` until the order reaches a terminal state.
+    :meth:`RiskManager.check_order` until the order reaches a terminal state
+    or the TTL expires.
     """
 
     def __init__(
@@ -46,15 +53,34 @@ class MarginChecker:
         config: RiskConfig,
         margin_provider: MarginProviderPort | None = None,
         instrument_provider: InstrumentProvider | None = None,
+        pending_ttl_seconds: float = _PENDING_TTL_SECONDS,
     ) -> None:
         self._config = config
         self._margin_provider = margin_provider
         self._instrument_provider = instrument_provider
+        self._pending_ttl_seconds = pending_ttl_seconds
         # Pending exposure reserved between risk check and terminal order state.
         self._pending_by_correlation: dict[str, Decimal] = {}
         self._pending_meta: dict[str, tuple[str, str]] = {}
+        self._pending_at: dict[str, float] = {}
 
     # -- Pending exposure (delegated from RiskManager) --
+
+    def _sweep_expired(self) -> None:
+        """Drop pending reservations older than the TTL (R2)."""
+        if not self._pending_at:
+            return
+        now = time.monotonic()
+        expired = [
+            cid
+            for cid, started in self._pending_at.items()
+            if now - started >= self._pending_ttl_seconds
+        ]
+        for cid in expired:
+            logger.warning("risk_pending_ttl_expired correlation_id=%s", cid)
+            self._pending_by_correlation.pop(cid, None)
+            self._pending_meta.pop(cid, None)
+            self._pending_at.pop(cid, None)
 
     def release_pending(self, correlation_id: str | None) -> None:
         """Release a pending exposure reservation (idempotent)."""
@@ -62,17 +88,22 @@ class MarginChecker:
             return
         self._pending_by_correlation.pop(correlation_id, None)
         self._pending_meta.pop(correlation_id, None)
+        self._pending_at.pop(correlation_id, None)
 
     def reserve_pending(self, order: Order, notional: Decimal) -> None:
         """Record a pending exposure reservation for ``order``."""
+        self._sweep_expired()
         if order.correlation_id:
             self._pending_by_correlation[order.correlation_id] = notional
             self._pending_meta[order.correlation_id] = (order.symbol, order.exchange)
+            self._pending_at[order.correlation_id] = time.monotonic()
 
     def pending_gross(self) -> Decimal:
+        self._sweep_expired()
         return sum(self._pending_by_correlation.values(), Decimal("0"))
 
     def pending_symbol_notional(self, symbol: str, exchange: str) -> Decimal:
+        self._sweep_expired()
         total = Decimal("0")
         for cid, (sym, ex) in self._pending_meta.items():
             if sym == symbol and ex == exchange:

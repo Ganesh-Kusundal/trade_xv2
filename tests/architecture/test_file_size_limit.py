@@ -21,30 +21,48 @@ HARD_LIMIT = 650
 # Files with documented exceptions (historical, being migrated).
 # Each entry: (relative_path, approved_limit, reason)
 EXEMPTIONS = {
-    "analytics/replay/engine.py": (687, "ReplayEngine facade — partially decomposed; remaining split in ADR-011 backlog"),
+    "analytics/replay/engine.py": (520, "ReplayEngine facade — decomposed in ADR-011 Phase 3; window + event_publishing extracted"),
     "application/composer/factory.py": (430, "Composer factory — split tracked in ADR-011 backlog"),
-
-    "application/oms/context.py": (543, "TradingContext facade — partially decomposed; remaining split in ADR-011 backlog"),
+    "application/oms/context.py": (460, "TradingContext facade — decomposed in ADR-011 Phase 3; lifecycle services extracted"),
     "application/trading/trading_orchestrator.py": (517, "TradingOrchestrator facade — partially decomposed; remaining split in ADR-011 backlog"),
     "brokers/cli/broker.py": (487, "CLI broker commands — split tracked in ADR-011 backlog"),
+    "brokers/cli/_shell_nav.py": (415, "CLI shell navigation — types extracted to _shell_types.py; remaining in ADR-011 backlog"),
     "brokers/dhan/api/http_client.py": (500, "Dhan HTTP client — split tracked in ADR-011 backlog"),
-    "brokers/dhan/data/depth_feed_base.py": (602, "Dhan depth feed — split tracked in ADR-011 backlog"),
+    "brokers/dhan/data/depth_feed_base.py": (530, "Dhan depth feed — decomposed in ADR-011 Phase 3; parser delegation inlined"),
     "brokers/dhan/identity/identity.py": (441, "Dhan identity — split tracked in ADR-011 backlog"),
     "brokers/dhan/streaming/connection.py": (516, "Dhan streaming connection — split tracked in ADR-011 backlog"),
     "brokers/dhan/websocket/connection.py": (448, "Dhan websocket connection — split tracked in ADR-011 backlog"),
     "brokers/dhan/websocket/market_feed.py": (429, "Dhan market feed — split tracked in ADR-011 backlog"),
     "brokers/paper/paper_gateway.py": (510, "Paper gateway — split tracked in ADR-011 backlog"),
     "brokers/paper/paper_orders.py": (455, "Paper orders — split tracked in ADR-011 backlog"),
-
-
     "brokers/upstox/websocket/market_data_v3.py": (514, "Upstox market data v3 — split tracked in ADR-011 backlog"),
     "domain/options/option_chain.py": (489, "Option chain — split tracked in ADR-011 backlog"),
     "infrastructure/event_bus/event_bus.py": (480, "EventBus core — split tracked in ADR-011 backlog"),
     "infrastructure/observability/alerting.py": (508, "Alerting engine — split tracked in ADR-011 backlog"),
-    "interface/api/schemas.py": (510, "API schemas — split tracked in ADR-011 backlog"),
     "interface/ui/commands/market.py": (481, "Market commands — split tracked in ADR-011 backlog"),
-    "brokers/cli/_shell_nav.py": (410, "CLI shell navigation — split tracked in ADR-011 backlog"),
+}
 
+# Owner + due-date tracking for decompositon backlog.
+EXEMPTION_METADATA: dict[str, dict[str, str]] = {
+    "analytics/replay/engine.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "application/composer/factory.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "application/oms/context.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "application/trading/trading_orchestrator.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "brokers/cli/broker.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/cli/_shell_nav.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/dhan/api/http_client.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/dhan/data/depth_feed_base.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/dhan/identity/identity.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/dhan/streaming/connection.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/dhan/websocket/connection.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/dhan/websocket/market_feed.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/paper/paper_gateway.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/paper/paper_orders.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "brokers/upstox/websocket/market_data_v3.py": {"owner": "team-brokers", "due_date": "2026-08-01"},
+    "domain/options/option_chain.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "infrastructure/event_bus/event_bus.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "infrastructure/observability/alerting.py": {"owner": "team-core", "due_date": "2026-08-01"},
+    "interface/ui/commands/market.py": {"owner": "team-ui", "due_date": "2026-08-01"},
 }
 
 

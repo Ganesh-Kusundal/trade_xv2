@@ -353,37 +353,35 @@ class DataQualityMonitor:
 
     def print_summary(self, report: OverallReport) -> None:
         """Print quality report summary."""
-        print("=" * 80)
-        print("DATA QUALITY MONITORING REPORT")
-        print("=" * 80)
+        logger.info("=" * 80)
+        logger.info("DATA QUALITY MONITORING REPORT")
+        logger.info("=" * 80)
 
-        print("\n📊 OVERVIEW")
-        print("-" * 80)
-        print(f"Total Symbols: {report.total_symbols:,}")
-        print(f"Total Candles: {report.total_candles:,}")
+        logger.info("OVERVIEW")
+        logger.info("-" * 80)
+        logger.info("Total Symbols: %d", report.total_symbols)
+        logger.info("Total Candles: %d", report.total_candles)
         if report.date_range[0] and report.date_range[1]:
-            print(f"Date Range: {report.date_range[0]} to {report.date_range[1]}")
+            logger.info("Date Range: %s to %s", report.date_range[0], report.date_range[1])
 
-        print(f"\n📈 HEALTH SCORE: {report.health_score:.1f}/100")
-        print("-" * 80)
+        logger.info("HEALTH SCORE: %.1f/100", report.health_score)
+        logger.info("-" * 80)
 
         for metric in report.summary_metrics:
             status_icon = (
-                "✅" if metric.status == "PASS" else "⚠️" if metric.status == "WARNING" else "❌"
+                "OK" if metric.status == "PASS" else "WARN" if metric.status == "WARNING" else "FAIL"
             )
-            print(f"{status_icon} {metric.name}: {metric.details}")
+            logger.info("[%s] %s: %s", status_icon, metric.name, metric.details)
 
-        # Symbols with issues
         problem_symbols = [s for s in report.symbol_reports if s.status != "PASS"]
         if problem_symbols:
-            print(f"\n⚠️  SYMBOLS WITH ISSUES ({len(problem_symbols)})")
-            print("-" * 80)
+            logger.info("SYMBOLS WITH ISSUES (%d)", len(problem_symbols))
+            logger.info("-" * 80)
 
-            # Show worst first
             problem_symbols.sort(key=lambda s: -len(s.issues))
-            for sq in problem_symbols[:20]:  # Top 20
-                print(f"\n{sq.symbol} [{sq.status}]")
+            for sq in problem_symbols[:20]:
+                logger.info("%s [%s]", sq.symbol, sq.status)
                 for issue in sq.issues:
-                    print(f"  - {issue}")
+                    logger.info("  - %s", issue)
 
-        print("\n" + "=" * 80)
+        logger.info("=" * 80)

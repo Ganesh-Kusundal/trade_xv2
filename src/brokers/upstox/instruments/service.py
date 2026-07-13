@@ -137,8 +137,10 @@ class UpstoxInstrumentService:
 
         Resolution priority:
         1. Hardcoded index mapping (NIFTY, BANKNIFTY, …)
-        2. Instrument master lookup
-        3. Fallback: ``{segment}|{symbol}``
+        2. Bare commodity underlying on MCX (e.g. "GOLD", "CRUDEOIL") ->
+           nearest-expiry future contract
+        3. Instrument master lookup
+        4. Fallback: ``{segment}|{symbol}``
         """
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
         from config.indices import index_upstox_key
@@ -155,6 +157,27 @@ class UpstoxInstrumentService:
             segment = "NSE_EQ"
         elif segment == "BSE":
             segment = "BSE_EQ"
+
+        # MCX instruments don't have a spot/index instrument the way equities
+        # do -- a bare underlying (no spaces, i.e. not a full trading symbol
+        # like "GOLD FUT 05 AUG 26") means the caller wants the tradable
+        # commodity contract. Registration leaves ``symbol`` blank on MCX
+        # instrument records, so the resolver's dict lookup depends on
+        # collision-prone alternate keys and either misses entirely (no
+        # match at all) or matches an arbitrary option leg instead of the
+        # future. list_future_contracts() filters strictly by
+        # underlying_symbol and sorts by expiry, so it always resolves
+        # deterministically to the near-month future.
+        if segment == "MCX_FO" and " " not in symbol.strip():
+            # list_future_contracts() doesn't filter by exchange_segment --
+            # the same commodity is often cross-listed under NSE_COM too,
+            # so an unfiltered pick can silently return an NSE_COM contract
+            # (no MCX market data => zero LTP) instead of the MCX one.
+            contracts = [
+                c for c in self._resolver.list_future_contracts(symbol) if c.exchange_segment == segment
+            ]
+            if contracts:
+                return contracts[0].instrument_key
 
         defn = self._resolver.resolve(symbol=symbol, exchange_segment=segment)
         if defn:

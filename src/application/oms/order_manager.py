@@ -167,8 +167,18 @@ class OrderManager:
         self._audit_logger = audit_logger or OrderAuditLogger()
         self._position_updater = position_updater or OrderPositionUpdater()
         self._order_store = order_store
+        self._execution_ledger = execution_ledger
 
-        self._idempotency_guard = IdempotencyGuard()
+        # F6: hydrate hot cache from durable order store on startup.
+        if order_store is not None:
+            for stored in order_store.load_all():
+                self._orders[stored.order_id] = stored
+                if stored.correlation_id:
+                    self._orders_by_correlation[stored.correlation_id] = stored
+
+        self._idempotency_guard = IdempotencyGuard(
+            durable_lookup=self._lookup_durable_order,
+        )
         self._order_validator = OmsOrderValidator(
             risk_manager=risk_manager,  # accepts RiskManager | RiskGateAdapter
             event_bus=event_bus,
@@ -199,6 +209,27 @@ class OrderManager:
         return self._risk_manager
 
     @property
+    def lifecycle(self) -> OrderLifecycle:
+        """Public accessor for order lifecycle (used by ReconciliationService)."""
+        return self._lifecycle
+
+    @property
+    def trade_recorder(self) -> TradeRecorder:
+        """Public accessor for trade recorder (used by ReconciliationService)."""
+        return self._trade_recorder
+
+    @property
+    def order_store(self) -> OrderStorePort | None:
+        """Public accessor for order store (used by Context health)."""
+        return self._order_store
+
+    @property
+    def orders_map(self) -> dict[str, Order]:
+        """Public accessor for the in-memory order book (read-only snapshot)."""
+        with self._lock:
+            return dict(self._orders)
+
+    @property
     def processed_trade_repository(self) -> ProcessedTradeRepositoryPort | None:
         return self._processed_trades
 
@@ -215,6 +246,59 @@ class OrderManager:
         self._idempotency_guard.release_pending(self._lock, correlation_id)
         if self._risk_manager is not None:
             self._risk_manager.release_pending(correlation_id)
+
+    def _lookup_durable_order(self, correlation_id: str) -> Order | None:
+        """F6: recover an order by correlation from ledger when memory is empty."""
+        # Caller holds the OMS lock. Memory map is already checked by the guard.
+        if correlation_id in self._orders_by_correlation:
+            return self._orders_by_correlation[correlation_id]
+        ledger = self._execution_ledger
+        if ledger is None:
+            return None
+        intent = None
+        try:
+            intent = ledger.intent_for_correlation(correlation_id)
+        except Exception:
+            return None
+        if intent is None:
+            return None
+        existing = self._orders.get(intent.order_id)
+        if existing is not None:
+            return existing
+        from domain.types import OrderStatus
+
+        outcome = ledger.outcome_for(intent.intent_id)
+        if outcome is not None and outcome.state is SubmissionState.UNKNOWN:
+            status = OrderStatus.UNKNOWN
+        elif outcome is not None and outcome.state is SubmissionState.REJECTED:
+            status = OrderStatus.REJECTED
+        else:
+            # ACCEPTED or intent-only (crash mid-submit) — treat as OPEN so
+            # retries return the durable order instead of double-submitting.
+            status = OrderStatus.OPEN
+        recovered = Order(
+            order_id=intent.order_id,
+            correlation_id=intent.correlation_id,
+            symbol=intent.symbol,
+            exchange=intent.exchange,
+            side=intent.side,
+            order_type=intent.order_type,
+            product_type=intent.product_type,
+            quantity=intent.quantity,
+            price=intent.price,
+            status=status,
+            timestamp=intent.created_at,
+        )
+        self._orders[recovered.order_id] = recovered
+        return recovered
+
+    def _persist_order(self, order: Order) -> None:
+        if self._order_store is None:
+            return
+        try:
+            self._order_store.upsert(order)
+        except Exception:
+            logger.exception("order_store_persist_failed order_id=%s", order.order_id)
 
     @trace_operation("order_manager.place_order")
     def place_order(
@@ -265,6 +349,7 @@ class OrderManager:
                 order,
                 request,
             )
+            self._persist_order(order)
             if self._orders_total is not None:
                 self._orders_total.inc()
             return OrderResult(success=True, order=order, state=SubmissionState.ACCEPTED)
@@ -277,14 +362,27 @@ class OrderManager:
         self._lifecycle.upsert_order(
             self._lock, self._orders, self._orders_by_correlation, order
         )
+        self._persist_order(order)
         if self._risk_manager is not None and order.status.is_terminal:
             self._risk_manager.release_pending(order.correlation_id)
 
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade and update the parent order (idempotent on trade_id)."""
-        return self._trade_recorder.record_trade(
+        ok = self._trade_recorder.record_trade(
             self._lock, self._orders, self._orders_by_correlation, trade
         )
+        if ok:
+            order = self.get_order(trade.order_id)
+            if order is not None:
+                self._persist_order(order)
+                # R2: release risk-pending on fill path when order is terminal.
+                if (
+                    self._risk_manager is not None
+                    and order.status.is_terminal
+                    and order.correlation_id
+                ):
+                    self._risk_manager.release_pending(order.correlation_id)
+        return ok
 
     def get_order(self, order_id: str) -> Order | None:
         with self._lock:
@@ -388,7 +486,6 @@ class OrderManager:
     ) -> None:
         if self._event_bus is None:
             return
-        symbol = obj.symbol if hasattr(obj, "symbol") else None
         correlation_id: str | None = getattr(obj, "correlation_id", None)
         payload: dict = {"order": obj} if isinstance(obj, Order) else {"trade": obj}
         if reason is not None:
@@ -397,8 +494,6 @@ class OrderManager:
             DomainEvent.now(
                 event_type,
                 payload,
-                symbol=symbol,
-                source="OrderManager",
                 correlation_id=correlation_id,
             )
         )

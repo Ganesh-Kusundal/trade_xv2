@@ -108,12 +108,12 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
     @property
     def command_dispatcher(self) -> Any | None:
         """The CQRS CommandDispatcher, if wired at the composition root."""
-        return getattr(self, "_command_dispatcher", None)
+        return self._command_dispatcher if hasattr(self, "_command_dispatcher") else None
 
     @property
     def query_dispatcher(self) -> Any | None:
         """The CQRS QueryDispatcher, if wired at the composition root."""
-        return getattr(self, "_query_dispatcher", None)
+        return self._query_dispatcher if hasattr(self, "_query_dispatcher") else None
 
     @property
     def account(self):
@@ -136,9 +136,10 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
                         return list(list_fn())
                     except TypeError:
                         return list(list_fn(include_terminal=False))
-                orders_map = getattr(mgr, "_orders", None)
-                if isinstance(orders_map, dict):
-                    return list(orders_map.values())
+                if hasattr(mgr, "orders_map"):
+                    orders_map = mgr.orders_map
+                    if isinstance(orders_map, dict):
+                        return list(orders_map.values())
         if self._execution_provider is not None:
             try:
                 return list(self._execution_provider.get_order_book() or [])
@@ -157,7 +158,7 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
 
     def close(self) -> None:
         """Release default provider and ambient if still owned by this Session."""
-        lifecycle = getattr(self, "_lifecycle", None)
+        lifecycle = self._lifecycle if hasattr(self, "_lifecycle") else None
         if lifecycle is not None:
             try:
                 stop = getattr(lifecycle, "stop_all", None)
@@ -169,7 +170,7 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
                 self._lifecycle = None
             except Exception:
                 pass
-        recorder = getattr(self, "_session_recorder", None)
+        recorder = self._session_recorder if hasattr(self, "_session_recorder") else None
         if recorder is not None:
             try:
                 stop = getattr(recorder, "stop", None)

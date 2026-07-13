@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from domain.exceptions import TradeXV2Error
 from domain.types import OrderStatus
 
 
-class UnmappedBrokerStatusError(ValueError):
+class UnmappedBrokerStatusError(TradeXV2Error, ValueError):
     """Raised when a broker status string cannot be mapped to OrderStatus."""
 
     def __init__(self, broker_status: str) -> None:

@@ -23,6 +23,14 @@ class ExecutionLedgerPort(Protocol):
         """Return the latest durable outcome for an intent."""
         ...
 
+    def intent_for_correlation(self, correlation_id: str) -> OrderIntent | None:
+        """Return the durable intent for a correlation id (F6 restart safety)."""
+        ...
+
+    def order_id_for_correlation(self, correlation_id: str) -> str | None:
+        """Return order_id for a correlation id, or None if unknown."""
+        ...
+
     def record_fill(self, fill: LedgerFillRecord) -> None:
         """Persist an accepted fill for recovery projection."""
         ...

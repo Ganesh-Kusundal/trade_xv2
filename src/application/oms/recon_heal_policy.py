@@ -1,21 +1,21 @@
-"""Reconciliation heal policy — correct-then-heal, human-gated by default.
+"""Reconciliation heal policy — correct-then-heal; heal on by default for live (F4).
 
 Safe-to-trade gate (Phase 1 / P0-H companion)
 --------------------------------------------
 Reconciliation always **detects** drift. **Repair** of local OMS state from
-broker truth is opt-in so an operator (or automated SRE) must explicitly
-enable heal mode — never silent self-heal in production by default.
+broker truth defaults to **on** for live safety (F4). Operators can force
+report-only with ``TRADEX_RECONCILIATION_AUTO_REPAIR=0``.
 
 Policy
 ------
-* ``report_only`` (default) — surface drift; never mutate OMS.
-* ``heal`` — when ``TRADEX_RECONCILIATION_AUTO_REPAIR=1``, apply
-  **correct-then-heal** for HIGH-severity items only (missing local
-  orders/positions, quantity mismatches). MEDIUM status mismatches are
-  reported but not auto-healed unless the adapter opts in.
+* ``heal`` (default) — apply correct-then-heal for HIGH-severity items
+  (missing local orders/positions, quantity mismatches).
+* ``report_only`` — when ``TRADEX_RECONCILIATION_AUTO_REPAIR=0``, surface
+  drift; never mutate OMS via broker adapters.
 
 Heal is always **local OMS catches up to broker** (broker is authoritative).
-It never sends cancel/place to the broker.
+It never sends cancel/place to the broker. ``ExecutionEngine.apply_mass_status``
+always upserts; this flag gates broker-adapter ``auto_repair`` paths.
 
 Usage
 -----
@@ -54,12 +54,17 @@ class HealMode(str, Enum):
 
 
 def resolve_heal_mode(*, env: dict[str, str] | None = None) -> HealMode:
-    """Resolve heal mode from environment (or *env* mapping for tests)."""
+    """Resolve heal mode from environment (or *env* mapping for tests).
+
+    Default is HEAL (F4 live safety). Set ``TRADEX_RECONCILIATION_AUTO_REPAIR=0``
+    for report-only.
+    """
     source = env if env is not None else os.environ
-    raw = (source.get(ENV_AUTO_REPAIR) or "").strip()
-    if raw == "1":
-        return HealMode.HEAL
-    return HealMode.REPORT_ONLY
+    raw = (source.get(ENV_AUTO_REPAIR) if ENV_AUTO_REPAIR in source else "1") or "1"
+    raw = str(raw).strip().lower()
+    if raw in ("0", "false", "no", "off", "report_only"):
+        return HealMode.REPORT_ONLY
+    return HealMode.HEAL
 
 
 def should_auto_repair(*, env: dict[str, str] | None = None) -> bool:
@@ -78,13 +83,13 @@ def log_heal_mode() -> HealMode:
     if mode is HealMode.HEAL:
         logger.warning(
             "reconciliation_heal_mode=heal "
-            "(%s=1) — local OMS will be repaired from broker for HIGH healable drift",
+            "(default; set %s=0 for report-only) — local OMS repaired from broker",
             ENV_AUTO_REPAIR,
         )
     else:
         logger.info(
             "reconciliation_heal_mode=report_only "
-            "(set %s=1 to enable correct-then-heal)",
+            "(%s=0) — drift reported, not auto-healed",
             ENV_AUTO_REPAIR,
         )
     return mode

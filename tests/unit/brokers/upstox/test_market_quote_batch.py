@@ -93,6 +93,40 @@ class TestToQuotesMapper:
         assert q.high == Decimal("101")
         assert q.close == Decimal("100.5")
 
+    def test_quote_carries_oi_for_derivatives(self):
+        payload = {
+            "status": "success",
+            "data": {
+                "NSE_FO:NIFTY2543021600PE": {
+                    "symbol": "NIFTY2543021600PE",
+                    "instrument_token": "NSE_FO|51834",
+                    "last_price": 303.9,
+                    "ohlc": {"open": 290, "high": 305, "low": 285, "close": 295},
+                    "volume": 170325,
+                    "oi": 91234,
+                    "net_change": 8.9,
+                }
+            },
+        }
+        q = UpstoxDomainMapper.to_quote(payload)
+        assert q.oi == 91234
+
+    def test_equity_oi_defaults_to_zero(self):
+        payload = {
+            "status": "success",
+            "data": {
+                "NSE_EQ:RELIANCE": {
+                    "symbol": "RELIANCE",
+                    "instrument_token": "NSE_EQ|INE002A01018",
+                    "last_price": 2500.5,
+                    "ohlc": {"open": 2490, "high": 2510, "low": 2480, "close": 2495},
+                    "volume": 100,
+                }
+            },
+        }
+        q = UpstoxDomainMapper.to_quote(payload)
+        assert q.oi == 0
+
 
 # ---------------------------------------------------------------------------
 # Chunking helper
@@ -156,6 +190,24 @@ class TestMarketDataAdapterBatch:
         assert len(args) == 2
         assert result["RELIANCE"].ltp == Decimal("100")
         assert result["TCS"].ltp == Decimal("200")
+
+    def test_quotes_batch_carries_oi_for_fno(self):
+        body = {
+            "data": {
+                "NSE_FO:CONTRACT": {
+                    "symbol": "CONTRACT",
+                    "instrument_token": "NSE_FO|51834",
+                    "last_price": 303.9,
+                    "ohlc": {"open": 290, "high": 305, "low": 285, "close": 295},
+                    "volume": 170325,
+                    "oi": 91234,
+                }
+            }
+        }
+        v2, v3, hist = _v2_v3_pair(full_body=body)
+        adapter = UpstoxMarketDataAdapter(v2, v3, hist)
+        result = adapter.quotes_batch(["NSE_FO|51834"])
+        assert result["CONTRACT"].oi == 91234
 
     def test_quotes_batch_chunks_above_500(self):
         def _make_body(keys: list[str]) -> dict[str, Any]:

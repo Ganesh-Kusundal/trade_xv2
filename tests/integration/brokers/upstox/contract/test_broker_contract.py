@@ -159,6 +159,63 @@ class TestUpstoxMarketStatusContract:
         assert data.get("status") == "success"
 
 
+class TestUpstoxInstrumentResolverWiring:
+    """``UpstoxOptionsAdapter``/``UpstoxFuturesClient`` were constructed
+    without ``instrument_resolver`` in ``broker.py``'s ``_build_adapters``/
+    ``_build_raw_clients``, even though ``self.instrument_resolver`` was
+    available at construction time and passed to sibling adapters
+    (``order_query``, ``slice``). This left ``option_chain``/``future_chain``
+    permanently broken with "Upstox instruments not loaded", regardless of
+    whether instruments were actually loaded — regression guard for that."""
+
+    def test_options_adapter_has_resolver_wired(self, live_gateway):
+        broker = live_gateway._broker
+        assert broker.options._resolver is not None
+        assert broker.options._resolver is broker.instrument_resolver
+
+    def test_futures_client_has_resolver_wired(self, live_gateway):
+        broker = live_gateway._broker
+        assert broker.futures_client._resolver is not None
+        assert broker.futures_client._resolver is broker.instrument_resolver
+
+    @skip_live
+    def test_option_chain_works_for_nfo(self, live_gateway):
+        chain = live_gateway.option_chain("NIFTY", "NFO")
+        assert chain.strikes, "expected at least one strike"
+
+    @skip_live
+    def test_future_chain_works_for_nfo(self, live_gateway):
+        chain = live_gateway.future_chain("NIFTY", "NFO")
+        assert chain.contracts, "expected at least one future contract"
+
+    @skip_live
+    def test_future_chain_works_for_mcx(self, live_gateway):
+        chain = live_gateway.future_chain("GOLD", "MCX")
+        assert chain.contracts, "expected at least one future contract"
+
+
+class TestUpstoxMcxBareSymbolResolution:
+    """MCX instrument records leave ``symbol`` blank (only ``trading_symbol``
+    is populated), so a bare underlying like "CRUDEOIL" doesn't match the
+    resolver's dict directly. The commodity is often cross-listed under both
+    MCX_FO and NSE_COM with identical trading_symbol/expiry, so naively
+    picking any matching future risks silently returning an NSE_COM
+    contract (no MCX market data => LTP always 0). Regression guard for
+    resolve_instrument_key() deterministically picking the near-month
+    MCX_FO future for a bare commodity symbol."""
+
+    @skip_live
+    @pytest.mark.parametrize("symbol", ["GOLD", "CRUDEOIL", "SILVER"])
+    def test_ltp_nonzero_for_bare_commodity_symbol(self, live_gateway, symbol):
+        ltp = live_gateway.ltp(symbol, "MCX")
+        assert ltp > 0, f"{symbol} LTP should be a real, positive price"
+
+    def test_resolved_key_is_mcx_segment(self, live_gateway):
+        broker = live_gateway._broker
+        key = broker.instruments.resolve_instrument_key("CRUDEOIL", "MCX")
+        assert key.startswith("MCX_FO|"), f"expected an MCX_FO instrument_key, got {key!r}"
+
+
 class TestUpstoxOptionsContract:
     @skip_live
     def test_option_chain_returns_data(self, live_gateway):

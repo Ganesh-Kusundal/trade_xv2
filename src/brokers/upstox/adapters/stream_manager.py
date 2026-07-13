@@ -12,7 +12,6 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
-from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import Quote
 
 if TYPE_CHECKING:
@@ -79,14 +78,13 @@ class StreamManagerAdapter:
         Returns:
             WebSocket client instance
         """
-        segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        if segment == "NSE":
-            segment = "NSE_EQ"
-        elif segment == "BSE":
-            segment = "BSE_EQ"
-        
-        defn = self._resolver.resolve(symbol=symbol, exchange_segment=segment)
-        inst_key = defn.instrument_key if defn and defn.instrument_key else f"{segment}|{symbol}"
+        # Reuse the canonical resolution path (UpstoxInstrumentService.
+        # resolve_instrument_key) instead of duplicating raw resolver.resolve()
+        # + a synthesized fallback key here. The duplicated version had no
+        # handling for bare MCX commodity symbols (e.g. "CRUDEOIL") -- it
+        # fell back to a non-existent "MCX_FO|CRUDEOIL" key, so subscribing
+        # silently produced zero ticks forever, with no error.
+        inst_key = self._broker.instruments.resolve_instrument_key(symbol, exchange)
         ws = self._broker.market_data_websocket
 
         with self._stream_lock:
@@ -108,6 +106,16 @@ class StreamManagerAdapter:
                     _cb: Any = on_tick,
                     _key: str = inst_key,
                 ) -> None:
+                    # ws.add_listener() registers a connection-wide listener,
+                    # not one scoped to this instrument -- every subscriber's
+                    # wrapped_listener fires for every tick on the shared
+                    # WebSocket. Without this filter, subscribing to two+
+                    # symbols meant every callback received every other
+                    # symbol's ticks too.
+                    payload = raw.get("payload") if isinstance(raw, dict) and "payload" in raw else raw
+                    tick_key = TickTranslatorAdapter._extract_instrument_key(payload)
+                    if tick_key and tick_key != _key:
+                        return
                     quote = self._translate_tick_to_quote(raw)
                     _cb(quote)
 
@@ -143,14 +151,9 @@ class StreamManagerAdapter:
             exchange: Exchange string
             on_tick: The callback to remove. None removes all.
         """
-        segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        if segment == "NSE":
-            segment = "NSE_EQ"
-        elif segment == "BSE":
-            segment = "BSE_EQ"
-            
-        defn = self._resolver.resolve(symbol=symbol, exchange_segment=segment)
-        inst_key = defn.instrument_key if defn and defn.instrument_key else f"{segment}|{symbol}"
+        # Must match subscribe()'s resolution exactly, or unsubscribe looks
+        # up the wrong registry key and silently no-ops.
+        inst_key = self._broker.instruments.resolve_instrument_key(symbol, exchange)
         ws = self._broker.market_data_websocket
 
         with self._stream_lock:

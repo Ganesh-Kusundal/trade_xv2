@@ -13,6 +13,7 @@ from typing import Any
 
 from infrastructure.gateway.provider_factory import BrokerProviderFactory
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from brokers.common.identity.account_registry import AccountConnectionRegistry
 from brokers.upstox.auth.config import UpstoxSettingsLoader
 from brokers.upstox.auth.exceptions import UpstoxAuthError
 from brokers.upstox.broker import UpstoxBroker
@@ -39,6 +40,39 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
         if analytics_only or settings.analytics_only:
             settings = replace(settings, analytics_only=True)
 
+        # Reuse one gateway/WebSocket connection per (broker, client_id) per
+        # process instead of reconnecting on every bootstrap_gateway() call.
+        # Without this, each call built a brand-new UpstoxBroker -> new
+        # UpstoxMarketDataV3Multiplexer -> new WS handshake + feed-authorize
+        # request, unlike Dhan (which already had this via
+        # AccountConnectionRegistry) -- repeated calls in the same process
+        # burn connect/authorize cycles and risk provider-side reconnect
+        # throttling.
+        return AccountConnectionRegistry.get_or_create(
+            "upstox",
+            settings.client_id,
+            lambda: self._build_gateway(
+                settings=settings,
+                load_instruments=load_instruments,
+                event_bus=event_bus,
+                risk_manager=risk_manager,
+                lifecycle=lifecycle,
+                backfill_callback=backfill_callback,
+                reconciliation_service=reconciliation_service,
+            ),
+        )
+
+    def _build_gateway(
+        self,
+        *,
+        settings: Any,
+        load_instruments: bool,
+        event_bus: Any | None,
+        risk_manager: Any | None,
+        lifecycle: Any | None,
+        backfill_callback: Callable[[list[str], Any, Any], list[dict]] | None,
+        reconciliation_service: Any | None,
+    ) -> MarketDataGateway:
         broker = UpstoxBroker(
             settings=settings,
             event_bus=event_bus,

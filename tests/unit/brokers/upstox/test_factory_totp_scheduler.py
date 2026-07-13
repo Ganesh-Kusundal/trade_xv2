@@ -51,7 +51,7 @@ def _run_factory(*, settings: UpstoxConnectionSettings, lifecycle: LifecycleMana
             return_value=mock_broker,
         ),
         patch(
-            "brokers.upstox.factory.UpstoxBrokerGateway",
+            "brokers.upstox.factory.UpstoxWireAdapter",
         ) as gateway_cls,
     ):
         gateway_cls.return_value = MagicMock()

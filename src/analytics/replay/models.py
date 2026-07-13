@@ -221,20 +221,16 @@ class SimulatedTrade:
     reasons: list[str] = field(default_factory=list)
 
     def to_domain_trade(self) -> Any:
-        """Convert to canonical ``domain.entities.Trade`` (REF-016).
+        """Convert to canonical ``domain.entities.Trade`` via shared helper.
 
-        Price and PnL fields are coerced to ``Decimal``.
+        ponytail: SimulatedTrade stays a thin session record; domain Trade is SSOT.
         """
-        from domain.entities import Trade
-        from domain.types import Side
+        from domain.entities.trade import build_domain_trade
 
-        side = Side.BUY if self.side == "BUY" else Side.SELL
-        return Trade(
+        return build_domain_trade(
             trade_id=f"sim:{self.symbol}:{id(self)}",
-            order_id="",
             symbol=self.symbol,
-            exchange="NSE",
-            side=side,
+            side=self.side,
             quantity=self.quantity,
             price=Decimal(str(self.entry_price)),
             trade_value=Decimal(str(abs(self.pnl))) if self.pnl != 0 else Decimal("0"),

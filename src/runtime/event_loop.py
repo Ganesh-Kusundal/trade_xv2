@@ -51,7 +51,7 @@ def ensure_runtime_loop() -> asyncio.AbstractEventLoop:
     Must be invoked from the loop-owning thread (the ``Runtime`` composition
     root) before worker threads try to schedule work onto it.
     """
-    global _RUNTIME_LOOP
+    global _RUNTIME_LOOP  # intentional module singleton — process-wide event loop
     with _LOOP_LOCK:
         if _RUNTIME_LOOP is None or _RUNTIME_LOOP.is_closed():
             _RUNTIME_LOOP = asyncio.new_event_loop()
@@ -60,7 +60,7 @@ def ensure_runtime_loop() -> asyncio.AbstractEventLoop:
 
 def set_runtime_loop(loop: asyncio.AbstractEventLoop) -> None:
     """Register an already-running loop as the runtime loop."""
-    global _RUNTIME_LOOP
+    global _RUNTIME_LOOP  # intentional module singleton — process-wide event loop
     with _LOOP_LOCK:
         _RUNTIME_LOOP = loop
 

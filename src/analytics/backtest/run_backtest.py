@@ -68,17 +68,20 @@ def load_multi_symbol_data(
 
 def run_single_backtest(symbol: str, years: int = 5):
     """Run backtest on a single symbol using 1m data."""
-    print(f"\n{'=' * 60}")
-    print(f"BACKTEST: {symbol} | {years}Y | 1m")
-    print(f"{'=' * 60}")
+    logger.info("=" * 60)
+    logger.info("BACKTEST: %s | %dY | 1m", symbol, years)
+    logger.info("=" * 60)
 
     gw = DataLakeGateway(root="market_data")
     data = gw.history(symbol, timeframe="1m", lookback_days=years * 365)
     if data.empty:
-        print(f"No data for {symbol}")
+        logger.warning("No data for %s", symbol)
         return None
 
-    print(f"Data: {len(data)} bars from {data['timestamp'].min()} to {data['timestamp'].max()}")
+    logger.info(
+        "Data: %d bars from %s to %s",
+        len(data), data['timestamp'].min(), data['timestamp'].max(),
+    )
 
     pipeline = build_pipeline()
     strategy = StrategyPipeline(strategies=[MomentumStrategy(), BreakoutStrategy()])
@@ -95,48 +98,48 @@ def run_single_backtest(symbol: str, years: int = 5):
     result = engine.run(data, symbol=symbol)
 
     ta = result.metrics.trade_analysis
-    print("\nResults:")
-    print(f"  Total Return: {result.metrics.total_return_pct:.2f}%")
-    print(f"  Sharpe Ratio: {result.metrics.sharpe_ratio:.3f}")
-    print(f"  Max Drawdown: {result.metrics.max_drawdown_pct:.2f}%")
-    print(f"  Win Rate: {ta.win_rate * 100:.1f}%")
-    print(f"  Trades: {ta.total_trades}")
-    print(f"  Profit Factor: {ta.profit_factor:.2f}")
+    logger.info("Results:")
+    logger.info("  Total Return: %.2f%%", result.metrics.total_return_pct)
+    logger.info("  Sharpe Ratio: %.3f", result.metrics.sharpe_ratio)
+    logger.info("  Max Drawdown: %.2f%%", result.metrics.max_drawdown_pct)
+    logger.info("  Win Rate: %.1f%%", ta.win_rate * 100)
+    logger.info("  Trades: %d", ta.total_trades)
+    logger.info("  Profit Factor: %.2f", ta.profit_factor)
 
     return result
 
 
 def run_scan_and_backtest(top_n: int = 10, years: int = 2):
     """Scan universe, pick top N, backtest each using 1m data."""
-    print(f"\n{'=' * 60}")
-    print(f"SCAN + BACKTEST: Top {top_n} | {years}Y | 1m")
-    print(f"{'=' * 60}")
+    logger.info("=" * 60)
+    logger.info("SCAN + BACKTEST: Top %d | %dY | 1m", top_n, years)
+    logger.info("=" * 60)
 
     gw = DataLakeGateway(root="market_data")
     all_symbols = gw.list_symbols(timeframe="1m")
-    print(f"Universe: {len(all_symbols)} symbols")
+    logger.info("Universe: %d symbols", len(all_symbols))
 
-    # Load recent data for scanning (last 252 days)
-    print("\nLoading data for scanning...")
+    logger.info("Loading data for scanning...")
     universe_df = load_multi_symbol_data(gw, all_symbols[:100], lookback_days=252)
     if universe_df.empty:
-        print("No data loaded")
+        logger.warning("No data loaded")
         return []
 
-    print(f"Loaded {len(universe_df)} rows for {universe_df['symbol'].nunique()} symbols")
+    logger.info(
+        "Loaded %d rows for %d symbols",
+        len(universe_df), universe_df['symbol'].nunique(),
+    )
 
-    # Run scanner
     pipeline = build_pipeline()
     scanner = MomentumScanner(pipeline=pipeline, top_n=top_n)
 
-    print("Running scanner...")
+    logger.info("Running scanner...")
     scan_result = scanner.scan(universe_df)
-    print(f"Scan complete: {len(scan_result.candidates)} candidates")
+    logger.info("Scan complete: %d candidates", len(scan_result.candidates))
 
     for c in scan_result.candidates[:10]:
-        print(f"  {c.symbol}: score={c.score:.1f}")
+        logger.info("  %s: score=%.1f", c.symbol, c.score)
 
-    # Backtest each candidate
     strategy = StrategyPipeline(strategies=[MomentumStrategy()])
     config = BacktestConfig(
         initial_capital=1_000_000,
@@ -147,43 +150,45 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
     )
 
     results = []
-    print(f"\nBacktesting top {min(top_n, len(scan_result.candidates))} candidates...")
+    logger.info("Backtesting top %d candidates...", min(top_n, len(scan_result.candidates)))
     for candidate in scan_result.candidates[:top_n]:
         try:
             data = gw.history(candidate.symbol, timeframe="1m", lookback_days=years * 365)
             if data.empty or len(data) < 200:
-                print(f"  {candidate.symbol}: Insufficient data ({len(data)} rows)")
+                logger.warning("  %s: Insufficient data (%d rows)", candidate.symbol, len(data))
                 continue
             engine = BacktestEngine(pipeline=pipeline, strategy_pipeline=strategy, config=config)
             result = engine.run(data, symbol=candidate.symbol)
             ta = result.metrics.trade_analysis
             results.append((candidate.symbol, result))
-            print(
-                f"  {candidate.symbol}: return={result.metrics.total_return_pct:.2f}% sharpe={result.metrics.sharpe_ratio:.3f} trades={ta.total_trades}"
+            logger.info(
+                "  %s: return=%.2f%% sharpe=%.3f trades=%d",
+                candidate.symbol, result.metrics.total_return_pct,
+                result.metrics.sharpe_ratio, ta.total_trades,
             )
         except Exception as e:
-            print(f"  {candidate.symbol}: ERROR - {e}")
+            logger.error("  %s: ERROR - %s", candidate.symbol, e)
 
-    # Summary
     if results:
         returns = [r.metrics.total_return_pct for _, r in results]
         sharpes = [r.metrics.sharpe_ratio for _, r in results]
         trade_counts = [r.metrics.trade_analysis.total_trades for _, r in results]
-        print("\nPortfolio Summary:")
-        print(f"  Symbols backtested: {len(results)}")
-        print(f"  Avg Return: {sum(returns) / len(returns):.2f}%")
-        print(f"  Avg Sharpe: {sum(sharpes) / len(sharpes):.3f}")
-        print(f"  Total Trades: {sum(trade_counts)}")
-        print(f"  Best: {max(returns):.2f}%")
-        print(f"  Worst: {min(returns):.2f}%")
+        logger.info("Portfolio Summary:")
+        logger.info("  Symbols backtested: %d", len(results))
+        logger.info("  Avg Return: %.2f%%", sum(returns) / len(returns))
+        logger.info("  Avg Sharpe: %.3f", sum(sharpes) / len(sharpes))
+        logger.info("  Total Trades: %d", sum(trade_counts))
+        logger.info("  Best: %.2f%%", max(returns))
+        logger.info("  Worst: %.2f%%", min(returns))
 
-        # Sort by return
         results.sort(key=lambda x: x[1].metrics.total_return_pct, reverse=True)
-        print("\nTop 5:")
+        logger.info("Top 5:")
         for sym, r in results[:5]:
             ta = r.metrics.trade_analysis
-            print(
-                f"  {sym}: {r.metrics.total_return_pct:.2f}% | Sharpe {r.metrics.sharpe_ratio:.3f} | {ta.total_trades} trades | Win {ta.win_rate * 100:.0f}%"
+            logger.info(
+                "  %s: %.2f%% | Sharpe %.3f | %d trades | Win %.0f%%",
+                sym, r.metrics.total_return_pct, r.metrics.sharpe_ratio,
+                ta.total_trades, ta.win_rate * 100,
             )
 
     return results

@@ -17,7 +17,7 @@ _provider: "DataProvider | None" = None
 
 def set_default_provider(provider: "DataProvider | None") -> None:
     """Wire the platform-wide data provider (called by the composition root)."""
-    global _provider
+    global _provider  # intentional module singleton — composition root seam
     _provider = provider
 
 

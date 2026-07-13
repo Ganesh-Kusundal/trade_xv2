@@ -10,6 +10,8 @@ method) is surfaced as a WARNING instead of failing later at call time.
 import logging
 from typing import Any
 
+from domain.exceptions import TradeXV2Error
+
 # Maps a capability flag to the method name(s) that must exist on the gateway
 # when the flag is True. The first name present on the gateway satisfies the
 # capability, so multiple acceptable aliases can be listed.
@@ -23,7 +25,7 @@ _CAPABILITY_METHOD_MAP: dict[str, tuple[str, ...]] = {
 }
 
 
-class CapabilityMismatchError(RuntimeError):
+class CapabilityMismatchError(TradeXV2Error, RuntimeError):
     """Raised when a gateway advertises a capability it cannot actually deliver.
 
     Broker-agnostic on purpose: shared by every broker's gateway constructor

@@ -5,7 +5,6 @@ Prefer::
 
     from runtime.broker_infrastructure import BrokerInfrastructure, build_infrastructure
 """
-from runtime.broker_infrastructure import *  # noqa: F403
-from runtime.broker_infrastructure import BrokerInfrastructure, build_infrastructure
+from runtime.broker_infrastructure import BrokerInfrastructure, build_infrastructure  # noqa: F401
 
 __all__ = ["BrokerInfrastructure", "build_infrastructure"]

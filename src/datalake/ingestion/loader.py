@@ -13,6 +13,7 @@ import logging
 from datetime import datetime
 from datetime import time as dt_time
 from pathlib import Path
+from typing import Any, NamedTuple
 
 import pandas as pd
 import pyarrow as pa
@@ -20,6 +21,8 @@ import pyarrow as pa
 from infrastructure.batch_executor import batch_execute
 from datalake.core.paths import symbol_partition_path
 from datalake.core.io import atomic_parquet_write
+from datalake.core.schema import enforce_canonical_schema
+from datalake.ingestion.broker_selection import select_historical_source
 
 from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
@@ -34,6 +37,20 @@ def _session_bounds():
     return CALENDAR.session_bounds(None)  # NSE: always (09:15, 15:30)
 
 
+class WriteResult(NamedTuple):
+    """Result of a merge-write. ``rows``/``invalid_dropped`` describe the
+    incoming fetch only (unchanged public contract used by callers'
+    "rows synced this run" logging); ``total_rows``/``first_ts``/``last_ts``
+    describe the file on disk *after* merging with any pre-existing data,
+    for catalog registration."""
+
+    rows: int
+    invalid_dropped: int
+    total_rows: int
+    first_ts: pd.Timestamp | None
+    last_ts: pd.Timestamp | None
+
+
 class HistoricalDataLoader:
     """Download historical data from brokers and store as Parquet."""
 
@@ -44,17 +61,31 @@ class HistoricalDataLoader:
     def download_symbol(
         self,
         symbol: str,
-        gateway,
+        gateway: Any = None,
         years: int = 5,
         timeframe: str = "1m",
         exchange: str | None = None,
+        *,
+        gateways: dict[str, Any] | None = None,
     ) -> dict:
         """Download historical data for a single symbol.
+
+        Pass either *gateway* (a single broker gateway -- existing
+        behavior, unchanged) or *gateways* (a ``{broker_id: gateway}``
+        dict). When *gateways* is given, the broker offering the most
+        historical range for *timeframe* is auto-selected via
+        :func:`select_historical_source` (e.g. Dhan over Upstox for
+        intraday timeframes, where Upstox only covers 30 days).
 
         Returns
         -------
         Dict with keys: rows, duplicates_dropped, invalid_dropped.
         """
+        if gateway is None:
+            if not gateways:
+                raise ValueError("download_symbol requires either gateway= or gateways=")
+            _, gateway = select_historical_source(timeframe, gateways)
+
         symbol = normalize_symbol_for_storage(symbol)
         if exchange is None:
             exchange = get_active_exchange_code()
@@ -90,37 +121,53 @@ class HistoricalDataLoader:
                     completeness * 100,
                 )
 
-        # Write to Parquet
-        rows, invalid = self._write_parquet(df, symbol, timeframe)
-        logger.info("Downloaded %s: %d rows (%d invalid dropped)", symbol, rows, invalid)
+        # Write to Parquet (merges with any existing data on disk)
+        result = self._write_parquet(df, symbol, timeframe)
+        logger.info(
+            "Downloaded %s: %d rows fetched (%d invalid dropped), %d total on disk",
+            symbol, result.rows, result.invalid_dropped, result.total_rows,
+        )
 
-        # Register in catalog
-        if self._catalog and rows > 0:
-            ts = pd.to_datetime(df["timestamp"])
+        # Register in catalog — reflects the merged on-disk state, not just
+        # this fetch, so catalog metadata never drifts from reality after
+        # an incremental (shorter-window) sync.
+        if self._catalog and result.total_rows > 0:
             self._catalog.register_symbol(
                 symbol=symbol,
                 exchange=exchange,
-                first_date=ts.min().date(),
-                last_date=ts.max().date(),
-                total_rows=rows,
+                first_date=result.first_ts.date(),
+                last_date=result.last_ts.date(),
+                total_rows=result.total_rows,
                 timeframe=timeframe,
                 parquet_path=str(self._parquet_path(symbol, timeframe)),
             )
 
         return {
-            "rows": rows,
+            "rows": result.rows,
             "duplicates_dropped": dup_count,
-            "invalid_dropped": invalid,
+            "invalid_dropped": result.invalid_dropped,
         }
 
     def download_universe(
         self,
         universe: str,
-        gateway,
+        gateway: Any = None,
         years: int = 5,
         timeframe: str = "1m",
+        *,
+        gateways: dict[str, Any] | None = None,
     ) -> dict[str, dict[str, int]]:
-        """Download data for all symbols in a universe."""
+        """Download data for all symbols in a universe.
+
+        See :meth:`download_symbol` for the *gateway* vs *gateways*
+        (auto-select) contract -- the same broker is resolved once here
+        and passed to every symbol's download.
+        """
+        if gateway is None:
+            if not gateways:
+                raise ValueError("download_universe requires either gateway= or gateways=")
+            _, gateway = select_historical_source(timeframe, gateways)
+
         import csv
 
         from datalake.core.schema import UNIVERSE_FILES
@@ -165,10 +212,18 @@ class HistoricalDataLoader:
     def repair_missing(
         self,
         symbol: str,
-        gateway,
+        gateway: Any = None,
         timeframe: str = "1m",
+        *,
+        gateways: dict[str, Any] | None = None,
     ) -> int:
-        """Download only missing data for a symbol.
+        """Download only missing data for a symbol -- the standard
+        auto-detect-and-sync entry point: compares on-disk state against
+        the broker, fetches only the missing window, and merges it in
+        (see :meth:`_write_parquet`) rather than replacing the file.
+
+        See :meth:`download_symbol` for the *gateway* vs *gateways*
+        (auto-select) contract.
 
         Uses actual candle count comparison, not just last date,
         to detect gaps within the date range.
@@ -176,15 +231,21 @@ class HistoricalDataLoader:
         symbol = normalize_symbol_for_storage(symbol)
         existing_path = self._parquet_path(symbol, timeframe)
         if not existing_path.exists():
-            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
+            return self.download_symbol(
+                symbol, gateway, years=5, timeframe=timeframe, gateways=gateways
+            )["rows"]
 
         try:
             existing = pd.read_parquet(existing_path)
         except Exception:
-            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
+            return self.download_symbol(
+                symbol, gateway, years=5, timeframe=timeframe, gateways=gateways
+            )["rows"]
 
         if existing.empty:
-            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
+            return self.download_symbol(
+                symbol, gateway, years=5, timeframe=timeframe, gateways=gateways
+            )["rows"]
 
         ts = pd.to_datetime(existing["timestamp"])
         last_date = ts.max()
@@ -210,7 +271,9 @@ class HistoricalDataLoader:
             return 0
 
         logger.info("%s: downloading %d missing days", symbol, days_missing)
-        return self.download_symbol(symbol, gateway, years=1, timeframe=timeframe)["rows"]
+        return self.download_symbol(
+            symbol, gateway, years=1, timeframe=timeframe, gateways=gateways
+        )["rows"]
 
     def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""
@@ -233,18 +296,52 @@ class HistoricalDataLoader:
 
         return df
 
-    def _write_parquet(self, df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[int, int]:
-        """Write DataFrame to hive-partitioned Parquet atomically."""
+    def _write_parquet(self, df: pd.DataFrame, symbol: str, timeframe: str) -> WriteResult:
+        """Write DataFrame to hive-partitioned Parquet, merging with any
+        existing data instead of overwriting it.
+
+        repair_missing() and IncrementalUpdater.update_daily() both write
+        incremental windows (e.g. 1 year) that are shorter than the full
+        history already on disk (e.g. 5+ years) -- a blind overwrite here
+        would silently truncate the file to just the incremental window.
+        Mirrors sync_options.py's read-merge-dedupe-write pattern.
+        """
         target = self._parquet_path(symbol, timeframe)
 
         invalid_count = 0
         before = len(df)
         df = validate_candles(df, symbol=symbol, drop_invalid=True)
         invalid_count = before - len(df)
+        fetched_rows = len(df)
 
-        table = pa.Table.from_pandas(df, preserve_index=False)
+        merged = df
+        if target.exists():
+            try:
+                existing = pd.read_parquet(target)
+            except Exception as exc:
+                logger.warning("%s: could not read existing parquet for merge: %s", symbol, exc)
+                existing = pd.DataFrame()
+            if not existing.empty:
+                merged = pd.concat([existing, df], ignore_index=True)
+        merged = merged.drop_duplicates(subset=["timestamp"], keep="last")
+        merged = merged.sort_values("timestamp").reset_index(drop=True)
+
+        table = pa.Table.from_pandas(merged, preserve_index=False)
+        table = enforce_canonical_schema(table)
         atomic_parquet_write(target, table, compression="snappy")
-        return len(df), invalid_count
+
+        if merged.empty:
+            first_ts = last_ts = None
+        else:
+            ts = pd.to_datetime(merged["timestamp"])
+            first_ts, last_ts = ts.min(), ts.max()
+        return WriteResult(
+            rows=fetched_rows,
+            invalid_dropped=invalid_count,
+            total_rows=len(merged),
+            first_ts=first_ts,
+            last_ts=last_ts,
+        )
 
     def _parquet_path(self, symbol: str, timeframe: str = "1m") -> Path:
         return symbol_partition_path(str(self._root), normalize_symbol_for_storage(symbol), timeframe)

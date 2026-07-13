@@ -278,3 +278,74 @@ export type WsMessage =
   | { type: "unsubscribed"; symbols: string[] }
   | { type: "pong"; timestamp?: unknown }
   | { type: "error"; reason?: string; message?: string };
+
+// ── Options Analytics ──────────────────────────────────────────────────────
+
+export interface OptionContractRow {
+  symbol: string;
+  expiry: string;
+  strike: number;
+  option_type: string; // CE or PE
+  ltp: number;
+  bid?: number | null;
+  ask?: number | null;
+  volume: number;
+  oi: number;
+  iv?: number | null;
+}
+
+export interface OptionChainResponse {
+  underlying: string;
+  expiry: string;
+  contracts: OptionContractRow[];
+  count: number;
+}
+
+export interface PCRResponse {
+  timestamp: number;
+  underlying: string;
+  expiry_kind: string;
+  expiry_date: string;
+  spot: number;
+  pcr_volume: number | null;
+  pcr_oi: number | null;
+  total_ce_volume: number;
+  total_pe_volume: number;
+  total_ce_oi: number;
+  total_pe_oi: number;
+}
+
+export interface MaxPainResponse {
+  timestamp: number;
+  underlying: string;
+  expiry_kind: string;
+  expiry_date: string;
+  spot: number;
+  max_pain_strike: number;
+  total_pain_at_max_pain: number;
+  distance_from_spot: number;
+  position_vs_spot: string;
+}
+
+export interface IVSurfaceResponse {
+  timestamp: number;
+  underlying: string;
+  expiry_kind: string;
+  expiry_date: string;
+  spot: number;
+  atm_strike: number;
+  atm_iv: number;
+  otm_put_iv: number;
+  otm_call_iv: number;
+  iv_skew: number;
+  put_call_iv_ratio: number | null;
+  days_to_expiry: number;
+}
+
+export interface VolumeProfileResponse {
+  underlying: string;
+  expiry: string;
+  strikes: number[];
+  profile: { strike: number; ce_volume: number; pe_volume: number; total_volume: number }[];
+  count: number;
+}

@@ -19,8 +19,8 @@ def test_compose_build_runtime_delegates_to_factory() -> None:
 
 @pytest.mark.architecture
 def test_compose_build_for_api_delegates_to_factory() -> None:
-    import interface.ui.services.compose as compose_mod
+    import runtime.api_compose as api_compose
 
-    src = inspect.getsource(compose_mod.build_for_api)
+    src = inspect.getsource(api_compose.build_for_api)
     assert "build(" in src
     assert "TradingRuntimeFactory(" not in src

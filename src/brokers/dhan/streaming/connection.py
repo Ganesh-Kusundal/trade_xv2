@@ -70,6 +70,11 @@ _ADAPTERS_CLIENT_ONLY: list[tuple[str, type]] = [
 class DhanConnection:
     """Concrete connection wiring all Dhan adapters.
 
+    ponytail: still a large wiring hub; token + WS lifecycle already extracted
+    (ConnectionTokenManager, ConnectionLifecycle). Further splits only when a
+    change forces a touch — ceiling is adapter-registry growth, upgrade path is
+    more helpers not a rewrite.
+
     Lifecycle ownership (Phase B / B5)
     ---------------------------------
     A :class:`LifecycleManager` may be supplied. When present, every

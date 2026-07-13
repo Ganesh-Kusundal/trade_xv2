@@ -4,19 +4,6 @@ The engine processes OHLCV data one bar at a time, running the same
 FeaturePipeline and StrategyPipeline used in live trading. This ensures
 complete parity: if a strategy works in replay, it will work in live.
 
-P0-2 OMS Integration: All order execution is routed through
-:class:`OmsBacktestAdapter`, ensuring backtest-live parity for risk gates,
-idempotency, and event publishing.
-
-P2-3 Intra-Bar Checks: The engine checks open positions against stop-loss and
-target levels on every bar using intra-bar high/low, not just on explicit
-signals. This prevents unrealistic fills and improves backtest fidelity.
-
-P5.2 Window Optimization: Implements lazy loading and bounded memory access.
-The engine now uses a circular buffer for the replay window instead of
-accumulating all bars in a list, ensuring O(window_size) memory regardless
-of dataset size.
-
 Flow per bar:
     1. Receive bar (OHLCV)
     2. Append to sliding window (bounded by window_size)
@@ -26,30 +13,13 @@ Flow per bar:
     6. P2-3: Check intra-bar stop-loss/target for open positions
     7. Process Signals via OMS adapter
     8. Update equity curve
-
-Usage:
-    from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
-    from analytics.strategy import StrategyPipeline, MomentumStrategy
-
-    pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
-    strategy = StrategyPipeline(strategies=[MomentumStrategy()])
-
-    # Requires trading_context or oms_adapter for order execution
-    from interface.ui.services.compose import build_runtime
-    runtime = build_runtime("dhan")
-    engine = ReplayEngine(
-        pipeline, strategy, trading_context=runtime.trading_context
-    )
-    result = engine.run(dataframe)
 """
 
 from __future__ import annotations
 
 import logging
 from collections import deque
-from datetime import datetime, timezone
-from decimal import Decimal
-
+from datetime import datetime
 import numpy as np
 import pandas as pd
 
@@ -65,17 +35,24 @@ from analytics.replay.models import (
 )
 from analytics.replay.position_closer import PositionCloser
 from analytics.replay.signal_processor import SignalProcessor
+from analytics.replay.event_publishing import (
+    publish_scheduled_events as _publish_scheduled,
+    publish_signal as _publish_sig,
+)
+from analytics.replay.window import (
+    append_bar as _append_bar,
+    build_window as _build_window_fn,
+    new_window_state as _new_window_state_fn,
+    to_dataframe as _to_dataframe,
+)
 from domain.candles.historical import HistoricalBar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
 from domain.analytics.statistics import StatisticsEngine
-from domain.entities import Trade
 from domain.enums import Side
-from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.runtime_hooks import create_oms_backtest_adapter
-from domain.simulation_position_meta import PositionMeta
 from domain.trading_costs import (
     compute_commission,
     compute_slippage_pct,
@@ -86,19 +63,6 @@ logger = logging.getLogger(__name__)
 
 class ReplayEngine:
     """Bar-by-bar historical replay engine.
-
-    Processes OHLCV data through the same FeaturePipeline + StrategyPipeline
-    used in live trading, ensuring complete parity.
-
-    P0-2: All order execution is routed through :class:`OmsBacktestAdapter`
-    for backtest-live parity. A ``trading_context`` (or direct ``oms_adapter``)
-    is required.
-
-    P2-3: Open positions are checked against stop-loss and target levels on
-    every bar using intra-bar high/low data.
-
-    P5.2: Uses bounded deque for window storage instead of unbounded list,
-    ensuring O(window_size) memory regardless of input dataset size.
 
     Parameters
     ----------
@@ -209,10 +173,6 @@ class ReplayEngine:
             trade_tag=trade_tag,
         )
 
-    def _compute_commission(self, notional: float, side: str) -> float:
-        """Compute commission based on the configured model."""
-        return self._fill_recorder.compute_commission(notional, side)
-
     def _compute_slippage_pct(self, bar_volume: float) -> float:
         """Compute effective slippage percentage based on the configured model."""
         return self._fill_recorder.compute_slippage_pct(bar_volume)
@@ -271,10 +231,6 @@ class ReplayEngine:
     ) -> None:
         """Close position at specific price (for stop-loss/target triggers)."""
         self._position_closer.close_at_price(session, bar, exit_price, reason)
-
-    def _sync_session_from_tracker(self, session: ReplaySession) -> None:
-        """Sync session cash from PortfolioTracker (OMS-backed capital)."""
-        self._position_closer.sync_from_tracker(session)
 
     # ------------------------------------------------------------------
     # Feature pipeline
@@ -425,14 +381,14 @@ class ReplayEngine:
             # Events are interleaved by timestamp to ensure deterministic replay
             # that matches the original event/bar time ordering.
             if self._event_schedule and self._event_bus is not None:
-                self._publish_scheduled_events(bar_ts)
+                _publish_scheduled(self._event_bus, self._event_schedule, bar_ts)
 
             # Process pending signals from previous bar using this bar's open
             if pending_signals:
                 for sig, _sig_bar in pending_signals:
                     self._process_signal(sig, bar, session, config, fill_price=bar.open)
                     if config.publish_events and self._event_bus is not None:
-                        self._publish_signal(sig)
+                        _publish_sig(self._event_bus, sig)
                 pending_signals.clear()
 
             # Write bar into circular buffer (O(1) per bar — no memmove)
@@ -534,7 +490,7 @@ class ReplayEngine:
                 else:
                     self._process_signal(signal, bar, session, config)
                     if config.publish_events and self._event_bus is not None:
-                        self._publish_signal(signal)
+                        _publish_sig(self._event_bus, signal)
 
             if session.has_position(bar.symbol):
                 session.mark_symbol(bar.symbol, float(bar.close))
@@ -553,7 +509,7 @@ class ReplayEngine:
             for sig, _sig_bar in pending_signals:
                 self._process_signal(sig, bar, session, config, fill_price=bar.open)
                 if config.publish_events and self._event_bus is not None:
-                    self._publish_signal(sig)
+                    _publish_sig(self._event_bus, sig)
 
         return ReplayResult(
             session=session,
@@ -597,19 +553,19 @@ class ReplayEngine:
             last_bars[symbol] = bar
 
             if self._event_schedule and self._event_bus is not None:
-                self._publish_scheduled_events(bar_ts)
+                _publish_scheduled(self._event_bus, self._event_schedule, bar_ts)
 
             sym_pending = pending_signals.setdefault(symbol, [])
             if sym_pending:
                 for sig, _sig_bar in sym_pending:
                     self._process_signal(sig, bar, session, config, fill_price=bar.open)
                     if config.publish_events and self._event_bus is not None:
-                        self._publish_signal(sig)
+                        _publish_sig(self._event_bus, sig)
                 sym_pending.clear()
 
             if symbol not in window_states:
-                window_states[symbol] = self._new_window_state(window_size)
-            self._append_bar_window(window_states[symbol], bar)
+                window_states[symbol] = _new_window_state_fn(window_size)
+            _append_bar(window_states[symbol], bar)
 
             session.bar_count += 1
             symbol_bar_counts[symbol] = symbol_bar_counts.get(symbol, 0) + 1
@@ -619,7 +575,7 @@ class ReplayEngine:
                     continue
                 warmup_done[symbol] = True
 
-            window_df = self._window_dataframe(window_states[symbol])
+            window_df = _to_dataframe(window_states[symbol])
             features = self._run_features(window_df, session, config)
             if features is None:
                 equity = session.current_equity
@@ -653,7 +609,7 @@ class ReplayEngine:
                 else:
                     self._process_signal(signal, bar, session, config)
                     if config.publish_events and self._event_bus is not None:
-                        self._publish_signal(signal)
+                        _publish_sig(self._event_bus, signal)
 
             if session.has_position(bar.symbol):
                 session.mark_symbol(bar.symbol, float(bar.close))
@@ -676,7 +632,7 @@ class ReplayEngine:
             for sig, _sig_bar in sym_pending:
                 self._process_signal(sig, bar, session, config, fill_price=bar.open)
                 if config.publish_events and self._event_bus is not None:
-                    self._publish_signal(sig)
+                    _publish_sig(self._event_bus, sig)
 
         return ReplayResult(
             session=session,
@@ -684,143 +640,3 @@ class ReplayEngine:
             bars_processed=session.bar_count,
             signals_generated=len(session.signals),
         )
-
-    # ------------------------------------------------------------------
-    # Window management (circular buffer helpers)
-    # ------------------------------------------------------------------
-
-    def _new_window_state(self, window_size: int) -> dict:
-        """Create per-symbol sliding window state."""
-        if window_size > 0:
-            return {
-                "size": window_size,
-                "open": np.empty(window_size, dtype=np.float64),
-                "high": np.empty(window_size, dtype=np.float64),
-                "low": np.empty(window_size, dtype=np.float64),
-                "close": np.empty(window_size, dtype=np.float64),
-                "volume": np.empty(window_size, dtype=np.float64),
-                "symbol": np.empty(window_size, dtype=object),
-                "timestamp": np.empty(window_size, dtype="datetime64[ns]"),
-                "filled": 0,
-                "head": 0,
-            }
-        return {"size": 0, "data": deque()}
-
-    def _append_bar_window(self, state: dict, bar: HistoricalBar) -> None:
-        """Append a bar to per-symbol window state (O(1) ring buffer)."""
-        window_size = state["size"]
-        if window_size > 0:
-            widx = state["head"]
-            state["open"][widx] = bar.open
-            state["high"][widx] = bar.high
-            state["low"][widx] = bar.low
-            state["close"][widx] = bar.close
-            state["volume"][widx] = bar.volume
-            state["symbol"][widx] = bar.symbol
-            state["timestamp"][widx] = bar.timestamp
-            if state["filled"] < window_size:
-                state["filled"] += 1
-            state["head"] = (state["head"] + 1) % window_size
-        else:
-            state["data"].append(bar.to_dict())
-
-    def _window_dataframe(self, state: dict) -> pd.DataFrame:
-        """Build a feature-pipeline window DataFrame from per-symbol state."""
-        window_size = state["size"]
-        if window_size > 0:
-            filled = state["filled"]
-            if filled < window_size:
-                return pd.DataFrame({
-                    "open": state["open"][:filled],
-                    "high": state["high"][:filled],
-                    "low": state["low"][:filled],
-                    "close": state["close"][:filled],
-                    "volume": state["volume"][:filled],
-                    "symbol": state["symbol"][:filled],
-                    "timestamp": state["timestamp"][:filled],
-                })
-            head = state["head"]
-            idx = np.arange(head - window_size, head) % window_size
-            return pd.DataFrame({
-                "open": state["open"][idx],
-                "high": state["high"][idx],
-                "low": state["low"][idx],
-                "close": state["close"][idx],
-                "volume": state["volume"][idx],
-                "symbol": state["symbol"][idx],
-                "timestamp": state["timestamp"][idx],
-            })
-        return pd.DataFrame(state["data"])
-
-    def _build_window(self, window_data, window_size: int) -> pd.DataFrame:
-        """Build a DataFrame from the window data (deprecated by REF-022 ring buffer).
-
-        Retained for backward compatibility with external callers.
-        """
-        # If it's a deque with maxlen, it's already bounded
-        # If it's a list and window_size > 0, slice it
-        if isinstance(window_data, list) and window_size > 0:
-            window_data = window_data[-window_size:]
-        return pd.DataFrame(window_data)
-
-    # ------------------------------------------------------------------
-    # Event publishing
-    # ------------------------------------------------------------------
-
-    def _publish_scheduled_events(self, bar_ts: pd.Timestamp) -> None:
-        """Publish any scheduled events with timestamp <= current bar timestamp.
-
-        P0-1 fix: Events from the event log are published in time order relative
-        to bar processing, ensuring deterministic replay that matches the original
-        event/bar interleaving. Events scheduled at or before the current bar's
-        timestamp are published before the bar is processed.
-
-        Parameters
-        ----------
-        bar_ts:
-            Timestamp of the current bar being processed.
-        """
-        # Iterate without mutating the schedule (non-destructive .get())
-        # so the engine can be reused for multiple replays.
-        scheduled_ts = sorted(self._event_schedule.keys())
-        for evt_ts in scheduled_ts:
-            if evt_ts > bar_ts:
-                break
-            events = self._event_schedule.get(evt_ts)
-            if events is None:
-                continue
-            for event in events:
-                try:
-                    self._event_bus.publish(event)
-                except Exception as exc:
-                    logger.debug("Failed to publish scheduled event at %s: %s", evt_ts, exc)
-
-    def _publish_signal(self, signal: Signal) -> None:
-        """Publish a signal to the EventBus.
-
-        Builds a canonical DomainEvent with the ``SIGNAL_GENERATED`` event type
-        so consumers on the bus (metrics, audit, strategies) can react.  Errors
-        are swallowed because signal publishing is best-effort; a failed publish
-        must never abort the replay bar loop.
-        """
-        try:
-            from domain.events import EventType
-            from domain.runtime_hooks import create_domain_event
-
-            event = create_domain_event(
-                event_type=EventType.SIGNAL_GENERATED.value,
-                payload={
-                    "symbol": signal.symbol,
-                    "strategy": signal.strategy,
-                    "signal_type": signal.signal_type.value
-                    if hasattr(signal.signal_type, "value")
-                    else str(signal.signal_type),
-                    "score": getattr(signal, "score", None),
-                    "confidence": getattr(signal, "confidence", None),
-                },
-                symbol=signal.symbol,
-                source=f"replay:{signal.strategy}",
-            )
-            self._event_bus.publish(event)
-        except Exception as exc:
-            logger.debug("Failed to publish signal event: %s", exc)

@@ -124,6 +124,9 @@ from datalake.core.schema import (
     UNIVERSE_FILES as UNIVERSE_FILES,
 )
 from datalake.core.schema import (
+    enforce_canonical_schema as enforce_canonical_schema,
+)
+from datalake.core.schema import (
     load_universe as load_universe,
 )
 from datalake.core.symbols import (
@@ -131,6 +134,9 @@ from datalake.core.symbols import (
 )
 from datalake.core.symbols import (
     normalize_symbol as normalize_symbol,
+)
+from datalake.core.symbols import (
+    normalize_symbol_for_storage as normalize_symbol_for_storage,
 )
 from datalake.core.symbols import (
     normalize_universe_name as normalize_universe_name,

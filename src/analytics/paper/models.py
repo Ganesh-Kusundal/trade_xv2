@@ -12,12 +12,14 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from analytics.replay.models import FillModel
 from domain import Side as DomainSide
 from domain.enums import OrderStatus, Side
 from domain.entities import Trade
 from domain.portfolio_projection import PortfolioProjector
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
+from domain.trading_costs import CommissionModel, IndianMarketFees
 
 OrderSide = Side  # backward-compat alias (canonical Side)
 
@@ -46,11 +48,17 @@ class PaperConfig:
     max_positions:
         Max simultaneous open positions.
     slippage_pct:
-        Simulated slippage as % of price.
+        Simulated slippage as % of price (applied once in OmsBacktestAdapter).
     commission_pct:
-        Commission as % of trade value (0.0003 = 0.03%).
+        Legacy field — unused on OMS paths. Prefer ``commission_model`` +
+        ``commission_flat`` (same as ReplayConfig).
     commission_flat:
-        Flat commission per trade (added on top of percentage).
+        Flat commission per trade when ``commission_model`` is FLAT.
+    commission_model:
+        How to calculate commissions (delegates to domain.trading_costs).
+    fill_model:
+        CURRENT_CLOSE fills at bar close; NEXT_OPEN (default) fills at next open
+        — same semantics as ReplayConfig.
     warmup_bars:
         Bars to skip before generating signals.
     window_size:
@@ -69,6 +77,9 @@ class PaperConfig:
     slippage_pct: float = 0.01
     commission_pct: float = 0.0003
     commission_flat: float = 0.0
+    commission_model: CommissionModel = CommissionModel.FLAT
+    indian_market_fees: IndianMarketFees = field(default_factory=IndianMarketFees)
+    fill_model: FillModel = FillModel.NEXT_OPEN
     warmup_bars: int = 20
     window_size: int = 100
     stop_loss_pct: float = 2.0
@@ -200,17 +211,15 @@ class PaperTrade:
     reasons: list[str] = field(default_factory=list)
 
     def to_domain_trade(self) -> Any:
-        """Convert to canonical ``domain.entities.Trade`` (REF-016).
+        """Convert to canonical ``domain.entities.Trade`` via shared helper.
 
-        Price and PnL fields are coerced to ``Decimal``.
+        ponytail: PaperTrade stays a thin session record; domain Trade is SSOT.
         """
-        from domain.entities import Trade
+        from domain.entities.trade import build_domain_trade
 
-        return Trade(
+        return build_domain_trade(
             trade_id=f"paper:{self.symbol}:{id(self)}",
-            order_id="",
             symbol=self.symbol,
-            exchange="NSE",
             side=self.side,
             quantity=self.quantity,
             price=Decimal(str(self.exit_price)),

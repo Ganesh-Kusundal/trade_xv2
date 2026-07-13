@@ -50,9 +50,9 @@ def fetch_funds(session: SessionLike) -> Any:
 
 def refresh_account(session: SessionLike) -> Any:
     """Refresh and return session account view (positions, holdings, funds)."""
-    acct = _domain_session(session).account
-    acct.refresh()
-    return acct
+    from application.portfolio.active_session import refresh_account as _refresh
+
+    return _refresh(session)
 
 
 def fetch_history(

@@ -215,13 +215,12 @@ def main() -> int:
 
         configure_logging()
 
-    print("Scanning all symbols...")
+    logger.info("Scanning all symbols...")
     counts = normalize_all(dry_run=args.dry_run)
 
-    print()
-    print("Results:")
+    logger.info("Results:")
     for tz, n in sorted(counts.items()):
-        print(f"  {tz:<15} {n:>4} symbols")
+        logger.info("  %-15s %4d symbols", tz, n)
     return 0
 
 

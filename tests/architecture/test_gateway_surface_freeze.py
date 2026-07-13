@@ -68,6 +68,7 @@ _UPSTOX_PUBLIC = frozenset(
         "get_trade_book",
         "history",
         "holdings",
+        "list_capabilities",
         "load_instruments",
         "ltp",
         "ltp_batch",

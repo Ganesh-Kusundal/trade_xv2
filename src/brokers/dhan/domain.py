@@ -1,16 +1,19 @@
 """Dhan broker domain models — Dhan-only types with silent canonical re-exports.
 
 Canonical order/trade types resolve via ``__getattr__`` to :mod:`domain`.
+Exchange, InstrumentType, OptionType are re-exported from domain.market_enums.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
 from typing import Any
 
 import domain.entities.instrument_record
+
+# Canonical types — import from domain, not redefined here
+from domain.market_enums import Exchange, InstrumentType, OptionType  # noqa: F401
 
 _CANONICAL = frozenset(
     {
@@ -36,41 +39,6 @@ def __getattr__(name: str) -> Any:
 
         return getattr(_domain, _ALIASES.get(name, name))
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-# ── Dhan-specific enums ────────────────────────────────────────────────────
-
-
-class Exchange(str, Enum):
-    """Dhan short exchange codes (deprecated — prefer ExchangeSegment at boundaries)."""
-
-    NSE = "NSE"
-    BSE = "BSE"
-    NFO = "NFO"
-    BFO = "BFO"
-    MCX = "MCX"
-    CDS = "CDS"
-    INDEX = "INDEX"
-
-
-class DhanInstrumentType(str, Enum):
-    """Dhan instrument categories."""
-
-    EQUITY = "EQUITY"
-    FUTURE = "FUTURE"
-    OPTION = "OPTION"
-    COMMODITY = "COMMODITY"
-
-
-# Backward compatibility aliases
-InstrumentType = DhanInstrumentType
-
-
-class OptionType(str, Enum):
-    """Option flavour."""
-
-    CALL = "CALL"
-    PUT = "PUT"
 
 
 # ── Dhan-specific dataclasses ──────────────────────────────────────────────
@@ -134,7 +102,7 @@ class DhanInstrument:
 
     domain_instrument: 'domain.entities.instrument_record.InstrumentRecord'
     exchange: Exchange
-    instrument_type: DhanInstrumentType
+    instrument_type: InstrumentType
     option_type: OptionType | None = None
     sm_symbol_name: str | None = None
 
@@ -176,11 +144,11 @@ class DhanInstrument:
 
     @property
     def is_option(self) -> bool:
-        return self.instrument_type == DhanInstrumentType.OPTION
+        return self.instrument_type == InstrumentType.OPTION
 
     @property
     def is_future(self) -> bool:
-        return self.instrument_type == DhanInstrumentType.FUTURE
+        return self.instrument_type == InstrumentType.FUTURE
 
 
 # OrderSide remains available via __getattr__ deprecation shim.

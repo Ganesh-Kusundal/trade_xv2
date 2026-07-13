@@ -245,13 +245,43 @@ class OrderPlacer:
             else str(raw)
         )
         success = bool(order_id) and order_id != "0"
-        return OrderResponse(
+        response = OrderResponse(
             success=success,
             order_id=order_id,
             broker_order_id=order_id,
             message="Slice order placed successfully" if success else "Slice order failed",
-            status=OrderStatus.PENDING if success else OrderStatus.REJECTED,
+            status=OrderStatus.OPEN if success else OrderStatus.REJECTED,
         )
+        if success:
+            self._publish_slice(response, symbol, exchange, side, quantity, order_type, product_type)
+        return response
+
+    def _publish_slice(
+        self,
+        response: OrderResponse,
+        symbol: str,
+        exchange: str,
+        side: str,
+        quantity: int,
+        order_type: str,
+        product_type: str,
+    ) -> None:
+        if self._event_bus is None:
+            return
+        try:
+            order = Order(
+                order_id=response.order_id,
+                symbol=symbol,
+                exchange=exchange,
+                side=OrderSide(side.upper()),
+                order_type=OrderType(order_type.upper()),
+                quantity=int(quantity),
+                product_type=ProductType(product_type.upper()),
+                status=response.status,
+            )
+            self._event_bus.publish(DomainEvent.now("ORDER_PLACED", {"order": order}))
+        except Exception:
+            logger.exception("event_publish_failed")
 
     # -- Helpers -----------------------------------------------------------
 
@@ -342,18 +372,18 @@ class OrderPlacer:
         if self._event_bus is None:
             return
         try:
-            self._event_bus.publish(
-                DomainEvent(
-                    event_type="order_placed",
-                    broker="dhan",
-                    payload={
-                        "order_id": response.order_id,
-                        "symbol": request.symbol,
-                        "exchange": request.exchange,
-                        "quantity": request.quantity,
-                        "side": request.transaction_type,
-                    },
-                )
+            order = Order(
+                order_id=response.order_id,
+                symbol=request.symbol,
+                exchange=request.exchange,
+                side=request.transaction_type,
+                order_type=request.order_type,
+                quantity=int(request.quantity),
+                price=request.price or Decimal("0"),
+                product_type=request.product_type,
+                status=response.status,
+                correlation_id=response.correlation_id,
             )
+            self._event_bus.publish(DomainEvent.now("ORDER_PLACED", {"order": order}))
         except Exception:
             logger.exception("event_publish_failed")

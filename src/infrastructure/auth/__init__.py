@@ -1,13 +1,20 @@
 """Canonical auth — credential resolution, token lifecycle, auth bootstrapping."""
-from infrastructure.auth.credential_resolver import *  # noqa: F401
-from infrastructure.auth.credential_validator import *  # noqa: F401
-from infrastructure.auth.environment_bootstrap import *  # noqa: F401
-from infrastructure.auth.jwt_expiry import *  # noqa: F401
-from infrastructure.auth.metrics import *  # noqa: F401
-from infrastructure.auth.registry import *  # noqa: F401
-from infrastructure.auth.token import *  # noqa: F401
-from infrastructure.auth.token_ensure import *  # noqa: F401
-from infrastructure.auth.token_policy import *  # noqa: F401
+from infrastructure.auth.credential_resolver import CredentialResolver
+from infrastructure.auth.credential_validator import CredentialIssue, CredentialValidator
+from infrastructure.auth.environment_bootstrap import bootstrap_environment
+from infrastructure.auth.jwt_expiry import JwtExpiry
+from infrastructure.auth.metrics import AuthMetrics
+from infrastructure.auth.registry import BrokerAuthError
+from infrastructure.auth.token import (
+    AuthManager,
+    EnvTokenStateStore,
+    JsonTokenStateStore,
+    TokenSource,
+    TokenState,
+    TokenStateStore,
+)
+from infrastructure.auth.token_ensure import ensure_access_token
+from infrastructure.auth.token_policy import should_generate_token
 
 __all__ = [
     "AuthManager",
@@ -16,7 +23,6 @@ __all__ = [
     "CredentialIssue",
     "CredentialResolver",
     "CredentialValidator",
-    "CANONICAL_ENV_FILES",
     "EnvTokenStateStore",
     "JsonTokenStateStore",
     "JwtExpiry",

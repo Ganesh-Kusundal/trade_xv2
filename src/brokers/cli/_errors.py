@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 import sys
 from typing import Any, TypeVar
 
@@ -11,27 +12,37 @@ from rich.panel import Panel
 
 from brokers.cli._render import console, json_mode
 
+logger = logging.getLogger(__name__)
+
 F = TypeVar("F", bound=click.Command)
 
 _BROKER_ERRORS: tuple[type[Exception], ...] | None = None
 
 
+class _BrokerErrorsState:
+    """Module-level broker errors state (lazy singleton)."""
+
+    _errors: tuple[type[Exception], ...] | None = None
+
+    @classmethod
+    def get(cls) -> tuple[type[Exception], ...]:
+        if cls._errors is None:
+            from brokers.exceptions import BrokerError
+            from domain.exceptions import TradeXV2Error
+            from brokers.services._session import LiveBrokerBlockedError
+            cls._errors = (
+                BrokerError,
+                TradeXV2Error,
+                LiveBrokerBlockedError,
+                ConnectionError,
+                TimeoutError,
+                OSError,
+            )
+        return cls._errors
+
+
 def _lazy_broker_errors() -> tuple[type[Exception], ...]:
-    global _BROKER_ERRORS
-    if _BROKER_ERRORS is not None:
-        return _BROKER_ERRORS
-    from brokers.exceptions import BrokerError
-    from domain.exceptions import TradeXV2Error
-    from brokers.services._session import LiveBrokerBlockedError
-    _BROKER_ERRORS = (
-        BrokerError,
-        TradeXV2Error,
-        LiveBrokerBlockedError,
-        ConnectionError,
-        TimeoutError,
-        OSError,
-    )
-    return _BROKER_ERRORS
+    return _BrokerErrorsState.get()
 
 
 def _render_error(exc: Exception) -> None:
@@ -45,7 +56,7 @@ def _render_error(exc: Exception) -> None:
         payload: dict[str, Any] = {"error": err_type, "message": err_msg}
         if remediation:
             payload["remediation"] = remediation
-        print(_json.dumps(payload, default=str))
+        logger.info(_json.dumps(payload, default=str))
         return
 
     parts = [f"[bold red]{err_type}[/bold red]"]

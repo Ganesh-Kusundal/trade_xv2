@@ -147,7 +147,6 @@ def _bootstrap_trade_runtime(
     return build_runtime(
         broker_name,
         authorize_risk_fail_open=authorize_risk_fail_open,
-        skip_parity_gate=True,
     )
 
 

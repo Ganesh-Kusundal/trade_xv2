@@ -75,6 +75,7 @@ class MarketDataAdapter:
             close=Decimal(str(ohlc.get("close", 0))),
             volume=int(raw.get("volume", 0)),
             change=Decimal(str(raw.get("net_change", 0))),
+            oi=int(raw.get("oi", 0) or 0),
         )
         logger.debug(
             "quote_fetched", extra={"symbol": symbol, "ltp": str(quote.ltp), "volume": quote.volume}
@@ -182,5 +183,6 @@ class MarketDataAdapter:
                         close=Decimal(str(ohlc.get("close", 0))),
                         volume=int(info.get("volume", 0)),
                         change=Decimal(str(info.get("net_change", 0))),
+                        oi=int(info.get("oi", 0) or 0),
                     )
         return result

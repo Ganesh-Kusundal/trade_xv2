@@ -27,9 +27,13 @@ dependencies = [
     "duckdb>=1.0.0",
     "click>=8.1",
     "curl_cffi>=0.14.0",
+    "cachetools>=7.1.4",
+    "pyarrow>=25.0.0",
 ]
 
 [project.scripts]
+# DEPRECATED: use ``tradex broker`` instead.  Kept for backward compat;
+# will be removed in v0.2.
 broker = "brokers.cli.broker:broker"
 tradex = "tradex.cli:tradex"
 
@@ -288,6 +292,9 @@ skip-magic-trailing-comma = false
 "brokers.dhan.domain.Balance" = {msg = "Import Balance from domain, not from brokers.dhan.domain"}
 "brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from domain, not from brokers.dhan.domain"}
 "brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.Exchange" = {msg = "Import Exchange from domain.market_enums, not from brokers.dhan.domain"}
+"brokers.dhan.domain.InstrumentType" = {msg = "Import InstrumentType from domain.market_enums, not from brokers.dhan.domain"}
+"brokers.dhan.domain.OptionType" = {msg = "Import OptionType from domain.market_enums, not from brokers.dhan.domain"}
 # Lower layers cannot import from the UI/CLI presentation package
 "interface.ui" = {msg = "Lower layers (datalake, analytics, brokers) cannot import from interface.ui. Use entry points or events instead."}
 "interface.api" = {msg = "Lower layers cannot import from interface.api. Use application ports or composition roots."}
@@ -340,16 +347,11 @@ forbidden_modules = ["brokers", "analytics", "interface", "application"]
 # Layout moves leave some ignores unused; warn instead of aborting the suite.
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Tests legitimately import application/tradex for integration testing.
-    "infrastructure.tests.test_audit -> application.audit",
-    "infrastructure.tests.test_session_recorder -> tradex.session",
-    # Gateway factory is a composition root — it constructs broker gateways.
-    "infrastructure.gateway.factory -> brokers.paper",
-    # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
-    "infrastructure.gateway.factory -> datalake.gateway",
+    # Gateway factory is a composition root — it constructs broker gateways
+    # via runtime.broker_builders (lazy import, never static broker dep).
+    "infrastructure.gateway.factory -> runtime.broker_builders",
     # Thin re-export shim: composition root lives in runtime/ (may wire application).
     "infrastructure.broker_infrastructure -> runtime.broker_infrastructure",
-    # Note: infrastructure.session.infra was removed; runtime.session_infra is the home.
 ]
 
 [[tool.importlinter.contracts]]
@@ -385,13 +387,6 @@ source_modules = ["brokers.common"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "analytics"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Test: integration tests legitimately import concrete broker implementations.
-    # Bare package + ** for nested modules (e.g. brokers.dhan.config.capabilities).
-    "brokers.common.tests.* -> brokers.dhan.**",
-    "brokers.common.tests.* -> brokers.upstox",
-    "brokers.common.tests.* -> brokers.upstox.**",
-    "brokers.common.tests.* -> brokers.paper",
-    "brokers.common.tests.* -> brokers.paper.**",
 ]
 
 [[tool.importlinter.contracts]]
@@ -403,13 +398,6 @@ source_modules = ["application"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Test-only: integration tests import concrete broker / residual common modules.
-    # OMS/execution tests moved to tests/component (wave 1); keep legacy
-    # application.*.tests ignores if any residual modules reappear.
-    "application.oms.tests.* -> brokers.common.**",
-    "application.oms.tests.* -> brokers.dhan.**",
-    "application.execution.tests.* -> brokers.paper.**",
-    "application.trading.tests.* -> brokers.paper.**",
 ]
 
 [[tool.importlinter.contracts]]
@@ -421,7 +409,6 @@ forbidden_modules = ["interface.ui", "interface.api"]
 # grimp often does not see function-local imports; warn if ignore goes unused.
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    "analytics.replay.engine -> interface.ui.services.compose",
 ]
 
 [[tool.importlinter.contracts]]
@@ -431,9 +418,6 @@ source_modules = ["runtime.commands", "runtime.queries"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Test-only: dispatcher tests may import concrete brokers for fakes.
-    "runtime.commands.tests.* -> brokers.**",
-    "runtime.queries.tests.* -> brokers.**",
 ]
 
 [[tool.importlinter.contracts]]
@@ -442,10 +426,7 @@ type = "forbidden"
 source_modules = ["runtime"]
 forbidden_modules = ["interface"]
 unmatched_ignore_imports_alerting = "warn"
-ignore_imports = [
-    # Back-compat shim only; call sites should use interface.api.bootstrap.
-    "runtime.api_bootstrap -> interface.api.bootstrap",
-]
+ignore_imports = []
 
 [[tool.importlinter.contracts]]
 name = "Runtime broker-implementation isolation"
@@ -456,13 +437,15 @@ source_modules = ["runtime"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Tracked exceptions — remove in Phase 5 (G1 / P5-3) when runtime resolves
-    # brokers via a plugin registry + broker_id enum instead of direct imports.
-    "runtime.broker_infrastructure -> brokers.dhan.config.capabilities",
-    "runtime.broker_infrastructure -> brokers.upstox.capabilities",
+    # broker_infrastructure now routes via BrokerId enum (SM-10) and
+    # BrokerPlugin.capabilities_loader (SM-02) — no direct broker imports remain.
     "runtime.broker_accessors -> brokers.paper",
     "runtime.broker_accessors -> brokers.dhan.**",
     "runtime.broker_accessors -> brokers.upstox.**",
+    "runtime.broker_builders -> brokers.paper",
+    "runtime.broker_builders -> brokers.dhan.**",
+    "runtime.broker_builders -> brokers.upstox.**",
+    "runtime.broker_builders -> datalake.gateway",
 ]
 
 [[tool.importlinter.contracts]]
@@ -472,27 +455,8 @@ source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Composer imports cross-cutting infrastructure directly (audit, time).
-    "application.composer.router -> infrastructure.observability.audit",
-    "application.composer.router -> infrastructure.time.clock",
-    "application.composer.gap_reconciler -> infrastructure.time.clock",
-    # Services import infrastructure IO directly (parquet storage).
-    "application.services.download_engine -> infrastructure.io.parquet",
-    # Thin re-export: HistoricalDataService lives in infrastructure (wave 3).
-    "application.services.historical_data -> infrastructure.historical_data",
-    # Production readiness inspects hardened TLS sessions.
-    "application.services.production_readiness -> infrastructure.security.ssl_hardening",
-    # Namespace packages (AST test sees these; grimp may warn if unmatched).
-    "application.data.provenance -> infrastructure.time.clock",
-    "application.data.historical_coordinator -> infrastructure.observability.audit",
-    "application.streaming.orchestrator -> infrastructure.observability.audit",
-    "application.scheduling.quota_scheduler -> infrastructure.observability.audit",
-    # Test-only: integration tests legitimately import infrastructure.
-    "application.oms.tests.* -> infrastructure.**",
-    # Test-only: break transitive application→infrastructure via broker facades
-    # (ignore_imports is edge-based, not path-based).
-    "application.oms.tests.* -> brokers.dhan.**",
-    "application.oms.tests.* -> brokers.common.**",
+    # Composer / services / OMS use domain.ports; infrastructure is wired at
+    # runtime.composition.wire_domain_port_sinks (audit Phase 0 / F1).
 ]
 
 [[tool.importlinter.contracts]]
@@ -507,8 +471,6 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 # brokers.dhan / upstox / paper by name (TOS-P5-002 / DR-B4).
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Gateway bootstrap re-export only (no concrete broker packages).
-    "interface.ui.services.broker_registry -> infrastructure.gateway.factory",
 ]
 
 [[tool.importlinter.contracts]]
@@ -531,6 +493,11 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 # resolves data/execution providers via infrastructure.adapter_factory — the
 # same indirection used for dhan/upstox (DR-I6 / DR-B4). No broker is a
 # sanctioned exception for tradex.
+unmatched_ignore_imports_alerting = "warn"
+ignore_imports = [
+    # Transitive: tradex.session -> infrastructure.gateway.factory -> runtime.broker_builders -> brokers.*
+    "tradex.session -> infrastructure.gateway.factory",
+]
 
 [[tool.importlinter.contracts]]
 name = "UI uses connect shims not raw factory"
@@ -539,6 +506,4 @@ source_modules = ["interface.ui"]
 forbidden_modules = ["infrastructure.gateway.factory"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    "interface.ui.services.broker_registry -> infrastructure.gateway.factory",
-    "interface.ui.services.connect -> infrastructure.gateway.factory",
 ]

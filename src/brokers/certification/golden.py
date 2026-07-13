@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from brokers.session import BrokerSession
+
+logger = logging.getLogger(__name__)
 
 _DATASET_PATH = Path(__file__).with_name("golden_dataset.json")
 
@@ -41,8 +44,8 @@ class GoldenReport:
 
     def print_report(self) -> None:
         for r in self.results:
-            print(f"  [{'PASS' if r.passed else 'FAIL'}] {r.symbol}: {r.detail}")
-        print(f"Overall: {'PASS' if self.all_passed else 'GOLDEN MISMATCH'}")
+            logger.info("  [%s] %s: %s", "PASS" if r.passed else "FAIL", r.symbol, r.detail)
+        logger.info("Overall: %s", "PASS" if self.all_passed else "GOLDEN MISMATCH")
 
 
 def load_golden_cases() -> list[GoldenCase]:

@@ -158,6 +158,11 @@ class EventBus:
         """True if bus is in replay mode."""
         return self._replay_mode
 
+    @property
+    def event_log(self) -> Any | None:
+        """Public accessor for the attached event log."""
+        return self._event_log
+
     def set_replay_mode(self, enabled: bool) -> None:
         """Enable or disable replay mode.
 
@@ -216,6 +221,16 @@ class EventBus:
     def alerting_engine(self) -> AlertingEnginePort | None:
         """The alerting engine instance, if configured."""
         return self._alerting_engine
+
+    @property
+    def has_alerting(self) -> bool:
+        """True if an alerting engine is configured."""
+        return self._alerting_engine is not None
+
+    @property
+    def alerting_alive(self) -> bool:
+        """True if the background alerting thread is running."""
+        return self._alerting_thread is not None and self._alerting_thread.is_alive()
 
     def _start_alerting(self) -> None:
         """Start the background alerting evaluation thread."""
@@ -564,8 +579,8 @@ class EventBusAlertingService:
         self._bus = bus
 
     def start(self) -> None:
-        if getattr(self._bus, "_alerting_engine", None) is not None:
-            if getattr(self._bus, "_alerting_thread", None) is None:
+        if self._bus.has_alerting:
+            if not self._bus.alerting_alive:
                 self._bus._start_alerting()
 
     def stop(self, timeout_seconds: float = 5.0) -> None:
@@ -575,12 +590,9 @@ class EventBusAlertingService:
         from domain.lifecycle_health import HealthState, HealthStatus
         from domain.ports.time_service import get_current_clock
 
-        alive = (
-            self._bus._alerting_thread is not None
-            and self._bus._alerting_thread.is_alive()
-        )
+        alive = self._bus.alerting_alive
         return HealthStatus(
-            state=HealthState.HEALTHY if alive or self._bus._alerting_engine is None else HealthState.DEGRADED,
+            state=HealthState.HEALTHY if alive or not self._bus.has_alerting else HealthState.DEGRADED,
             service=self.name,
             last_check=get_current_clock().now(),
             detail="alerting_thread_alive" if alive else "alerting_idle",

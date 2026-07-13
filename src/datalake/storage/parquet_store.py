@@ -12,7 +12,7 @@ from cachetools import TTLCache, cached
 
 from datalake.storage.cache_utils import generate_cache_key
 from datalake.core.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
-from datalake.core.symbols import normalize_symbol, symbol_to_path
+from datalake.core.symbols import normalize_symbol_for_storage, symbol_to_path
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class ParquetStore:
 
         Returns None silently if curated layout doesn't exist yet.
         """
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
 
         # Skip if curated layout doesn't exist
         curated_dir = curated_equity_path(root=str(self._curated_root))
@@ -114,7 +114,7 @@ class ParquetStore:
         Checks the curated (date-partitioned) layout first, then falls
         back to the legacy symbol-per-file layout.
         """
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
 
         curated_df = self.load_curated_candles(symbol, timeframe)
         if curated_df is not None and not curated_df.empty:

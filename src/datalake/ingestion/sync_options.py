@@ -40,6 +40,7 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
+from datalake.core.schema import enforce_canonical_schema
 from datalake.core.option_format import (
     CANONICAL_COLUMNS,
     convert_format,
@@ -186,6 +187,7 @@ def sync_options(
 
             # Atomic write
             table = pa.Table.from_pandas(combined, preserve_index=False)
+            table = enforce_canonical_schema(table)
             atomic_parquet_write(target_file, table, compression="snappy")
 
             summary["new_rows"] += new_count

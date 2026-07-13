@@ -173,6 +173,56 @@ class TestDhanExtendedContract:
         assert hasattr(offline_gateway.extended.orders, "_idempotency")
         assert isinstance(offline_gateway.extended.orders._idempotency, IdempotencyCache)
 
+
+class TestDhanExtendedOrderExecutionSurface:
+    """These were implemented on OrdersAdapter/MarginAdapter but never wired
+    onto gateway.extended, so callers had no public way to reach them.
+    Confirms the delegation actually routes to the right collaborator
+    rather than just existing as dead methods."""
+
+    def test_kill_switch_delegates_and_honors_live_orders_guard(
+        self, offline_gateway: DhanBrokerGateway
+    ) -> None:
+        from brokers.dhan.exceptions import OrderError
+
+        with pytest.raises(OrderError, match="Live orders are disabled"):
+            offline_gateway.extended.kill_switch(True)
+
+    def test_status_kill_switch_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
+        result = offline_gateway.extended.status_kill_switch()
+        assert isinstance(result, dict)
+
+    def test_place_slice_order_delegates_and_honors_live_orders_guard(
+        self, offline_gateway: DhanBrokerGateway
+    ) -> None:
+        response = offline_gateway.extended.place_slice_order(
+            symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10
+        )
+        assert response.success is False
+        assert "Live orders disabled" in response.message
+
+    def test_get_trade_history_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
+        trades = offline_gateway.extended.get_trade_history("2026-01-01", "2026-01-31")
+        assert isinstance(trades, list)
+
+    def test_get_order_by_correlation_id_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
+        order = offline_gateway.extended.get_order_by_correlation_id("some-correlation-id")
+        assert hasattr(order, "order_id")
+
+    def test_calculate_margin_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
+        from brokers.dhan.domain import MarginRequest
+
+        result = offline_gateway.extended.calculate_margin(
+            MarginRequest(
+                symbol="RELIANCE",
+                exchange="NSE",
+                quantity=1,
+                product_type="INTRADAY",
+                order_type="MARKET",
+            )
+        )
+        assert hasattr(result, "total_margin")
+
     @skip_live
     def test_positions_returns_list(self, live_gateway: DhanBrokerGateway) -> None:
         assert isinstance(live_gateway.extended.get_positions(), list)

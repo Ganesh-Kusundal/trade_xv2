@@ -7,8 +7,10 @@ import hmac
 import os
 import time
 
+from domain.exceptions import TradeXV2Error
 
-class WebhookAuthError(Exception):
+
+class WebhookAuthError(TradeXV2Error):
     """Webhook failed signature or replay checks."""
 
 

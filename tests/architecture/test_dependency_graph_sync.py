@@ -63,6 +63,8 @@ def _parse_application_infra_ignore_imports(pyproject_text: str) -> frozenset[tu
                 continue
             edges.add((source, target))
 
+    if not edges and not _APPROVED_EDGES:
+        return frozenset()
     if not edges:
         msg = f"No production application→infrastructure edges found for {_CONTRACT_NAME!r}"
         raise AssertionError(msg)

@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from analytics.oms_fill_price import resolve_oms_fill_price
 from analytics.replay.fill_recorder import FillRecorder
 from analytics.replay.models import ReplayConfig, ReplaySession, SimulatedTrade
 from domain.candles.historical import HistoricalBar
@@ -65,10 +66,9 @@ class PositionCloser:
         if view is None:
             return
 
-        slippage_pct = self._fill_recorder.compute_slippage_pct(bar.volume)
-        price = Decimal(str(float(bar.close) * (1 - slippage_pct / 100)))
-
+        # Pure-sim applies slippage here; OMS path passes un-slipped base (adapter slips once).
         if self._oms_adapter is not None:
+            price = Decimal(str(float(bar.close)))
             order_id = self._oms_adapter.close_long(
                 symbol=view.symbol,
                 exchange="NSE",
@@ -80,10 +80,18 @@ class PositionCloser:
             )
             if order_id is None:
                 return
+            exit_price = resolve_oms_fill_price(
+                self._oms_adapter,
+                order_id,
+                base_price=price,
+                side="SELL",
+                slippage_pct=self._fill_recorder._config.slippage_pct,
+            )
         else:
+            slippage_pct = self._fill_recorder.compute_slippage_pct(bar.volume)
+            exit_price = float(bar.close) * (1 - slippage_pct / 100)
             order_id = f"sim-close:{view.symbol}:{session.bar_count}"
 
-        exit_price = float(price)
         notional = exit_price * view.quantity
         commission = self._fill_recorder.compute_commission(notional, "SELL")
         exit_price_d = Decimal(str(exit_price))
@@ -153,6 +161,7 @@ class PositionCloser:
         if view is None:
             return
 
+        # Un-slipped stop/target — OMS adapter applies slippage once when present.
         price = Decimal(str(exit_price))
 
         if self._oms_adapter is not None:
@@ -167,12 +176,20 @@ class PositionCloser:
             )
             if order_id is None:
                 return
+            booked = resolve_oms_fill_price(
+                self._oms_adapter,
+                order_id,
+                base_price=price,
+                side="SELL",
+                slippage_pct=self._fill_recorder._config.slippage_pct,
+            )
         else:
             order_id = f"sim-close:{view.symbol}:{session.bar_count}"
+            booked = exit_price
 
-        notional = exit_price * view.quantity
+        notional = booked * view.quantity
         commission = self._fill_recorder.compute_commission(notional, "SELL")
-        exit_price_d = Decimal(str(exit_price))
+        exit_price_d = Decimal(str(booked))
         entry_price_d = Decimal(str(view.entry_price))
         commission_d = Decimal(str(commission))
         pnl = (exit_price_d - entry_price_d) * view.quantity - commission_d
@@ -188,7 +205,7 @@ class PositionCloser:
                 symbol=view.symbol,
                 side=view.side,
                 entry_price=view.entry_price,
-                exit_price=exit_price,
+                exit_price=booked,
                 quantity=view.quantity,
                 entry_time=view.entry_time,
                 exit_time=bar.timestamp,
@@ -205,7 +222,7 @@ class PositionCloser:
             exchange="NSE",
             side=Side.SELL,
             quantity=view.quantity,
-            price=exit_price,
+            price=booked,
             timestamp=bar.timestamp,
             trade_tag=reason,
         )

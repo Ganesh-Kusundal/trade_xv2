@@ -157,3 +157,8 @@ class OrderCanceller:
         success = isinstance(data, dict) and data.get("status", "").lower() == "success"
         logger.info("kill_switch", extra={"action": action, "success": success})
         return success
+
+    def status_kill_switch(self) -> dict:
+        """Read-only kill-switch status check; no live-order guard needed."""
+        data = self._client.get("/killswitch")
+        return data if isinstance(data, dict) else {}

@@ -32,7 +32,7 @@ Usage
     # Evaluate rules (call periodically, e.g., every 10 seconds)
     alerts = engine.evaluate_all()
     for alert in alerts:
-        print(f"[{alert.level.name}] {alert.message}")
+        logger.info("[%s] %s", alert.level.name, alert.message)
 
     # Or add a custom callback
     def my_callback(alert):

@@ -125,6 +125,11 @@ class BoundBrokerFacade:
         return self._catalog.broker_id
 
     @property
+    def catalog(self) -> BrokerFacade:
+        """Public accessor for the underlying BrokerFacade catalog."""
+        return self._catalog
+
+    @property
     def capabilities(self) -> list[str]:
         return self._catalog.capability_names()
 

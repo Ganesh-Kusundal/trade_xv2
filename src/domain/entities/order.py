@@ -8,6 +8,7 @@ backward compatibility and coerces in ``__post_init__``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
@@ -137,6 +138,55 @@ class Order:
 
     def with_order_type(self, order_type: OrderType) -> Order:
         return replace(self, order_type=order_type)
+
+    @classmethod
+    def from_broker_dict(
+        cls,
+        d: dict,
+        field_mapping: FieldMapping | None = None,
+        exchange_resolver: Callable[[str], Any] | None = None,
+    ) -> Order:
+        """Construct a canonical Order from a broker-specific dict.
+
+        Args:
+            d: Broker-specific order dict.
+            field_mapping: Broker-specific field name mapping. Defaults to
+                :class:`~domain.field_mapping.DefaultFieldMapping`.
+            exchange_resolver: Optional function converting the raw exchange
+                string into the broker's Exchange representation.
+        """
+        from domain.field_mapping import DefaultFieldMapping
+        from domain.status_mapper import StatusMapperRegistry
+
+        mapping = field_mapping or DefaultFieldMapping()
+
+        raw_exchange = mapping.map_exchange(d)
+        exchange = exchange_resolver(raw_exchange) if exchange_resolver else raw_exchange
+
+        side_str = mapping.map_side(d)
+        side = Side.BUY if side_str == "BUY" else Side.SELL
+
+        try:
+            order_type = OrderType(mapping.map_order_type(d))
+        except ValueError:
+            order_type = OrderType.MARKET
+
+        def _opt_money(v: str | None) -> Money | None:
+            return None if v in (None, "") else Money(Decimal(v))
+
+        return cls(
+            order_id=mapping.map_order_id(d),
+            symbol=mapping.map_symbol(d),
+            exchange=exchange,
+            side=side,
+            order_type=order_type,
+            quantity=mapping.map_quantity(d),
+            filled_quantity=mapping.map_filled_quantity(d),
+            price=_opt_money(mapping.map_price(d)) or Money(0),
+            avg_price=_opt_money(mapping.map_avg_price(d)) or Money(0),
+            status=StatusMapperRegistry.normalize(mapping.map_status(d)),
+            reject_reason=mapping.map_reject_reason(d),
+        )
 
 
 @dataclass(slots=True, frozen=True)

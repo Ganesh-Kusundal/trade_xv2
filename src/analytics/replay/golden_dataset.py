@@ -14,11 +14,14 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from analytics.replay.models import ReplayResult
+
+logger = logging.getLogger(__name__)
 
 # TOS-P4-001: default to test fixtures; override with TRADEX_GOLDEN_DIR.
 _DEFAULT_GOLDEN = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "golden"
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "save":
-        print(f"Golden dataset infrastructure ready for {args.symbol} on {args.date}")
-        print(f"Datasets will be saved to: {GOLDEN_DIR}")
+        logger.info("Golden dataset infrastructure ready for %s on %s", args.symbol, args.date)
+        logger.info("Datasets will be saved to: %s", GOLDEN_DIR)
     else:
         parser.print_help()

@@ -13,17 +13,20 @@ Usage::
     if monitor.is_healthy("dhan"):
         ...
     snapshot = monitor.get_health_status()
-    print(snapshot["dhan"].error_rate)   # 0.0-1.0
-    print(snapshot["dhan"].latency_p50_ms)  # median latency
+    logger.info(snapshot["dhan"].error_rate)   # 0.0-1.0
+    logger.info(snapshot["dhan"].latency_p50_ms)  # median latency
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

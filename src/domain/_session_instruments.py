@@ -23,7 +23,7 @@ class SessionInstrumentMixin:
         default_year: int | None = None,
     ) -> Instrument:
         """Resolve a display or canonical name to a stamped :class:`Instrument`."""
-        resolver = getattr(self, "_resolver", None)
+        resolver = self._resolver if hasattr(self, "_resolver") else None
         if resolver is not None:
             iid = resolver.resolve(
                 name, default_exchange=default_exchange, default_year=default_year
@@ -40,7 +40,7 @@ class SessionInstrumentMixin:
 
     def doctor(self, name: str) -> dict:
         """Name-resolution diagnostics (canonical, display, suggestions)."""
-        resolver = getattr(self, "_resolver", None)
+        resolver = self._resolver if hasattr(self, "_resolver") else None
         if resolver is None:
             from domain.instruments.resolver import InstrumentResolver
 

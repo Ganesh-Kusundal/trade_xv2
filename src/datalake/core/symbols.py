@@ -1,14 +1,9 @@
 """Symbol normalization — consistent symbol handling across the pipeline.
 
-Symbols are stored uppercased and stripped of whitespace. This prevents
-case-sensitivity bugs (RELIANCE vs Reliance vs reliance) and trailing
-whitespace from broker APIs.
-
-Path traversal protection:
-    ``sanitize_path_param`` strips ``../``, ``..\\``, ``/``, and null
-    bytes from any string used in filesystem paths (timeframe, expiry,
-    etc.). ``normalize_symbol`` rejects symbols containing path
-    separators.
+Canonical trading-key normalization lives in :mod:`domain.symbols`.
+This module re-exports that for callers and adds a storage-path helper that
+strips exchange suffixes (e.g. ``RELIANCE-EQ`` → ``RELIANCE``) for filesystem
+partition paths only.
 """
 
 from __future__ import annotations
@@ -17,6 +12,7 @@ import re
 from pathlib import Path
 
 from domain.symbols import normalize_exchange
+from domain.symbols import normalize_symbol as _domain_normalize_symbol
 
 # Symbols that end with exchange suffixes (e.g., "RELIANCE-EQ", "TCS-BE")
 SUFFIX_PATTERN = re.compile(r"[-_](EQ|BE|BL|BZ|MC|NC|NZ|SM|SO|TT)\s*$", re.IGNORECASE)
@@ -27,20 +23,26 @@ _PATH_CHARS = re.compile(r"[^A-Za-z0-9_\-]")
 
 
 def normalize_symbol(symbol: str) -> str:
-    """Normalize a symbol name.
+    """Canonical symbol normalization — delegates to :func:`domain.symbols.normalize_symbol`.
 
-    - Strip whitespace
-    - Uppercase
+    Does **not** strip exchange suffixes. Use
+    :func:`normalize_symbol_for_storage` at filesystem path boundaries.
+    """
+    return _domain_normalize_symbol(symbol)
+
+
+def normalize_symbol_for_storage(symbol: str) -> str:
+    """Normalize a symbol for datalake filesystem / hive partition paths.
+
+    - Strip whitespace, uppercase (via domain)
     - Remove common exchange suffixes (EQ, BE, etc.)
-    - Remove NSE-specific suffixes like "-EQ"
     - Reject symbols with path traversal characters
     """
     if not symbol:
         return ""
 
-    s = symbol.strip().upper()
+    s = _domain_normalize_symbol(symbol)
     s = SUFFIX_PATTERN.sub("", s)
-    # Reject path separators in symbol names
     if "/" in s or "\\" in s or ".." in s or "\x00" in s:
         raise ValueError(f"Invalid symbol (path traversal detected): {symbol!r}")
     return s
@@ -64,7 +66,7 @@ def sanitize_path_param(value: str, param_name: str = "param") -> str:
 
 def symbol_to_path(symbol: str) -> str:
     """Convert a symbol to a hive partition path component."""
-    return f"symbol={normalize_symbol(symbol)}"
+    return f"symbol={normalize_symbol_for_storage(symbol)}"
 
 
 def path_to_symbol(path: str | Path) -> str:
@@ -75,8 +77,8 @@ def path_to_symbol(path: str | Path) -> str:
     p = Path(path)
     for part in p.parts:
         if part.startswith("symbol="):
-            return normalize_symbol(part.replace("symbol=", ""))
-    return normalize_symbol(p.name)
+            return normalize_symbol_for_storage(part.replace("symbol=", ""))
+    return normalize_symbol_for_storage(p.name)
 
 
 def normalize_universe_name(name: str) -> str:
@@ -85,8 +87,8 @@ def normalize_universe_name(name: str) -> str:
 
 
 def are_same_symbol(a: str, b: str) -> bool:
-    """Check if two symbol strings refer to the same instrument."""
-    return normalize_symbol(a) == normalize_symbol(b)
+    """Check if two symbol strings refer to the same instrument (storage form)."""
+    return normalize_symbol_for_storage(a) == normalize_symbol_for_storage(b)
 
 
 def instrument_id_from_symbol(symbol: str, exchange: str = "NSE") -> str:
@@ -94,7 +96,7 @@ def instrument_id_from_symbol(symbol: str, exchange: str = "NSE") -> str:
 
     Example: instrument_id_from_symbol("RELIANCE", "NSE") → "NSE:RELIANCE"
     """
-    return f"{normalize_exchange(exchange)}:{normalize_symbol(symbol)}"
+    return f"{normalize_exchange(exchange)}:{normalize_symbol_for_storage(symbol)}"
 
 
 def instrument_id_from_option(
@@ -121,7 +123,10 @@ def instrument_id_from_option(
     if len(exp) == 10:  # YYYY-MM-DD
         exp = exp.replace("-", "")
 
-    return f"{normalize_exchange(exchange)}:{normalize_symbol(underlying)}:{exp}:{int(strike)}:{ot}"
+    return (
+        f"{normalize_exchange(exchange)}:"
+        f"{normalize_symbol_for_storage(underlying)}:{exp}:{int(strike)}:{ot}"
+    )
 
 
 def instrument_id_from_future(
@@ -137,4 +142,7 @@ def instrument_id_from_future(
     exp = expiry_date.replace("-", "")
     if len(exp) == 10:
         exp = exp.replace("-", "")
-    return f"{normalize_exchange(exchange)}:{normalize_symbol(underlying)}:{exp}:FUT"
+    return (
+        f"{normalize_exchange(exchange)}:"
+        f"{normalize_symbol_for_storage(underlying)}:{exp}:FUT"
+    )

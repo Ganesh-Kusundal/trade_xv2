@@ -74,7 +74,7 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from infrastructure.observability.audit import emit_historical_chunk
+from domain.ports.audit import emit_historical_chunk
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ class HistoricalDataCoordinator:
         for c in conflicts:
             ledger.add_conflict(c)
             with contextlib.suppress(Exception):
-                from infrastructure.observability.audit import emit_merge_conflict
+                from domain.ports.audit import emit_merge_conflict
 
                 emit_merge_conflict(
                     request_id=request_id,

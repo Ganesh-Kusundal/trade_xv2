@@ -117,7 +117,7 @@ def test_get_orderbook_parsing(fake_client, resolver):
     assert first.side == Side.BUY
     assert first.quantity == 10
     assert first.filled_quantity == 10
-    assert first.price == Decimal("2450.0")
+    assert first.price.to_decimal() == Decimal("2450.0")
     assert first.average_price == Decimal("2449.5")
     assert first.status == OrderStatus.FILLED
 
@@ -165,13 +165,13 @@ def test_get_trade_book_parsing(fake_client, resolver):
     assert first.exchange == Exchange.NSE
     assert first.side == Side.BUY
     assert first.quantity == 10
-    assert first.price == Decimal("2449.75")
+    assert first.price.to_decimal() == Decimal("2449.75")
 
     second = trades[1]
     assert second.trade_id == "TRD002"
     assert second.side == Side.SELL
     assert second.quantity == 5
-    assert second.price == Decimal("2460.0")
+    assert second.price.to_decimal() == Decimal("2460.0")
 
 
 def test_kill_switch_url(fake_client, resolver):
@@ -182,6 +182,45 @@ def test_kill_switch_url(fake_client, resolver):
     # Verify the exact URL with query param was used
     calls = fake_client.calls_for("POST", "/killswitch?killSwitchStatus=ACTIVATE")
     assert len(calls) == 1
+
+
+def test_status_kill_switch(fake_client, resolver):
+    fake_client.set_response("GET", "/killswitch", {"killSwitchStatus": "ACTIVATE"})
+    adapter = OrdersAdapter(fake_client, resolver)
+    result = adapter.status_kill_switch()
+    assert result == {"killSwitchStatus": "ACTIVATE"}
+
+
+def test_status_kill_switch_does_not_require_live_orders(fake_client, resolver):
+    """Read-only status check must work even with live orders disabled."""
+    fake_client.set_response("GET", "/killswitch", {"killSwitchStatus": "DEACTIVATE"})
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=False)
+    result = adapter.status_kill_switch()
+    assert result == {"killSwitchStatus": "DEACTIVATE"}
+
+
+def test_get_order_by_correlation_id(fake_client, resolver):
+    fake_client.set_response(
+        "GET",
+        "/orders/external/my-correlation-id",
+        {
+            "data": {
+                "orderId": "ORD555",
+                "tradingSymbol": "RELIANCE",
+                "exchangeSegment": "NSE_EQ",
+                "transactionType": "BUY",
+                "quantity": 10,
+                "filledQty": 10,
+                "price": 2450.0,
+                "averagePrice": 2449.5,
+                "orderStatus": "COMPLETE",
+            }
+        },
+    )
+    adapter = OrdersAdapter(fake_client, resolver)
+    order = adapter.get_order_by_correlation_id("my-correlation-id")
+    assert order.order_id == "ORD555"
+    assert order.status == OrderStatus.FILLED
 
 
 def test_place_order_publishes_event(fake_client, resolver):
@@ -286,8 +325,8 @@ def test_place_order_transport_only_does_not_bypass_risk_check(fake_client, reso
 
 
 def test_place_slice_order_payload(fake_client, resolver):
-    """Verify POST /sliceorder payload (same as regular order)."""
-    fake_client.set_response("POST", "/sliceorder", {"data": {"orderId": "SLICE123"}})
+    """Verify POST /orders/slicing payload (same as regular order)."""
+    fake_client.set_response("POST", "/orders/slicing", {"data": {"orderId": "SLICE123"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     response = adapter.place_slice_order(
         symbol="RELIANCE",
@@ -298,7 +337,7 @@ def test_place_slice_order_payload(fake_client, resolver):
         price=Decimal("2450.00"),
         product_type="INTRADAY",
     )
-    payloads = fake_client.calls_for("POST", "/sliceorder")
+    payloads = fake_client.calls_for("POST", "/orders/slicing")
     assert len(payloads) == 1
     payload = payloads[0]
     assert payload["dhanClientId"] == "TEST_CLIENT"
@@ -371,7 +410,7 @@ def test_get_trade_history_parsing(fake_client, resolver):
 
     assert len(trades) == 2
     assert trades[0].quantity == 10
-    assert trades[0].price == Decimal("2449.75")
+    assert trades[0].price.to_decimal() == Decimal("2449.75")
     assert trades[1].side == Side.SELL
 
 
@@ -387,25 +426,23 @@ def test_get_trade_history_pagination(fake_client, resolver):
 
 
 def test_place_slice_order_live_orders_disabled(fake_client, resolver):
-    """place_slice_order raises OrderError when live orders are disabled."""
-    from brokers.dhan.execution.orders import OrderError
-
+    """place_slice_order returns a failed OrderResponse when live orders are
+    disabled — same fail-soft convention as place_order/modify_order/cancel_order."""
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=False)
-    import pytest
-
-    with pytest.raises(OrderError, match="Live orders are disabled"):
-        adapter.place_slice_order(
-            symbol="RELIANCE",
-            exchange="NSE",
-            side="BUY",
-            quantity=100,
-            order_type="MARKET",
-        )
+    response = adapter.place_slice_order(
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        quantity=100,
+        order_type="MARKET",
+    )
+    assert response.success is False
+    assert "Live orders disabled" in response.message
 
 
 def test_place_slice_order_publishes_event(fake_client, resolver):
     """place_slice_order publishes ORDER_PLACED event."""
-    fake_client.set_response("POST", "/sliceorder", {"data": {"orderId": "SLICE_EVT"}})
+    fake_client.set_response("POST", "/orders/slicing", {"data": {"orderId": "SLICE_EVT"}})
     bus = EventBus()
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True, event_bus=bus)
 

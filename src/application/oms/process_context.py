@@ -40,7 +40,7 @@ def register_oms_context(ctx: "TradingContext") -> None:
     again with the same instance is a no-op; calling with a different
     instance logs a warning (double composition root) and keeps the first.
     """
-    global _registered
+    global _registered  # intentional module singleton — process-wide OMS context
     with _lock:
         if _registered is not None and _registered is not ctx:
             logger.warning(
@@ -64,6 +64,6 @@ def has_oms_context() -> bool:
 
 def reset_oms_context() -> None:
     """FOR TESTS ONLY. Drop the registered context."""
-    global _registered
+    global _registered  # intentional module singleton — reset for tests
     with _lock:
         _registered = None

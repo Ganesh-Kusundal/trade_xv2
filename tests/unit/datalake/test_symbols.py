@@ -7,12 +7,15 @@ from pathlib import Path
 from datalake.core.symbols import (
     are_same_symbol,
     normalize_symbol,
+    normalize_symbol_for_storage,
     path_to_symbol,
     symbol_to_path,
 )
 
 
 class TestNormalizeSymbol:
+    """Canonical normalize_symbol delegates to domain (no suffix strip)."""
+
     def test_uppercases(self) -> None:
         assert normalize_symbol("reliance") == "RELIANCE"
         assert normalize_symbol("Reliance") == "RELIANCE"
@@ -22,18 +25,9 @@ class TestNormalizeSymbol:
         assert normalize_symbol("  RELIANCE  ") == "RELIANCE"
         assert normalize_symbol("\tTCS\n") == "TCS"
 
-    def test_removes_eq_suffix(self) -> None:
-        assert normalize_symbol("RELIANCE-EQ") == "RELIANCE"
-        assert normalize_symbol("TCS-EQ") == "TCS"
-
-    def test_removes_other_suffixes(self) -> None:
-        assert normalize_symbol("RELIANCE-BE") == "RELIANCE"
-        assert normalize_symbol("TCS-BL") == "TCS"
-        assert normalize_symbol("INFY-MC") == "INFY"
-
-    def test_underscore_suffix(self) -> None:
-        assert normalize_symbol("RELIANCE_EQ") == "RELIANCE"
-        assert normalize_symbol("TCS_BE") == "TCS"
+    def test_keeps_eq_suffix(self) -> None:
+        assert normalize_symbol("RELIANCE-EQ") == "RELIANCE-EQ"
+        assert normalize_symbol("TCS-EQ") == "TCS-EQ"
 
     def test_empty_string(self) -> None:
         assert normalize_symbol("") == ""
@@ -42,6 +36,21 @@ class TestNormalizeSymbol:
     def test_no_change_for_clean_symbol(self) -> None:
         assert normalize_symbol("RELIANCE") == "RELIANCE"
         assert normalize_symbol("NIFTY") == "NIFTY"
+
+
+class TestNormalizeSymbolForStorage:
+    def test_removes_eq_suffix(self) -> None:
+        assert normalize_symbol_for_storage("RELIANCE-EQ") == "RELIANCE"
+        assert normalize_symbol_for_storage("TCS-EQ") == "TCS"
+
+    def test_removes_other_suffixes(self) -> None:
+        assert normalize_symbol_for_storage("RELIANCE-BE") == "RELIANCE"
+        assert normalize_symbol_for_storage("TCS-BL") == "TCS"
+        assert normalize_symbol_for_storage("INFY-MC") == "INFY"
+
+    def test_underscore_suffix(self) -> None:
+        assert normalize_symbol_for_storage("RELIANCE_EQ") == "RELIANCE"
+        assert normalize_symbol_for_storage("TCS_BE") == "TCS"
 
 
 class TestSymbolToPath:

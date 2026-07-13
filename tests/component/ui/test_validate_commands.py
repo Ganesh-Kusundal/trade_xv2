@@ -98,7 +98,7 @@ class TestSymbolValidation:
     """Tests for symbol validation."""
 
     def test_validate_symbol_success(self, console, mock_broker_service, mock_gateway):
-        with patch("interface.ui.services.broker_registry.create_gateway", return_value=mock_gateway):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gateway):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()
@@ -110,21 +110,21 @@ class TestSymbolValidation:
     def test_validate_symbol_historical_error(self, console, mock_broker_service, mock_gateway):
         mock_gateway.history.side_effect = Exception("API error")
 
-        with patch("interface.ui.services.broker_registry.create_gateway", return_value=mock_gateway):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gateway):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()
             assert "ERROR" in output or "Error" in output
 
     def test_validate_gateway_creation_failure(self, console, mock_broker_service):
-        with patch("interface.ui.services.broker_registry.create_gateway", side_effect=Exception("Config error")):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", side_effect=Exception("Config error")):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()
             assert "Error creating gateway" in output
 
     def test_validate_no_gateway(self, console, mock_broker_service):
-        with patch("interface.ui.services.broker_registry.create_gateway", return_value=None):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=None):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()
@@ -140,7 +140,7 @@ class TestBrokerValidation:
     """Tests for broker health validation."""
 
     def test_validate_broker(self, console, mock_broker_service, mock_gateway):
-        with patch("interface.ui.services.broker_registry.create_gateway", return_value=mock_gateway):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gateway):
             cmd_validate.run(["broker"], mock_broker_service, console)
 
             output = console.export_text()
@@ -202,13 +202,13 @@ class TestValidateRouter:
         assert output is not None
 
     def test_validate_broker_subcommand(self, console, mock_broker_service, mock_gateway):
-        with patch("interface.ui.services.broker_registry.create_gateway", return_value=mock_gateway):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gateway):
             cmd_validate.run(["broker"], mock_broker_service, console)
             output = console.export_text()
             assert output is not None
 
     def test_validate_symbol_subcommand(self, console, mock_broker_service, mock_gateway):
-        with patch("interface.ui.services.broker_registry.create_gateway", return_value=mock_gateway):
+        with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gateway):
             cmd_validate.run(["symbol", "RELIANCE"], mock_broker_service, console)
             output = console.export_text()
             assert output is not None

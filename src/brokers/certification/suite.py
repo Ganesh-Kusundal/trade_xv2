@@ -71,11 +71,11 @@ class BrokerCertifier:
         report = CertificationReport(self._broker_id)
         s = self._session
 
-        # ── Authentication / reconnect ──
+        # ── Authentication / reconnect (money-path: fail, do not warn_only) ──
         report.add(self._check(CertArea.AUTHENTICATION, lambda: _auth(s)))
-        report.add(self._check(CertArea.TOKEN_REFRESH, lambda: _token_refresh(s), warn_only=True))
-        report.add(self._check(CertArea.TOKEN_EXPIRY, lambda: _token_expiry(s), warn_only=True))
-        report.add(self._check(CertArea.RECONNECT, lambda: _reconnect(s), warn_only=True))
+        report.add(self._check(CertArea.TOKEN_REFRESH, lambda: _token_refresh(s)))
+        report.add(self._check(CertArea.TOKEN_EXPIRY, lambda: _token_expiry(s)))
+        report.add(self._check(CertArea.RECONNECT, lambda: _reconnect(s)))
 
         # ── Instrument / mapping ──
         report.add(self._check(CertArea.SYMBOL_LOOKUP, lambda: _symbol_lookup(s)))
@@ -97,11 +97,11 @@ class BrokerCertifier:
         report.add(self._check(CertArea.TF_15M, lambda: _hist(s, "15m"), warn_only=True))
         report.add(self._check(CertArea.TF_DAILY, lambda: _hist(s, "1D")))
 
-        # ── Orders (paper validates without real exchange orders) ──
-        report.add(self._check(CertArea.ORDER_MARKET, lambda: _order_market(s), warn_only=True))
-        report.add(self._check(CertArea.ORDER_LIMIT, lambda: _order_limit(s), warn_only=True))
-        report.add(self._check(CertArea.ORDER_CANCEL, lambda: _order_cancel(s), warn_only=True))
-        report.add(self._check(CertArea.ORDER_MODIFY, lambda: _order_modify(s), warn_only=True))
+        # ── Orders (money path — fail the suite; paper exercises sim orders) ──
+        report.add(self._check(CertArea.ORDER_MARKET, lambda: _order_market(s)))
+        report.add(self._check(CertArea.ORDER_LIMIT, lambda: _order_limit(s)))
+        report.add(self._check(CertArea.ORDER_CANCEL, lambda: _order_cancel(s)))
+        report.add(self._check(CertArea.ORDER_MODIFY, lambda: _order_modify(s)))
 
         # ── Portfolio ──
         report.add(self._check(CertArea.HOLDINGS, lambda: _holdings(s), warn_only=True))
@@ -112,9 +112,9 @@ class BrokerCertifier:
         report.add(self._check(CertArea.QUOTE_LATENCY, lambda: _quote_latency(s)))
         report.add(self._check(CertArea.SUBSCRIPTION_LATENCY, lambda: _sub_latency(s), market_hours_only=True))
 
-        # ── Recovery / rate limits / capability matrix ──
-        report.add(self._check(CertArea.DISCONNECT, lambda: _disconnect(s), warn_only=True))
-        report.add(self._check(CertArea.SESSION_RECOVERY, lambda: _session_recovery(s), warn_only=True))
+        # ── Recovery (money path — fail) / rate limits / capability matrix ──
+        report.add(self._check(CertArea.DISCONNECT, lambda: _disconnect(s)))
+        report.add(self._check(CertArea.SESSION_RECOVERY, lambda: _session_recovery(s)))
         report.add(self._check(CertArea.RATE_BURST, lambda: _rate_burst(s), warn_only=True))
         report.add(self._check(CertArea.RATE_SUSTAINED, lambda: _rate_sustained(s), warn_only=True))
         report.add(self._check(CertArea.CAPABILITY_MATRIX, lambda: _capability_matrix(s)))
@@ -133,30 +133,36 @@ def _auth(s: BrokerSession) -> str:
 
 
 def _token_refresh(s: BrokerSession) -> str:
-    """Token refresh is live-broker only; paper skips via NotImplementedError."""
+    """Token refresh is live-broker only; paper returns N/A (pass)."""
     if not _live_session_checks_applicable(s):
-        raise NotImplementedError()
+        return "N/A (synthetic broker)"
     # Public surface: session must be authenticated; refresh is plugin-internal.
     st = s.status
     if not getattr(st, "authenticated", False):
         raise RuntimeError("session not authenticated")
-    raise NotImplementedError()  # live refresh exercised by broker doctor / live certify
+    # Fail loudly until a real refresh probe is wired (money path).
+    raise RuntimeError(
+        "token refresh check not implemented for live broker — certification must fail"
+    )
 
 
 def _token_expiry(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
-        raise NotImplementedError()
+        return "N/A (synthetic broker)"
     st = s.status
     if not getattr(st, "authenticated", False):
         raise RuntimeError("session not authenticated")
-    raise NotImplementedError()
+    raise RuntimeError(
+        "token expiry check not implemented for live broker — certification must fail"
+    )
 
 
 def _reconnect(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
-        raise NotImplementedError()
-    # Reconnect is a transport concern; certify via doctor/live suite.
-    raise NotImplementedError()
+        return "N/A (synthetic broker)"
+    raise RuntimeError(
+        "reconnect check not implemented for live broker — certification must fail"
+    )
 
 
 def _symbol_lookup(s: BrokerSession) -> str:
@@ -341,14 +347,18 @@ def _sub_latency(s: BrokerSession) -> str:
 
 def _disconnect(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
-        raise NotImplementedError()
-    raise NotImplementedError()
+        return "N/A (synthetic broker)"
+    raise RuntimeError(
+        "disconnect check not implemented for live broker — certification must fail"
+    )
 
 
 def _session_recovery(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
-        raise NotImplementedError()
-    raise NotImplementedError()
+        return "N/A (synthetic broker)"
+    raise RuntimeError(
+        "session recovery check not implemented for live broker — certification must fail"
+    )
 
 
 def _rate_burst(s: BrokerSession) -> str:

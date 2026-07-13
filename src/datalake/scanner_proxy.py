@@ -18,15 +18,21 @@ class _RuleEngineProtocol(Protocol):
     def list_rules(self) -> list[str]: ...
 
 
-_ENGINE: _RuleEngineProtocol | None = None
+class _EngineState:
+    """Module-level engine state (lazy singleton)."""
+
+    _engine: _RuleEngineProtocol | None = None
+
+    @classmethod
+    def get(cls) -> _RuleEngineProtocol:
+        if cls._engine is None:
+            import importlib
+
+            mod = importlib.import_module("analytics.scanner.rules.engine")
+            cls._engine = mod.RuleEngine()
+        return cls._engine
 
 
 def get_rule_engine() -> _RuleEngineProtocol:
     """Lazy-init RuleEngine via dynamic import (no AST-detectable analytics import)."""
-    global _ENGINE
-    if _ENGINE is None:
-        import importlib
-
-        mod = importlib.import_module("analytics.scanner.rules.engine")
-        _ENGINE = mod.RuleEngine()
-    return _ENGINE
+    return _EngineState.get()

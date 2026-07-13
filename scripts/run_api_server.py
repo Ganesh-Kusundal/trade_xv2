@@ -16,6 +16,8 @@ from interface.api.main import create_app
 from infrastructure.auth.environment_bootstrap import bootstrap_environment
 from infrastructure.logging_config import configure_logging
 from interface.api.bootstrap import initialize_api_services
+# Side-effect: registers BrokerService factory for runtime.api_compose (F9).
+import interface.ui.services.compose  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

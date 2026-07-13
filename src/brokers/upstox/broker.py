@@ -5,6 +5,11 @@ as direct attributes.
 This is a plain class (no ABC base). The ``UpstoxBrokerGateway`` wrapper
 implements the ``MarketDataGateway`` contract; this class provides the
 adapter wiring.
+
+ponytail: god-facade (~470 LOC). Lifecycle helpers (connect/disconnect) and
+capability registry are the next extract targets when a change forces a touch;
+do not split preemptively — ADR-011 ceiling, upgrade via focused modules like
+dhan's ConnectionLifecycle.
 """
 
 from __future__ import annotations
@@ -142,8 +147,10 @@ class UpstoxBroker:
         if reconciliation_service is not None:
             self.reconciliation_service = reconciliation_service
         else:
+            # F4: heal on by default for live; composition roots may inject
+            # a service with should_auto_repair() for env override.
             self.reconciliation_service = UpstoxReconciliationService(
-                self.order_client, self.portfolio_client, oms=self._oms, auto_repair=False
+                self.order_client, self.portfolio_client, oms=self._oms, auto_repair=True
             )
 
         # Trade P&L Calculator
@@ -177,7 +184,9 @@ class UpstoxBroker:
         self.portfolio_client = UpstoxPortfolioClient(http, resolver)
         self.margin_client = UpstoxMarginClient(http, resolver)
         self.market_status_client = UpstoxMarketStatusClient(http, resolver)
-        self.futures_client = UpstoxFuturesClient(http, resolver)
+        self.futures_client = UpstoxFuturesClient(
+            http, resolver, instrument_resolver=self.instrument_resolver
+        )
         self.expired_instruments_client = UpstoxExpiredInstrumentsClient(http, resolver)
 
         # Orders / GTT
@@ -207,7 +216,9 @@ class UpstoxBroker:
         self.market_data = UpstoxMarketDataAdapter(
             self.market_data_v2, self.market_data_v3, self.historical_v2
         )
-        self.options = UpstoxOptionsAdapter(self.options_client)
+        self.options = UpstoxOptionsAdapter(
+            self.options_client, instrument_resolver=self.instrument_resolver
+        )
         self.portfolio = UpstoxPortfolioAdapter(self.portfolio_client)
         self.margin = UpstoxMarginAdapter(self.margin_client)
         self.market_status = UpstoxMarketStatusAdapter(self.market_status_client)

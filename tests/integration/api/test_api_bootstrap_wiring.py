@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from interface.api.bootstrap import initialize_api_services
-from interface.ui.services.compose import build_for_api
+from interface.ui.services.compose import build_for_api  # registers BrokerService factory
 
 
 @pytest.fixture(autouse=True)

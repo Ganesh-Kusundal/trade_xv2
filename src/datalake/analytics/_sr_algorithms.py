@@ -101,7 +101,7 @@ def main() -> None:
         days=args.days,
         force=args.force,
     )
-    print(f"Done: {stats}")
+    logger.info("Done: %s", stats)
 
 
 if __name__ == "__main__":

@@ -92,9 +92,15 @@ class BrokerId(str, Enum):
 
     @classmethod
     def from_str(cls, name: str) -> BrokerId:
-        """Convert a string broker name to BrokerId (case-insensitive)."""
+        """Convert a string broker name to BrokerId (case-insensitive).
+
+        ``mock`` maps to :attr:`PAPER` (duplicate MOCK member removed).
+        """
+        key = name.lower().strip()
+        if key == "mock":
+            return cls.PAPER
         try:
-            return cls(name.lower().strip())
+            return cls(key)
         except ValueError as exc:
             raise ValueError(
                 f"Broker '{name}' is not registered. "

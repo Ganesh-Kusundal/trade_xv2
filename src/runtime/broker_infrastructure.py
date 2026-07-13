@@ -7,15 +7,14 @@ imports DhanGateway or UpstoxGateway directly.
 Usage at composition root (bootstrap)::
 
     from runtime.broker_infrastructure import BrokerInfrastructure, build_infrastructure
-    from domain.policies.defaults import default_source_selection_policy
-    from brokers.dhan.config.capabilities import dhan_capabilities
-    from brokers.upstox.capabilities import upstox_capabilities
+    from domain.policies.source_selection import auto_dual_broker_policy
 
-    infra = await build_infrastructure(
+    infra = build_infrastructure(
         gateways=[dhan_gw, upstox_gw],
         bundles={"dhan": dhan_bundle, "upstox": upstox_bundle},
         policy=auto_dual_broker_policy(execution_account="dhan"),
     )
+    # Streams start on Runtime.start() / await infra.streams.start()
 
 Usage in application code::
 
@@ -38,6 +37,7 @@ from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain.extensions.broker_bundle import ExtensionBundle, ExtensionRegistry
 from domain.policies.source_selection import SourceSelectionPolicy
 from domain.ports.broker_gateway import CommonBrokerGateway
+from domain.ports.broker_id import BrokerId
 
 
 @dataclass
@@ -63,16 +63,16 @@ class BrokerInfrastructure:
     streams: StreamOrchestrator
     extensions: ExtensionRegistry
 
-    def gateway_for(self, broker_id: str) -> CommonBrokerGateway:
+    def gateway_for(self, broker_id: str | BrokerId) -> CommonBrokerGateway:
         """Return a gateway by broker_id — for explicit single-broker use cases."""
         return self.registry.get_gateway(broker_id)
 
-    def capabilities_for(self, broker_id: str) -> BrokerCapabilities:
+    def capabilities_for(self, broker_id: str | BrokerId) -> BrokerCapabilities:
         """Return the capability matrix for a broker."""
         return self.registry.get_capabilities(broker_id).capabilities
 
 
-async def build_infrastructure(
+def build_infrastructure(
     gateways: Sequence[CommonBrokerGateway],
     policy: SourceSelectionPolicy,
     bundles: dict[str, ExtensionBundle] | None = None,
@@ -82,7 +82,9 @@ async def build_infrastructure(
     """Bootstrap ``BrokerInfrastructure`` from a list of live gateways.
 
     Registers all gateways and their extension bundles, registers rate profiles
-    with the quota scheduler, and starts the stream orchestrator.
+    with the quota scheduler. Does **not** start the stream orchestrator —
+    call ``await infra.streams.start()`` from ``Runtime.start()`` (or an
+    async lifespan) so composition roots never need ``asyncio.run``.
 
     Parameters
     ----------
@@ -123,7 +125,8 @@ async def build_infrastructure(
     )
 
     streams = StreamOrchestrator(registry=registry, router=router)
-    await streams.start()
+    # ponytail: streams.start() deferred to Runtime.start() — avoids asyncio.run
+    # in the composition root when FastAPI/CLI already own a loop.
 
     return BrokerInfrastructure(
         registry=registry,

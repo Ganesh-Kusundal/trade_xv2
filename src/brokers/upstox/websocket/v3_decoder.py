@@ -23,8 +23,13 @@ FRAME_TYPE_LIVE_FEED = 2
 # Incremented whenever both V3 and V2 fallback decoding fail.
 # Protected by _decode_lock for safe concurrent access from multiple
 # WebSocket connections or threads.
-_decode_failures: int = 0
 _decode_lock: threading.Lock = threading.Lock()
+
+
+class _DecodeState:
+    """Module-level decode failure counter (class-based state holder)."""
+
+    failures: int = 0
 
 
 def decode_failure_count() -> int:
@@ -34,7 +39,7 @@ def decode_failure_count() -> int:
     corrupt feed, or version skew that warrants investigation.
     """
     with _decode_lock:
-        return _decode_failures
+        return _DecodeState.failures
 
 
 @dataclass
@@ -105,8 +110,7 @@ class UpstoxV3Decoder:
     def _record_decode_failure() -> None:
         """Thread-safe increment of the decode-failure counter."""
         with _decode_lock:
-            global _decode_failures
-            _decode_failures += 1
+            _DecodeState.failures += 1
 
     @staticmethod
     def _feed_to_dict_v3(feed: Any, instrument_key: str) -> dict[str, Any]:

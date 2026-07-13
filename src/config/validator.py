@@ -13,7 +13,7 @@ Usage::
     errors = validator.validate()
     if errors:
         for error in errors:
-            print(f"Configuration error: {error}")
+            logger.error(f"Configuration error: {error}")
         raise SystemExit(1)
 
     # Or validate with production strictness

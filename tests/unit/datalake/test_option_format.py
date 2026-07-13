@@ -6,6 +6,7 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+import pyarrow.parquet as pq
 
 from datalake.core.option_format import (
     CANONICAL_COLUMNS,
@@ -13,6 +14,7 @@ from datalake.core.option_format import (
     make_option_symbol,
     map_expiry_code_to_date,
 )
+from datalake.core.schema import ARROW_SCHEMA
 from datalake.ingestion.sync_options import _get_watermark, sync_options
 
 # ============================================================
@@ -279,6 +281,24 @@ class TestSyncOptions:
             tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
         )
         assert out_file.exists()
+
+    def test_written_file_uses_canonical_timestamp_unit(self, tmp_path: Path) -> None:
+        """convert_format() parses bar_time_ms with unit="ms", producing
+        datetime64[ms] -- regression guard that sync_options() casts to
+        the canonical `us` (matching equities/indices) before writing,
+        instead of writing whatever unit convert_format happened to produce."""
+        tj_path = tmp_path / "tj.duckdb"
+        tgt_path = tmp_path / "options"
+        rows = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)]
+        _make_trade_j_duckdb(tj_path, rows)
+
+        sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
+
+        out_file = (
+            tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        )
+        written_type = pq.read_schema(out_file).field("timestamp").type
+        assert written_type == ARROW_SCHEMA.field("timestamp").type
 
     def test_idempotent_second_run(self, tmp_path: Path) -> None:
         tj_path = tmp_path / "tj.duckdb"

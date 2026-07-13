@@ -110,6 +110,11 @@ register_execution_provider("dhan", DhanOrderTransport)
 
 from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
+def _load_dhan_capabilities():
+    from brokers.dhan.config.capabilities import dhan_capabilities
+    return dhan_capabilities()
+
+
 register_broker_plugin(
     BrokerPlugin(
         broker_id="dhan",
@@ -117,8 +122,7 @@ register_broker_plugin(
         default_mode="market",
         supported_modes=frozenset({"market", "trade"}),
         is_live=True,
-        capabilities_module="brokers.dhan.config.capabilities",
-        capabilities_fn="dhan_capabilities",
+        capabilities_loader=_load_dhan_capabilities,
     )
 )
 

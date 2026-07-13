@@ -101,7 +101,7 @@ FACADE_TO_CANONICAL: dict[str, str] = {
     'tradex.runtime.services': 'application.services',
     'tradex.runtime.services.data_validator': 'application.services.data_validator',
     'tradex.runtime.services.download_engine': 'application.services.download_engine',
-    'tradex.runtime.services.historical_data': 'application.services.historical_data',
+    'tradex.runtime.services.historical_data': 'runtime.historical_data',
     'tradex.runtime.services.instrument_registry': 'application.services.instrument_registry',
     'tradex.runtime.services.production_readiness': 'application.services.production_readiness',
     'tradex.runtime.session_infra': 'runtime.session_infra',

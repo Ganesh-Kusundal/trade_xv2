@@ -30,7 +30,10 @@ from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     HistoricalWindowConstraint,
 )
-from datalake.core.symbols import normalize_symbol, symbol_to_path
+from datalake.core.symbols import (
+    normalize_symbol_for_storage,
+    symbol_to_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,7 @@ class DataLakeGateway(MarketDataGateway):
         return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
 
     def _load_parquet(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         path = self._parquet_path(symbol, timeframe)
         if path.exists():
             try:
@@ -140,7 +143,7 @@ class DataLakeGateway(MarketDataGateway):
             ]
             return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, timeframe)
         if df is None or df.empty:
             return pd.DataFrame()
@@ -161,7 +164,7 @@ class DataLakeGateway(MarketDataGateway):
         limit: int | None = None,
     ) -> pd.DataFrame | None:
         """Filter lake OHLCV for API routes (storage read; domain ingress follows)."""
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, timeframe)
         if df is None or df.empty:
             return None
@@ -177,7 +180,7 @@ class DataLakeGateway(MarketDataGateway):
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         from domain import Quote as _Quote
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
             return _Quote(symbol=symbol)
@@ -197,7 +200,7 @@ class DataLakeGateway(MarketDataGateway):
         )
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
             return Decimal("0")
@@ -220,7 +223,7 @@ class DataLakeGateway(MarketDataGateway):
         """
         from pathlib import Path
 
-        underlying = normalize_symbol(underlying)
+        underlying = normalize_symbol_for_storage(underlying)
         root = self._root
         chains_root = root / "options" / "chains"
         calls: list[dict] = []
@@ -274,7 +277,7 @@ class DataLakeGateway(MarketDataGateway):
         """Load futures chain from lake when present (TOS-P6-002)."""
         from pathlib import Path
 
-        underlying = normalize_symbol(underlying)
+        underlying = normalize_symbol_for_storage(underlying)
         root = self._root
         fut_root = root / "futures" / "chains"
         out: list[dict] = []

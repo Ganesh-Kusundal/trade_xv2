@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 NOTEBOOKS = [
     ("01_authentication", "Connect and inspect session status"),
@@ -114,7 +117,7 @@ def main() -> None:
         nb = _notebook(CELLS.get(name, [f"# {name}\nprint('paper broker')"]))
         path = out / f"{name}.ipynb"
         path.write_text(json.dumps(nb, indent=1), encoding="utf-8")
-        print("wrote", path)
+        logger.info("wrote %s", path)
 
 
 if __name__ == "__main__":

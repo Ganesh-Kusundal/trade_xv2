@@ -1,19 +1,14 @@
-"""Back-compat re-export of historical data service.
+"""Historical data service — implementation lives in infrastructure.
 
-Implementation lives in ``infrastructure.historical_data`` so broker
-packages can import without depending on ``application``.
+Application no longer re-exports infrastructure (layering). Prefer::
+
+    from infrastructure.historical_data import HistoricalDataService, ...
+
+Or the runtime facade::
+
+    from runtime.historical_data import HistoricalDataService, ...
 """
 
-from infrastructure.historical_data import (
-    GapRange,
-    HistoricalDataRequest,
-    HistoricalDataService,
-    SupportsHistoricalCandles,
-)
+from __future__ import annotations
 
-__all__ = [
-    "GapRange",
-    "HistoricalDataRequest",
-    "HistoricalDataService",
-    "SupportsHistoricalCandles",
-]
+__all__: list[str] = []

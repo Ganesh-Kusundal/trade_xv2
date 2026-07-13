@@ -1,8 +1,8 @@
 """Position closing for paper trading — stop-loss / take-profit exits and EOD closes.
 
-Extracted from ``analytics.paper.engine.PaperTradingEngine``. Depends on the
-paper ``config``, an OMS backtest adapter, and a fill-recording callback supplied
-by the engine.
+Extracted from ``analytics.paper.engine.PaperTradingEngine``. Slippage is applied
+**once** inside ``OmsBacktestAdapter`` — this module passes the un-slipped price
+and records the OMS fill price into the session (F2a/F2d).
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
+from analytics.oms_fill_price import resolve_oms_fill_price
 from analytics.paper.models import (
     OrderSide,
     OrderStatus,
@@ -21,7 +22,7 @@ from analytics.paper.models import (
 )
 from domain import Side
 from domain.candles.historical import HistoricalBar
-from domain.trading_costs import apply_slippage as _apply_slippage
+from domain.trading_costs import compute_commission
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,16 @@ class PaperPositionCloser:
         self._oms_adapter = oms_adapter
         self._record_fill = record_fill
 
+    def _commission(self, notional: float, side: str) -> float:
+        cfg = self._config
+        return compute_commission(
+            notional,
+            side,
+            model=cfg.commission_model,
+            flat_fee=cfg.commission_flat,
+            fees=cfg.indian_market_fees,
+        )
+
     def close(
         self,
         session,
@@ -63,6 +74,7 @@ class PaperPositionCloser:
         if view is None:
             return
 
+        # Un-slipped base — OmsBacktestAdapter applies slippage once (F2a).
         dec_price = Decimal(str(price))
         order_id = self._oms_adapter.close_long(
             symbol=symbol,
@@ -79,15 +91,19 @@ class PaperPositionCloser:
 
         config = self._config
         if view.side == PositionSide.LONG:
-            exit_price = float(
-                _apply_slippage(dec_price, side="SELL", slippage_pct=config.slippage_pct)
-            )
+            slip_side = "SELL"
             close_side = Side.SELL
         else:
-            exit_price = float(
-                _apply_slippage(dec_price, side="BUY", slippage_pct=config.slippage_pct)
-            )
+            slip_side = "BUY"
             close_side = Side.BUY
+
+        exit_price = resolve_oms_fill_price(
+            self._oms_adapter,
+            order_id,
+            base_price=dec_price,
+            side=slip_side,
+            slippage_pct=config.slippage_pct,
+        )
 
         if view.side == PositionSide.LONG:
             pnl = (exit_price - view.entry_price) * view.quantity
@@ -98,8 +114,7 @@ class PaperPositionCloser:
         if view.side == PositionSide.SHORT:
             pnl_pct = -pnl_pct
 
-        exit_value = exit_price * view.quantity
-        commission = max(exit_value * config.commission_pct, config.commission_flat)
+        commission = self._commission(exit_price * view.quantity, slip_side)
         slippage_cost = view.quantity * float(dec_price) * (config.slippage_pct / 100)
         net_pnl = pnl - commission
         session.daily_pnl += net_pnl

@@ -264,8 +264,13 @@ class TestOrderPathParity:
 
 
 class TestReconHealPolicy:
-    def test_default_report_only(self, monkeypatch):
+    def test_default_heal(self, monkeypatch):
         monkeypatch.delenv("TRADEX_RECONCILIATION_AUTO_REPAIR", raising=False)
+        assert resolve_heal_mode() is HealMode.HEAL
+        assert should_auto_repair() is True
+
+    def test_env_disables_heal(self, monkeypatch):
+        monkeypatch.setenv("TRADEX_RECONCILIATION_AUTO_REPAIR", "0")
         assert resolve_heal_mode() is HealMode.REPORT_ONLY
         assert should_auto_repair() is False
 

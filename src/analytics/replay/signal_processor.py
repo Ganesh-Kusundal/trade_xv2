@@ -15,6 +15,7 @@ import logging
 from collections.abc import Callable
 from decimal import Decimal
 
+from analytics.oms_fill_price import resolve_oms_fill_price
 from analytics.replay.fill_recorder import FillRecorder
 from analytics.replay.models import ReplayConfig, ReplaySession, SimulatedTrade
 from analytics.strategy.models import Signal
@@ -233,7 +234,15 @@ class SignalProcessor:
                     reasons=["replay_signal"],
                 )
                 if order_id:
-                    notional = float(price) * qty
+                    # Session must book the OMS fill (slipped once), not base_price (F2d).
+                    fill_px = resolve_oms_fill_price(
+                        self._oms_adapter,
+                        order_id,
+                        base_price=price,
+                        side="BUY",
+                        slippage_pct=config.slippage_pct,
+                    )
+                    notional = fill_px * qty
                     commission = self._fill_recorder.compute_commission(notional, "BUY")
                     cost = notional + commission
                     session.capital -= cost
@@ -244,11 +253,11 @@ class SignalProcessor:
                         exchange="NSE",
                         side=Side.BUY,
                         quantity=qty,
-                        price=float(price),
+                        price=fill_px,
                         timestamp=bar.timestamp,
                         trade_tag="open",
                     )
-                    session.mark_symbol(bar.symbol, float(price))
+                    session.mark_symbol(bar.symbol, fill_px)
                     session.position_meta[bar.symbol] = PositionMeta(
                         entry_time=bar.timestamp,
                         stop_loss=signal.stop_loss,
@@ -274,7 +283,14 @@ class SignalProcessor:
                 reasons=["replay_signal"],
             )
             if order_id:
-                notional = float(price) * view.quantity
+                fill_px = resolve_oms_fill_price(
+                    self._oms_adapter,
+                    order_id,
+                    base_price=price,
+                    side="SELL",
+                    slippage_pct=config.slippage_pct,
+                )
+                notional = fill_px * view.quantity
                 commission = self._fill_recorder.compute_commission(notional, "SELL")
                 proceeds = notional - commission
                 session.capital += proceeds
@@ -285,7 +301,7 @@ class SignalProcessor:
                     exchange="NSE",
                     side=Side.SELL,
                     quantity=view.quantity,
-                    price=float(price),
+                    price=fill_px,
                     timestamp=bar.timestamp,
                     trade_tag="close",
                 )

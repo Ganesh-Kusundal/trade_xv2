@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 
-from infrastructure.time.clock import time_service
+from domain.ports.time_service import get_current_clock
 
 
 @dataclass(frozen=True)
@@ -41,7 +41,7 @@ class ChunkRecord:
     bars_fetched: int
     error: str | None = None
     fetch_latency_ms: float = 0.0
-    fetched_at: datetime = field(default_factory=lambda: time_service.now())
+    fetched_at: datetime = field(default_factory=lambda: get_current_clock().now())
 
     @property
     def succeeded(self) -> bool:
@@ -103,7 +103,7 @@ class ProvenanceLedger:
     merge_strategy: str = "prefer_primary"
     degraded: bool = False
     degraded_reason: str = ""
-    created_at: datetime = field(default_factory=lambda: time_service.now())
+    created_at: datetime = field(default_factory=lambda: get_current_clock().now())
 
     def add_chunk(self, chunk: ChunkRecord) -> None:
         self.chunks.append(chunk)

@@ -43,7 +43,7 @@ from domain.entities import (
     Trade,
 )
 from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
-from domain.market_enums import ExchangeSegment, InstrumentType
+from domain.market_enums import Exchange, ExchangeSegment, InstrumentType, OptionType
 from domain.reconciliation import (
     DriftItem,
     ReconciliationReport,
@@ -107,6 +107,7 @@ __all__ = [
     "ConnectionStatus",
     "DepthLevel",
     "DriftItem",
+    "Exchange",
     "ExchangeSegment",
     "FundLimits",
     "FutureChain",
@@ -120,6 +121,7 @@ __all__ = [
     "MarketIntelligenceSnapshot",
     "ModifyOrderRequest",
     "OptionChain",
+    "OptionType",
     "OptionContract",
     "OptionLeg",
     "OptionStrike",

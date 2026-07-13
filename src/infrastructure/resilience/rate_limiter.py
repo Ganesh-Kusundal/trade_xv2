@@ -9,7 +9,6 @@ were removed (board Decision #4); brokers now obtain their limiter through
 from __future__ import annotations
 
 import asyncio
-import importlib
 import logging
 import threading
 import time
@@ -324,10 +323,10 @@ def _default_capabilities_loader(broker_id: str) -> Any | None:
     1. Explicit registration hook — brokers may call
        :func:`_register_broker_capabilities` (e.g. at import time) to declare
        their loader. This is the preferred, fully broker-agnostic path.
-    2. The broker's ``BrokerPlugin`` declares *where* its capabilities live via
-       the ``capabilities_module`` / ``capabilities_fn`` metadata strings. The
-       resilience layer imports that module by name and calls the declared
-       factory — no concrete broker names are hard-coded here (DR-B3).
+    2. The broker's ``BrokerPlugin`` supplies a ``capabilities_loader``
+       callable that returns its ``BrokerCapabilities``.  The resilience
+       layer calls it directly — no concrete broker names or importlib
+       magic (DR-B3).
     3. Otherwise warn and return ``None`` so callers fall back to default
        buckets rather than inventing per-broker behavior.
     """
@@ -339,10 +338,9 @@ def _default_capabilities_loader(broker_id: str) -> Any | None:
     from infrastructure.broker_plugin import get_broker_plugin
 
     plugin = get_broker_plugin(broker_id)
-    if plugin is not None and plugin.capabilities_module and plugin.capabilities_fn:
+    if plugin is not None and plugin.capabilities_loader is not None:
         try:
-            _mod = importlib.import_module(plugin.capabilities_module)
-            return getattr(_mod, plugin.capabilities_fn)()
+            return plugin.capabilities_loader()
         except Exception as exc:
             logger.warning(
                 "capabilities_load_failed",

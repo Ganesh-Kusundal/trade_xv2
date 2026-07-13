@@ -17,7 +17,7 @@ import duckdb
 
 from datalake.core.paths import timeframe_partition_dir
 from datalake.core.duckdb_utils import duckdb_connection, get_pool
-from datalake.core.symbols import normalize_symbol
+from datalake.core.symbols import normalize_symbol_for_storage
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ class DataCatalog:
     ) -> None:
         if self._read_only:
             raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         self.conn.execute(
             """
             INSERT OR REPLACE INTO symbols
@@ -212,7 +212,7 @@ class DataCatalog:
 
     def get_symbol(self, symbol: str) -> dict | None:
         """Get symbol metadata."""
-        symbol = normalize_symbol(symbol)
+        symbol = normalize_symbol_for_storage(symbol)
         with self._connection() as conn:
             result = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol]).fetchone()
             if result is None:
@@ -394,7 +394,7 @@ class DataCatalog:
 
         df = pd.read_csv(csv_path)
         col = "symbol" if "symbol" in df.columns else df.columns[0]
-        symbols = [normalize_symbol(s) for s in df[col].dropna().unique()]
+        symbols = [normalize_symbol_for_storage(s) for s in df[col].dropna().unique()]
 
         self.conn.executemany(
             "INSERT OR IGNORE INTO universe_symbols (universe, symbol) VALUES (?, ?)",

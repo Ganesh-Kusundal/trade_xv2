@@ -70,6 +70,39 @@ def test_get_quote_success(fake_client, resolver):
     assert quote.close == Decimal("2442.0")
     assert quote.volume == 1234567
     assert quote.change == Decimal("8.55")
+    # Equity carries no OI — must surface as 0, never silently None/wrong.
+    assert quote.oi == 0
+
+
+def test_get_quote_carries_oi_for_derivatives(fake_client, resolver):
+    fake_client.set_response(
+        "POST",
+        "/marketfeed/quote",
+        {
+            "data": {
+                "NSE_FNO": {
+                    "99999": {
+                        "last_price": 245.0,
+                        "ohlc": {
+                            "open": 240.0,
+                            "high": 246.5,
+                            "low": 239.0,
+                            "close": 242.0,
+                        },
+                        "volume": 54321,
+                        "net_change": 3.0,
+                        "oi": 182345,
+                        "oi_day_high": 190000,
+                        "oi_day_low": 170000,
+                    }
+                }
+            }
+        },
+    )
+    adapter = MarketDataAdapter(fake_client, resolver)
+    quote = adapter.get_quote("NIFTY 26 JUN FUT", "NFO")
+    assert quote.oi == 182345
+
 
 
 def test_get_depth_success(fake_client, resolver):

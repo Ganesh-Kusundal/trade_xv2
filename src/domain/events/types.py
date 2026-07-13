@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Mapping
 
 EVENT_ID_HEX_LENGTH = 16
 
@@ -33,25 +33,54 @@ class DomainEvent:
 
     event_type: str
     timestamp: datetime
-    payload: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    payload: Mapping[str, Any] = field(default_factory=dict)
+    symbol: str | None = None
+    source: str | None = None
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:EVENT_ID_HEX_LENGTH])
     correlation_id: str | None = None
     sequence_number: int = 0
+
+    def __post_init__(self) -> None:
+        if self.timestamp.tzinfo is None:
+            raise ValueError(
+                f"DomainEvent requires timezone-aware timestamps. "
+                f"Got naive datetime: {self.timestamp}. "
+                f"Use DomainEvent.now() factory or provide tzinfo explicitly."
+            )
+        # Defensive copy: freeze a fresh dict, not a view over the caller's
+        # mutable one, so mutating the caller's dict after construction
+        # cannot leak into the event's payload.
+        object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
 
     @classmethod
     def now(
         cls,
         event_type: str,
         payload: dict[str, Any] | None = None,
+        symbol: str | None = None,
+        source: str | None = None,
         correlation_id: str | None = None,
+        sequence_number: int = 0,
     ) -> DomainEvent:
-        """Create an event with the current timestamp."""
+        """Create an event with the current timestamp.
+
+        If *correlation_id* is not provided, the current thread's active
+        correlation ID is used for automatic end-to-end tracing.
+        """
         from domain.ports.time_service import get_current_clock
+
+        if correlation_id is None:
+            from domain.correlation import get_current_correlation_id
+
+            correlation_id = get_current_correlation_id()
         return cls(
             event_type=event_type,
             timestamp=get_current_clock().now(),
-            payload=MappingProxyType(payload or {}),
+            payload=payload or {},
+            symbol=symbol,
+            source=source,
             correlation_id=correlation_id,
+            sequence_number=sequence_number,
         )
 
 

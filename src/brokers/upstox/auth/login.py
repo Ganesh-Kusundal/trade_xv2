@@ -101,7 +101,7 @@ def _open_browser(url: str) -> None:
     try:
         webbrowser.open(url)
     except Exception:
-        print("(Could not open browser automatically; copy the URL manually.)")
+        logger.warning("Could not open browser automatically; copy the URL manually.")
 
 
 async def _capture_code(
@@ -197,7 +197,7 @@ def main(argv: list | None = None) -> int:
     try:
         settings = UpstoxSettingsLoader.from_env(env_path=args.env_file)
     except ValueError as exc:
-        print(f"Configuration error: {exc}", file=sys.stderr)
+        logger.error("Configuration error: %s", exc)
         return 2
 
     if args.state_file is not None:
@@ -206,20 +206,18 @@ def main(argv: list | None = None) -> int:
         )
 
     if not settings.client_secret:
-        print(
-            "ERROR: UPSTOX_CLIENT_SECRET is required for the OAuth flow. "
+        logger.error(
+            "UPSTOX_CLIENT_SECRET is required for the OAuth flow. "
             "Set it in env or in --env-file.",
-            file=sys.stderr,
         )
         return 2
 
-    print("=" * 72)
-    print("Upstox OAuth PKCE flow")
-    print("=" * 72)
-    print(f"Environment : {settings.environment}")
-    print(f"Client ID   : {settings.client_id}")
-    print(f"Redirect URI: {settings.redirect_uri}")
-    print()
+    logger.info("=" * 72)
+    logger.info("Upstox OAuth PKCE flow")
+    logger.info("=" * 72)
+    logger.info("Environment : %s", settings.environment)
+    logger.info("Client ID   : %s", settings.client_id)
+    logger.info("Redirect URI: %s", settings.redirect_uri)
 
     try:
         result = perform_login(
@@ -228,7 +226,7 @@ def main(argv: list | None = None) -> int:
             open_browser=not args.no_browser,
         )
     except KeyboardInterrupt:
-        print("Aborted by user.", file=sys.stderr)
+        logger.warning("Aborted by user.")
         return 130
     except Exception as exc:
         logger.exception("OAuth flow failed: %s", exc)
@@ -238,10 +236,9 @@ def main(argv: list | None = None) -> int:
 
     # Tokens are written to file only - never printed to stdout for security
     logger.info("authorization_complete", extra={"token_file": str(settings.token_state_file)})
-    print()
-    print("Authorization complete. Tokens persisted to secure file.")
-    print(f"Token file: {settings.token_state_file}")
-    print("Re-running this broker is now token-less.")
+    logger.info("Authorization complete. Tokens persisted to secure file.")
+    logger.info("Token file: %s", settings.token_state_file)
+    logger.info("Re-running this broker is now token-less.")
     return 0
 
 

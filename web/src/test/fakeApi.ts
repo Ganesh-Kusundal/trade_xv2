@@ -7,9 +7,13 @@ import type {
   DepthResponse,
   HealthResponse,
   HoldingsResponse,
+  IVSurfaceResponse,
+  MaxPainResponse,
   OrderRequest,
   OrderResponse,
+  OptionChainResponse,
   OrdersResponse,
+  PCRResponse,
   PositionsResponse,
   PortfolioSummary,
   QuoteResponse,
@@ -17,6 +21,7 @@ import type {
   ScannerCandidatesResponse,
   TradeResponse,
   TradesResponse,
+  VolumeProfileResponse,
 } from "../types";
 
 /**
@@ -34,6 +39,27 @@ export function createFakeApi(overrides: Partial<TradingApi> = {}): TradingApi {
     }),
     candles: () => Promise.resolve({ symbol: "", timeframe: "", candles: [], count: 0 }),
     depth: (symbol: string) => Promise.resolve<DepthResponse>({ symbol, bids: [], asks: [] }),
+    optionChain: (underlying: string) =>
+      Promise.resolve<OptionChainResponse>({ underlying, expiry: "all", contracts: [], count: 0 }),
+    pcr: (underlying: string) =>
+      Promise.resolve<PCRResponse>({
+        timestamp: 0, underlying, expiry_kind: "MONTH", expiry_date: "", spot: 0,
+        pcr_volume: null, pcr_oi: null, total_ce_volume: 0, total_pe_volume: 0,
+        total_ce_oi: 0, total_pe_oi: 0,
+      }),
+    maxPain: (underlying: string) =>
+      Promise.resolve<MaxPainResponse>({
+        timestamp: 0, underlying, expiry_kind: "MONTH", expiry_date: "", spot: 0,
+        max_pain_strike: 0, total_pain_at_max_pain: 0, distance_from_spot: 0, position_vs_spot: "at_spot",
+      }),
+    ivSurface: (underlying: string) =>
+      Promise.resolve<IVSurfaceResponse>({
+        timestamp: 0, underlying, expiry_kind: "MONTH", expiry_date: "", spot: 0,
+        atm_strike: 0, atm_iv: 0, otm_put_iv: 0, otm_call_iv: 0, iv_skew: 0,
+        put_call_iv_ratio: null, days_to_expiry: 0,
+      }),
+    volumeProfile: (underlying: string) =>
+      Promise.resolve<VolumeProfileResponse>({ underlying, expiry: "all", strikes: [], profile: [], count: 0 }),
     positions: () => Promise.resolve<PositionsResponse>({ positions: [], count: 0, total_pnl: 0, total_pnl_percent: 0 }),
     holdings: () => Promise.resolve<HoldingsResponse>({ holdings: [], count: 0, total_value: 0, total_invested: 0, total_pnl: 0 }),
     portfolioSummary: () => Promise.resolve<PortfolioSummary>({ total_value: 0, total_invested: 0, total_pnl: 0, total_pnl_percent: 0, realized_pnl: 0, unrealized_pnl: 0, margin_used: 0, margin_available: 0, positions_count: 0, holdings_count: 0 }),

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class CertArea(str, Enum):
@@ -91,13 +94,16 @@ class CertificationReport:
         return len(self.results)
 
     def print_report(self) -> None:
-        print(f"Certification — broker '{self.broker_id}':")
+        logger.info("Certification — broker '%s':", self.broker_id)
         for r in self.results:
             mark = "PASS" if r.passed else "FAIL"
             lat = f" ({r.latency_ms}ms)" if r.latency_ms is not None else ""
-            print(f"  [{mark}] {r.area.value}: {r.detail}{lat}")
-        print(f"Overall: {self.passed}/{self.total} passed -> "
-              f"{'CERTIFIED' if self.is_certified else 'NOT CERTIFIED'}")
+            logger.info("  [%s] %s: %s%s", mark, r.area.value, r.detail, lat)
+        logger.info(
+            "Overall: %d/%d passed -> %s",
+            self.passed, self.total,
+            "CERTIFIED" if self.is_certified else "NOT CERTIFIED",
+        )
 
     def to_dict(self, *, live: bool = False) -> dict[str, Any]:
         from brokers.certification.schema_v2 import (

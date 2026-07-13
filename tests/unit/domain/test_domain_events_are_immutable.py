@@ -506,3 +506,43 @@ class TestPublishLifecycle:
         # Idempotency: same event_id → only first delivery counts
         assert len(received) == 1
         assert received[0].event_id == original.event_id
+
+
+class TestDomainEventBrokerCallSitePattern:
+    """ADR-010 (events/types.py split into types.py/payloads.py/typed_events.py)
+    dropped ``symbol``/``source`` from ``DomainEvent`` and ``.now()`` without
+    updating any caller. Every broker's tick/order/trade publish call
+    (Dhan and Upstox market data, order streams, order placement) plus
+    several application-layer publishers (risk approval, signal execution)
+    passed ``symbol=``/``source=`` regardless -- so every one of those
+    publishes silently failed (swallowed by a bare ``except Exception``)
+    until the fields were restored. This locks in the exact call shape
+    broker code actually uses, so a future refactor that drops these
+    kwargs again fails loudly here instead of silently in production.
+    """
+
+    def test_now_accepts_symbol_source_and_correlation_id_together(self):
+        event = DomainEvent.now(
+            "TICK",
+            {"quote": "whatever"},
+            symbol="CRUDEOIL",
+            source="UpstoxMarketDataV3",
+            correlation_id="corr-123",
+        )
+        assert event.symbol == "CRUDEOIL"
+        assert event.source == "UpstoxMarketDataV3"
+        assert event.correlation_id == "corr-123"
+        assert event.payload["quote"] == "whatever"
+
+    def test_direct_construction_with_symbol_and_source(self):
+        """EventLog replay reconstructs events via the direct constructor
+        (not .now()), passing symbol/source as plain keywords."""
+        event = DomainEvent(
+            event_type="ORDER_UPDATED",
+            timestamp=datetime.now(timezone.utc),
+            payload={"order_id": "ORD1"},
+            symbol="RELIANCE",
+            source="DhanOrderStream",
+        )
+        assert event.symbol == "RELIANCE"
+        assert event.source == "DhanOrderStream"

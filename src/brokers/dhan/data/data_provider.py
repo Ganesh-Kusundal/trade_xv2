@@ -301,6 +301,7 @@ class DhanDataProvider(DataProvider):
             open_ = Decimal(str(raw_quote.get("open", 0)))
             close = Decimal(str(raw_quote.get("close", raw_quote.get("prev_close", 0))))
             volume = int(raw_quote.get("volume", 0) or 0)
+            oi = int(raw_quote.get("oi", 0) or 0)
         else:
             ltp = Decimal(str(getattr(raw_quote, "ltp", 0) or 0))
             bid = Decimal(str(getattr(raw_quote, "bid", 0) or 0))
@@ -310,6 +311,7 @@ class DhanDataProvider(DataProvider):
             open_ = Decimal(str(getattr(raw_quote, "open", 0) or 0))
             close = Decimal(str(getattr(raw_quote, "close", 0) or 0))
             volume = int(getattr(raw_quote, "volume", 0) or 0)
+            oi = int(getattr(raw_quote, "oi", 0) or 0)
 
         return QuoteSnapshot(
             instrument=InstrumentRef(
@@ -331,4 +333,5 @@ class DhanDataProvider(DataProvider):
             open=open_ if open_ > 0 else None,
             close=close if close > 0 else None,
             volume=volume,
+            oi=oi,
         )

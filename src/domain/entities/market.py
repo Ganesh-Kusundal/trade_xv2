@@ -184,6 +184,7 @@ class Quote:
     close: Decimal = Decimal("0")
     volume: int = 0
     change: Decimal = Decimal("0")
+    oi: int = 0  # open interest — populated for derivatives, 0 for equity
     bid: Decimal | None = None
     ask: Decimal | None = None
     timestamp: datetime | None = None
@@ -241,6 +242,7 @@ class Quote:
             "close": str(self.close),
             "volume": self.volume,
             "change": str(self.change),
+            "oi": self.oi,
             "bid": str(self.bid) if self.bid else None,
             "ask": str(self.ask) if self.ask else None,
             "spread": str(self.spread()) if self.spread() else None,
@@ -271,6 +273,7 @@ class Quote:
             low=self.low,
             close=self.close,
             volume=self.volume,
+            oi=self.oi,
             bid=self.bid,
             ask=self.ask,
         )
@@ -316,6 +319,7 @@ class QuoteSnapshot:
     close: Decimal = Decimal("0")
     volume: int = 0
     change_pct: Decimal = Decimal("0")
+    oi: int = 0  # open interest — populated for derivatives, 0 for equity
     bid: Decimal | None = None
     ask: Decimal | None = None
 
@@ -362,6 +366,7 @@ class QuoteSnapshot:
             "close": str(self.close),
             "volume": self.volume,
             "change_pct": str(self.change_pct),
+            "oi": self.oi,
             "bid": str(self.bid) if self.bid else None,
             "ask": str(self.ask) if self.ask else None,
             "spread": str(self.spread()) if self.spread() else None,
@@ -388,6 +393,7 @@ class QuoteSnapshot:
             close=self.close,
             volume=self.volume,
             change=Decimal("0"),
+            oi=self.oi,
             bid=self.bid,
             ask=self.ask,
             timestamp=self.event_time,

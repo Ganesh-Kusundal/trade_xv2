@@ -6,11 +6,14 @@ CPU/memory, driven by a :class:`BrokerSession`. Useful when adding brokers.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from brokers.session import BrokerSession
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,12 +32,12 @@ class BenchmarkReport:
         self.results.append(BenchmarkResult(name, round(latency_ms, 2), detail))
 
     def print_report(self) -> None:
-        print(f"broker benchmark — '{self.broker_id}':")
+        logger.info("broker benchmark — '%s':", self.broker_id)
         for r in self.results:
-            print(f"  {r.name}: {r.latency_ms}ms  {r.detail}")
+            logger.info("  %s: %.2fms  %s", r.name, r.latency_ms, r.detail)
         if self.results:
             avg = sum(r.latency_ms for r in self.results) / len(self.results)
-            print(f"Average: {round(avg, 2)}ms")
+            logger.info("Average: %.2fms", avg)
 
     def to_dict(self) -> dict[str, Any]:
         return {"broker_id": self.broker_id, "results": [vars(r) for r in self.results]}

@@ -1,6 +1,7 @@
 """Cross-broker shared services (HistoricalDataService, etc.).
 
 Canonical location: ``application.services``.
+Historical data types: ``runtime.historical_data`` / ``infrastructure.historical_data``.
 """
 
 from __future__ import annotations
@@ -14,12 +15,6 @@ from .download_engine import (
     DownloadConfig,
     DownloadProgress,
     HistoricalDownloadEngine,
-)
-from .historical_data import (
-    GapRange,
-    HistoricalDataRequest,
-    HistoricalDataService,
-    SupportsHistoricalCandles,
 )
 from .instrument_registry import (
     CanonicalInstrument,
@@ -38,15 +33,11 @@ __all__ = [
     "DataQualityValidator",
     "DownloadConfig",
     "DownloadProgress",
-    "GapRange",
-    "HistoricalDataRequest",
-    "HistoricalDataService",
     "HistoricalDownloadEngine",
     "Issue",
     "ProductionReadinessChecker",
     "ProductionReadinessError",
     "ReadinessCheck",
     "ReadinessReport",
-    "SupportsHistoricalCandles",
     "ValidationReport",
 ]

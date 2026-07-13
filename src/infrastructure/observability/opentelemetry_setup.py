@@ -116,7 +116,7 @@ def setup_telemetry(
         required packages are missing (the callers should degrade to
         log-only tracing).
     """
-    global otel_available
+    global otel_available  # intentional module singleton — set once at startup
 
     if not _HAS_SDK:
         logger.info("opentelemetry-sdk not installed — tracing will be log-only")

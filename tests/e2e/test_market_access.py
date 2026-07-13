@@ -88,7 +88,7 @@ def test_market_mode_connect_without_oms_orders_disabled() -> None:
     """MA-S2 unit gate: live mode=market needs no process OMS; orders fail closed."""
     mock_gw = MagicMock(name="DhanGateway")
 
-    with patch("infrastructure.gateway.factory.create_gateway", return_value=mock_gw):
+    with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
         import brokers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)

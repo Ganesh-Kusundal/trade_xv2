@@ -9,7 +9,7 @@ positions) and re-exposes their methods for backward compatibility.
 
 Usage::
 
-    gateway = BrokerGateway(connection)
+    gateway = DhanBrokerGateway(connection)
 
     # Broker-specific operations via extended
     expiries = gateway.extended.get_option_expiries("NIFTY", "NFO")
@@ -111,6 +111,30 @@ class DhanExtendedCapabilities:
 
     def get_all_conditional_triggers(self) -> list[Any]:
         return self.orders.get_all_conditional_triggers()
+
+    # ── Order execution capabilities (delegated to conn.orders) ──────
+    #
+    # These were implemented on the OrdersAdapter (conn.orders) but never
+    # exposed here, so callers had no public way to reach them.
+
+    def kill_switch(self, enable: bool) -> bool:
+        return self._conn.orders.kill_switch(enable)
+
+    def status_kill_switch(self) -> dict:
+        return self._conn.orders.status_kill_switch()
+
+    def place_slice_order(self, symbol: str, exchange: str, **kwargs: Any) -> OrderResponse:
+        return self._conn.orders.place_slice_order(symbol, exchange, **kwargs)
+
+    def get_trade_history(self, from_date: str, to_date: str, page: int = 0) -> list[Any]:
+        return self._conn.orders.get_trade_history(from_date, to_date, page)
+
+    def get_order_by_correlation_id(self, correlation_id: str) -> Any:
+        return self._conn.orders.get_order_by_correlation_id(correlation_id)
+
+    def calculate_margin(self, request: Any) -> Any:
+        """Calculate margin for a hypothetical order. Pass a ``brokers.dhan.domain.MarginRequest``."""
+        return self._conn.margin.calculate(request)
 
     # ── Account capabilities (delegated) ─────────────────────────────
 

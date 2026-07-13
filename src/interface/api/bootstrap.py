@@ -1,15 +1,14 @@
 """API service bootstrap — shared runtime wiring for the HTTP surface.
 
 Composition root for datalake + trading runtime used by ``scripts/run_api_server``
-and API tests. BrokerService construction lives in
-:mod:`interface.ui.services.compose`.
+and API tests. ``build_for_api`` lives in :mod:`runtime.api_compose` (not UI).
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from runtime.trading_runtime_factory import Runtime
 
@@ -21,6 +20,7 @@ def initialize_api_services(
     *,
     wire_orchestrator: bool = True,
     skip_parity_gate: bool = False,
+    broker_service_factory: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Build datalake services and unified trading runtime for the API."""
     root = project_root or Path(__file__).resolve().parent.parent.parent.parent
@@ -28,7 +28,10 @@ def initialize_api_services(
     from analytics.views.manager import ViewManager
     from datalake.storage.catalog import DataCatalog
     from datalake.gateway import DataLakeGateway
-    from interface.ui.services.compose import build_for_api
+    from runtime.api_compose import build_for_api, register_broker_service_factory
+
+    if broker_service_factory is not None:
+        register_broker_service_factory(broker_service_factory)
 
     logger.info("Initializing TradeXV2 API services from interface API bootstrap...")
 
@@ -42,6 +45,7 @@ def initialize_api_services(
     runtime: Runtime = build_for_api(
         wire_orchestrator=wire_orchestrator,
         skip_parity_gate=skip_parity_gate,
+        broker_service_factory=broker_service_factory,
     )
 
     trading_context = runtime.trading_context

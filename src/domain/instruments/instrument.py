@@ -315,7 +315,9 @@ class Instrument(
                 return ext.for_instrument(self)
             bind = getattr(ext, "for_instrument", None)
             if callable(bind):
-                if getattr(ext, "_symbol", None) == self.symbol and getattr(ext, "_exchange", None) == self.exchange:
+                ext_sym = getattr(ext, "_symbol", None)
+                ext_exch = getattr(ext, "_exchange", None)
+                if ext_sym == self.symbol and ext_exch == self.exchange:
                     return ext
                 try:
                     return bind(self.symbol, self.exchange)
@@ -323,7 +325,7 @@ class Instrument(
                     return bind(self)
             return ext
         b = self.broker
-        catalog = getattr(b, "_catalog", None) if b is not None else None
+        catalog = b.catalog if hasattr(b, "catalog") else (getattr(b, "_catalog", None) if b is not None else None)
         if catalog is not None:
             found = catalog.get_extension(name)
             if found is not None:
