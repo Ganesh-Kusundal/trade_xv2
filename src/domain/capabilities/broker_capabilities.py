@@ -14,7 +14,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from domain.capabilities.market_surface import MarketSurface
+from domain.capabilities.market_surface import MarketCoverage
 from domain.instruments.asset_kind import AssetKind
 
 # ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ class BrokerCapabilities:
     # -- Market coverage (asset_kind x exchange lanes) --
     # Single source of truth for *market* coverage; shared contracts iterate this
     # instead of branching on broker names. See domain.capabilities.market_surface.
-    market_surfaces: frozenset[MarketSurface] = field(default_factory=frozenset)
+    market_surfaces: frozenset[MarketCoverage] = field(default_factory=frozenset)
 
     # -- Batch limits --
     max_batch_size: int = 1
@@ -256,7 +256,7 @@ __all__ = [
     "BrokerCapabilities",
     "CapabilityDescriptor",
     "HistoricalWindowConstraint",
-    "MarketSurface",
+    "MarketCoverage",
     "RateLimitProfile",
     "StreamLimitProfile",
 ]

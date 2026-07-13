@@ -1,6 +1,6 @@
-"""MarketSurface — declarative asset/exchange coverage for a broker.
+"""MarketCoverage — declarative asset/exchange coverage for a broker.
 
-A :class:`MarketSurface` is one (asset_kind, exchange) lane a broker can serve,
+A :class:`MarketCoverage` is one (asset_kind, exchange) lane a broker can serve,
 with a ``probe_symbol`` used by the shared coverage contract and the set of
 ``operations`` that lane supports (resolve/quote/ltp/option_chain/future_chain).
 
@@ -8,15 +8,19 @@ This is the single source of truth for *market* coverage. ``BrokerCapabilities``
 owns a ``market_surfaces`` frozenset; the shared ``MarketCoverageContract``
 iterates it so adding a broker or exchange is a data edit, never a new
 broker-name branch in test or routing code.
+
+.. deprecated::
+    ``MarketSurface`` is a backward-compatible alias. Use ``MarketCoverage``.
 """
 
 from __future__ import annotations
 
+import warnings as _warnings
 from dataclasses import dataclass, field
 
 from domain.instruments.asset_kind import AssetKind
 
-# Operations a market surface may expose.
+# Operations a market coverage lane may expose.
 RESOLVE = "resolve"
 QUOTE = "quote"
 LTP = "ltp"
@@ -27,7 +31,7 @@ OPERATIONS = frozenset({RESOLVE, QUOTE, LTP, OPTION_CHAIN, FUTURE_CHAIN})
 
 
 @dataclass(frozen=True)
-class MarketSurface:
+class MarketCoverage:
     """One market lane a broker serves.
 
     asset_kind   — domain asset classification (EQUITY/INDEX/OPTIONS/FUTURES/SPOT/COMMODITY).
@@ -46,6 +50,17 @@ class MarketSurface:
         return operation in self.operations
 
 
+def __getattr__(name: str):
+    if name == "MarketSurface":
+        _warnings.warn(
+            "MarketSurface is deprecated; use MarketCoverage instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return MarketCoverage
+    raise AttributeError(f"module {__name__!r} has no attribute {__name__!r}")
+
+
 __all__ = [
     "FUTURE_CHAIN",
     "LTP",
@@ -53,5 +68,6 @@ __all__ = [
     "OPTION_CHAIN",
     "QUOTE",
     "RESOLVE",
+    "MarketCoverage",
     "MarketSurface",
 ]
