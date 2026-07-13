@@ -26,12 +26,17 @@ class CredentialValidator:
         env_path: str | Path | None = None,
     ) -> tuple[bool, list[CredentialIssue]]:
         """Return ``(ok, issues)`` for *broker* credential readiness."""
+        from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+
         broker = broker.lower().strip()
         issues: list[CredentialIssue] = []
 
-        path = CredentialResolver.resolve_env_path(broker, env_path)
-        if broker in _SKIP_VALIDATION:
+        ensure_core_plugins()
+        plugin = get_broker_plugin(broker)
+        if plugin is not None and not plugin.is_live:
             return True, issues
+
+        path = CredentialResolver.resolve_env_path(broker, env_path)
 
         if path is None:
             issues.append(CredentialIssue(broker, "env_file", "No env file configured", "error"))

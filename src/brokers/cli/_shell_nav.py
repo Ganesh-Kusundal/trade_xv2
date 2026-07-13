@@ -15,6 +15,8 @@ from rich.table import Table
 
 from brokers.cli._render import console, json_mode
 from brokers.cli._shell_ui import render_header
+from domain.ports.broker_id import BrokerId
+from infrastructure.adapter_factory import get_broker_extension_classes
 
 _SECTION_DEFS: list[tuple[str, list[str]]] = [
     ("Session", ["connect", "discover", "capability", "symbols", "instrument", "mappings"]),
@@ -27,10 +29,6 @@ _SECTION_DEFS: list[tuple[str, list[str]]] = [
     ),
 ]
 
-_BROKER_EXTENSIONS: dict[str, list[str]] = {
-    "dhan": ["depth20", "depth200", "super_orders", "forever_orders"],
-    "upstox": ["depth30", "news"],
-}
 
 # Shell prompt defaults for required positional args (Click has no default for those).
 _DEFAULT_SYMBOLS: dict[str, str] = {
@@ -56,6 +54,33 @@ _EXTENSION_ALIASES: dict[str, str] = {
     "forever_orders": "forever_order",
     "news": "news",
 }
+
+# Reverse of _EXTENSION_ALIASES: runtime capability name → CLI command name.
+_RUNTIME_TO_CLI: dict[str, str] = {v: k for k, v in _EXTENSION_ALIASES.items()}
+
+
+def _cli_name_for_extension(cls: type) -> str:
+    """Derive CLI command name from an Extension class.
+
+    Reads the runtime ``name`` property from a bare instance and maps it back
+    to the CLI name via ``_RUNTIME_TO_CLI``.
+    """
+    # G1: capability-driven dispatch
+    try:
+        obj: Any = object.__new__(cls)
+        runtime_name: str = obj.name
+        return _RUNTIME_TO_CLI.get(runtime_name, runtime_name)
+    except (AttributeError, TypeError):
+        pass
+    name = cls.__name__
+    if name.endswith("Extension"):
+        name = name[: -len("Extension")]
+    for i, ch in enumerate(name):
+        if ch.islower():
+            name = name[i:]
+            break
+    return name.lower()
+
 
 _FOOTER_HINTS = "number · name · exit/back · help · quit/q"
 _RECOVERY_FOOTER = "1 retry · 2 doctor · q quit"
@@ -117,7 +142,11 @@ def arg_hint_display(group: Any, command: str) -> str | None:
 
 def filter_extension_commands(broker_id: str, declared: list[str] | None) -> list[str]:
     """Return broker extension CLI commands, filtered by session capabilities."""
-    available = list(_BROKER_EXTENSIONS.get(broker_id, []))
+    # G1: capability-driven dispatch
+    available = [
+        _cli_name_for_extension(cls)
+        for cls in get_broker_extension_classes(broker_id)
+    ]
     if not available:
         return []
     if not declared:
@@ -354,18 +383,19 @@ def _recovery_hint(broker_id: str, session_info: dict[str, Any]) -> str:
             "[yellow]Fix:[/yellow] Dhan TOTP rate limit — wait [bold]2 minutes[/bold], "
             "then press [green]1[/green] to remint, or paste a fresh token into .env.local."
         )
+    # G1: capability-driven dispatch
     if "dh-906" in combined or "token rejected" in combined or "expired" in combined:
-        if broker_id == "dhan":
+        if broker_id == BrokerId.DHAN:
             return (
                 "[yellow]Fix:[/yellow] Token rejected by Dhan — credentials exist but need refresh. "
                 "Wait 2 min, press [green]1[/green] to remint via TOTP, or update DHAN_ACCESS_TOKEN in .env.local."
             )
-        if broker_id == "upstox":
+        if broker_id == BrokerId.UPSTOX:
             return (
                 "[yellow]Fix:[/yellow] Token rejected — refresh UPSTOX_ACCESS_TOKEN in .env.local, "
                 "then press [green]1[/green]."
             )
-    if broker_id == "upstox" and (
+    if broker_id == BrokerId.UPSTOX and (
         "423" in combined or "locked" in combined or "maintenance" in combined
     ):
         return (
@@ -373,12 +403,12 @@ def _recovery_hint(broker_id: str, session_info: dict[str, Any]) -> str:
             "(12:00 AM–5:30 AM IST). Auth may already be fine — retry after "
             "[bold]5:30 AM IST[/bold], or press [green]1[/green] then."
         )
-    if broker_id == "dhan":
+    if broker_id == BrokerId.DHAN:
         return (
             "[yellow]Fix:[/yellow] set DHAN_ACCESS_TOKEN or TOTP credentials in .env.local, "
             "then press [green]1[/green] to retry."
         )
-    if broker_id == "upstox":
+    if broker_id == BrokerId.UPSTOX:
         return (
             "[yellow]Fix:[/yellow] set UPSTOX_ACCESS_TOKEN / OAuth credentials in .env.local, "
             "then press [green]1[/green] to retry."

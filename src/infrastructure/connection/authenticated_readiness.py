@@ -130,8 +130,15 @@ def _probe_upstox(gateway: Any) -> AuthProbeResult:
 def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:
     """Perform a single read-only authenticated API call."""
     from infrastructure.auth.metrics import AuthMetrics
+    from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
 
     broker = broker.lower().strip()
+    ensure_core_plugins()
+    plugin = get_broker_plugin(broker)
+    if plugin is None or not plugin.is_live:
+        AuthMetrics.probe_ok(broker)
+        return AuthProbeResult(ok=True, probe_name=f"{broker}_skip")
+
     handler = _PROBE_DISPATCH.get(broker)
     if handler is None:
         AuthMetrics.probe_fail(broker)
@@ -152,9 +159,13 @@ def authenticated_readiness_probe(
     env_path: str | Path | None = None,
 ) -> AuthProbeResult:
     """Probe broker API auth; on token rejection force one refresh and retry."""
+    from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+
     broker = broker.lower().strip()
-    if broker in _SKIP_AUTH_PROBE:
-        return AuthProbeResult(ok=True, probe_name="paper_skip")
+    ensure_core_plugins()
+    plugin = get_broker_plugin(broker)
+    if plugin is not None and not plugin.is_live:
+        return AuthProbeResult(ok=True, probe_name=f"{broker}_skip")
 
     first = execute_read_only_probe(gateway, broker)
     if first.ok:

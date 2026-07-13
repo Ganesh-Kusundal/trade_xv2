@@ -13,13 +13,23 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Canonical env file paths relative to project root.
-# Moved here from infrastructure.auth.credential_resolver to break
-# the infrastructure -> brokers dependency.
-CANONICAL_ENV_FILES: dict[str, str] = {
-    "dhan": ".env.local",
-    "upstox": ".env.upstox",
-}
+
+def _env_file_for_broker(broker: str) -> str | None:
+    """Return the env file path for *broker* from the BrokerPlugin registry."""
+    from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+
+    ensure_core_plugins()
+    plugin = get_broker_plugin(broker)
+    return plugin.env_file if plugin is not None else None
+
+
+def _is_live_broker(broker: str) -> bool:
+    """Return True if *broker* is a live (non-paper) broker."""
+    from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+
+    ensure_core_plugins()
+    plugin = get_broker_plugin(broker)
+    return plugin.is_live if plugin is not None else True
 
 
 def bootstrap_environment(
@@ -35,11 +45,10 @@ def bootstrap_environment(
     root = project_root or Path.cwd()
     loaded: dict[str, Path | None] = {}
 
-    skip: set[str] = {"paper"}
     for broker in brokers:
-        if broker in skip:
+        if not _is_live_broker(broker):
             continue
-        rel = CANONICAL_ENV_FILES.get(broker)
+        rel = _env_file_for_broker(broker)
         if rel is None:
             loaded[broker] = None
             continue

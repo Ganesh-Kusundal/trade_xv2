@@ -7,13 +7,11 @@ Public API (use these)
 ----------------------
 * :func:`bootstrap_gateway` — create + optional auth probe (composition roots)
 * :func:`require_gateway` — bootstrap with probe; raise if not live-ready
-* :func:`resolve_env_path`, :func:`list_available_brokers`, ``ENV_FILES``
+* :func:`resolve_env_path`, :func:`list_available_brokers`
 
 Private API (internal only)
 ---------------------------
 * :func:`_create_transport_gateway` — transport wiring, no network auth probe
-* ``BrokerFactory.create`` / ``UpstoxBrokerFactory.create`` — only via
-  ``_create_dhan`` / ``_create_upstox`` in this module
 
 Connect modes
 -------------
@@ -37,20 +35,30 @@ from domain.ports.bootstrap import BootstrapResult, BootstrapStatus, classify_ex
 
 logger = logging.getLogger(__name__)
 
-# Convention: env files relative to process CWD / project root
-ENV_FILES: dict[str, str | None] = {
-    "dhan": ".env.local",
-    "upstox": ".env.upstox",
-    "paper": None,
-    "datalake": None,
-}
+
+def _env_file_for_broker(broker: str) -> str | None:
+    """Return the env file path for *broker* from the BrokerPlugin registry."""
+    from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+
+    ensure_core_plugins()
+    plugin = get_broker_plugin(broker)
+    return plugin.env_file if plugin is not None else None
+
+
+def _is_live_broker(broker: str) -> bool:
+    """Return True if *broker* is a live (non-paper) broker."""
+    from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+
+    ensure_core_plugins()
+    plugin = get_broker_plugin(broker)
+    return plugin.is_live if plugin is not None else True
 
 
 def resolve_env_path(broker: str, env_path: str | Path | None = None) -> Path | None:
     """Resolve the environment file path for *broker*."""
     if env_path is not None:
         return Path(env_path)
-    default = ENV_FILES.get(broker)
+    default = _env_file_for_broker(broker)
     if default is not None:
         return Path(default)
     return None
@@ -58,13 +66,63 @@ def resolve_env_path(broker: str, env_path: str | Path | None = None) -> Path | 
 
 def list_available_brokers() -> list[dict[str, Any]]:
     """Return registered brokers with env-file availability."""
+    from infrastructure.broker_plugin import ensure_core_plugins, list_broker_plugins
+
+    ensure_core_plugins()
     result: list[dict[str, Any]] = []
-    for name, env_file in ENV_FILES.items():
+    for plugin in list_broker_plugins():
+        env_file = plugin.env_file
         available = True
         if env_file is not None:
             available = Path(env_file).exists()
-        result.append({"name": name, "env_file": env_file, "available": available})
+        result.append({"name": plugin.broker_id, "env_file": env_file, "available": available})
     return result
+
+
+def env_files() -> dict[str, str]:
+    """Return ``{broker_id: env_file_path}`` for every registered broker.
+
+    Replaces the old module-level ``ENV_FILES`` dict (removed when env-file
+    resolution moved to the plugin registry). Rebuilt lazily so it always
+    reflects the current plugin set.
+    """
+    from infrastructure.broker_plugin import ensure_core_plugins, list_broker_plugins
+
+    ensure_core_plugins()
+    return {
+        plugin.broker_id: plugin.env_file
+        for plugin in list_broker_plugins()
+        if plugin.env_file is not None
+    }
+
+
+# Back-compat alias: callers/tests still reference the old ``ENV_FILES`` name.
+ENV_FILES = env_files()
+
+
+# ── Gateway builders — plugin-driven dispatch ──────────────────────────────
+
+# Builder functions keyed by broker_id. Brokers register their builders
+# here at import time (see ADR-007). This replaces the old hardcoded
+# ``builders`` dict inside ``_create_transport_gateway``.
+_GATEWAY_BUILDERS: dict[str, callable] = {}
+
+
+def register_gateway_builder(broker_id: str, builder: callable) -> None:
+    """Register a gateway builder function for a broker."""
+    _GATEWAY_BUILDERS[broker_id] = builder
+
+
+def _ensure_default_builders() -> None:
+    """Register default gateway builders if not already registered."""
+    if "dhan" not in _GATEWAY_BUILDERS:
+        register_gateway_builder("dhan", _create_dhan)
+    if "upstox" not in _GATEWAY_BUILDERS:
+        register_gateway_builder("upstox", _create_upstox)
+    if "paper" not in _GATEWAY_BUILDERS:
+        register_gateway_builder("paper", _create_paper)
+    if "datalake" not in _GATEWAY_BUILDERS:
+        register_gateway_builder("datalake", _create_datalake)
 
 
 def _create_transport_gateway(
@@ -77,16 +135,11 @@ def _create_transport_gateway(
 ) -> Any | None:
     """Create transport for *broker* (private — no network auth probe)."""
     broker = (broker or "paper").lower().strip()
-    builders = {
-        "dhan": _create_dhan,
-        "upstox": _create_upstox,
-        "paper": _create_paper,
-        "datalake": _create_datalake,
-    }
-    builder = builders.get(broker)
+    _ensure_default_builders()
+    builder = _GATEWAY_BUILDERS.get(broker)
     if builder is None:
         logger.error(
-            "Unknown broker %r. Expected one of: %s", broker, sorted(builders)
+            "Unknown broker %r. Expected one of: %s", broker, sorted(_GATEWAY_BUILDERS)
         )
         return None
     return builder(
@@ -197,13 +250,17 @@ def bootstrap_gateway(
         )
 
     if gw is None:
-        if broker not in ENV_FILES:
+        from infrastructure.broker_plugin import ensure_core_plugins, list_broker_plugins
+
+        ensure_core_plugins()
+        known_brokers = [p.broker_id for p in list_broker_plugins()]
+        if broker not in known_brokers:
             return BootstrapResult(
                 status=BootstrapStatus.FAILED,
                 broker=broker,
                 error=(
                     f"Unknown broker {broker!r}. "
-                    f"Expected one of: {sorted(ENV_FILES)}"
+                    f"Expected one of: {sorted(known_brokers)}"
                 ),
             )
         return BootstrapResult(
@@ -213,7 +270,7 @@ def bootstrap_gateway(
         )
 
     # Non-live or explicit skip: no auth probe
-    if broker in {"paper", "datalake"} or skip_probe:
+    if not _is_live_broker(broker) or skip_probe:
         return BootstrapResult(
             status=BootstrapStatus.READY,
             broker=broker,

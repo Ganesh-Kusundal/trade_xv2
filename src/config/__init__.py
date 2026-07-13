@@ -5,8 +5,6 @@ Provides configuration schema, validation, feature flags, and environment profil
 Usage::
 
     from config import (
-        load_dhan_config,
-        load_upstox_config,
         validate_config,
         FeatureFlags,
         load_profile,
@@ -14,10 +12,6 @@ Usage::
 
     # Validate configuration at startup
     validate_config()
-
-    # Load broker configs
-    dhan_cfg = load_dhan_config()
-    upstox_cfg = load_upstox_config()
 
     # Check feature flags
     if FeatureFlags.SMART_ROUTING:
@@ -34,13 +28,9 @@ from config.profiles import EnvironmentProfile, load_profile
 from config.schema import (
     ApiConfig,
     AppConfig,
-    DhanConfig,
     TradingConfig,
-    UpstoxConfig,
     load_api_config,
-    load_dhan_config,
     load_trading_config,
-    load_upstox_config,
 )
 from config.validator import (
     ConfigValidationError,
@@ -58,21 +48,17 @@ __all__ = [
     # Validation
     "ConfigValidationError",
     "ConfigValidator",
-    "DhanConfig",
     "EnvironmentProfile",
     # Feature Flags
     "FeatureFlags",
     "TradingConfig",
-    "UpstoxConfig",
     "ValidationProfile",
     "get_config",
     "is_enabled",
     "load_api_config",
-    "load_dhan_config",
     # Profiles
     "load_profile",
     "load_trading_config",
-    "load_upstox_config",
     "reset_config",
     "set_flag",
     "validate_config",

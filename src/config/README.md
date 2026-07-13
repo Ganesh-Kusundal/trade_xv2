@@ -441,7 +441,7 @@ If you're upgrading from a version without configuration validation:
 2. **Test with dev profile first**:
    ```bash
    export APP_ENV=dev
-   python -m api_server
+    python scripts/run_api_server.py
    ```
 
 3. **Gradually enable features** via feature flags:

@@ -13,6 +13,7 @@ from infrastructure.connection.authenticated_readiness import (  # noqa: F401
 from infrastructure.gateway.factory import (  # noqa: F401
     ENV_FILES,
     bootstrap_gateway,
+    env_files,
     list_available_brokers,
     require_gateway,
     resolve_env_path,

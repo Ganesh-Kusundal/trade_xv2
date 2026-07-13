@@ -124,52 +124,7 @@ class AppConfig(BaseModel):
         return cls(**kwargs)
 
 
-@dataclass(frozen=True)
-class DhanConfig:
-    """Dhan broker configuration."""
-
-    client_id: str = ""
-    access_token: str = ""
-    environment: str = "LIVE"
-    rest_base_url: str = ""
-    pin: str = ""
-    totp_secret: str = ""
-    token_state_file: str = "runtime/dhan-token-state.json"
-    refresh_buffer_minutes: int = 10
-    allow_live_orders: bool = False
-
-    # Sandbox
-    sandbox_client_id: str = ""
-    sandbox_access_token: str = ""
-    sandbox_environment: str = "SANDBOX"
-    sandbox_rest_base_url: str = "https://sandbox.dhan.co/v2"
-
-
-@dataclass(frozen=True)
-class UpstoxConfig:
-    """Upstox broker configuration."""
-
-    client_id: str = ""
-    client_secret: str = ""
-    access_token: str = ""
-    analytics_token: str = ""
-    environment: str = "LIVE"
-    auth_mode: str = "STATIC"
-    redirect_uri: str = "http://127.0.0.1:18080/callback"
-    token_state_file: str = "runtime/upstox-token-state.json"
-    analytics_only: bool = False
-    allow_live_orders: bool = False
-    mobile: str = ""
-    pin: str = ""
-    totp_secret: str = ""
-    totp_refresh_hour: int = 8
-    totp_refresh_minute: int = 0
-
-    # Sandbox
-    sandbox_client_id: str = ""
-    sandbox_client_secret: str = ""
-    sandbox_access_token: str = ""
-    sandbox_environment: str = "SANDBOX"
+# Broker config lives in brokers/*/config/settings.py (G4 resolved)
 
 
 @dataclass(frozen=True)
@@ -217,54 +172,6 @@ def _get_float(key: str, default: float = 0.0) -> float:
         return float(val)
     except ValueError:
         return default
-
-
-def load_dhan_config() -> DhanConfig:
-    """Load Dhan configuration from environment variables."""
-    return DhanConfig(
-        client_id=os.environ.get("DHAN_CLIENT_ID", ""),
-        access_token=os.environ.get("DHAN_ACCESS_TOKEN", ""),
-        environment=os.environ.get("DHAN_ENVIRONMENT", "LIVE"),
-        rest_base_url=os.environ.get("DHAN_REST_BASE_URL", ""),
-        pin=os.environ.get("DHAN_PIN", ""),
-        totp_secret=os.environ.get("DHAN_TOTP_SECRET", ""),
-        token_state_file=os.environ.get("DHAN_TOKEN_STATE_FILE", "runtime/dhan-token-state.json"),
-        refresh_buffer_minutes=_get_int("DHAN_REFRESH_BUFFER_MINUTES", 10),
-        allow_live_orders=_get_bool("DHAN_ALLOW_LIVE_ORDERS"),
-        sandbox_client_id=os.environ.get("DHAN_SANDBOX_CLIENT_ID", ""),
-        sandbox_access_token=os.environ.get("DHAN_SANDBOX_ACCESS_TOKEN", ""),
-        sandbox_environment=os.environ.get("DHAN_SANDBOX_ENVIRONMENT", "SANDBOX"),
-        sandbox_rest_base_url=os.environ.get(
-            "DHAN_SANDBOX_REST_BASE_URL", "https://sandbox.dhan.co/v2"
-        ),
-    )
-
-
-def load_upstox_config() -> UpstoxConfig:
-    """Load Upstox configuration from environment variables."""
-    return UpstoxConfig(
-        client_id=os.environ.get("UPSTOX_CLIENT_ID", ""),
-        client_secret=os.environ.get("UPSTOX_CLIENT_SECRET", ""),
-        access_token=os.environ.get("UPSTOX_ACCESS_TOKEN", ""),
-        analytics_token=os.environ.get("UPSTOX_ANALYTICS_TOKEN", ""),
-        environment=os.environ.get("UPSTOX_ENVIRONMENT", "LIVE"),
-        auth_mode=os.environ.get("UPSTOX_AUTH_MODE", "STATIC"),
-        redirect_uri=os.environ.get("UPSTOX_REDIRECT_URI", "http://127.0.0.1:18080/callback"),
-        token_state_file=os.environ.get(
-            "UPSTOX_TOKEN_STATE_FILE", "runtime/upstox-token-state.json"
-        ),
-        analytics_only=_get_bool("UPSTOX_ANALYTICS_ONLY"),
-        allow_live_orders=_get_bool("UPSTOX_ALLOW_LIVE_ORDERS"),
-        mobile=os.environ.get("UPSTOX_MOBILE", ""),
-        pin=os.environ.get("UPSTOX_PIN", ""),
-        totp_secret=os.environ.get("UPSTOX_TOTP_SECRET", ""),
-        totp_refresh_hour=_get_int("UPSTOX_TOTP_REFRESH_HOUR", 8),
-        totp_refresh_minute=_get_int("UPSTOX_TOTP_REFRESH_MINUTE", 0),
-        sandbox_client_id=os.environ.get("UPSTOX_SANDBOX_CLIENT_ID", ""),
-        sandbox_client_secret=os.environ.get("UPSTOX_SANDBOX_CLIENT_SECRET", ""),
-        sandbox_access_token=os.environ.get("UPSTOX_SANDBOX_ACCESS_TOKEN", ""),
-        sandbox_environment=os.environ.get("UPSTOX_SANDBOX_ENVIRONMENT", "SANDBOX"),
-    )
 
 
 def load_api_config() -> ApiConfig:

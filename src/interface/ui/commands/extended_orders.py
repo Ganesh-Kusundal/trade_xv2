@@ -9,6 +9,8 @@ from typing import Any
 
 from rich.console import Console
 
+from domain.ports.broker_id import BrokerId
+from infrastructure.broker_plugin import get_broker_plugin
 from interface.ui.commands.registry import CommandResult
 from interface.ui.services.broker_service import BrokerService
 
@@ -41,9 +43,26 @@ def _fail(console: Console, exc: Exception) -> CommandResult:
     return CommandResult(success=False, error=str(exc))
 
 
+def _bid(broker_service: BrokerService) -> BrokerId | None:
+    try:
+        return BrokerId.from_str(_broker_name(broker_service))
+    except ValueError:
+        return None
+
+
+def _caps(broker_service: BrokerService) -> Any:
+    gw = _gateway(broker_service)
+    try:
+        return gw.capabilities()
+    except (AttributeError, TypeError):
+        return None
+
+
 def super_order(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "dhan":
-        return CommandResult(success=False, error="super-order is Dhan-only")
+    # G1: capability-driven dispatch
+    caps = _caps(broker_service)
+    if caps is None or not caps.supports_super_order:
+        return CommandResult(success=False, error="super-order is not supported on this broker")
     try:
         payload = json.loads(" ".join(args)) if args else {}
         result = _extended(_gateway(broker_service)).place_super_order(**payload)
@@ -58,9 +77,11 @@ def forever_order(
     try:
         payload = json.loads(" ".join(args)) if args else {}
         gw = _gateway(broker_service)
-        if _broker_name(broker_service) == "dhan":
+        # G1: capability-driven dispatch
+        bid = _bid(broker_service)
+        if bid == BrokerId.DHAN:
             result = _extended(gw).place_forever_order(payload)
-        elif _broker_name(broker_service) == "upstox":
+        elif bid == BrokerId.UPSTOX:
             result = gw._broker.gtt.place_forever_order(payload)
         else:
             return CommandResult(success=False, error="forever-order not supported on this broker")
@@ -73,7 +94,9 @@ def trigger(args: list[str], broker_service: BrokerService, console: Console) ->
     try:
         payload = json.loads(" ".join(args)) if args else {}
         gw = _gateway(broker_service)
-        if _broker_name(broker_service) == "dhan":
+        # G1: capability-driven dispatch
+        bid = _bid(broker_service)
+        if bid == BrokerId.DHAN:
             result = _extended(gw).place_conditional_trigger(payload)
         else:
             result = gw._broker.alert.place_alert(payload)
@@ -86,7 +109,9 @@ def margin(args: list[str], broker_service: BrokerService, console: Console) -> 
     try:
         payload = json.loads(" ".join(args)) if args else {}
         gw = _gateway(broker_service)
-        if _broker_name(broker_service) == "dhan":
+        # G1: capability-driven dispatch
+        bid = _bid(broker_service)
+        if bid == BrokerId.DHAN:
             result = gw._conn.margin.calculate(payload)
         else:
             result = gw._broker.margin.calculate_margin(payload)
@@ -113,7 +138,9 @@ def ledger(args: list[str], broker_service: BrokerService, console: Console) -> 
         return CommandResult(success=False, error="Usage: ledger <from_date> <to_date>")
     try:
         gw = _gateway(broker_service)
-        if _broker_name(broker_service) == "dhan":
+        # G1: capability-driven dispatch
+        bid = _bid(broker_service)
+        if bid == BrokerId.DHAN:
             result = _extended(gw).get_ledger(args[0], args[1])
         else:
             result = gw._broker.portfolio.get_ledger(args[0], args[1])
@@ -123,7 +150,9 @@ def ledger(args: list[str], broker_service: BrokerService, console: Console) -> 
 
 
 def edis(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "dhan":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.DHAN:
         return CommandResult(success=False, error="edis is Dhan-only")
     try:
         payload = json.loads(" ".join(args)) if args else {}
@@ -140,14 +169,16 @@ def edis(args: list[str], broker_service: BrokerService, console: Console) -> Co
 def ip(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
     try:
         gw = _gateway(broker_service)
+        # G1: capability-driven dispatch
+        bid = _bid(broker_service)
         if not args:
-            if _broker_name(broker_service) == "dhan":
+            if bid == BrokerId.DHAN:
                 result = _extended(gw).get_ip()
             else:
                 result = gw._broker.static_ip.get_static_ip()
             return _ok(console, "IP list", result)
         payload = json.loads(" ".join(args))
-        if _broker_name(broker_service) == "dhan":
+        if bid == BrokerId.DHAN:
             result = _extended(gw).set_ip(payload.get("ip", ""), payload.get("type", "static"))
         else:
             result = gw._broker.static_ip.set_static_ip(payload)
@@ -165,7 +196,9 @@ def profile(args: list[str], broker_service: BrokerService, console: Console) ->
 
 
 def gtt_order(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="gtt-order is Upstox-only")
     try:
         payload = json.loads(" ".join(args)) if args else {}
@@ -176,7 +209,9 @@ def gtt_order(args: list[str], broker_service: BrokerService, console: Console) 
 
 
 def cover_order(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="cover-order is Upstox-only")
     try:
         from domain import OrderRequest, OrderType, ProductType, Side, Validity
@@ -205,7 +240,9 @@ def slice_order(args: list[str], broker_service: BrokerService, console: Console
     try:
         payload = json.loads(" ".join(args)) if args else {}
         gw = _gateway(broker_service)
-        if _broker_name(broker_service) == "dhan":
+        # G1: capability-driven dispatch
+        bid = _bid(broker_service)
+        if bid == BrokerId.DHAN:
             result = gw._conn.orders.place_slice_order(**payload)
         else:
             from domain.orders.requests import SliceOrderRequest
@@ -219,7 +256,9 @@ def slice_order(args: list[str], broker_service: BrokerService, console: Console
 def broker_kill_switch(
     args: list[str], broker_service: BrokerService, console: Console
 ) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="broker-kill-switch is Upstox-only")
     try:
         payload = json.loads(" ".join(args)) if args else {"updates": []}
@@ -230,7 +269,9 @@ def broker_kill_switch(
 
 
 def ipo(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="ipo is Upstox-only")
     try:
         status = args[0] if args else "open"
@@ -241,7 +282,9 @@ def ipo(args: list[str], broker_service: BrokerService, console: Console) -> Com
 
 
 def mf(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="mf is Upstox-only")
     try:
         gw = _gateway(broker_service)
@@ -256,7 +299,9 @@ def mf(args: list[str], broker_service: BrokerService, console: Console) -> Comm
 
 
 def payout(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
+    # G1: capability-driven dispatch
+    bid = _bid(broker_service)
+    if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="payout is Upstox-only")
     try:
         payload = json.loads(" ".join(args)) if args else {}
@@ -267,8 +312,10 @@ def payout(args: list[str], broker_service: BrokerService, console: Console) -> 
 
 
 def fundamentals(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
-    if _broker_name(broker_service) != "upstox":
-        return CommandResult(success=False, error="fundamentals is Upstox-only")
+    # G1: capability-driven dispatch
+    caps = _caps(broker_service)
+    if caps is None or not caps.supports_fundamentals:
+        return CommandResult(success=False, error="fundamentals is not supported on this broker")
     if not args:
         return CommandResult(success=False, error="Usage: fundamentals <isin>")
     try:

@@ -1,6 +1,6 @@
 """API service bootstrap — shared runtime wiring for the HTTP surface.
 
-Composition root for datalake + trading runtime used by :mod:`api_server`
+Composition root for datalake + trading runtime used by ``scripts/run_api_server``
 and API tests. BrokerService construction lives in
 :mod:`interface.ui.services.compose`.
 """
