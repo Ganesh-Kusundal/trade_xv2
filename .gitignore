@@ -57,6 +57,7 @@ dist/
 
 # Runtime data (created by the application)
 market_data/
+data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
