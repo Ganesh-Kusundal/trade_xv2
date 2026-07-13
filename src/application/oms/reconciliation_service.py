@@ -65,6 +65,7 @@ class ReconciliationService(ManagedServicePort):
         interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
         event_bus: EventBusPort | None = None,
         on_first_success: Callable[[], None] | None = None,
+        execution_engine: Any | None = None,
     ) -> None:
         self._order_manager = order_manager
         self._position_manager = position_manager
@@ -74,6 +75,7 @@ class ReconciliationService(ManagedServicePort):
         self._interval = max(MIN_SLEEP_SECONDS, float(interval_seconds))
         self._event_bus = event_bus
         self._on_first_success = on_first_success
+        self._execution_engine = execution_engine
         self._first_success_notified = False
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -183,6 +185,15 @@ class ReconciliationService(ManagedServicePort):
                 local_orders=self._order_manager.get_orders(),
                 local_positions=self._position_manager.get_positions(),
             )
+            if self._execution_engine is not None and hasattr(report, "drift_items"):
+                broker_orders = getattr(report, "broker_orders", [])
+                broker_positions = getattr(report, "broker_positions", [])
+                broker_funds = getattr(report, "broker_funds", None)
+                self._execution_engine.apply_mass_status(
+                    orders=broker_orders,
+                    positions=broker_positions,
+                    funds=broker_funds,
+                )
             self._run_ledger_shadow_compare()
             if hasattr(report, "has_drift") and report.has_drift:
                 self._last_drift_count = len(getattr(report, "drift_items", []))

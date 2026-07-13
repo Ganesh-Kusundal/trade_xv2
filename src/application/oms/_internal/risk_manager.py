@@ -230,6 +230,10 @@ class RiskManager:
             if not cb_allowed:
                 return RiskResult(False, cb_reason)
 
+            # Throttler (spec §2 step e: before tick alignment)
+            if not self._throttler.allow():
+                return RiskResult(False, "Order submission rate limit exceeded")
+
             # Tick size alignment check (pre-trade)
             if self._instrument_provider is not None and order.price > 0:
                 try:
@@ -303,10 +307,6 @@ class RiskManager:
             pending_gross = self._margin_checker.pending_gross()
             if (gross + pending_gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
                 return RiskResult(False, "Exceeds max gross exposure pct")
-
-            # Throttler
-            if not self._throttler.allow():
-                return RiskResult(False, "Order submission rate limit exceeded")
 
             # Daily loss
             if self._daily_pnl_tracker.is_stale():

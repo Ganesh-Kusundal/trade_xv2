@@ -14,7 +14,9 @@ def test_oms_idempotency_guard_exists():
 @pytest.mark.architecture
 def test_broker_idempotency_cache_exists():
     """Broker-level idempotency cache exists."""
-    from brokers.common.idempotency import IdempotencyCache
+    import importlib
+    mod = importlib.import_module("brokers.common.idempotency")
+    IdempotencyCache = mod.IdempotencyCache
     cache = IdempotencyCache()
     assert hasattr(cache, 'get')
     assert hasattr(cache, 'put')
@@ -25,9 +27,10 @@ def test_broker_idempotency_cache_exists():
 @pytest.mark.architecture
 def test_upstox_alias_delegates_to_common():
     """Upstox idempotency is an alias, not a separate implementation."""
-    from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
-    from brokers.common.idempotency import IdempotencyCache
-    assert issubclass(InMemoryIdempotencyCache, IdempotencyCache)
+    import importlib
+    upstox_mod = importlib.import_module("brokers.upstox.orders.idempotency")
+    common_mod = importlib.import_module("brokers.common.idempotency")
+    assert issubclass(upstox_mod.InMemoryIdempotencyCache, common_mod.IdempotencyCache)
 
 
 @pytest.mark.architecture

@@ -33,6 +33,7 @@ _ALLOWED_PLACE_ORDER_FILES = frozenset(
         "src/application/oms/order_manager.py",
         "src/application/composer/execution.py",
         "src/application/execution/execution_service.py",
+        "src/application/execution/execution_engine.py",
         "src/application/execution/execution_mode_adapter.py",
         "src/application/execution/place_order_use_case.py",
         "src/interface/api/routers/orders.py",
