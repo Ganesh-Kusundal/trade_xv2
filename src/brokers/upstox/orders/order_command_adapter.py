@@ -14,7 +14,7 @@ from brokers.common.order_validation import validate_tick_alignment
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.common.idempotency import IdempotencyCachePort
-from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
+from brokers.common.idempotency import IdempotencyCache
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import (
     Order,
@@ -45,7 +45,7 @@ class UpstoxOrderCommandAdapter:
     ) -> None:
         self._order_client = order_client
         self._instrument_resolver = instrument_resolver
-        self._idempotency_cache = idempotency_cache or InMemoryIdempotencyCache()
+        self._idempotency_cache = idempotency_cache or IdempotencyCache()
         self._use_v3 = use_v3
         self._algo_name = algo_name
         self._market_protection_default = market_protection_default

@@ -80,7 +80,7 @@ class IdempotencyService(Generic[T]):
         """Initialize the idempotency service.
         
         Args:
-            primary_backend: Primary cache backend (e.g., RedisIdempotencyCache)
+            primary_backend: Primary cache backend
             fallback_backend: Fallback cache backend for when primary fails
             default_ttl_seconds: Default TTL for cached entries in seconds
             enable_fallback: Whether to enable automatic fallback to secondary backend

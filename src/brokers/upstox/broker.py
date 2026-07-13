@@ -56,7 +56,7 @@ from brokers.upstox.orders.alert_adapter import UpstoxAlertAdapter
 from brokers.upstox.orders.cover_order_adapter import UpstoxCoverOrderAdapter
 from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
 from brokers.upstox.orders.gtt_client import UpstoxGttClient
-from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
+from brokers.common.idempotency import IdempotencyCache
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from brokers.upstox.orders.order_query_adapter import UpstoxOrderQueryAdapter
@@ -227,7 +227,7 @@ class UpstoxBroker:
     def _build_order_path(self, settings: Any) -> None:
         """Construct the order-path objects (commands, queries, GTT, ws)."""
         # Idempotency + order command
-        self.idempotency_cache = InMemoryIdempotencyCache()
+        self.idempotency_cache = IdempotencyCache()
         self.order_command = UpstoxOrderCommandAdapter(
             self.order_client,
             self.instrument_resolver,

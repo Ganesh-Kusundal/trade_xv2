@@ -25,12 +25,11 @@ def test_broker_idempotency_cache_exists():
 
 
 @pytest.mark.architecture
-def test_upstox_alias_delegates_to_common():
-    """Upstox idempotency is an alias, not a separate implementation."""
+def test_no_upstox_idempotency_alias():
+    """Upstox idempotency alias deleted — use brokers.common.idempotency directly."""
     import importlib
-    upstox_mod = importlib.import_module("brokers.upstox.orders.idempotency")
-    common_mod = importlib.import_module("brokers.common.idempotency")
-    assert issubclass(upstox_mod.InMemoryIdempotencyCache, common_mod.IdempotencyCache)
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("brokers.upstox.orders.idempotency")
 
 
 @pytest.mark.architecture
@@ -45,8 +44,8 @@ def test_no_new_idempotency_constructors_in_brokers():
     forbidden_classes = {"InMemoryIdempotencyCache", "IdempotencyGuard"}
 
     for py in root.rglob("*.py"):
-        if "common/idempotency" in str(py) or "upstox/orders/idempotency" in str(py):
-            continue  # Skip the canonical implementations
+        if "common/idempotency" in str(py):
+            continue  # Skip the canonical implementation
         text = py.read_text(errors="ignore")
         try:
             tree = ast.parse(text)

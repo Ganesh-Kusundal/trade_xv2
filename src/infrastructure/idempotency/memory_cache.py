@@ -5,7 +5,7 @@ This implementation stores data in memory with TTL support. It's suitable for:
 - Testing scenarios
 - Single-instance deployments
 
-For production multi-instance deployments, use RedisIdempotencyCache instead.
+For production multi-instance deployments, use a distributed cache instead.
 """
 
 from __future__ import annotations
