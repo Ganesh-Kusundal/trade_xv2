@@ -6,7 +6,6 @@ All cross-layer imports should use ``domain`` (or sub-packages).
 from __future__ import annotations
 
 from domain.capabilities import Capability, ConnectionStatus
-from domain.aggregates import InstrumentAggregate
 from domain.extensions import Extension, ExtensionRegistry
 from domain.providers import DataProvider, ExecutionProvider, ProviderRegistry, Subscription
 from domain.ports.broker_transport import BrokerTransport
@@ -78,7 +77,6 @@ __all__ = [
     "Extension",
     "ExtensionInfo",
     "ExtensionRegistry",
-    "InstrumentAggregate",
     "InstrumentState",
     "Money",
     "ProviderRegistry",

@@ -8,12 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.analytics.support_resistance import (
-    PriceLevel,
-    SupportResistance,
-    _cluster_levels,
-    _find_pivots,
+from datalake.analytics._sr_algorithms import (
+    cluster_levels as _cluster_levels,
+    find_pivots as _find_pivots,
 )
+from datalake.analytics.support_resistance import PriceLevel, SupportResistance
 
 # ── Pure algorithm tests ──────────────────────────────────────────────────
 

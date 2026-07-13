@@ -2,7 +2,7 @@
 
 Extracts the historical-data and option-chain fetch helpers from
 :class:`~analytics.facade.Analytics`. These methods need a market-data
-``provider`` (and, for the ``InstrumentAggregate`` fast paths, the instrument
+``provider`` (and, for the ``Instrument`` fast paths, the instrument
 and its analyzer) and return :class:`~analytics.core.models.AnalysisResult`
 objects.
 
@@ -20,7 +20,7 @@ from analytics.core.instrument_analyzer import InstrumentAnalyzer
 from analytics.core.models import AnalysisResult
 from analytics.core.providers import MarketDataProvider
 from analytics.engine_factory import AnalyticsEngineFactory
-from domain.aggregates.instrument import InstrumentAggregate
+from domain.instruments.instrument import Instrument
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class AnalyticsDataFetcher:
     def __init__(
         self,
         provider: MarketDataProvider | None = None,
-        instrument: InstrumentAggregate | None = None,
+        instrument: Instrument | None = None,
         instrument_analyzer: InstrumentAnalyzer | None = None,
         engines: AnalyticsEngineFactory | None = None,
     ) -> None:
@@ -46,16 +46,16 @@ class AnalyticsDataFetcher:
 
     def fetch_history(
         self,
-        symbol: str | InstrumentAggregate | None = None,
+        symbol: str | Instrument | None = None,
         *,
         timeframe: str = "1D",
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> AnalysisResult:
-        """Fetch historical data for a symbol or InstrumentAggregate.
+        """Fetch historical data for a symbol or Instrument.
 
-        When an InstrumentAggregate is passed, delegates to its own
+        When an Instrument is passed, delegates to its own
         get_history() method — no provider needed.
         When no symbol is provided, uses the instrument set at construction.
         """
@@ -66,7 +66,7 @@ class AnalyticsDataFetcher:
                 return AnalysisResult(
                     name="history", symbol="unknown", summary="No symbol provided and no instrument set."
                 )
-        if isinstance(symbol, InstrumentAggregate):
+        if isinstance(symbol, Instrument):
             instrument = symbol
             data = instrument.get_history(
                 timeframe=timeframe,
@@ -96,11 +96,11 @@ class AnalyticsDataFetcher:
 
     def fetch_option_chain(
         self,
-        underlying: str | InstrumentAggregate | None = None,
+        underlying: str | Instrument | None = None,
         *,
         expiry: str | None = None,
     ) -> AnalysisResult:
-        """Fetch option chain for a symbol or InstrumentAggregate.
+        """Fetch option chain for a symbol or Instrument.
 
         When no symbol is provided, uses the instrument set at construction.
         """
@@ -110,7 +110,7 @@ class AnalyticsDataFetcher:
             return AnalysisResult(
                 name="option_chain", symbol="unknown", summary="No symbol provided."
             )
-        if isinstance(underlying, InstrumentAggregate):
+        if isinstance(underlying, Instrument):
             instrument = underlying
             chain = instrument.get_option_chain()
             sym = instrument.symbol
@@ -139,15 +139,15 @@ class AnalyticsDataFetcher:
 
     def stock(
         self,
-        symbol: str | InstrumentAggregate | None = None,
+        symbol: str | Instrument | None = None,
         prices: pd.DataFrame | None = None,
         benchmark_prices: pd.DataFrame | None = None,
         benchmark_symbol: str = "NIFTY",
         sector_prices: pd.DataFrame | None = None,
     ) -> AnalysisResult:
-        """Analyze a stock by symbol or InstrumentAggregate.
+        """Analyze a stock by symbol or Instrument.
 
-        When an InstrumentAggregate is passed (and prices is None),
+        When an Instrument is passed (and prices is None),
         delegates to InstrumentAnalyzer.
         When no symbol is provided, uses the instrument set at construction.
         """
@@ -157,7 +157,7 @@ class AnalyticsDataFetcher:
             return AnalysisResult(
                 name="stock", symbol="unknown", summary="No symbol provided."
             )
-        if isinstance(symbol, InstrumentAggregate):
+        if isinstance(symbol, Instrument):
             instrument = symbol
             if self._instrument_analyzer is not None:
                 return self._instrument_analyzer.analyze_stock(
@@ -201,15 +201,15 @@ class AnalyticsDataFetcher:
 
     def options(
         self,
-        underlying: str | InstrumentAggregate | None = None,
+        underlying: str | Instrument | None = None,
         chain: pd.DataFrame | dict | None = None,
         *,
         spot_price: float | None = None,
         iv_history: list[float] | pd.Series | None = None,
     ) -> AnalysisResult:
-        """Analyze options by symbol or InstrumentAggregate.
+        """Analyze options by symbol or Instrument.
 
-        When an InstrumentAggregate is passed (and chain is None),
+        When an Instrument is passed (and chain is None),
         delegates to InstrumentAnalyzer.
         When no symbol is provided, uses the instrument set at construction.
         """
@@ -219,7 +219,7 @@ class AnalyticsDataFetcher:
             return AnalysisResult(
                 name="options", symbol="unknown", summary="No symbol provided."
             )
-        if isinstance(underlying, InstrumentAggregate):
+        if isinstance(underlying, Instrument):
             instrument = underlying
             if self._instrument_analyzer is not None:
                 return self._instrument_analyzer.analyze_options(
@@ -249,15 +249,15 @@ class AnalyticsDataFetcher:
 
     def volatility(
         self,
-        symbol: str | InstrumentAggregate | None = None,
+        symbol: str | Instrument | None = None,
         prices: pd.DataFrame | None = None,
         *,
         implied_volatility: float | None = None,
         iv_history: list[float] | pd.Series | None = None,
     ) -> AnalysisResult:
-        """Analyze volatility by symbol or InstrumentAggregate.
+        """Analyze volatility by symbol or Instrument.
 
-        When an InstrumentAggregate is passed (and prices is None),
+        When an Instrument is passed (and prices is None),
         delegates to InstrumentAnalyzer.
         When no symbol is provided, uses the instrument set at construction.
         """
@@ -267,7 +267,7 @@ class AnalyticsDataFetcher:
             return AnalysisResult(
                 name="volatility", symbol="unknown", summary="No symbol provided."
             )
-        if isinstance(symbol, InstrumentAggregate):
+        if isinstance(symbol, Instrument):
             instrument = symbol
             if self._instrument_analyzer is not None:
                 return self._instrument_analyzer.analyze_volatility(

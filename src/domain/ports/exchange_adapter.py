@@ -87,73 +87,25 @@ class ExchangeAdapterPort(Protocol):
         ...
 
 
-class NSEExchangeAdapter:
-    """NSE (National Stock Exchange of India) adapter."""
+# Backward-compatible re-exports — concrete adapters moved to
+# domain.market.exchange_adapters. Import from there in new code.
+import warnings as _warnings
 
-    exchange_code = "NSE"
-    timezone = ZoneInfo("Asia/Kolkata")
-
-    _OPEN = time(9, 15)
-    _CLOSE = time(15, 30)
-
-    def is_trading_hours(self, now: datetime) -> bool:
-        local = now.astimezone(self.timezone)
-        t = local.time()
-        return self._OPEN <= t <= self._CLOSE
-
-    def is_trading_day(self, now: datetime) -> bool:
-        local = now.astimezone(self.timezone)
-        return local.weekday() < 5  # Mon-Fri
-
-
-class BSEExchangeAdapter:
-    """BSE (Bombay Stock Exchange) adapter."""
-
-    exchange_code = "BSE"
-    timezone = ZoneInfo("Asia/Kolkata")
-
-    _OPEN = time(9, 15)
-    _CLOSE = time(15, 30)
-
-    def is_trading_hours(self, now: datetime) -> bool:
-        local = now.astimezone(self.timezone)
-        t = local.time()
-        return self._OPEN <= t <= self._CLOSE
-
-    def is_trading_day(self, now: datetime) -> bool:
-        local = now.astimezone(self.timezone)
-        return local.weekday() < 5
-
-
-class MCXExchangeAdapter:
-    """MCX (Multi Commodity Exchange) adapter."""
-
-    exchange_code = "MCX"
-    timezone = ZoneInfo("Asia/Kolkata")
-
-    _OPEN = time(9, 0)
-    _CLOSE = time(23, 30)
-
-    def is_trading_hours(self, now: datetime) -> bool:
-        local = now.astimezone(self.timezone)
-        t = local.time()
-        return self._OPEN <= t <= self._CLOSE
-
-    def is_trading_day(self, now: datetime) -> bool:
-        local = now.astimezone(self.timezone)
-        return local.weekday() < 5
-
-
-_EXCHANGE_REGISTRY: dict[str, type] = {
-    "NSE": NSEExchangeAdapter,
-    "BSE": BSEExchangeAdapter,
-    "MCX": MCXExchangeAdapter,
-}
-
-
-def get_exchange_adapter(exchange: str) -> ExchangeAdapterPort:
-    """Get the adapter for *exchange*, raising KeyError if unknown."""
-    cls = _EXCHANGE_REGISTRY.get(exchange.upper())
-    if cls is None:
-        raise KeyError(f"Unknown exchange: {exchange}")
-    return cls()
+def __getattr__(name: str):
+    _CONCRETE = {
+        "NSEExchangeAdapter",
+        "BSEExchangeAdapter",
+        "MCXExchangeAdapter",
+        "_EXCHANGE_REGISTRY",
+        "get_exchange_adapter",
+    }
+    if name in _CONCRETE:
+        from domain.market import exchange_adapters as _mod
+        _warnings.warn(
+            f"Importing {name!r} from domain.ports.exchange_adapter is deprecated. "
+            f"Use domain.market.exchange_adapters instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(_mod, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

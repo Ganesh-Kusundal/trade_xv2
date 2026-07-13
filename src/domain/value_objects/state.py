@@ -82,7 +82,7 @@ class InstrumentState:
     """Current runtime state of an instrument — Value Object.
 
     Captures the latest quote, depth, and subscription status in a single
-    immutable snapshot.  The InstrumentAggregate replaces the entire
+    immutable snapshot.  The Instrument replaces the entire
     ``InstrumentState`` atomically, so consumers always see a consistent view.
 
     This replaces the scattered state that previously lived across gateway

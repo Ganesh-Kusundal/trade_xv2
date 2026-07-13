@@ -11,12 +11,11 @@ from datetime import datetime, timedelta, timezone
 from domain.events.types import DomainEvent
 from domain.ports.time_service import (
     ClockPort,
-    RealClock,
-    VirtualClock,
     get_current_clock,
     set_current_clock,
     use_clock,
 )
+from domain.ports.time_service_impls import RealClock, VirtualClock
 
 
 def test_real_clock_returns_timezone_aware_utc() -> None:

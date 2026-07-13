@@ -10,7 +10,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain.ports.time_service import VirtualClock, use_clock
+from domain.ports.time_service import use_clock
+from domain.ports.time_service_impls import VirtualClock
 
 
 @pytest.fixture

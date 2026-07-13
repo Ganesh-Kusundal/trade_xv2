@@ -32,18 +32,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Protocol, runtime_checkable
 from zoneinfo import ZoneInfo
 
-# Exchange → IANA timezone. Kept minimal and pure (stdlib only) so domain
-# stays independent of infrastructure. Mirrors the common exchanges defined
-# in ``infrastructure.time_service.EXCHANGE_CALENDARS``; unknown exchanges
-# fall back to UTC.
-_EXCHANGE_TZ: dict[str, str] = {
-    "NSE": "Asia/Kolkata",
-    "BSE": "Asia/Kolkata",
-    "MCX": "Asia/Kolkata",
-    "NYSE": "America/New_York",
-    "NASDAQ": "America/New_York",
-    "LSE": "Europe/London",
-}
+from domain.ports.time_service_impls import RealClock
 
 
 @runtime_checkable
@@ -65,65 +54,6 @@ class ClockPort(Protocol):
 
 # Backward-compatible alias for the previous (dead) port name.
 TimeServicePort = ClockPort
-
-
-class RealClock:
-    """Wall-clock implementation of :class:`ClockPort`."""
-
-    def now(self) -> datetime:
-        return datetime.now(timezone.utc)
-
-    def timestamp(self) -> float:
-        return datetime.now(timezone.utc).timestamp()
-
-    def epoch_ms(self) -> int:
-        return int(self.timestamp() * 1000)
-
-    def exchange_now(self, exchange: str) -> datetime:
-        tz_name = _EXCHANGE_TZ.get(exchange, "UTC")
-        return datetime.now(ZoneInfo(tz_name))
-
-
-class VirtualClock:
-    """Mutable, deterministic clock for tests and replay.
-
-    Holds an internal ``datetime`` (timezone-aware UTC) that can be set or
-    advanced. Every call to ``now()`` returns the current virtual time,
-    enabling fully deterministic event timestamps, scheduling, and
-    reconciliation loops.
-    """
-
-    def __init__(self, initial: datetime | None = None) -> None:
-        self._current = initial or datetime.now(timezone.utc)
-
-    def now(self) -> datetime:
-        return self._current
-
-    def timestamp(self) -> float:
-        return self._current.timestamp()
-
-    def epoch_ms(self) -> int:
-        return int(self._current.timestamp() * 1000)
-
-    def exchange_now(self, exchange: str) -> datetime:
-        # Virtual clocks are UTC-only; exchange-local conversion would
-        # require a calendar we intentionally avoid importing. Callers
-        # needing exchange-local virtual time can advance the clock manually.
-        return self._current
-
-    def set(self, value: datetime) -> None:
-        """Set the virtual time absolutely (naive values treated as UTC)."""
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        self._current = value
-
-    def advance(self, delta: timedelta) -> None:
-        """Advance the virtual time by ``delta``."""
-        self._current = self._current + delta
-
-    @property
-    def current(self) -> datetime:
-        return self._current
 
 
 _REAL_CLOCK = RealClock()
@@ -157,3 +87,21 @@ def use_clock(clock: ClockPort) -> Iterator[ClockPort]:
         yield clock
     finally:
         _clock_var.reset(token)
+
+
+# Backward-compatible re-exports — concrete clocks moved to
+# domain.ports.time_service_impls. Import from there in new code.
+import warnings as _warnings
+
+def __getattr__(name: str):
+    _CONCRETE = {"RealClock", "VirtualClock"}
+    if name in _CONCRETE:
+        from domain.ports import time_service_impls as _mod
+        _warnings.warn(
+            f"Importing {name!r} from domain.ports.time_service is deprecated. "
+            f"Use domain.ports.time_service_impls instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(_mod, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

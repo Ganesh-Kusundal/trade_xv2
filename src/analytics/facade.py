@@ -35,7 +35,7 @@ from analytics.scanner.models import ScanResult
 from analytics.sector import SectorAnalyzer
 from analytics.strategy.models import StrategyResult
 from analytics.strategy.pipeline import StrategyPipeline
-from domain.aggregates.instrument import InstrumentAggregate
+from domain.instruments.instrument import Instrument
 from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class Analytics:
 
     def __init__(self, provider: MarketDataProvider | None = None) -> None:
         self.provider = provider
-        self._instrument: InstrumentAggregate | None = None
+        self._instrument: Instrument | None = None
         self._instrument_analyzer: InstrumentAnalyzer | None = None
         self._engines = AnalyticsEngineFactory(provider=provider)
         self._fetcher = AnalyticsDataFetcher(
@@ -72,8 +72,8 @@ class Analytics:
         return cls(provider=provider)
 
     @classmethod
-    def from_instrument(cls, instrument: InstrumentAggregate) -> Analytics:
-        """Create an Analytics instance from an InstrumentAggregate.
+    def from_instrument(cls, instrument: Instrument) -> Analytics:
+        """Create an Analytics instance from an Instrument.
 
         New code should prefer this over from_provider().
         """
@@ -224,7 +224,7 @@ class Analytics:
     # ------------------------------------------------------------------ #
     def fetch_history(
         self,
-        symbol: str | InstrumentAggregate | None = None,
+        symbol: str | Instrument | None = None,
         *,
         timeframe: str = "1D",
         lookback_days: int = 120,
@@ -241,7 +241,7 @@ class Analytics:
 
     def fetch_option_chain(
         self,
-        underlying: str | InstrumentAggregate | None = None,
+        underlying: str | Instrument | None = None,
         *,
         expiry: str | None = None,
     ) -> AnalysisResult:
@@ -253,7 +253,7 @@ class Analytics:
     # ------------------------------------------------------------------ #
     def stock(
         self,
-        symbol: str | InstrumentAggregate | None = None,
+        symbol: str | Instrument | None = None,
         prices: pd.DataFrame | None = None,
         benchmark_prices: pd.DataFrame | None = None,
         benchmark_symbol: str = "NIFTY",
@@ -290,7 +290,7 @@ class Analytics:
 
     def options(
         self,
-        underlying: str | InstrumentAggregate | None = None,
+        underlying: str | Instrument | None = None,
         chain: pd.DataFrame | dict | None = None,
         *,
         spot_price: float | None = None,
@@ -305,7 +305,7 @@ class Analytics:
 
     def volatility(
         self,
-        symbol: str | InstrumentAggregate | None = None,
+        symbol: str | Instrument | None = None,
         prices: pd.DataFrame | None = None,
         *,
         implied_volatility: float | None = None,

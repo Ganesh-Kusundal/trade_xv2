@@ -5,7 +5,7 @@ V2: The ``MarketDataProvider`` protocol now bridges to the V2
 code that previously called ``provider.history("RELIANCE")`` continues
 to work — the bridge translates ``str`` → ``InstrumentId`` internally.
 
-New code should use ``InstrumentAggregate`` as the entry point:
+New code should use ``Instrument`` as the entry point:
 
     instrument = registry.get_instrument(InstrumentId.equity("NSE", "RELIANCE"))
     df = instrument.get_history(timeframe="1D", lookback_days=120)

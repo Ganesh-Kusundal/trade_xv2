@@ -1,11 +1,11 @@
 """InstrumentAnalyzer — instrument-aware analytics facade.
 
-Provides analytics operations that accept InstrumentAggregate as the
+Provides analytics operations that accept Instrument as the
 entry point, replacing raw symbol+exchange strings.
 
 Usage::
 
-    from domain.aggregates import InstrumentAggregate
+    from domain.aggregates import Instrument
     from analytics.core.instrument_analyzer import InstrumentAnalyzer
 
     analyzer = InstrumentAnalyzer()
@@ -24,7 +24,7 @@ from analytics.core.models import AnalysisResult
 from analytics.options.options_analytics import OptionsAnalytics
 from analytics.stocks.stock_analytics import StockAnalytics
 from analytics.volatility.volatility_analytics import VolatilityAnalytics
-from domain.aggregates.instrument import InstrumentAggregate
+from domain.instruments.instrument import Instrument
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class InstrumentAnalyzer:
     """Instrument-aware analytics facade.
 
-    Accepts InstrumentAggregate as the primary entry point for all
+    Accepts Instrument as the primary entry point for all
     analytics operations.  Delegates to the instrument's own data
     methods (get_history, get_option_chain) for data access.
     """
@@ -45,7 +45,7 @@ class InstrumentAnalyzer:
 
     def analyze_stock(
         self,
-        instrument: InstrumentAggregate,
+        instrument: Instrument,
         *,
         lookback_days: int = 120,
         timeframe: str = "1D",
@@ -65,7 +65,7 @@ class InstrumentAnalyzer:
 
     def analyze_volatility(
         self,
-        instrument: InstrumentAggregate,
+        instrument: Instrument,
         *,
         lookback_days: int = 120,
         timeframe: str = "1D",
@@ -90,7 +90,7 @@ class InstrumentAnalyzer:
 
     def analyze_options(
         self,
-        instrument: InstrumentAggregate,
+        instrument: Instrument,
         *,
         expiry: str | None = None,
         spot_price: float | None = None,
@@ -111,7 +111,7 @@ class InstrumentAnalyzer:
 
     def build_features(
         self,
-        instrument: InstrumentAggregate,
+        instrument: Instrument,
         *,
         lookback_days: int = 120,
         timeframe: str = "1D",

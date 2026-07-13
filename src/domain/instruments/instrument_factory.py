@@ -1,7 +1,7 @@
-"""InstrumentFactory — creates InstrumentAggregate instances from raw data.
+"""InstrumentFactory — creates Instrument instances from raw data.
 
 Centralizes instrument construction with proper defaults, replacing
-scattered ``InstrumentAggregate(...)`` calls throughout the codebase.
+scattered ``Instrument(...)`` calls throughout the codebase.
 """
 
 from __future__ import annotations
@@ -10,12 +10,12 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from domain.aggregates.instrument import InstrumentAggregate
+from domain.instruments.instrument import Instrument
 from domain.instruments.instrument_id import InstrumentId
 
 
 class InstrumentFactory:
-    """Factory for creating InstrumentAggregate instances."""
+    """Factory for creating Instrument instances."""
 
     @staticmethod
     def create_equity(
@@ -24,9 +24,9 @@ class InstrumentFactory:
         *,
         data_provider: Any | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> InstrumentAggregate:
+    ) -> Instrument:
         iid = InstrumentId.equity(exchange, symbol)
-        return InstrumentAggregate(iid, data_provider=data_provider, metadata=metadata)
+        return Instrument(iid, data_provider=data_provider, metadata=metadata)
 
     @staticmethod
     def create_index(
@@ -35,9 +35,9 @@ class InstrumentFactory:
         *,
         data_provider: Any | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> InstrumentAggregate:
+    ) -> Instrument:
         iid = InstrumentId.index(exchange, symbol)
-        return InstrumentAggregate(iid, data_provider=data_provider, metadata=metadata)
+        return Instrument(iid, data_provider=data_provider, metadata=metadata)
 
     @staticmethod
     def create_future(
@@ -47,9 +47,9 @@ class InstrumentFactory:
         *,
         data_provider: Any | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> InstrumentAggregate:
+    ) -> Instrument:
         iid = InstrumentId.future(exchange, symbol, expiry)
-        return InstrumentAggregate(iid, data_provider=data_provider, metadata=metadata)
+        return Instrument(iid, data_provider=data_provider, metadata=metadata)
 
     @staticmethod
     def create_option(
@@ -61,6 +61,6 @@ class InstrumentFactory:
         *,
         data_provider: Any | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> InstrumentAggregate:
+    ) -> Instrument:
         iid = InstrumentId.option(exchange, symbol, expiry, strike, right)
-        return InstrumentAggregate(iid, data_provider=data_provider, metadata=metadata)
+        return Instrument(iid, data_provider=data_provider, metadata=metadata)

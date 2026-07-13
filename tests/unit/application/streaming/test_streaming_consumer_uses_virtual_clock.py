@@ -16,7 +16,8 @@ from application.streaming.orchestrator import (
     _ActiveSubscription,
 )
 from application.streaming.tick_router import TickRouter
-from domain.ports.time_service import VirtualClock, use_clock
+from domain.ports.time_service import use_clock
+from domain.ports.time_service_impls import VirtualClock
 from domain.stream_health import StreamHealth, StreamSession
 
 

@@ -17,12 +17,11 @@ from __future__ import annotations
 
 from domain.ports.time_service import (
     ClockPort,
-    RealClock,
-    VirtualClock,
     get_current_clock,
     set_current_clock,
     use_clock,
 )
+from domain.ports.time_service_impls import RealClock, VirtualClock
 from infrastructure.time_service import TimeService, time_service
 
 # Backward-compatible name: same class as the full TimeService.

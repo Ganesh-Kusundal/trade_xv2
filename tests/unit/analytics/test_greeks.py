@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from analytics.options.options_analytics import GreeksAnalytics
+from analytics.options._greeks import GreeksAnalytics, _d1_d2, _norm_cdf
 
 
 def _chain_with_greeks() -> pd.DataFrame:
@@ -103,12 +103,12 @@ def test_net_delta_signal() -> None:
 
 
 def test_norm_cdf() -> None:
-    assert GreeksAnalytics._norm_cdf(0) == pytest.approx(0.5, abs=1e-10)
-    assert GreeksAnalytics._norm_cdf(1.96) == pytest.approx(0.975, abs=0.01)
-    assert GreeksAnalytics._norm_cdf(-1.96) == pytest.approx(0.025, abs=0.01)
+    assert _norm_cdf(0) == pytest.approx(0.5, abs=1e-10)
+    assert _norm_cdf(1.96) == pytest.approx(0.975, abs=0.01)
+    assert _norm_cdf(-1.96) == pytest.approx(0.025, abs=0.01)
 
 
 def test_d1_d2() -> None:
-    d1, d2 = GreeksAnalytics._d1_d2(100, 100, 1.0, 0.05, 0.2)
+    d1, d2 = _d1_d2(100, 100, 1.0, 0.05, 0.2)
     assert d1 > d2
     assert d1 > 0

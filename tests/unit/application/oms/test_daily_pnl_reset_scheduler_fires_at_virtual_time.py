@@ -11,7 +11,8 @@ import time
 from datetime import datetime, timezone
 
 from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
-from domain.ports.time_service import VirtualClock, get_current_clock, use_clock
+from domain.ports.time_service import get_current_clock, use_clock
+from domain.ports.time_service_impls import VirtualClock
 
 
 class _FakeRiskManager:
