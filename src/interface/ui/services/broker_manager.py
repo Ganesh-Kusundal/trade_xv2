@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from domain.enums import BrokerId
 from domain.errors import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapStatus
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
@@ -54,7 +55,7 @@ class BrokerManager:
         # Live selection that failed auth must not silently fall back to mock
         # when operator explicitly selected dhan/upstox after a failed bootstrap.
         if (
-            svc._active_name == "dhan"
+            svc._active_name == BrokerId.DHAN
             and svc._gateway is None
             and svc._dhan_bootstrap is not None
             and svc._dhan_bootstrap.status
@@ -62,7 +63,7 @@ class BrokerManager:
         ):
             raise BrokerNotReadyError.from_bootstrap(svc._dhan_bootstrap)
         if (
-            svc._active_name == "upstox"
+            svc._active_name == BrokerId.UPSTOX
             and svc._upstox_gateway is None
             and svc._upstox_bootstrap is not None
             and svc._upstox_bootstrap.status
@@ -133,7 +134,7 @@ class BrokerManager:
         name_lower = name.lower()
 
         # M4: Forbid cross-broker switch when OMS submit_fn is wired to a different broker.
-        if name_lower not in ("paper", "datalake") and svc._active_name != name_lower:
+        if name_lower not in (BrokerId.PAPER, BrokerId.DATALAKE) and svc._active_name != name_lower:
             oms_broker = getattr(svc, "_oms_broker_id", None)
             if oms_broker is not None and oms_broker != name_lower:
                 raise ValueError(
@@ -141,33 +142,33 @@ class BrokerManager:
                     f"Rebuild TradingContext for {name_lower} first."
                 )
 
-        if name_lower == "paper":
+        if name_lower == BrokerId.PAPER:
             if svc._paper is None:
                 from interface.ui.services.broker_registry import get_paper_gateway_class
                 PaperGateway = get_paper_gateway_class()
                 svc._paper = PaperGateway()
-            svc._active_name = "paper"
-        elif name_lower == "dhan":
+            svc._active_name = BrokerId.PAPER
+        elif name_lower == BrokerId.DHAN:
             if svc._gateway is None:
                 raise ValueError("Dhan broker not available. Check .env.local credentials.")
-            svc._active_name = "dhan"
-        elif name_lower == "upstox":
+            svc._active_name = BrokerId.DHAN
+        elif name_lower == BrokerId.UPSTOX:
             if svc._upstox_gateway is None:
                 raise ValueError("Upstox broker not available. Check .env.upstox credentials.")
-            svc._active_name = "upstox"
-        elif name_lower == "datalake":
+            svc._active_name = BrokerId.UPSTOX
+        elif name_lower == BrokerId.DATALAKE:
             # Phase 6: read-only datalake gateway. Created lazily so
             # operators can switch between live and historical data
             # without restarting the CLI.
             from interface.ui.services.connect import connect_analytics
 
-            result = connect_analytics("datalake", load_instruments=False)
+            result = connect_analytics(BrokerId.DATALAKE, load_instruments=False)
             svc._paper = result.gateway if result.ok else None
             if svc._paper is None:
                 raise ValueError(
                     "DataLake gateway not available. Verify the 'market_data' directory exists."
                 )
-            svc._active_name = "datalake"
+            svc._active_name = BrokerId.DATALAKE
         else:
             raise ValueError(
                 f"Broker '{name}' is not registered. Use 'dhan', 'upstox', 'paper', or 'datalake'."
@@ -176,7 +177,7 @@ class BrokerManager:
 
     def use_paper(self) -> None:
         """Switch to paper trading mode."""
-        self.set_active_broker("paper")
+        self.set_active_broker(BrokerId.PAPER)
 
     def get_broker_statuses(self) -> list[dict[str, str]]:
         self._svc._ensure_initialized()

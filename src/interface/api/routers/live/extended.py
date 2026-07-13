@@ -56,7 +56,7 @@ def _broker_capabilities() -> BrokerCapabilities | None:
         return None
 
 
-def _require_broker(expected: str) -> None:
+def _require_broker(expected: str | BrokerId) -> None:
     if _broker_name() != expected:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -254,7 +254,7 @@ async def live_edis(
     response: Response = None,
     gw: Any = Depends(require_live_broker),
 ) -> Any:
-    _require_broker("dhan")
+    _require_broker(BrokerId.DHAN)
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(
         _extended(gw).authorize_edis(
@@ -396,7 +396,7 @@ async def live_ipo(
     if caps is not None and caps.supports("ipo"):
         apply_live_headers(response, get_live_broker_name())
         return serialize_value(_extended(gw).get_ipos(status=status))
-    _require_broker("upstox")
+    _require_broker(BrokerId.UPSTOX)
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(_extended(gw).get_ipos(status=status))
 
@@ -410,7 +410,7 @@ async def live_mf_holdings(
     if caps is not None and caps.supports("mutual_funds"):
         apply_live_headers(response, get_live_broker_name())
         return serialize_value(_extended(gw).get_mutual_fund_holdings())
-    _require_broker("upstox")
+    _require_broker(BrokerId.UPSTOX)
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(_extended(gw).get_mutual_fund_holdings())
 
@@ -426,7 +426,7 @@ async def live_mf_order(
     if caps is not None and caps.supports("mutual_funds"):
         apply_live_headers(response, get_live_broker_name())
         return serialize_value(_extended(gw).place_mutual_fund_order(payload))
-    _require_broker("upstox")
+    _require_broker(BrokerId.UPSTOX)
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(_extended(gw).place_mutual_fund_order(payload))
 
@@ -442,7 +442,7 @@ async def live_payout(
     if caps is not None and caps.supports("payout"):
         apply_live_headers(response, get_live_broker_name())
         return serialize_value(_extended(gw).initiate_payout(payload))
-    _require_broker("upstox")
+    _require_broker(BrokerId.UPSTOX)
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(_extended(gw).initiate_payout(payload))
 
@@ -458,6 +458,6 @@ async def live_fundamentals(
     if caps is not None and caps.supports("fundamentals"):
         apply_live_headers(response, get_live_broker_name())
         return serialize_value(_extended(gw).get_pnl(isin))
-    _require_broker("upstox")
+    _require_broker(BrokerId.UPSTOX)
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(_extended(gw).get_pnl(isin))

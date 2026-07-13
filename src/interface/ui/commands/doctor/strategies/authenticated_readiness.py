@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from domain.enums import BrokerId
 from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
 from interface.ui.services.broker_registry import list_available_brokers
 from interface.ui.services.broker_service import BrokerService
@@ -19,7 +20,7 @@ class AuthenticatedReadinessCheck(CheckStrategy):
 
         for entry in list_available_brokers():
             name = entry["name"]
-            if name == "paper":
+            if name == BrokerId.PAPER:
                 results.append(
                     CheckResult(
                         f"  {name.title()} Auth Probe",
@@ -49,7 +50,7 @@ class AuthenticatedReadinessCheck(CheckStrategy):
                 )
                 continue
 
-            attr = "_dhan_bootstrap" if name == "dhan" else "_upstox_bootstrap"
+            attr = "_dhan_bootstrap" if name == BrokerId.DHAN else "_upstox_bootstrap"
             bootstrap = getattr(broker_service, attr, None)
             if bootstrap is None:
                 results.append(

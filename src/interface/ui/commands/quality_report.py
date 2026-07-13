@@ -6,6 +6,7 @@ import contextlib
 import time
 from pathlib import Path
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -21,8 +22,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("\n[bold]Data Quality Report[/bold]\n")
 
     brokers = [
-        ("Dhan", "dhan", Path(".env.local")),
-        ("Upstox", "upstox", Path(".env.upstox")),
+        ("Dhan", BrokerId.DHAN, Path(".env.local")),
+        ("Upstox", BrokerId.UPSTOX, Path(".env.upstox")),
     ]
 
     console.print("[cyan]Historical Data Quality[/cyan]")
@@ -89,7 +90,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     try:
         t0 = time.time()
         chain = fetch_option_chain(
-            None, "NIFTY", default="dhan", **_env_kwargs(Path(".env.local"))
+            None, "NIFTY", default=BrokerId.DHAN, **_env_kwargs(Path(".env.local"))
         )
         latency = (time.time() - t0) * 1000
         strikes = len(getattr(chain, "strikes", []) or [])

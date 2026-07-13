@@ -11,6 +11,8 @@ import logging
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
+from domain.enums import BrokerId
+
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
     from application.composer.market_data import MarketDataComposer
@@ -29,10 +31,10 @@ def _detect_enabled_brokers() -> list[str]:
 
     # Dhan: requires DHAN_CLIENT_ID or DHAN_ACCESS_TOKEN
     if os.getenv("DHAN_CLIENT_ID") or os.getenv("DHAN_ACCESS_TOKEN"):
-        enabled.append("dhan")
+        enabled.append(BrokerId.DHAN)
 
     # Paper trading: always available for testing
-    enabled.append("paper")
+    enabled.append(BrokerId.PAPER)
 
     return enabled
 
@@ -60,7 +62,7 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
     gateways: list[Any] = []
 
     for broker_id in broker_ids:
-        if broker_id == "dhan":
+        if broker_id == BrokerId.DHAN:
             if DhanBrokerGateway is None:
                 logger.warning("DhanBrokerGateway not available")
                 continue
@@ -70,7 +72,7 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
                 logger.info("Initialized DhanBrokerGateway")
             except Exception as exc:
                 logger.warning("Failed to initialize DhanBrokerGateway: %s", exc)
-        elif broker_id == "paper":
+        elif broker_id == BrokerId.PAPER:
             if PaperBrokerGateway is None:
                 logger.warning("PaperBrokerGateway not available")
                 continue

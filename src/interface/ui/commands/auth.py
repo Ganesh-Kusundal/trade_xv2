@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -73,7 +74,7 @@ def _refresh(broker_service: Any, console: Console) -> None:
         from interface.ui.services.broker_registry import bootstrap_gateway
 
         result = bootstrap_gateway(
-            "dhan", env_path=_ENV_PATH, load_instruments=True
+            BrokerId.DHAN, env_path=_ENV_PATH, load_instruments=True
         )
         if result.live_ready:
             console.print("[green]Token refreshed & live-ready.[/green]")

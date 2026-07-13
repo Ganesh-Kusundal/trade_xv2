@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -44,7 +45,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Historical Data...[/cyan]")
     try:
         t0 = time.time()
-        df = fetch_history_df(None, symbol, days=30, default="dhan", **env)
+        df = fetch_history_df(None, symbol, days=30, default=BrokerId.DHAN, **env)
         latency = (time.time() - t0) * 1000
 
         rows = len(df)
@@ -80,7 +81,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Quote...[/cyan]")
     try:
         t0 = time.time()
-        q = fetch_quote(None, symbol, exchange=exchange, default="dhan", **env)
+        q = fetch_quote(None, symbol, exchange=exchange, default=BrokerId.DHAN, **env)
         latency = (time.time() - t0) * 1000
         results["quote"] = {
             "status": "PASS",
@@ -97,7 +98,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing LTP...[/cyan]")
     try:
         t0 = time.time()
-        q = fetch_quote(None, symbol, exchange=exchange, default="dhan", **env)
+        q = fetch_quote(None, symbol, exchange=exchange, default=BrokerId.DHAN, **env)
         ltp = q.ltp
         latency = (time.time() - t0) * 1000
         results["ltp"] = {"status": "PASS", "value": f"₹{ltp}", "latency": f"{latency:.0f}ms"}
@@ -110,7 +111,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Depth...[/cyan]")
     try:
         t0 = time.time()
-        d = fetch_depth(None, symbol, exchange=exchange, default="dhan", **env)
+        d = fetch_depth(None, symbol, exchange=exchange, default=BrokerId.DHAN, **env)
         latency = (time.time() - t0) * 1000
 
         bids = d.bids if d and d.bids else []
@@ -158,7 +159,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
 def _run_broker_validation(args: list[str], broker_service, console: Console) -> None:
     """Validate broker via brokers.services.run_verify."""
-    broker = broker_service.active_broker_name if broker_service else "dhan"
+    broker = broker_service.active_broker_name if broker_service else BrokerId.DHAN
     for i, a in enumerate(args):
         if a == "--broker" and i + 1 < len(args):
             broker = args[i + 1].lower()
@@ -170,7 +171,7 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     from interface.ui.services.broker_ops import verify_broker
 
     env = {"env_path": str(Path(".env.local")), "load_instruments": True}
-    if broker == "upstox":
+    if broker == BrokerId.UPSTOX:
         env = {"env_path": str(Path(".env.upstox")), "load_instruments": True}
 
     try:
@@ -200,7 +201,7 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     env_path = Path(".env.local")
     results: dict[str, dict] = {}
     try:
-        gw = connect_live("dhan", env_path=env_path, load_instruments=True)
+        gw = connect_live(BrokerId.DHAN, env_path=env_path, load_instruments=True)
     except Exception:
         gw = None
 

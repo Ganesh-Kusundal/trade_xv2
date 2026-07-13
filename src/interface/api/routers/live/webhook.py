@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from domain.enums import BrokerId
 from infrastructure.security.webhook_auth import WebhookAuthError, verify_webhook_signature
 from interface.api.deps import get_broker_service
 
@@ -49,7 +50,7 @@ def get_upstox_token_manager(
         )
 
     active_name = getattr(broker_service, "active_broker_name", None)
-    if active_name != "upstox":
+    if active_name != BrokerId.UPSTOX:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Active broker is {active_name}, expected upstox",

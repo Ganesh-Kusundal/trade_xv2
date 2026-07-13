@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from domain.enums import BrokerId
+
 # ── Re-exports of broker internals the CLI legitimately needs ────────────────
 # Every concrete broker type is reached via broker_registry accessor functions
 # (the sanctioned indirection), never by naming a broker package directly.
@@ -70,7 +72,7 @@ def get_broker_extensions(broker: str, gateway: object) -> "list[Extension]":
     super_orders, etc.) that get attached to instruments. Domain code
     discovers them via ``instrument.get_extension("depth20")``.
     """
-    if broker == "dhan":
+    if broker == BrokerId.DHAN:
         return get_dhan_extensions(gateway)
     return []
 

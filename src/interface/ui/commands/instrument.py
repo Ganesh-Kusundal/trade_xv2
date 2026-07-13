@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -13,7 +14,7 @@ from domain.symbols import normalize_symbol
 def _show_all_brokers(symbol: str, console: Console) -> None:
     """Dual-broker resolution via brokers.services."""
     console.print(f"\n[bold]Instrument Resolution: {symbol}[/bold]\n")
-    for broker_id in ("dhan", "upstox"):
+    for broker_id in (BrokerId.DHAN, BrokerId.UPSTOX):
         console.print(f"[cyan]--- {broker_id.capitalize()} ---[/cyan]")
         try:
             info = resolve_security(None, symbol, default=broker_id)

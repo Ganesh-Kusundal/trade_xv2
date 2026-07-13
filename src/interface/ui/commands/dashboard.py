@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -24,7 +25,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     try:
         try:
-            fetch_quote(None, "TCS", default="dhan", **env)
+            fetch_quote(None, "TCS", default=BrokerId.DHAN, **env)
             checks["Login Status"] = ("Connected", "green")
         except Exception as exc:
             logger.debug("dashboard_check_failed", extra={"check": "Login Status", "error": str(exc)})
@@ -32,7 +33,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         try:
             t0 = time.time()
-            fetch_history(None, "TCS", days=5, default="dhan", **env)
+            fetch_history(None, "TCS", days=5, default=BrokerId.DHAN, **env)
             latency = (time.time() - t0) * 1000
             checks["Historical Status"] = (f"Healthy ({latency:.0f}ms)", "green")
         except Exception as exc:
@@ -43,7 +44,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         try:
             t0 = time.time()
-            fetch_quote(None, "TCS", default="dhan", **env)
+            fetch_quote(None, "TCS", default=BrokerId.DHAN, **env)
             latency = (time.time() - t0) * 1000
             checks["Quote Status"] = (f"Healthy ({latency:.0f}ms)", "green")
         except Exception as exc:
@@ -52,7 +53,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         try:
             t0 = time.time()
-            chain = fetch_option_chain(None, "NIFTY", default="dhan", **env)
+            chain = fetch_option_chain(None, "NIFTY", default=BrokerId.DHAN, **env)
             latency = (time.time() - t0) * 1000
             strikes = len(getattr(chain, "strikes", []) or [])
             checks["Option Chain"] = (f"Healthy ({strikes} strikes, {latency:.0f}ms)", "green")

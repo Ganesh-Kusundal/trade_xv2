@@ -13,6 +13,8 @@ import json
 
 import click
 
+from domain.enums import BrokerId
+
 from brokers.cli._errors import handle_cli_errors
 from brokers.cli._render import present, console
 from brokers.platform_ops import (
@@ -68,7 +70,7 @@ def _bid(ctx: click.Context, broker_id: str | None = None) -> str:
 
 
 def _is_live_broker(broker_id: str) -> bool:
-    return broker_id != "paper"
+    return broker_id != BrokerId.PAPER
 
 
 def _svc_kw(ctx: click.Context) -> dict:

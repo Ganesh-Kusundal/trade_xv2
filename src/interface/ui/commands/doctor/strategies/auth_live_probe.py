@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from domain.enums import BrokerId
 from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
 from interface.ui.services.broker_registry import list_available_brokers
 from interface.ui.services.broker_service import BrokerService
@@ -41,7 +42,7 @@ class AuthLiveProbeCheck(CheckStrategy):
             name = entry["name"]
             if self.broker and name != self.broker:
                 continue
-            if name == "paper":
+            if name == BrokerId.PAPER:
                 results.append(
                     CheckResult(
                         f"  {name.title()} Live Auth",
@@ -92,11 +93,11 @@ class AuthLiveProbeCheck(CheckStrategy):
         if broker_service is not None:
             # G1: use public active_broker_name instead of getattr(_active_name)
             active_name = broker_service.active_broker_name
-            if name == "dhan":
+            if name == BrokerId.DHAN:
                 gw = broker_service.dhan_gateway
                 if gw is not None:
                     return gw
-            if name == "upstox":
+            if name == BrokerId.UPSTOX:
                 gw = broker_service.upstox_gateway
                 if gw is not None:
                     return gw

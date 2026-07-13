@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -21,8 +22,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print(f"\n[bold]Historical Data Quality: {symbol}[/bold]\n")
 
     for name, broker_id, env in [
-        ("Dhan", "dhan", Path(".env.local")),
-        ("Upstox", "upstox", Path(".env.upstox")),
+        ("Dhan", BrokerId.DHAN, Path(".env.local")),
+        ("Upstox", BrokerId.UPSTOX, Path(".env.upstox")),
     ]:
         console.print(f"\n[cyan]--- {name} ---[/cyan]")
         kw = {"env_path": str(env), "load_instruments": True}

@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from domain.enums import BrokerId
 from domain.errors import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapStatus
 
@@ -87,14 +88,14 @@ def resolve_active_broker(
     Raises:
         BrokerNotReadyError: If no broker is available.
     """
-    if active_name == "paper" and paper is not None:
+    if active_name == BrokerId.PAPER and paper is not None:
         return paper
-    if active_name == "upstox":
+    if active_name == BrokerId.UPSTOX:
         if upstox_oms_proxy is not None:
             return upstox_oms_proxy
         if upstox_gateway is not None:
             return upstox_gateway
-    if active_name == "dhan":
+    if active_name == BrokerId.DHAN:
         if oms_proxy is not None:
             return oms_proxy
         if gateway is not None:
@@ -106,7 +107,7 @@ def resolve_active_broker(
         return mock
     # Nothing available — raise with diagnostic context
     error = dhan_load_error or upstox_load_error
-    bootstrap = dhan_bootstrap if active_name == "dhan" else upstox_bootstrap
+    bootstrap = dhan_bootstrap if active_name == BrokerId.DHAN else upstox_bootstrap
     status = bootstrap.status if bootstrap is not None else None
     raise BrokerNotReadyError(
         error or f"No broker available for active selection '{active_name}'",

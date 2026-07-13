@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -12,7 +13,7 @@ from interface.ui.services.broker_ops import fetch_history, fetch_quote
 
 
 def _env_kwargs(broker_id: str) -> dict:
-    env = Path(".env.local") if broker_id == "dhan" else Path(".env.upstox")
+    env = Path(".env.local") if broker_id == BrokerId.DHAN else Path(".env.upstox")
     return {"env_path": str(env), "load_instruments": True}
 
 
@@ -28,7 +29,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print(f"\n[bold]Broker Comparison: {compare_type.upper()} {symbol}[/bold]\n")
 
     brokers: list[tuple[str, str]] = []
-    for name in ("dhan", "upstox"):
+    for name in (BrokerId.DHAN, BrokerId.UPSTOX):
         try:
             fetch_quote(None, symbol, default=name, **_env_kwargs(name))
             brokers.append((name.capitalize(), name))

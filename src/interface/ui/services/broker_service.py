@@ -24,6 +24,7 @@ from typing import Any
 
 from application.oms.context import TradingContext
 from domain import Order, Side
+from domain.enums import BrokerId
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from infrastructure.lifecycle.lifecycle import LifecycleManager
 from interface.ui.services.broker_registry import (
@@ -101,7 +102,7 @@ class BrokerService:
         self._upstox_gateway: MarketDataGateway | None = None
         self._paper: PaperGateway | None = None
         self._mock: MockBroker | None = None
-        self._active_name: str = "dhan"
+        self._active_name: str = BrokerId.DHAN
         self._dhan_load_error: str | None = None
         self._upstox_load_error: str | None = None
         self._dhan_bootstrap: BootstrapResult | None = None
@@ -191,11 +192,11 @@ class BrokerService:
         """
         gw: dict[str, Any] = {}
         if self._gateway is not None:
-            gw["dhan"] = self._gateway
+            gw[BrokerId.DHAN] = self._gateway
         if self._upstox_gateway is not None:
-            gw["upstox"] = self._upstox_gateway
+            gw[BrokerId.UPSTOX] = self._upstox_gateway
         if self._paper is not None:
-            gw["paper"] = self._paper
+            gw[BrokerId.PAPER] = self._paper
         if self._mock is not None:
             gw["mock"] = self._mock
         return gw
@@ -230,6 +231,21 @@ class BrokerService:
         """Public access to the Upstox gateway (G1: replaces getattr(_upstox_gateway))."""
         return self._upstox_gateway
 
+    @property
+    def http_sessions(self) -> list[Any] | None:
+        """Outbound HTTP sessions registered for SSL hardening checks."""
+        return getattr(self, "_http_sessions", None)
+
+    @property
+    def live_intent(self) -> bool:
+        """True if a live broker bootstrap was attempted."""
+        return getattr(self, "_live_intent", False)
+
+    @property
+    def oms_broker_id(self) -> str | None:
+        """The broker ID the OMS submit_fn is wired to."""
+        return getattr(self, "_oms_broker_id", None)
+
     # ==================================================================
     # Initialization
     # ==================================================================
@@ -259,7 +275,7 @@ class BrokerService:
                 self._oms_capital_provider = oms_capital_provider
                 # Production path: bootstrap = create + automatic auth probe
                 result = bootstrap_gateway(
-                    "dhan",
+                    BrokerId.DHAN,
                     env_path=_ENV_PATH,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
@@ -323,14 +339,14 @@ class BrokerService:
                     "diagnostics only. Live orders are BLOCKED (live_actionable=False). "
                     "Run `tradex doctor` to diagnose."
                 )
-            self._mock = create_seeded_mock_broker("dhan")
+            self._mock = create_seeded_mock_broker(BrokerId.DHAN)
 
         # Upstox — same automatic auth bootstrap
-        upstox_env_path = resolve_env_path("upstox")
+        upstox_env_path = resolve_env_path(BrokerId.UPSTOX)
         if upstox_env_path is not None and upstox_env_path.exists():
             try:
                 result = bootstrap_gateway(
-                    "upstox",
+                    BrokerId.UPSTOX,
                     env_path=upstox_env_path,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
@@ -355,7 +371,7 @@ class BrokerService:
                 self._upstox_load_error = str(exc)
                 self._upstox_bootstrap = BootstrapResult(
                     status=BootstrapStatus.FAILED,
-                    broker="upstox",
+                    broker=BrokerId.UPSTOX,
                     error=str(exc),
                 )
                 self._upstox_gateway = None

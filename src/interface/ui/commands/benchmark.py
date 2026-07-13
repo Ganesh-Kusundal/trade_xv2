@@ -6,6 +6,7 @@ import logging
 import time
 from pathlib import Path
 
+from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _env_kwargs(broker_id: str) -> dict:
-    env = Path(".env.local") if broker_id == "dhan" else Path(".env.upstox")
+    env = Path(".env.local") if broker_id == BrokerId.DHAN else Path(".env.upstox")
     return {"env_path": str(env), "load_instruments": True}
 
 
@@ -62,8 +63,8 @@ def _bench_history(dhan_ok: bool, upstox_ok: bool, symbols: list[str], console: 
 
     for count in [1, 5, 10]:
         syms = symbols[:count]
-        t_dhan = _timed_history("dhan", syms) if dhan_ok else float("inf")
-        t_up = _timed_history("upstox", syms) if upstox_ok else float("inf")
+        t_dhan = _timed_history(BrokerId.DHAN, syms) if dhan_ok else float("inf")
+        t_up = _timed_history(BrokerId.UPSTOX, syms) if upstox_ok else float("inf")
         winner = "Dhan" if t_dhan < t_up else "Upstox"
         table.add_row(
             str(count),
@@ -95,8 +96,8 @@ def _bench_quote(dhan_ok: bool, upstox_ok: bool, symbols: list[str], console: Co
 
     for count in [1, 5, 10]:
         syms = symbols[:count]
-        t_dhan = _timed_quote("dhan", syms) if dhan_ok else float("inf")
-        t_up = _timed_quote("upstox", syms) if upstox_ok else float("inf")
+        t_dhan = _timed_quote(BrokerId.DHAN, syms) if dhan_ok else float("inf")
+        t_up = _timed_quote(BrokerId.UPSTOX, syms) if upstox_ok else float("inf")
         winner = "Dhan" if t_dhan < t_up else "Upstox"
         table.add_row(
             str(count),
@@ -128,8 +129,8 @@ def _bench_ltp(dhan_ok: bool, upstox_ok: bool, symbols: list[str], console: Cons
 
     for count in [1, 5, 10]:
         syms = symbols[:count]
-        t_dhan = _timed_ltp("dhan", syms) if dhan_ok else float("inf")
-        t_up = _timed_ltp("upstox", syms) if upstox_ok else float("inf")
+        t_dhan = _timed_ltp(BrokerId.DHAN, syms) if dhan_ok else float("inf")
+        t_up = _timed_ltp(BrokerId.UPSTOX, syms) if upstox_ok else float("inf")
         winner = "Dhan" if t_dhan < t_up else "Upstox"
         table.add_row(
             str(count),
@@ -151,7 +152,7 @@ def _bench_option_chain(dhan_ok: bool, console: Console) -> None:
         console.print("  Upstox: N/A (deprecated)")
         return
     t0 = time.time()
-    chain = fetch_option_chain(None, "NIFTY", default="dhan", **_env_kwargs("dhan"))
+    chain = fetch_option_chain(None, "NIFTY", default=BrokerId.DHAN, **_env_kwargs(BrokerId.DHAN))
     t_dhan = (time.time() - t0) * 1000
     strikes = len(getattr(chain, "strikes", []) or [])
     console.print(f"  Dhan NIFTY: {t_dhan:.0f}ms ({strikes} strikes)")
@@ -161,8 +162,8 @@ def _bench_option_chain(dhan_ok: bool, console: Console) -> None:
 def _print_services_benchmark(dhan_ok: bool, upstox_ok: bool, console: Console) -> None:
     console.print("\n[cyan]brokers.services run_benchmark (per broker)...[/cyan]")
     for label, ok, broker_id in (
-        ("Dhan", dhan_ok, "dhan"),
-        ("Upstox", upstox_ok, "upstox"),
+        ("Dhan", dhan_ok, BrokerId.DHAN),
+        ("Upstox", upstox_ok, BrokerId.UPSTOX),
     ):
         if not ok:
             console.print(f"  {label}: N/A")
