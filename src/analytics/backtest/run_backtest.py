@@ -15,7 +15,7 @@ import logging
 
 import pandas as pd
 
-from analytics.backtest import BacktestConfig, BacktestEngine
+from analytics.backtest import BacktestConfig, BacktestEngine, ResearchMode
 from analytics.pipeline.features import (
     ATR,
     ROC,
@@ -66,10 +66,49 @@ def load_multi_symbol_data(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def run_single_backtest(symbol: str, years: int = 5):
-    """Run backtest on a single symbol using 1m data."""
+def _build_parity_context(initial_capital: float):
+    """Compose a broker-free TradingContext for a PARITY-mode backtest.
+
+    Reuses the same composition entry point (``create_trading_context``) the
+    API/runtime use for live wiring — no broker adapter is needed here since
+    backtest fills route through ``SimulatedOMSAdapter``, not a broker gateway.
+    Event infrastructure is constructed at this CLI composition root (same
+    pattern as API bootstrap / test harness).
+    """
+    from decimal import Decimal
+    from pathlib import Path
+    import tempfile
+
+    from application.oms.factory import create_trading_context
+    from infrastructure.event_bus import (
+        EventBus,
+        ProcessedTradeRepository,
+        create_default_dead_letter_queue,
+    )
+    from infrastructure.event_log import BufferedEventLog
+
+    dlq = create_default_dead_letter_queue()
+    return create_trading_context(
+        capital_fn=lambda: Decimal(str(initial_capital)),
+        event_bus=EventBus(dead_letter_queue=dlq),
+        dead_letter_queue=dlq,
+        processed_trade_repository=ProcessedTradeRepository(),
+        event_log=BufferedEventLog(
+            events_dir=Path(tempfile.mkdtemp(prefix="tradex-parity-events-"))
+        ),
+        replay_events=False,
+    )
+
+
+def run_single_backtest(symbol: str, years: int = 5, *, parity: bool = False):
+    """Run backtest on a single symbol using 1m data.
+
+    parity:
+        If True, route fills through the real OMS (RiskManager, IdempotencyGuard,
+        order FSM) via a freshly composed TradingContext instead of PURE_SIM.
+    """
     logger.info("=" * 60)
-    logger.info("BACKTEST: %s | %dY | 1m", symbol, years)
+    logger.info("BACKTEST: %s | %dY | 1m%s", symbol, years, " | PARITY" if parity else "")
     logger.info("=" * 60)
 
     gw = DataLakeGateway(root="market_data")
@@ -94,7 +133,17 @@ def run_single_backtest(symbol: str, years: int = 5):
         risk_free_rate=0.065,
     )
 
-    engine = BacktestEngine(pipeline=pipeline, strategy_pipeline=strategy, config=config)
+    if parity:
+        ctx = _build_parity_context(config.initial_capital)
+        engine = BacktestEngine(
+            pipeline=pipeline,
+            strategy_pipeline=strategy,
+            config=config,
+            mode=ResearchMode.PARITY,
+            trading_context=ctx,
+        )
+    else:
+        engine = BacktestEngine(pipeline=pipeline, strategy_pipeline=strategy, config=config)
     result = engine.run(data, symbol=symbol)
 
     ta = result.metrics.trade_analysis
@@ -200,12 +249,23 @@ def main():
     parser.add_argument("--scan", action="store_true", help="Scan universe and backtest top N")
     parser.add_argument("--top", type=int, default=10, help="Top N from scan")
     parser.add_argument("--years", type=int, default=5, help="Years of history")
+    parser.add_argument(
+        "--parity",
+        action="store_true",
+        help=(
+            "Route fills through the real OMS (RiskManager, IdempotencyGuard, order "
+            "FSM) instead of PURE_SIM. Single-symbol (--symbol) only."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.parity and not args.symbol:
+        parser.error("--parity requires --symbol (not supported for --scan)")
 
     if args.scan:
         run_scan_and_backtest(top_n=args.top, years=args.years)
     elif args.symbol:
-        run_single_backtest(args.symbol, years=args.years)
+        run_single_backtest(args.symbol, years=args.years, parity=args.parity)
     else:
         run_scan_and_backtest(top_n=10, years=2)
 

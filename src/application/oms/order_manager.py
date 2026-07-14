@@ -180,7 +180,7 @@ class OrderManager:
             durable_lookup=self._lookup_durable_order,
         )
         self._order_validator = OmsOrderValidator(
-            risk_manager=risk_manager,  # accepts RiskManager | RiskGateAdapter
+            risk_manager=risk_manager,
             event_bus=event_bus,
             publish_callback=self._publish,
         )

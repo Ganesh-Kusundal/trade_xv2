@@ -43,20 +43,21 @@ from decimal import Decimal
 
 import pandas as pd
 
-from analytics.paper.models import PaperConfig, PaperResult, PaperSession
 from analytics.paper.bar_window import BarWindowManager
+from analytics.paper.models import PaperConfig, PaperResult, PaperSession
 from analytics.paper.position_closer import PaperPositionCloser
 from analytics.paper.signal_processor import PaperSignalProcessor
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.models import FillModel
-from domain.candles.historical import HistoricalBar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
-from domain import Side
-from domain.entities import Trade
 from analytics.strategy.pipeline import StrategyPipeline
+from analytics.strategy.registry import StrategyRegistry
+from domain import Side
+from domain.candles.historical import HistoricalBar
+from domain.entities import Trade
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from domain.runtime_hooks import create_oms_backtest_adapter
+from runtime.replay_factory import get_oms_backtest_factory
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +90,14 @@ class PaperTradingEngine:
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
+        StrategyRegistry.self_check(self._strategy.strategies)
         self._config = config or PaperConfig()
         self._trading_context = trading_context
         self._oms_adapter: OmsBacktestAdapterPort | None = None
         if oms_adapter is not None:
             self._oms_adapter = oms_adapter
         elif trading_context is not None:
-            self._oms_adapter = create_oms_backtest_adapter(
+            self._oms_adapter = get_oms_backtest_factory()(
                 trading_context,
                 mode="paper",
                 slippage_pct=self._config.slippage_pct,

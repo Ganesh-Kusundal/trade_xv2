@@ -71,6 +71,7 @@ def optimize_grid(
     initial_capital: float = 100_000,
     warmup_bars: int = 50,
     top_n: int = 10,
+    trading_context: object | None = None,
 ) -> OptimizationResult:
     """Run grid search optimization over parameter space.
 
@@ -82,10 +83,15 @@ def optimize_grid(
         initial_capital: Starting capital
         warmup_bars: Warmup period
         top_n: Number of top results to keep
+        trading_context: Optional TradingContext. Grid search always runs PURE_SIM
+            (OMS overhead across hundreds of combos is real cost). When provided,
+            the winning parameter set is re-run once in ResearchMode.PARITY as a
+            confirmation against the real OMS path.
 
     Returns:
         OptimizationResult with all results and best parameters
     """
+    from analytics.backtest.engine import ResearchMode
     from analytics.strategy import BreakoutStrategy, MomentumStrategy
 
     if param_grids is None:
@@ -147,6 +153,7 @@ def optimize_grid(
             strategy = StrategyPipeline(strategies=[strategy_class()])
             config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
 
+            # Grid search stays PURE_SIM — OMS overhead across N combos is real cost.
             engine = BacktestEngine(pipeline, strategy, config)
             bt_result = engine.run(data, symbol=symbol)
 
@@ -174,6 +181,44 @@ def optimize_grid(
     result.best_params = best_params
     result.best_return = best_return
     result.best_sharpe = best_sharpe
+
+    # Optional: re-run the winning set once through the real OMS (PARITY).
+    if trading_context is not None and best_params:
+        logger.info(
+            "Re-running best params %s in ResearchMode.PARITY for OMS confirmation",
+            best_params,
+        )
+        pipeline = build_pipeline(
+            rsi_period=best_params.get("rsi_period", RSI_PERIOD_DEFAULT),
+            atr_period=best_params.get("atr_period", ATR_PERIOD_DEFAULT),
+            sma_period=best_params.get("sma_period", SMA_WINDOW_DEFAULT),
+            roc_period=best_params.get("roc_period", 5),
+            momentum_period=best_params.get("momentum_period", 5),
+            trend_fast=best_params.get("trend_fast", 10),
+            trend_slow=best_params.get("trend_slow", 50),
+        )
+        strategy = StrategyPipeline(strategies=[strategy_class()])
+        config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
+        parity_engine = BacktestEngine(
+            pipeline,
+            strategy,
+            config,
+            mode=ResearchMode.PARITY,
+            trading_context=trading_context,
+        )
+        parity_result = parity_engine.run(data, symbol=symbol)
+        result.results.append(
+            {
+                "params": best_params,
+                "parity_confirmation": True,
+                "total_return_pct": parity_result.metrics.total_return_pct,
+                "sharpe_ratio": parity_result.metrics.sharpe_ratio,
+                "max_drawdown_pct": parity_result.metrics.max_drawdown_pct,
+                "total_trades": parity_result.metrics.trade_analysis.total_trades,
+                "win_rate": parity_result.metrics.trade_analysis.win_rate,
+                "profit_factor": parity_result.metrics.trade_analysis.profit_factor,
+            }
+        )
 
     return result
 

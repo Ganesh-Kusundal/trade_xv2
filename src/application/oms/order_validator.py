@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class RiskCheckPort(Protocol):
-    """Port for pre-trade risk checks.  Both ``RiskManager`` and
-    ``RiskGateAdapter`` satisfy this protocol."""
+    """Port for pre-trade risk checks. ``RiskManager`` satisfies this protocol."""
 
     def check_order(self, order: Any) -> Any: ...
 

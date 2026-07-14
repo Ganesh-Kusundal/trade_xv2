@@ -191,8 +191,8 @@ class BacktestEngine:
         computed = StatisticsEngine.compute(
             session.equity_curve,
             session.trades,
-            initial=initial,
-            final=final,
+            initial=float(initial),
+            final=float(final),
             annualization_factor=config.annualization_factor,
             risk_free_rate=config.risk_free_rate,
             benchmark=benchmark,

@@ -39,8 +39,10 @@ class AnalyticsEngineFactory:
     """
 
     def __init__(self, provider=None) -> None:
-        # ``provider`` is accepted for API symmetry with the facade but is not
-        # consumed by any engine constructor (engines are provider-independent).
+        # ``provider`` is accepted only to mirror Analytics.__init__'s signature.
+        # The real consumer of provider is AnalyticsDataFetcher (data_fetcher.py);
+        # every engine here is pure computation over DataFrames passed by callers
+        # and has no data source of its own to inject.
         self.provider = provider
         self._feature_builder: FeatureBuilder | None = None
         self._cache: dict[str, object] = {}

@@ -309,7 +309,7 @@ class StatisticsEngine:
             initial, final
         )
         metrics["cagr"] = StatisticsEngine.cagr(
-            initial, final, len(equity_curve), annualization_factor
+            float(initial), float(final), len(equity_curve), annualization_factor
         )
 
         metrics["trade_analysis"] = StatisticsEngine.analyze_trades(trades)

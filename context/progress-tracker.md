@@ -323,10 +323,10 @@ Graphify updated after the change.
 - Tests: `tests/unit/brokers/services/test_live_actionable_gate.py`
 
 **M2: OrderValidator depends on RiskGate port** ✅
-- `src/application/oms/risk_gate_adapter.py` — adapter bridges domain RiskGate to OMS
 - `src/application/oms/order_validator.py` — uses RiskCheckPort protocol (no @runtime_checkable)
 - Backward compatible: RiskManager still satisfies the protocol
-- Tests: `tests/unit/application/oms/test_risk_gate_adapter.py`
+- `RiskGateAdapter` deleted 2026-07-14 (dead code; zero production construction
+  sites — live/sim already route through real `RiskManager` via OrderValidator)
 
 **M3: drift-aware repair in _repair_local_oms** ✅
 - `src/brokers/dhan/portfolio/reconciliation.py` — heals only drift_items, not full snapshot
@@ -354,7 +354,20 @@ Graphify updated after the change.
 ## In Progress
 
 - Phase 1 remainder: optional full collapse of `PaperTradingEngine.run()` onto `ReplayEngine`
-  (thin facade) once session/result mapping is cheap enough.
+  (thin facade) once session/result mapping is cheap enough. **Not required for
+  analytics research-mode parity** — see doc 21; FastBacktestEngine stays for O(n)
+  multi-symbol CLI scan.
+
+## Completed (analytics research-mode gap — 2026-07-14)
+
+- **Doc 21:** `docs/architecture/e2e-spec/21-analytics-research-mode-gap.md` —
+  PURE_SIM/PARITY split at the analytics layer; OMS kernel already shared (doc 20).
+- Deleted dead `RiskGateAdapter` + test; dropped stale `order_manager` comment.
+- `StrategyRegistry.self_check(golden_bar)` at ReplayEngine/PaperTradingEngine construction.
+- PARITY plumbing: `run_backtest.py --parity`, `Analytics.backtest(trading_context=, mode=)`,
+  `optimize_grid(..., trading_context=)` (single PARITY confirmation of winner).
+- `Analytics.walk_forward(...)` exposed on the facade.
+- Acceptance: `tests/integration/quant/test_analytics_entry_parity.py`.
 
 ## Completed (architectural audit docs — 2026-07-13)
 

@@ -20,11 +20,18 @@ from __future__ import annotations
 import logging
 from collections import deque
 from datetime import datetime
+
 import numpy as np
 import pandas as pd
 
 from analytics.pipeline.errors import FeaturePipelineError
 from analytics.pipeline.pipeline import FeaturePipeline
+from analytics.replay.event_publishing import (
+    publish_scheduled_events as _publish_scheduled,
+)
+from analytics.replay.event_publishing import (
+    publish_signal as _publish_sig,
+)
 from analytics.replay.fill_recorder import FillRecorder
 from analytics.replay.models import (
     FillModel,
@@ -35,28 +42,31 @@ from analytics.replay.models import (
 )
 from analytics.replay.position_closer import PositionCloser
 from analytics.replay.signal_processor import SignalProcessor
-from analytics.replay.event_publishing import (
-    publish_scheduled_events as _publish_scheduled,
-    publish_signal as _publish_sig,
-)
 from analytics.replay.window import (
     append_bar as _append_bar,
+)
+from analytics.replay.window import (
     build_window as _build_window_fn,
+)
+from analytics.replay.window import (
     new_window_state as _new_window_state_fn,
+)
+from analytics.replay.window import (
     to_dataframe as _to_dataframe,
 )
-from domain.candles.historical import HistoricalBar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
+from analytics.strategy.registry import StrategyRegistry
 from domain.analytics.statistics import StatisticsEngine
+from domain.candles.historical import HistoricalBar
 from domain.enums import Side
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from domain.runtime_hooks import create_oms_backtest_adapter
 from domain.trading_costs import (
     compute_commission,
     compute_slippage_pct,
 )
+from runtime.replay_factory import get_oms_backtest_factory
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +105,7 @@ class ReplayEngine:
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
+        StrategyRegistry.self_check(self._strategy.strategies)
         self._config = config or ReplayConfig()
         self._event_bus = event_bus
         self._trading_context = trading_context
@@ -110,7 +121,7 @@ class ReplayEngine:
             self._oms_adapter = oms_adapter
         elif trading_context is not None:
             cfg = self._config
-            self._oms_adapter = create_oms_backtest_adapter(
+            self._oms_adapter = get_oms_backtest_factory()(
                 trading_context,
                 mode="replay",
                 slippage_pct=cfg.slippage_pct,
