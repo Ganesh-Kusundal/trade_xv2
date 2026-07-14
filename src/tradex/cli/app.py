@@ -1,10 +1,12 @@
 """Unified ``tradex`` command — single facade over the OS CLIs.
 
 This module is a thin dispatcher only. It does not reimplement any broker
-or UI logic; it wires together the two existing entry points:
+or UI logic; it wires together the existing entry points:
 
 * ``brokers.cli.broker:broker`` — the developer/CI/AI Click group.
 * ``interface.ui.main:main`` — the rich/Textual terminal entrypoint.
+* ``tradex.cli.config_group:config`` — CLI-only preferences (broker.default,
+  output.format); see ``tradex/cli/config_group.py``.
 
 Install the console script via ``[project.scripts] tradex = "tradex.cli:tradex"``.
 """
@@ -17,6 +19,7 @@ import sys
 import click
 
 from brokers.cli.broker import broker as broker_group
+from tradex.cli.config_group import config as config_group
 
 
 @click.group()
@@ -26,6 +29,7 @@ def tradex() -> None:
 
 
 tradex.add_command(broker_group, name="broker")
+tradex.add_command(config_group, name="config")
 
 
 @tradex.command()
