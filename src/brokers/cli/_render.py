@@ -13,6 +13,7 @@ import sys
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+import yaml
 from rich.console import Console
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,16 @@ def json_mode(ctx: Any | None = None) -> bool:
     ):
         return True
     return not sys.stdout.isatty()
+
+
+def yaml_mode(ctx: Any | None = None) -> bool:
+    """Return True when output should be YAML."""
+    return bool(ctx is not None and getattr(ctx, "obj", None) and ctx.obj.get("yaml"))
+
+
+def quiet_mode(ctx: Any | None = None) -> bool:
+    """Return True when output should be suppressed entirely."""
+    return bool(ctx is not None and getattr(ctx, "obj", None) and ctx.obj.get("quiet"))
 
 
 def _fmt(value: Any) -> str:
@@ -326,8 +337,13 @@ def present(
     title: str | None = None,
     out: Console | None = None,
 ) -> None:
-    """Render ``data`` as Rich (default) or JSON (machine mode)."""
+    """Render ``data`` as Rich (default), JSON, or YAML (machine modes)."""
+    if quiet_mode(ctx):
+        return
     target = out or console
+    if yaml_mode(ctx):
+        logger.info(yaml.safe_dump(safe_serialize(data), default_flow_style=False, sort_keys=False))
+        return
     if json_mode(ctx):
         logger.info(json.dumps(safe_serialize(data), default=str, indent=2))
         return

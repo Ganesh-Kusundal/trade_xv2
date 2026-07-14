@@ -57,12 +57,16 @@ from brokers.session import BrokerSession, available_brokers
 @click.group()
 @click.option("--broker", default="paper", help="Broker id (paper/dhan/upstox).")
 @click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
+@click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
+@click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")
 @click.pass_context
-def broker(ctx: click.Context, broker: str, as_json: bool) -> None:
+def broker(ctx: click.Context, broker: str, as_json: bool, as_yaml: bool, quiet: bool) -> None:
     """Trading OS broker developer CLI."""
     ctx.ensure_object(dict)
     ctx.obj["broker"] = broker
     ctx.obj["json"] = as_json
+    ctx.obj["yaml"] = as_yaml
+    ctx.obj["quiet"] = quiet
 
 
 def _bid(ctx: click.Context, broker_id: str | None = None) -> str:

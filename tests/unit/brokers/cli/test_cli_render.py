@@ -152,3 +152,52 @@ def test_cli_discover_runs() -> None:
     res = CliRunner().invoke(broker, ["--broker", "paper", "discover"])
     assert res.exit_code == 0
     assert "paper" in res.output
+
+
+def test_present_yaml_mode_emits_valid_yaml(caplog) -> None:
+    # caplog attaches its own handler directly to the logger, so this is
+    # reliable regardless of whether a stdout-bound handler is configured
+    # for the process (present()'s json branch already relies on the same
+    # logger.info() channel, and `capsys`/CliRunner-based assertions on
+    # that channel are pre-existing-flaky in this environment — see
+    # test_present_json_mode_when_piped/forced_by_flag above, which fail
+    # even on origin HEAD; unrelated to this task).
+    import yaml as _yaml
+
+    class _Ctx:
+        obj = {"yaml": True}
+
+    with caplog.at_level("INFO", logger="brokers.cli._render"):
+        present(_Ctx(), {"symbol": "FOO", "ltp": 123.0})
+    assert len(caplog.records) == 1
+    assert _yaml.safe_load(caplog.records[0].message) == {"symbol": "FOO", "ltp": 123.0}
+
+
+def test_cli_quiet_flag_suppresses_output() -> None:
+    res = CliRunner().invoke(broker, ["--quiet", "--broker", "paper", "discover"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == ""
+
+
+def test_cli_quiet_short_flag() -> None:
+    res = CliRunner().invoke(broker, ["-q", "--broker", "paper", "discover"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == ""
+
+
+def test_present_quiet_mode_suppresses_rich_output_that_would_otherwise_print(monkeypatch) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)  # force human/Rich mode
+
+    class _LoudCtx:
+        obj = {"quiet": False}
+
+    class _QuietCtx:
+        obj = {"quiet": True}
+
+    loud_buf = StringIO()
+    present(_LoudCtx(), {"a": 1}, out=Console(file=loud_buf, width=120))
+    assert loud_buf.getvalue() != ""  # baseline: this data does render when not quiet
+
+    quiet_buf = StringIO()
+    present(_QuietCtx(), {"a": 1}, out=Console(file=quiet_buf, width=120))
+    assert quiet_buf.getvalue() == ""
