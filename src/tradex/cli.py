@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from typing import Any
 
 import click
 
@@ -123,6 +124,52 @@ def config_reset(ctx: click.Context) -> None:
     store: PreferencesStore = ctx.obj["prefs_store"]
     store.reset()
     click.echo("Preferences reset.")
+
+
+def _session_broker_default() -> str:
+    from brokers.cli._preferences import PreferencesStore
+
+    return PreferencesStore().get("broker.default")
+
+
+@tradex.group()
+@click.option("--broker", default=_session_broker_default, help="Broker id (paper/dhan/upstox).")
+@click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
+@click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
+@click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")
+@click.pass_context
+def position(ctx: click.Context, broker: str, as_json: bool, as_yaml: bool, quiet: bool) -> None:
+    """Position queries (read-only, no OMS required)."""
+    ctx.ensure_object(dict)
+    ctx.obj["broker"] = broker
+    ctx.obj["json"] = as_json
+    ctx.obj["yaml"] = as_yaml
+    ctx.obj["quiet"] = quiet
+
+
+def _open_market_session(ctx: click.Context) -> Any:
+    from brokers.cli._errors import _render_error
+    from domain.connect_errors import ConnectError
+    from tradex.session import open_session
+
+    try:
+        return open_session(ctx.obj["broker"], mode="market")
+    except ConnectError as exc:
+        _render_error(exc)
+        raise SystemExit(1) from exc
+
+
+@position.command("list")
+@click.pass_context
+def position_list(ctx: click.Context) -> None:
+    """List open positions."""
+    from brokers.cli._render import present
+
+    session = _open_market_session(ctx)
+    try:
+        present(ctx, session.account.refresh().positions, title="Positions")
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":
