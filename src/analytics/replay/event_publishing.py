@@ -56,9 +56,9 @@ def publish_signal(event_bus, signal: Signal) -> None:
     """
     try:
         from domain.events import EventType
-        from domain.runtime_hooks import create_domain_event
+        from domain.events.types import DomainEvent
 
-        event = create_domain_event(
+        event = DomainEvent.now(
             event_type=EventType.SIGNAL_GENERATED.value,
             payload={
                 "symbol": signal.symbol,

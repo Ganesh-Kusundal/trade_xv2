@@ -20,7 +20,6 @@ from analytics.replay.models import ReplayConfig, ReplaySession, SimulatedTrade
 from domain.candles.historical import HistoricalBar
 from domain.enums import Side
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from domain.trading_costs import apply_slippage
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +89,7 @@ class PositionCloser:
             )
         else:
             slippage_pct = self._fill_recorder.compute_slippage_pct(bar.volume)
-            exit_price = float(apply_slippage(Decimal(str(bar.close)), side=Side.SELL, slippage_pct=slippage_pct))
+            exit_price = float(bar.close) * (1 - slippage_pct / 100)
             order_id = f"sim-close:{view.symbol}:{session.bar_count}"
 
         notional = exit_price * view.quantity
@@ -105,7 +104,7 @@ class PositionCloser:
             else 0.0
         )
 
-        self.apply_cash_delta(session, notional - commission)
+        session.capital += notional - commission
         session.trades.append(
             SimulatedTrade(
                 symbol=view.symbol,
@@ -200,7 +199,7 @@ class PositionCloser:
             else 0.0
         )
 
-        self.apply_cash_delta(session, notional - commission)
+        session.capital += notional - commission
         session.trades.append(
             SimulatedTrade(
                 symbol=view.symbol,
@@ -229,30 +228,8 @@ class PositionCloser:
         )
         session.clear_position(view.symbol)
 
-    def apply_cash_delta(self, session: ReplaySession, delta: float) -> None:
-        """Apply cash change; ledger is authoritative when portfolio_tracker is set.
-
-        Positive ``delta`` credits (sell proceeds); negative debits (buy cost).
-        Without a tracker, mutates ``session.capital`` directly (PURE_SIM).
-        """
-        tracker = self._portfolio_tracker
-        if tracker is None:
-            session.capital += float(delta)
-            return
-        apply = getattr(tracker, "apply_delta", None)
-        if callable(apply):
-            apply(delta)
-        elif delta < 0 and hasattr(tracker, "debit"):
-            tracker.debit(-delta)
-        elif delta > 0 and hasattr(tracker, "credit"):
-            tracker.credit(delta)
-        else:
-            session.capital += float(delta)
-            return
-        session.capital = float(tracker.get_capital())
-
     def sync_from_tracker(self, session: ReplaySession) -> None:
-        """Sync session cash from portfolio_tracker (OMS-backed capital)."""
+        """Sync session cash from PortfolioTracker (OMS-backed capital)."""
         if self._portfolio_tracker is None:
             return
         session.capital = float(self._portfolio_tracker.get_capital())

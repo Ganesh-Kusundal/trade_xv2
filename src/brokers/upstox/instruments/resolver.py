@@ -11,7 +11,6 @@ import threading
 from collections import defaultdict
 from collections.abc import Iterable
 
-from domain.normalize import normalize_text
 from domain.symbols import normalize_exchange, normalize_symbol
 
 from brokers.common.instruments.keys import generate_alternate_keys
@@ -226,7 +225,7 @@ class UpstoxInstrumentResolver:
                 for d in defs:
                     if not d.is_future:
                         continue
-                    if normalize_text(d.underlying_symbol or "", case="upper", strip=True) != und:
+                    if (d.underlying_symbol or "").strip().upper() != und:
                         continue
                     if d.expiry and d.expiry[:10] < today:
                         continue

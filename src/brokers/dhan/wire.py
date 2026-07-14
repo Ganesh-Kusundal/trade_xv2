@@ -255,6 +255,95 @@ class DhanWireAdapter:
         """
         return self._conn.subscribe_depth_200(symbol, exchange, on_depth=on_depth)
 
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        levels: int = 5,
+        on_depth: Any | None = None,
+    ) -> "DepthStreamHandle":
+        """Canonical depth-streaming entry point — dispatches by *levels*.
+
+        Mirrors Upstox's ``stream_depth(levels=...)`` so callers can treat
+        both gateways identically. Unlike ``depth_20``/``depth_200`` (kept
+        for back-compat), the returned handle's ``.stop()`` unsubscribes only
+        this symbol's WS subscription instead of requiring ``gateway.close()``.
+        """
+        from brokers.common.streaming import DepthStreamHandle
+
+        if levels == 5:
+            initial = self.depth(symbol, exchange)
+
+            if on_depth is None:
+                return DepthStreamHandle(initial=initial)
+
+            # No separate depth-5 WS feed exists — Dhan's FULL-mode market
+            # feed already carries an embedded 5-level ladder per tick
+            # (see brokers.dhan.websocket._helpers._transform_depth), so
+            # subscribe there instead of a one-shot REST snapshot. Matches
+            # Upstox's levels=5, which is a genuinely live "full" mode stream.
+            from decimal import Decimal as _Decimal
+
+            from domain import DepthLevel
+
+            def _on_raw_depth(data: dict) -> None:
+                if data.get("symbol") != symbol:
+                    return
+                ladder = data.get("depth") or {}
+                bids = [
+                    DepthLevel(
+                        price=_Decimal(str(b.get("price", 0))),
+                        quantity=int(b.get("quantity", 0)),
+                        orders=int(b.get("orders", 0)),
+                    )
+                    for b in ladder.get("bids", [])
+                ]
+                asks = [
+                    DepthLevel(
+                        price=_Decimal(str(a.get("price", 0))),
+                        quantity=int(a.get("quantity", 0)),
+                        orders=int(a.get("orders", 0)),
+                    )
+                    for a in ladder.get("asks", [])
+                ]
+                on_depth(MarketDepth(symbol=symbol, bids=bids, asks=asks, depth_type="DEPTH_5"))
+
+            self.stream(symbol, exchange, mode="FULL", on_tick=None)
+            feed = self._conn.market_feed
+            if feed is not None:
+                feed.on_depth(_on_raw_depth)
+
+            def _stop() -> None:
+                if feed is not None:
+                    feed.off_depth(_on_raw_depth)
+                self.unstream(symbol, exchange, on_tick=None)
+
+            return DepthStreamHandle(initial=initial, on_stop=_stop)
+
+        if levels == 20:
+            initial = self.depth_20(symbol, exchange, on_depth=on_depth)
+
+            def _stop() -> None:
+                feed = self._conn.depth_20_feed
+                if feed is not None:
+                    ref = self._conn.instruments.resolve_dhan_ref(symbol, exchange)
+                    feed.unsubscribe([(ref.exchange_segment, ref.security_id_str())])
+
+            return DepthStreamHandle(initial=initial, on_stop=_stop)
+
+        if levels == 200:
+            initial = self.depth_200(symbol, exchange, on_depth=on_depth)
+
+            def _stop() -> None:
+                feed = self._conn.depth_200_feed
+                if feed is not None:
+                    ref = self._conn.instruments.resolve_dhan_ref(symbol, exchange)
+                    feed.unsubscribe([(ref.exchange_segment, ref.security_id_str())])
+
+            return DepthStreamHandle(initial=initial, on_stop=_stop)
+
+        raise ValueError(f"Dhan supports depth levels {{5, 20, 200}}, got: {levels}")
+
     def history(
         self,
         symbol: str | list[str],

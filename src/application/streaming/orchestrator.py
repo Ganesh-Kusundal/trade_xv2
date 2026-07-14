@@ -41,7 +41,6 @@ from application.streaming.reconnect_controller import ReconnectController
 from application.streaming.session_manager import SessionManager
 from application.streaming.tick_router import (
     TickRouter,
-    _parse_exchange_time,  # noqa: F401 — re-export for backward compat
 )
 from domain.candles.historical import InstrumentRef
 from domain.entities.market import MarketTick

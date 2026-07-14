@@ -34,7 +34,7 @@ from brokers.dhan.resilience import (
     create_circuit_breakers,
     create_rate_limiter,
 )
-from infrastructure.resilience.rate_limiter import DhanRateLimiterMetrics
+from infrastructure.resilience._metrics import DhanRateLimiterMetrics
 from brokers.dhan.resilience.retry_executor import (
     MARKET_DATA_POLICY,
     ORDERS_POLICY,

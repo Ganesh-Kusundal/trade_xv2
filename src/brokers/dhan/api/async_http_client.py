@@ -443,7 +443,7 @@ def _match_prefix(endpoint: str) -> str | None:
 
 def _backoff_delay(attempt: int) -> float:
     """Exponential backoff: 500ms, 1s, 2s, 4s... capped at 5s."""
-    from infrastructure.resilience.backoff import exponential_backoff
+    from brokers.common.backoff import exponential_backoff
     from brokers.dhan.api.http_client import _BASE_DELAY_MS
 
     return exponential_backoff(attempt, base_delay_ms=_BASE_DELAY_MS)

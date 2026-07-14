@@ -100,7 +100,7 @@ async def main():
 
             # Subscribe to depth stream
             depth_handle = gateway.stream_depth(
-                test_symbol, test_exchange, depth_type="DEPTH_5", on_depth=on_depth
+                test_symbol, test_exchange, levels=5, on_depth=on_depth
             )
             print(f"✅ Subscribed to {test_symbol} depth stream")
 

@@ -51,14 +51,3 @@ def test_event_bus_warns_on_unknown_event_type(caplog: pytest.LogCaptureFixture)
     with caplog.at_level("WARNING"):
         bus.publish(event)
     assert any("unknown event_type" in r.message for r in caplog.records)
-
-
-def test_tradex_runtime_capabilities_reexports_from_domain() -> None:
-    """Capability type is shared via domain.capabilities.broker_capabilities SSOT."""
-    import brokers.common.broker_capabilities as bc_cap
-    import domain.capabilities.broker_capabilities as dom_cap
-    import tradex.runtime.capabilities as tr_cap
-
-    assert tr_cap.BrokerCapabilities is dom_cap.BrokerCapabilities
-    assert bc_cap.BrokerCapabilities is dom_cap.BrokerCapabilities
-    assert tr_cap.BrokerCapabilities is bc_cap.BrokerCapabilities

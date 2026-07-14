@@ -206,10 +206,6 @@ class MarketFeedConnection:
     def feed(self) -> Any | None:
         return self._feed
 
-    @feed.setter
-    def feed(self, value: Any | None) -> None:
-        self._feed = value
-
     # ------------------------------------------------------------------
     # Internal — connection loop and SDK feed management
     # ------------------------------------------------------------------
@@ -306,14 +302,9 @@ class MarketFeedConnection:
                     stale_feed.close_connection()
                 if self._stop_event.wait(timeout=backoff):
                     break
-                from domain.constants.resilience import MAX_RETRY_DELAY_MS, RETRY_BASE_DELAY_MS
-                from infrastructure.resilience.backoff import exponential_backoff
+                from brokers.common.backoff import exponential_backoff
 
-                backoff = exponential_backoff(
-                    current_reconnects,
-                    base_delay_ms=RETRY_BASE_DELAY_MS,
-                    max_delay_ms=MAX_RETRY_DELAY_MS,
-                )
+                backoff = exponential_backoff(current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0)
                 continue
 
             # ── Run the SDK ───────────────────────────────────────────────────
@@ -373,14 +364,9 @@ class MarketFeedConnection:
                 break
             if self._stop_event.wait(timeout=backoff):
                 break
-            from domain.constants.resilience import MAX_RETRY_DELAY_MS, RETRY_BASE_DELAY_MS
-            from infrastructure.resilience.backoff import exponential_backoff
+            from brokers.common.backoff import exponential_backoff
 
-            backoff = exponential_backoff(
-                current_reconnects,
-                base_delay_ms=RETRY_BASE_DELAY_MS,
-                max_delay_ms=MAX_RETRY_DELAY_MS,
-            )
+            backoff = exponential_backoff(current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0)
 
         # Always release the host-wide admission lock on exit.
         if admission is not None:

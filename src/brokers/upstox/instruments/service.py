@@ -17,7 +17,6 @@ from typing import Any
 from brokers.common.instruments.carrier import BrokerWireRef, LoadStats, ResolvedInstrument
 from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
-from domain.normalize import normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +186,7 @@ class UpstoxInstrumentService:
 
     def search(self, query: str, *, limit: int = 20) -> list[dict]:
         results: list[dict] = []
-        q = normalize_text(query, case="upper", strip=True)
+        q = query.upper().strip()
         defs = self._resolver.search(q, limit=limit)
         for d in defs:
             dct = d.model_dump() if hasattr(d, "model_dump") else d.dict()

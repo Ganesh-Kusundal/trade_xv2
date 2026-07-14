@@ -48,8 +48,11 @@ def build_runtime(
 # runtime importing interface (import-linter).
 def _register() -> None:
     from interface.ui.services.broker_service import BrokerService
+    from runtime.session_opener import set_session_opener
+    from tradex.session import open_session
 
     register_broker_service_factory(BrokerService)
+    set_session_opener(open_session)
 
 
 _register()

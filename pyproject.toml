@@ -402,10 +402,6 @@ source_modules = ["application"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # application.portfolio.active_session delegates session-open to the public
-    # SDK (tradex.session -> infrastructure/runtime -> brokers), the same
-    # sanctioned composition-root seam as interface.api.routers.orders -> tradex.
-    "application.portfolio.active_session -> tradex.session",
 ]
 
 [[tool.importlinter.contracts]]
@@ -465,10 +461,6 @@ unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
     # Composer / services / OMS use domain.ports; infrastructure is wired at
     # runtime.composition.wire_domain_port_sinks (audit Phase 0 / F1).
-    # application.portfolio.active_session delegates session-open to the public
-    # SDK (tradex.session -> infrastructure), same sanctioned composition-root
-    # seam as interface.api.routers.orders -> tradex.
-    "application.portfolio.active_session -> tradex.session",
 ]
 
 [[tool.importlinter.contracts]]
@@ -493,9 +485,6 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
     # API orders go through tradex.session (composition root).
     "interface.api.routers.orders -> tradex",
-    # API portfolio router opens a session via application.portfolio.active_session
-    # -> tradex.session (composition-root seam); same sanctioned pattern as orders.
-    "interface.api.routers.live.portfolio -> application.portfolio.active_session",
 ]
 
 [[tool.importlinter.contracts]]

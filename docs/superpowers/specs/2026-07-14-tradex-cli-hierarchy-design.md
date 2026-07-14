@@ -1,198 +1,200 @@
-# TradeX CLI Hierarchy Design
+# TradeX CLI Hierarchy Design — v2 (corrected)
 
-**Date:** 2026-07-14
-**Status:** Approved for implementation
-**Approach:** A — New `src/cli/` package (clean slate)
-
----
-
-## 1. Problem
-
-The current CLI has three overlapping surfaces:
-
-- `tradex broker` — 35 subcommands flattened under one group
-- `tradex ui` — 44+ commands in `interface/ui/main.py`
-- `broker` — legacy entry point
-
-The spec calls for a flat top-level hierarchy (`tradex quote`, `tradex order`, `tradex position` as peers of `tradex broker`), one executable, interactive by default, broker-agnostic, with rich terminal output. Today everything is nested under `tradex broker`, broker lifecycle commands (`add`, `remove`, `login`, `logout`, `token`, `instruments sync`) are missing, and there is no TUI dashboard.
-
----
-
-## 2. Decisions
-
-| Decision | Choice |
-|---|---|
-| Scope | Full hierarchy restructure — flat top-level groups |
-| CLI consolidation | Merge `tradex ui` into `tradex` — one surface |
-| Broker lifecycle depth | Full implementation (services + CLI) |
-| TUI dashboard | Build with Textual |
-| Interactivity | Interactive by default, flags for CI |
-| Instrument search | Exchange + symbol combo, not fuzzy |
+**Date:** 2026-07-14 (revised)
+**Status:** SUPERSEDED by the analytics-first pivot (2026-07-14, later same day).
+Product direction changed: the CLI drops `order`/`position`/`portfolio` as
+top-level groups entirely (not merely routes them through the composition
+root as this v2 specified) and becomes an analytics/research console
+(`scanner`/`pattern`/`support`/`volume`/`market`/`indicator`/`strategy`/
+`backtest`/`report`, broker reduced to market-data + lifecycle). The
+composition-root findings below (§0 code-facts, `CommandDispatcher`,
+`present()`, `PreferencesStore` reuse) remain accurate and reusable for the
+surviving (non-execution) commands. See `context/project-overview.md` §1/§2/§6
+for the current product scope and
+`context/progress-tracker.md`'s "Analytics-first CLI pivot" entry for the
+decision record. Kept below for historical reference only — do not implement
+the `order`/`position`/`portfolio` groups in §4.
 
 ---
 
-## 3. Package Structure
-
-```
-src/cli/
-  __init__.py           # tradex Click group, registers all subcommands
-  app.py                # root group definition, global options
-  preferences.py        # PreferencesStore (extended from brokers/cli/_preferences.py)
-  errors.py             # handle_cli_errors decorator
-  rendering/
-    __init__.py         # present() dispatcher
-    tables.py           # Rich table rendering
-    json_yaml.py        # JSON/YAML serialization
-    quiet.py            # quiet mode suppression
-    domain_types.py     # QuoteSnapshot, MarketDepth, etc. renderers
-  wizards/
-    __init__.py
-    prompts.py          # shared Prompt Toolkit helpers
-    order_wizard.py     # interactive order placement
-    login_wizard.py     # browser/token login flow
-    broker_add_wizard.py
-  dashboard/
-    __init__.py
-    app.py              # Textual TUI application
-    panels/             # status, actions, positions, orders panels
-  commands/
-    broker.py           # lifecycle: add/remove/connect/disconnect/login/logout/switch/current/status/health/capabilities/token/instruments/rate-limit
-    quote.py            # tradex quote SYMBOL
-    order.py            # tradex order place/cancel/modify/list
-    position.py         # tradex position list
-    portfolio.py        # tradex portfolio holdings/funds/summary
-    instrument.py       # tradex instrument search/verify/sync/stats (top-level; broker-specific ops under `tradex broker instruments`)
-    account.py          # tradex account info
-    market.py           # tradex market hours/status
-    config.py           # tradex config list/get/set/edit/reset
-    auth.py             # tradex auth status (read-only; login/logout under `tradex broker`)
-    cache.py            # tradex cache status/stats/clear/refresh (instrument cache)
-    doctor.py           # tradex doctor
-    logs.py             # tradex logs tail/show/clear
-    version.py          # tradex version
-```
-
-### Dependency Direction
-
-```
-src/cli/commands/*  -->  src/brokers/services/*    (broker ops)
-                    -->  src/application/*         (OMS, portfolio)
-                    -->  src/runtime/*             (composition root)
-                    -->  src/cli/rendering/         (output)
-                    -->  src/cli/wizards/           (interactive)
-```
-
-CLI never imports concrete brokers (`brokers.dhan/upstox/paper`). All routing goes through `brokers/services/` or `runtime/`.
-
-### What Gets Removed
-
-- `src/brokers/cli/` — fully replaced by `src/cli/`
-- `src/interface/ui/main.py` — commands distributed to `src/cli/commands/`
-- `src/tradex/cli.py` — replaced by `src/cli/__init__.py`
-- Old `broker` entry point from `pyproject.toml`
-
-### What Stays Untouched
-
-- `src/brokers/services/` — the service layer the CLI calls (extended with new modules)
-- `src/interface/ui/services/` — BrokerService, compose.py (CLI imports from here)
-- `src/application/`, `src/runtime/` — no changes
+**Original status (pre-pivot, kept for history):** REVISED — supersedes the
+"Approved for implementation" v1. v1 was authored against a fabricated model
+of the codebase (claimed 3 surfaces / 44 commands / clean slate) that does
+not match the actual code. This version is grounded in a graphify + code read
+of the real tree.
 
 ---
 
-## 4. Command Hierarchy
+## 0. What actually exists today (verified)
 
-### Top-level `tradex` group
+| Fact | Reality (code-confirmed) | v1 claim |
+|---|---|---|
+| CLI surfaces | 2: `tradex.cli:tradex` facade (`broker`, `ui`, `config`, `version`) and `interface.ui.main:main` (~70-command dispatcher, `COMMAND_HANDLERS` + explicit branches). `tradex ui X` re-invokes `main()` with stripped argv. | "3 overlapping surfaces: `tradex broker` (35), `tradex ui` (44+), legacy `broker`" |
+| `src/cli/` | **Does not exist** (0 files). | "Approach A — new `src/cli/` clean slate" |
+| Composition root | `runtime/commands/CommandDispatcher` + `OrderCommandHandler`/`SubscribeCommandHandler`/`HistoryCommandHandler` (import-linter-guarded, no `brokers.*`). `cli.py → open_session() → CommandDispatcher`. | Not mentioned |
+| Trade spine routing | `main.py:_bootstrap_trade_runtime` → `build_runtime` (runtime root). Risk gate + idempotency live here. | "CLI → application.oms directly" |
+| Rendering | `brokers.cli._render.present()` already does quiet>json>yaml>human, piped→JSON, domain-type dispatch. | Re-spec'd as new `cli/rendering/` |
+| Services | `brokers.services.*` (place_order, get_quote, get_positions, get_holds, …) + `brokers.services.operations` (run_doctor, run_health, run_certify, run_verify, run_mapping, run_diagnose, status_from_session). | Re-spec'd as 5 new `brokers/services/*_service.py` |
+| Default broker auth | Dhan = `dhanhq` + `pyotp` → **client_id + client_secret + TOTP + PIN**. Upstox = OAuth. | "OAuth token/refresh only" |
+| Real-money guard | `--risk-fail-open` explicit-consent flag in `main.py`; `BrokerService` refuses `RISK_FAIL_OPEN=1` env without the flag. | Dropped |
+| Textual | **Optional** dep (`[project.optional-dependencies] tui`); only `dashboard.py` (a Rich validation table, not Textual) exists. | "Build TUI with Textual" as headline |
+
+**Consequence:** v1's "delete `interface/ui/main.py`" + "clean-slate `src/cli/`" would
+(1) orphan ~55 of ~70 existing commands, (2) bypass the sanctioned composition
+root, and (3) duplicate three working modules. This revision fixes all three.
+
+---
+
+## 1. Problem (restated, accurate)
+
+The CLI has **two real issues**, not a structural collapse:
+
+1. **Two entry points, one facade.** `tradex broker` (Click, `brokers/cli/broker.py`)
+   and `tradex ui`/`interface.ui.main` (argparse-style, `main.py`) are parallel
+   command trees with overlapping commands (`quote`, `order`, `positions`,
+   `holdings`, `funds`, `depth`, `option-chain`, `instrument`, `auth`, `doctor`,
+   `health`…) and **different output/dispatch conventions**. That is the genuine
+   duplication worth resolving.
+2. **No flat, broker-agnostic top-level groups** (`tradex quote`, `tradex order`
+   as peers of `tradex broker`), and **broker lifecycle commands**
+   (`add`/`remove`/`login`/`logout`/`token`/`instruments sync`) are missing.
+
+Everything else v1 listed (TUI, wizards, JSON envelope) is either already
+partially present or a nice-to-have — not a reason to rebuild the tree.
+
+---
+
+## 2. Decisions (revised)
+
+| Decision | Choice | Why |
+|---|---|---|
+| Scope | **Restructure the top-level hierarchy only**; reuse existing internals | ponytail: shortest diff; don't rebuild working modules |
+| CLI consolidation | Merge into ONE Click surface rooted at `tradex.cli`. `interface.ui.main` becomes an internal dispatch backend, not a user-facing entry | Removes duplication #1 cleanly |
+| Composition root | ALL commands route through `runtime/commands/CommandDispatcher` (existing) | Enforces architecture invariants #2/#3 — single root, broker selected once |
+| Reuse, not copy | Import `brokers.cli._render.present`, `brokers.cli._preferences.PreferencesStore`, and wrap `brokers.services.*` | v1's "copy into `cli/`" violates DRY + the stated "clean slate" |
+| New modules | **Only** what doesn't exist: `BrokerConfigStore`, `AuthService` (per-broker), `InstrumentService`, `HealthService`, `RateLimitService` — added to `brokers/services/` (NOT a new package) | Keeps one service layer, not two |
+| TUI dashboard | Opt-in (`tradex broker --dashboard` or `tradex tui`); **not** default for no-arg `tradex broker` | No-arg `tradex broker` today prints help — changing it breaks scripts |
+| Textual | Make `textual` a **required** dep, OR keep dashboard opt-in and clearly marked | A headline feature must be runnable on a default install |
+| Auth model | Per-broker capability: Dhan = TOTP+token; Upstox = OAuth. `AuthService` branches on `BrokerId` capability | v1's OAuth-only silently breaks the default (Dhan) broker |
+| Credentials | Encrypt with **passphrase-derived** key (PBKDF2/Argon2) or OS keychain — NOT a machine-specific seed | Machine-seed Fernet = recoverable live creds = real-money unsafe |
+| Risk gate | Live orders **must** pass the production gate; `--risk-fail-open` explicit consent carried forward from `main.py` | v1 dropped the guard |
+| JSON output | **Keep** the existing `present()` shape (raw `safe_serialize(data)`); do NOT introduce the new `{status,data,meta}` envelope silently | Envelope change breaks all CI/agent/MCP consumers |
+
+---
+
+## 3. Package Structure (revised)
+
+No new top-level package. Reorganize under the existing `tradex.cli` + `interface.ui.commands`.
+
+```
+src/tradex/cli.py            # single Click facade — registers all groups (was: broker/ui/config/version)
+  +-- app.py                 # root group, global options (--broker --json --yaml --quiet)  [NEW, small]
+  +-- errors.py              # reuse brokers/cli/_errors.handle_cli_errors
+  +-- rendering/             # REUSE brokers/cli/_render.py as src/tradex/cli/rendering.py (move, not copy)
+  +-- commands/             # [NEW] thin Click wrappers, one module per group
+        broker.py            # lifecycle: list/add/remove/connect/disconnect/login/logout/
+                             #   switch/current/status/health/capabilities/token/instruments/rate-limit
+        quote.py  order.py  position.py  portfolio.py  instrument.py
+        account.py market.py auth.py cache.py doctor.py logs.py version.py
+src/brokers/services/        # EXTEND (not duplicated)
+  +-- broker_config.py       # BrokerConfigStore          [NEW]
+  +-- auth_service.py        # AuthService (per-broker)   [NEW]
+  +-- instrument_service.py   # InstrumentService          [NEW]
+  +-- health_service.py       # HealthService              [NEW]
+  +-- rate_limit_service.py   # RateLimitService           [NEW]
+src/interface/ui/commands/   # STAYS — already has the real implementations
+  +-- dashboard.py            # becomes Textual TUI (opt-in)
+  +-- (analytics, validate, certify, risk, oms, journal,
+       load_test, news, websocket, events, views, asset,
+       feed, options_sync, …)  # ~55 commands — RE-HOMED, not deleted
+src/runtime/commands/        # STAYS — the sanctioned composition root all commands route through
+```
+
+### Dependency direction (unchanged contract)
+
+```
+src/tradex/cli/commands/*  -->  runtime/commands.CommandDispatcher   (composition root)
+                          -->  brokers/services/*                    (broker ops)
+                          -->  interface/ui/commands/*               (existing impls)
+                          -->  tradex/cli/rendering.present          (output)
+CLI NEVER imports concrete brokers (brokers.dhan/upstox/paper).
+Routing through runtime/commands keeps the import-linter "CLI broker-implementation
+isolation" contract satisfied (the existing runtime/commands handlers are already clean).
+```
+
+### What gets removed
+
+- The **duplicate** command definitions: whichever of `brokers/cli/broker.py` or
+  `interface/ui/main.py` is the lesser superseded surface. Recommendation:
+  `brokers/cli/broker.py` is folded into `tradex/cli/commands/*`; `interface/ui/main.py`
+  remains the internal dispatch backend (its `COMMAND_HANDLERS` becomes the canonical
+  registry the Click groups call).
+- The deprecated `broker` entry point in `pyproject.toml` (already marked deprecated).
+- The `tradex ui` pass-through command once the flat groups cover everything.
+
+### What stays untouched
+
+- `runtime/commands/*` — composition root (extended with any missing handlers).
+- `brokers/services/*` — service layer (extended with the 5 new modules).
+- `brokers/cli/_render.py`, `_preferences.py`, `_errors.py` — moved into `tradex/cli/`, not rewritten.
+- `interface/ui/commands/*` — the ~55 real implementations.
+
+---
+
+## 4. Command Hierarchy (revised)
+
+### Top-level `tradex` group (single Click surface)
 
 ```
 tradex [--json] [--yaml] [--quiet] [--broker ID]
   +-- broker        # Broker lifecycle & identity
   +-- quote         # Market quotes
-  +-- order         # Order management
+  +-- order         # Order management (via runtime/commands → OMS + RiskGate)
   +-- position      # Position tracking
   +-- portfolio     # Holdings, funds, summary
   +-- instrument    # Instrument lookup & sync
   +-- account       # Account info
   +-- market        # Market status & hours
-  +-- config        # CLI preferences
-  +-- auth          # Read-only auth status (login/logout are under `tradex broker`)
-  +-- cache         # Instrument cache management (status/stats/clear/refresh)
-  +-- doctor        # Environment pre-flight
+  +-- config        # CLI preferences (reuse existing)
+  +-- auth          # Read-only auth status
+  +-- cache         # Instrument cache mgmt
+  +-- doctor        # Environment pre-flight (wrap run_doctor)
   +-- logs          # Log inspection
   +-- version       # Version info
+  # Plus: analytics, validate, certify, risk, oms, journal, load-test,
+  #       news, websocket, events, views, asset, feed, options-sync, dashboard —
+  #       re-homed from interface/ui/main.py, each as its own group.
 ```
 
-### `tradex broker` — lifecycle only (15 subcommands)
+**No-arg `tradex broker` keeps printing help/list** (today's behavior). The TUI
+dashboard is opt-in via `tradex broker --dashboard` or `tradex tui`.
+
+### `tradex order` — through the composition root (NOT directly to OMS)
 
 ```
-tradex broker
-  +-- list            # Show all brokers with connected/active/account status
-  +-- add             # Interactive: pick broker -> nickname -> credentials
-  +-- remove          # Remove broker config (with cascade confirm)
-  +-- connect         # Connect + verify (token, API, instruments, WS)
-  +-- disconnect      # Disconnect session
-  +-- login           # Interactive: browser or token auth
-  +-- logout          # Clear session credentials
-  +-- switch          # Set default broker (interactive picker or arg)
-  +-- current         # Show active broker
-  +-- status          # Auth/REST/WS/orders/rate-limit status
-  +-- health          # DNS -> auth -> REST -> WS -> order API checks
-  +-- capabilities    # Show capability matrix
-  +-- token           # Token show/refresh/revoke
-  +-- instruments     # sync/verify/stats/clear-cache (broker-specific ops; search is top-level `tradex instrument search`)
-  +-- rate-limit      # Show current rate-limit state
+tradex order place  SYMBOL --side BUY --qty N --type MARKET [--price P]
+tradex order cancel ORDER_ID
+tradex order modify ORDER_ID [--qty N] [--price P]
+tradex order list   [open|all]
 ```
 
-Without arguments: launches the TUI dashboard.
-
-### `tradex order` — full OMS routing
-
-```
-tradex order
-  +-- place           # Interactive wizard OR flags (--symbol --side --qty --type)
-  +-- cancel          # tradex order cancel ORDER_ID
-  +-- modify          # Interactive OR flags
-  +-- list            # List open/all orders
-```
-
-Live broker orders route through `BrokerService.place_order()` -> OMS (RiskGate + idempotency + reconciliation). Paper orders go through the same path but skip the production-readiness gate.
-
-### Flat commands
-
-```
-tradex quote RELIANCE [--json]
-tradex position list [--json]
-tradex portfolio holdings [--json]
-tradex portfolio funds [--json]
-tradex portfolio summary [--json]
-```
-
-### Group option propagation
-
-`--broker`, `--json`, `--yaml`, `--quiet` are defined once on the root `tradex` group and propagated via Click context. Individual commands read them from `ctx.obj`.
+Routing:
+`order place` → `runtime.commands.PlaceOrderCommand` → `CommandDispatcher`
+→ `OrderCommandHandler` → `OrderManager.place_order` (sync risk check + idempotency
+already there). **Paper and live share this path**; live additionally requires the
+production RiskGate. `--risk-fail-open` is forwarded and explicitly required for
+the placeholder-capital path (mirrors `main.py`).
 
 ---
 
-## 5. Broker Lifecycle Services
+## 5. New Broker-Lifecycle Services (added to `brokers/services/`)
 
-New application services in `src/brokers/services/`:
+### `broker_config.py` — `BrokerConfigStore`
 
-### `broker_config.py` — BrokerConfigStore
-
-Persistent broker registry at `~/.tradex/brokers.json`:
-
-```json
-{
-  "brokers": {
-    "dhan": {
-      "nickname": "Primary Account",
-      "credentials_path": "~/.tradex/credentials/dhan.enc",
-      "connected": false,
-      "added_at": "2026-07-14T10:00:00Z"
-    }
-  },
-  "default": "dhan"
-}
-```
+Persistent registry. **Reuse `brokers.cli._preferences.PreferencesStore` as the
+storage primitive**; extend with broker registry fields. Single source of truth for
+`broker.default` (already how `switch`/current work) — do NOT invent a second
+`~/.tradex/brokers.json` registry that diverges from `PreferencesStore`.
 
 ```python
 class BrokerConfigStore:
@@ -204,54 +206,41 @@ class BrokerConfigStore:
     def get(broker_id) -> BrokerConfig | None
 ```
 
-### `auth_service.py` — AuthService
-
-Authentication flows:
+### `auth_service.py` — `AuthService` (per-broker capability)
 
 ```python
 class AuthService:
-    def login_browser(broker_id) -> AuthResult
-    def login_token(broker_id, token) -> AuthResult
+    def login(self, broker_id, *, method: AuthMethod, **creds) -> AuthResult
     def logout(broker_id) -> None
     def refresh_token(broker_id) -> AuthResult
     def revoke_token(broker_id) -> None
     def get_token_status(broker_id) -> TokenStatus
 ```
 
-Browser login: starts local HTTP server on random port, opens broker OAuth URL with `redirect=localhost:{port}`, receives access token via callback, encrypts and stores via `BrokerConfigStore`.
+- **Dhan**: `method=TOTP` → client_id + client_secret + TOTP(pin) → token. No
+  browser OAuth. `login_browser` is invalid for Dhan and must not be offered.
+- **Upstox**: `method=OAUTH` → browser redirect → token + refresh.
+- The method set is derived from `BrokerId` capability, not a hardcoded assumption.
 
-### `instrument_service.py` — InstrumentService
+### `instrument_service.py` — `InstrumentService`
 
-Exchange + symbol combo lookup (not fuzzy):
+Exchange + symbol combo (not fuzzy). **Wrap existing `brokers/services/instrument_lookup`**
+rather than re-implementing search/verify/sync.
 
 ```python
 class InstrumentService:
-    def search(exchange: str, symbol: str, *, segment: str | None = None) -> list[InstrumentMatch]
+    def search(exchange, symbol, *, segment=None) -> list[InstrumentMatch]
     def verify(broker_id) -> VerificationReport
     def sync(broker_id, *, progress_callback) -> SyncResult
     def stats(broker_id) -> InstrumentStats
     def clear_cache(broker_id) -> None
 ```
 
-CLI usage:
+### `health_service.py` — `HealthService`
 
-```
-tradex instrument search NSE RELIANCE
-tradex instrument search NFO "NIFTY 29000 CE"
-tradex instrument search NSE RELIANCE --segment Option
-```
-
-Output:
-
-```
-Exchange  Segment  Symbol              Instrument ID  Expiry
-NSE       Equity   RELIANCE            2885           --
-NFO       Future   RELIANCE 25 JUL     142885         2026-07-31
-NFO       Option   RELIANCE 2900 CE    242885         2026-07-31
-NFO       Option   RELIANCE 2900 PE    342885         2026-07-31
-```
-
-### `health_service.py` — HealthService
+**Wrap `brokers/services/operations`** (`run_doctor`, `run_health`, `run_certify`,
+`status_from_session`) — these already do DNS→auth→REST→WS→order API checks. Do not
+rebuild the checks.
 
 ```python
 class HealthService:
@@ -260,221 +249,150 @@ class HealthService:
     def check_connectivity(broker_id) -> ConnectivityReport
 ```
 
-### `rate_limit_service.py` — RateLimitService
+### `rate_limit_service.py` — `RateLimitService`
 
 ```python
 class RateLimitService:
     def get_status(broker_id) -> RateLimitStatus
 ```
 
-### Credential storage
+**Wire this into the TUI dashboard refresh loop** (v1 defined it but never used it).
 
-Credentials encrypted at rest using `cryptography.fernet` with a key derived from a machine-specific seed. Encrypted file at `~/.tradex/credentials/{broker_id}.enc`. Separate from `.env.*` files (which hold API keys for development).
+### Credential storage (security-corrected)
+
+- Encrypt at rest with a **passphrase-derived** key (PBKDF2-HMAC-SHA256 or
+  Argon2id, salt stored alongside). On first use, prompt for a passphrase; cache
+  the unlocked key in the process only (never on disk).
+- If OS keychain is available (macOS Keychain / libsecret), prefer it.
+- **Do NOT** derive the key from a machine-specific seed — that is recoverable by
+  anyone with file + machine access and is unacceptable for live broker creds.
+- Keep credentials separate from `.env.*` (dev API keys), as v1 correctly noted.
 
 ---
 
-## 6. Interactive Wizards & TUI Dashboard
+## 6. Interactive Wizards & TUI Dashboard (revised)
 
-### Wizards — `src/cli/wizards/`
+### Wizards — `src/tradex/cli/wizards/` (only if flags alone are insufficient)
 
 Every trading command works two ways: flags for CI, interactive wizard by default.
+Reuse `prompt_toolkit` only where arrow-selection genuinely helps; plain
+`click.prompt` suffices for most inputs (ponytail: don't pull a framework for
+text input).
 
 ```python
-# prompts.py — shared building blocks
-def select_broker(brokers: list[str]) -> str
-def confirm_action(prompt: str, *, default: bool = True) -> bool
-def progress_bar(label: str, total: int) -> ContextManager
-
 # order_wizard.py
-def run_order_wizard(session: BrokerSession) -> OrderRequest
-  # 1. Symbol input (text, validated against instrument index)
-  # 2. Exchange auto-resolved from symbol + instrument index
-  # 3. Side — BUY / SELL (arrow select)
-  # 4. Quantity (number input, validated > 0)
-  # 5. Order type — MARKET / LIMIT / STOP (arrow select)
-  # 6. If LIMIT/STOP -> price input
-  # 7. Confirm panel showing full order, Y/n
+def run_order_wizard(session) -> OrderRequest
+  # symbol -> exchange auto-resolved via InstrumentService.search
+  # side / type / qty / price -> validated inputs
+  # confirm panel -> Y/n
 
 # login_wizard.py
-def run_login_wizard(broker_id: str, auth_service: AuthService) -> AuthResult
-  # 1. Auth method — Browser / Token (arrow select)
-  # 2a. If Browser -> "Opening browser..." + waiting spinner + callback
-  # 2b. If Token -> token input (hidden)
-  # 3. Show account name + client ID
-  # 4. "Save credentials?" Y/n
+def run_login_wizard(broker_id, auth_service) -> AuthResult
+  # method picker constrained by broker capability (Dhan=TOTP, Upstox=OAuth)
 
 # broker_add_wizard.py
-def run_broker_add_wizard(store: BrokerConfigStore) -> BrokerConfig
-  # 1. Select broker from registered plugins
-  # 2. Nickname input
-  # 3. Delegate to login_wizard for auth
-  # 4. Run connect check
-  # 5. Summary panel
+def run_broker_add_wizard(store) -> BrokerConfig
 ```
 
-### TUI Dashboard — `src/cli/dashboard/`
+### TUI Dashboard — opt-in, real-time-safe
 
-Launched when `tradex broker` runs without subcommand. Built with Textual.
-
-```
-+-------------------------------------------------+
-|  TradeXV2 -- Dhan (Primary)          Market: OPEN |
-+------------------+------------------------------|
-|  Account         |  Positions (3)               |
-|  Ganesh Trading  |  RELIANCE  +500  Rs1,24,500  |
-|  Client: xxxx123 |  TCS       -200  -Rs48,200   |
-|                  |  NIFTY CE   10   Rs12,800    |
-|  Funds           |                              |
-|  Available: Rs2.54L|  Orders (1 open)           |
-|  Margin:   Rs1.80L|  #DH1234 BUY RELIANCE 500   |
-|                  |  Status: OPEN  P&L: +Rs1,200 |
-+------------------+------------------------------+
-|  Actions: [Login] [Health] [Order] [Positions]  |
-|           [Instruments] [Logs] [Settings]       |
-+-------------------------------------------------+
-```
-
-Panel data sources:
-
-| Panel | Data source | Refresh |
-|---|---|---|
-| Header bar | `BrokerConfigStore` + `MarketStatus` | on connect/switch |
-| Account | `portfolio.get_funds()` | every 30s |
-| Positions | `portfolio.get_positions()` | every 10s |
-| Orders | `portfolio.get_orders()` | every 10s |
-| Actions | keybound buttons | user-triggered |
-
-Action flow: pressing `[Order]` opens the order wizard inline. `[Health]` runs `HealthService.check_health()` and shows results in a modal. `[Login]` runs `login_wizard`.
-
-Technology: Textual for the dashboard (reactive widgets, keyboard navigation, event handling). Rich for all non-TUI output (tables, progress bars, panels in regular commands).
+- Launched via `tradex broker --dashboard` / `tradex tui`. No-arg `tradex broker`
+  stays help/list.
+- If Textual remains optional, gate the command: `tradex tui` prints
+  "install `tradexv2[tui]`" if unavailable. If dashboard is a headline feature,
+  promote `textual` to a required dependency.
+- **Panel refresh must handle failure** (v1 omitted this):
+  - Reuse a single shared gateway/session (don't open one per panel).
+  - On WS drop: exponential backoff reconnect (use existing `infrastructure/resilience/backoff.py`).
+  - On `RateLimitStatus` near window: throttle refreshes via `RateLimitService`.
+  - On error: show a red error state in the panel, never crash the app silently.
+- Data sources reuse `portfolio.get_positions/get_orders/get_funds` (existing).
 
 ---
 
-## 7. Output Rendering
+## 7. Output Rendering (reuse, don't re-spec)
 
-### Rendering layer — `src/cli/rendering/`
+**Keep `brokers/cli/_render.present()` as the single renderer.** Move it to
+`tradex/cli/rendering.py`. It already implements:
 
-One `present()` function dispatches based on domain type + output mode:
+- Mode priority: `--quiet` > `--json`/`--yaml` > human.
+- Piped → JSON automatically (`not sys.stdout.isatty()`).
+- Domain-type dispatch for `QuoteSnapshot`, `MarketDepth`, `HistoricalSeries`,
+  `OptionChain`, capabilities, records, KV.
 
-```python
-def present(ctx: click.Context, data: Any, *, title: str | None = None) -> None:
-    mode = resolve_mode(ctx)  # quiet > json > yaml > human
-    if mode == "quiet": return
-    if mode == "json":  emit_json(data); return
-    if mode == "yaml":  emit_yaml(data); return
-    renderer = _REGISTRY.get(type(data), render_generic)
-    renderer(data, title=title)
-```
+**Do NOT introduce the new `{status,data,meta}` / `{status,error}` envelope.**
+Downstream consumers (CI, agents, MCP server `datalake-mcp`, `cli_endpoint`
+pytest markers) parse the current `safe_serialize(data)` shape. A silent envelope
+swap is a production-breaking change; if an envelope is wanted it needs a versioned
+contract + migration + a deprecation window — out of scope for this restructure.
 
-### Domain type renderers
-
-| Type | Human output |
-|---|---|
-| `QuoteSnapshot` | K/V panel: LTP, OHLC, bid/ask, volume, change% |
-| `MarketDepth` | Side/Level/Price/Qty/Orders table, top-20 bids+asks, spread footer |
-| `HistoricalSeries` | Last-10-bars table + timeframe/source footer |
-| `OptionChain` | CE LTP/OI / Strike / PE LTP/OI table, ATM +/-10 window |
-| `HealthReport` | Checklist with pass/fail per check, summary footer |
-| `DoctorReport` | Grouped sections (Environment, Broker, Connectivity, Config) |
-| `InstrumentMatch` | Exchange/Segment/Symbol/ID/Expiry table |
-| `OrderRequest` / `OrderResult` | Order detail panel |
-| `RateLimitStatus` | Remaining/limit/window/reset gauge |
-| `dict` / `list` | Generic K/V panel / table |
-
-### Mode resolution priority
-
-1. `--quiet` flag -> suppress all output
-2. `--json` flag OR stdout is not a TTY -> JSON (machine-readable by default when piped)
-3. `--yaml` flag -> YAML
-4. Otherwise -> Rich human tables
-
-### Consistent envelope
-
-Success:
-
-```json
-{
-  "status": "ok",
-  "data": { ... },
-  "meta": { "broker": "dhan", "timestamp": "2026-07-14T10:30:00Z" }
-}
-```
-
-Error:
-
-```json
-{
-  "status": "error",
-  "error": { "code": "BROKER_NOT_CONNECTED", "message": "...", "remediation": "..." }
-}
-```
-
-Every command returns structured data; `present()` handles formatting. Commands never print directly.
+Commands return structured data; `present()` formats. Commands never print directly
+(already the convention in `brokers/cli/broker.py`).
 
 ---
 
-## 8. Migration Plan
+## 8. Migration Plan (revised — parity-gated, no big-bang delete)
 
-### Phase 1: Foundation (new package, no breakage)
+### Phase 0: Pre-flight (blocking)
+1. Enumerate **all ~70** existing `interface/ui/main.py` commands; assign each a
+   destination group in this spec. No command is deleted until it has a home.
+2. Add `src/tradex/cli/rendering.py` = moved `brokers/cli/_render.py` (no behavior change).
+3. Confirm `runtime/commands` covers order/subscribe/history; add handlers for any
+   missing command type (e.g. positions, portfolio) before wiring CLI to them.
 
-1. Create `src/cli/` package with `app.py`, `preferences.py`, `errors.py`, `rendering/`
-2. Copy rendering from `brokers/cli/_render.py` -> `cli/rendering/`
-3. Copy preferences from `brokers/cli/_preferences.py` -> `cli/preferences.py`
-4. Copy error handling from `brokers/cli/_errors.py` -> `cli/errors.py`
-5. Wire `pyproject.toml` entry point: `tradex = "cli.app:tradex"` (alongside existing)
-6. Both entry points work simultaneously
+### Phase 1: Single Click surface (no deletion)
+1. `tradex/cli/app.py` — root group + global options.
+2. `tradex/cli/commands/version.py`, `config.py`, `doctor.py` (wrap `run_doctor`),
+   `quote.py`, `instrument.py`, `position.py`, `portfolio.py` — thin wrappers over
+   `brokers/services/*` → `runtime/commands` (read-only first).
+3. `tradex/cli/commands/order.py` — through `CommandDispatcher` (live RiskGate +
+   `--risk-fail-open` forward).
+4. Both `tradex broker` (old) and `tradex <group>` (new) work simultaneously.
 
-### Phase 2: Command migration (one group at a time)
+### Phase 2: New services (extend `brokers/services/`)
+1. `broker_config.py` (on top of `PreferencesStore`).
+2. `auth_service.py` (per-broker: Dhan TOTP / Upstox OAuth).
+3. `instrument_service.py` (wrap `instrument_lookup`).
+4. `health_service.py` (wrap `operations`).
+5. `rate_limit_service.py`.
 
-Order: safe read-only first, trading last.
+### Phase 3: Broker lifecycle + re-home remaining commands
+1. `tradex/cli/commands/broker.py` — add/remove/connect/… (uses the new services).
+2. Re-home the ~55 `interface/ui/main.py` commands as their own Click groups,
+   one per existing `interface/ui/commands/*.py` implementation. Each re-home:
+   write module → write/keep tests → verify old+new both work → next.
 
-1. `cli/commands/version.py` — proves the pattern
-2. `cli/commands/config.py` — no broker dependency
-3. `cli/commands/doctor.py` — wraps `operations.run_doctor`
-4. `cli/commands/quote.py` — wraps `market_data.get_quote`
-5. `cli/commands/instrument.py` — wraps `instrument_lookup.*`
-6. `cli/commands/position.py` — wraps `portfolio.get_positions`
-7. `cli/commands/portfolio.py` — wraps `portfolio.get_holdings/get_funds`
-8. `cli/commands/order.py` — wraps `orders.place_order/cancel/modify` + OMS routing
-9. `cli/commands/account.py` — wraps `portfolio` + `account` services
-10. `cli/commands/market.py` — wraps market hours/status
-11. `cli/commands/auth.py` — wraps new `AuthService`
-12. `cli/commands/cache.py` — wraps cache management
-13. `cli/commands/logs.py` — new, reads log files
-14. `cli/commands/broker.py` — last, largest
+### Phase 4: Interactive + TUI (opt-in)
+1. `wizards/prompts.py`, `order_wizard.py`, `login_wizard.py`, `broker_add_wizard.py`.
+2. `dashboard` as Textual TUI, launched opt-in, with backoff/rate-limit/error states.
 
-Each command: write module -> write tests -> verify old + new both work -> next.
-
-### Phase 3: New services
-
-1. `broker_config.py` + `BrokerConfigStore`
-2. `auth_service.py` + `AuthService`
-3. `instrument_service.py` + `InstrumentService`
-4. `health_service.py` + `HealthService`
-5. `rate_limit_service.py`
-
-### Phase 4: Interactive layer
-
-1. `wizards/prompts.py` — shared prompt helpers
-2. `wizards/order_wizard.py`
-3. `wizards/login_wizard.py`
-4. `wizards/broker_add_wizard.py`
-
-### Phase 5: TUI Dashboard
-
-1. `dashboard/app.py` — Textual application shell
-2. `dashboard/panels/` — account, positions, orders, actions panels
-3. Wire `tradex broker` (no subcommand) -> dashboard launch
-
-### Phase 6: Cleanup
-
-1. Delete `src/brokers/cli/` entirely
-2. Delete `src/interface/ui/main.py`
-3. Delete `src/tradex/cli.py`
-4. Remove old `broker` entry point from `pyproject.toml`
-5. Update import-linter contracts
-6. Move CLI tests to `tests/unit/cli/`
+### Phase 5: Cleanup (only after 100% command parity)
+1. Fold `brokers/cli/broker.py` into `tradex/cli/commands/*`.
+2. `interface/ui/main.py` becomes internal backend (or deleted if every command is
+   re-homed and tests pass).
+3. Remove deprecated `broker` entry point from `pyproject.toml`.
+4. Update import-linter contracts (keep `tradex` + `interface` + `runtime` roots;
+   no new top-level package was added, so contracts are unchanged in scope).
+5. Move CLI tests to `tests/unit/tradex/cli/`.
 
 ### Test strategy
+- Old tests for `brokers/cli/` and `interface/ui/main.py` stay green until Phase 5.
+- Every new command has an offline `cli_endpoint` smoke test (existing marker).
+- Live-readonly / sandbox tests gated by the existing markers (never default run).
+- No coverage drop at any phase boundary.
 
-Every phase has tests written alongside. Old tests for `brokers/cli/` are kept running until Phase 6 deletes the old package. No test coverage drops at any phase boundary.
+---
+
+## 9. Invariant / safety checklist (must hold)
+
+- [ ] All commands route through `runtime/commands` composition root (no direct
+      `application`/`brokers.*` calls from CLI).
+- [ ] Live orders pass the production RiskGate; `--risk-fail-open` is explicit
+      and forwarded; placeholder-capital path refuses without it.
+- [ ] Auth model covers Dhan (TOTP) and Upstox (OAuth) via capability, not assumption.
+- [ ] Credentials encrypted with passphrase/keychain key, not machine seed.
+- [ ] `present()` shape unchanged; no silent envelope swap.
+- [ ] No-arg `tradex broker` unchanged (help/list); TUI is opt-in.
+- [ ] Textual either required or dashboard command self-documents the install.
+- [ ] Zero-parity: paper and live share the same order path.
+- [ ] Every one of the ~70 existing commands is re-homed before any deletion.

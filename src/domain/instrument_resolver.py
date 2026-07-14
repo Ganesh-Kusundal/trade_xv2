@@ -25,7 +25,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from domain.instruments.instrument_id import InstrumentId
-from domain.normalize import normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +64,7 @@ def resolve_selector(
     Raises:
         ValueError: If selector cannot be parsed or resolved.
     """
-    selector = normalize_text(selector, case="upper", strip=True)
+    selector = selector.strip().upper()
 
     # Check for equity/index passthrough
     if ":" not in selector and "_" not in selector:
@@ -209,7 +208,7 @@ def parse_selector(selector: str) -> dict:
         → {"underlying": "NIFTY", "kind": "WEEK", "offset": 0,
            "strike_ref": "ATM", "right": "CE"}
     """
-    selector = normalize_text(selector, case="upper", strip=True)
+    selector = selector.strip().upper()
 
     fut_match = _FUT_PATTERN.match(selector)
     if fut_match:

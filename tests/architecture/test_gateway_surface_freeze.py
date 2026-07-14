@@ -46,7 +46,6 @@ _DHAN_PUBLIC = frozenset(
         "search",
         "stream",
         "trades",
-        "unstream",
     }
 )
 

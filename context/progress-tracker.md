@@ -17,210 +17,81 @@
 
 ## Completed
 
-### TradeX Unified CLI — Phase 1 post-review fixes (2026-07-14)
+### Analytics-first CLI pivot (2026-07-14)
 
-Design/flow review (not per-command testing, which had already passed)
-caught one real defect and two complexity smells in the Phase 1 work below:
+Product-scope decision (not code-derivable — recorded so it isn't
+re-litigated): TradeXV2's CLI pivots from a trading-command-centric surface
+to an analytics/research console (`git`/`kubectl`/`dbt`-style), with **no**
+`order`/`position`/`portfolio` top-level commands. Reverses
+`docs/superpowers/specs/2026-07-14-tradex-cli-hierarchy-design.md` v2 (same
+day, earlier — now marked superseded) and today's own
+`feat(cli): add tradex portfolio show/holdings/funds` /
+`feat(cli): add tradex position list` commits. Plan:
+`/Users/apple/.claude/plans/witty-munching-crayon.md`.
 
-- **Real bug**: `broker switch` persisted `broker.default` but nothing
-  read it back — every command's `--broker` option still defaulted to the
-  literal `"paper"`, so switching had no effect on anything run without an
-  explicit `--broker` flag. Fixed: `--broker`'s default is now a callable
-  (`_default_broker()`) that reads `PreferencesStore`. New regression test
-  `test_broker_option_default_reads_switched_preference` resolves the
-  Click parameter's default directly (no session/network) so it's testable
-  for a non-paper broker id without real credentials.
-- **Simplified** `brokers/cli/_preferences.py`: the `CliPreferences`
-  dataclass + key↔field-name translation table was unused abstraction —
-  every caller only ever used string-keyed `get`/`set`, never the typed
-  attributes. Replaced with a plain `dict[str, str]` merged over defaults;
-  same public `PreferencesStore` API, ~24% fewer lines.
-- **Simplified** `tradex/cli/` package (`__init__.py` + `app.py` +
-  `config_group.py`) back into a single `tradex/cli.py` — the split was
-  scaffolding for hypothetical future command groups, YAGNI per the
-  project's own rule. 129 lines in one file vs. 152 across three.
-
-Both simplifications found via `ponytail-review` on the Phase 1 diff.
-Verification: 73/77 pass in `tests/unit/brokers/cli/ tests/unit/tradex/`
-(same 4 pre-existing unrelated failures as Phase 1, unchanged).
-
-### PARITY trade journal + capital bind (2026-07-14)
-
-Third-level follow-up to true-PARITY Phase 2 (`e2e-spec/21` §3):
-
-- OMS mid-run sells append `SimulatedTrade` / `PaperTrade`.
-- `LedgerCapitalProvider` + `RiskManager.bind_capital_provider` (session cash
-  ≡ risk capital); `TradingContext.set_analytics_daily_pnl_owner` single PnL
-  writer; shared `feed_parity_risk_state` for replay + paper.
-- PaperTradingEngine on the same ledger / bind / feed spine.
-- Tests: FlipFlop journal + capital track; paper FlipFlop.
-
-### TradeX Unified CLI — Phase 1 Foundation (2026-07-14)
-
-- Restructured `src/tradex/cli.py` → `src/tradex/cli/` package (`app.py` +
-  `config_group.py`), zero behavior change to existing `tradex broker`/`tradex ui`.
-- New CLI-only preferences store: `brokers/cli/_preferences.py`
-  (`CliPreferences`/`PreferencesStore`, JSON file at `~/.tradex/cli.json`,
-  override via `TRADEX_CLI_CONFIG_PATH`). Explicitly separate from `AppConfig`
-  — does not touch `.env.*` or `src/config/schema.py` (preserves G4).
-- New commands: `tradex config list/get/set/edit/reset`; `tradex broker
-  list/current/switch/status` (appended to the existing `brokers/cli/broker.py`
-  flat command registry, same conventions as its ~30 existing commands).
-- New output modes: `--yaml` and `--quiet`/`-q` on the `broker` group,
-  alongside the existing `--json` (`brokers/cli/_render.py::present()`).
-- Architectural placement decision (recorded so it isn't re-litigated): new
-  CLI-only concerns live in `src/tradex/` (already documented in
-  `context/architecture.md`'s System Boundaries table as owning "Public
-  package + CLI + session wiring"); the existing developer/CI/AI `broker`
-  CLI stays in `src/brokers/cli/` unchanged. No relocation into
-  `src/interface/`, no new `runtime/cli_compose.py` — avoided per
-  project-overview.md's "evolutionary refactoring, no rewrite" principle.
-- Explicitly deferred to later phases (see
-  `docs/superpowers/plans/2026-07-14-tradex-cli-phase1.md`'s "Explicitly Out
-  of Scope" section): `tradex order/position/portfolio/account` (must route
-  live orders through the full OMS via `tradex.connect(mode="trade")`, not
-  the thin `brokers.services.place_order` path `broker order` already uses
-  — that existing thin path is a known pre-existing real-money-safety gap,
-  not something this phase introduced or fixed); `broker
-  add/remove/login/logout/token` (no broker-agnostic `AuthManager` accessor
-  exists yet on any gateway); `broker instruments sync/download/verify/
-  stats/clear-cache/search`; `broker rate-limit`; top-level `tradex doctor`;
-  interactive wizards beyond `click.Choice`/`click.confirm`.
-- **Fixed** (caused by this phase): `tests/architecture/test_file_size_limit.py`
-  — `brokers/cli/broker.py` grew past its approved exemption (487→528 LOC);
-  bumped the exemption with a reason, matching the file's existing pattern.
-- **Found, not fixed (out of scope — belongs to the concurrent uncommitted
-  refactor on this branch, confirmed pre-existing via `git stash` on this
-  session's own commits)**:
-  - `brokers/cli/_render.py::present()`'s `--json`/(new `--yaml`) branches
-    write via `logger.info(...)`, which produces **no output at all**
-    outside of pytest (root logger has no handler, level WARNING) — this
-    also affects the pre-existing `--json` flag and default human-mode
-    `console.print()` output under `CliRunner`, not just the new `--yaml`
-    path. `tests/unit/brokers/cli/test_cli_render.py::test_present_json_mode_when_piped`,
-    `::test_present_json_mode_forced_by_flag`, `::test_cli_json_flag_emits_json`,
-    `::test_cli_discover_runs` already fail on the pre-Phase-1 tree. New
-    tests route around it via `caplog` / forced `sys.stdout.isatty()`
-    (matching this file's own `test_present_quote_snapshot_table` pattern).
-  - `runtime/session_opener.py` (new, untracked file from the concurrent
-    refactor) requires `set_session_opener()` to be called at the
-    composition root before any `BrokerSession(...)` is constructed;
-    `tests/conftest.py` wires it for the test environment, but
-    `src/tradex/__init__.py` does not wire it for a real process — so
-    **every** command that opens a `BrokerSession` (this includes the
-    pre-existing `broker connect`, and this phase's new `broker status`)
-    raises `RuntimeError: session opener not wired at composition root`
-    when run as a bare `tradex` invocation outside pytest. Confirmed this
-    is not new: `broker connect` (untouched by this phase) fails
-    identically. Needs a real fix at `src/tradex/__init__.py` or wherever
-    the production composition root lives — out of scope for CLI Phase 1.
-  - `tests/architecture/test_gateway_surface_freeze.py` (`DhanBrokerGateway`
-    gained `stream_depth`) and `test_module_boundaries_and_decomposition.py`
-    (`lint-imports` binary missing from PATH) — unrelated to CLI, part of
-    the concurrent refactor / environment.
-- Tests: `tests/unit/brokers/cli/test_preferences.py` (8),
-  `test_broker_commands.py` (8), `test_cli_render.py` (+4 new, 4 pre-existing
-  unrelated failures unchanged), `tests/unit/tradex/test_cli_config.py` (6),
-  `tests/unit/tradex/test_cli.py` (3, unchanged). 71/75 pass in
-  `tests/unit/brokers/cli/ tests/unit/tradex/` (4 pre-existing failures,
-  none touching this phase's new code). Architecture suite: 615 passed,
-  3 pre-existing-adjacent failures (1 fixed by this phase, 2 unrelated).
-
-### True PARITY on backtest risk path (Phase 1 + 2) — 2026-07-14
-
-Second-level review found PARITY consulted `RiskManager.check_order` but did
-not advance daily-PnL / used a dual cash ledger. Closed in
-`docs/architecture/e2e-spec/21-analytics-research-mode-gap.md` §3:
-
-- **Phase 1:** forced-rejection acceptance test
-  (`test_analytics_entry_points_parity_rejects_risk_blocked_order`); honest
-  docstrings on `SignalProcessor`.
-- **Phase 2:** `SimulatedCashLedger` + `PositionCloser.apply_cash_delta` as
-  single cash path; `ReplayEngine._feed_parity_risk_state` pushes session
-  equity delta into `update_daily_pnl` each bar; daily-loss trip test
-  (`test_analytics_entry_points_parity_daily_loss_trips`).
-- Throttler / operator `TradingState` remain live-only (documented).
-
-### Pre-existing architecture-test failures fixed (2026-07-14)
-
-Six tests were red in the already-modified working tree (unrelated to the REF
-refactor). Root-caused and fixed:
-
-- `test_file_size_limit` (2 tests): `EXEMPTIONS` table was stale vs actual LOC.
-  Added `application/oms/order_manager.py` (436), bumped approved limits for
-  `application/oms/context.py` (486), `brokers/dhan/data/depth_feed_base.py`
-  (569), `brokers/dhan/streaming/connection.py` (518),
-  `brokers/dhan/websocket/market_feed.py` (515); corrected stale
-  `brokers/paper/paper_orders.py` (315). Mirrored in `EXEMPTION_METADATA`.
-- `test_gateway_surface_freeze`: `DhanBrokerGateway` genuinely gained `unstream`
-  (brokers/dhan/wire.py:379) — added it to `_DHAN_PUBLIC` freeze list.
-- `test_no_history_encoded_test_filenames`: renamed `tests/unit/test_phase4_structure.py`
-  → `test_oms_structure.py` and `tests/component/oms/test_phase2_safety.py` →
-  `test_oms_safety.py` (git mv, history preserved).
-- `test_replay_equity_costs`: test used `UnifiedReplayOrchestrator.__new__()`
-  bypassing `__init__`, so `_state_assertor` was unset → `AttributeError`.
-  Constructed via the real `__init__` instead.
-- `test_import_linter_still_enforces_boundaries`: `application.portfolio.active_session`
-  imported `tradex.session` (→ infrastructure/runtime → brokers), breaking
-  "Application broker isolation" + "Application infrastructure separation" and
-  transitively "API broker-implementation isolation". Added the sanctioned
-  composition-root-seam ignore `application.portfolio.active_session -> tradex.session`
-  to the two application contracts and `interface.api.routers.live.portfolio ->
-  application.portfolio.active_session` to the API contract — consistent with the
-  existing `interface.api.routers.orders -> tradex` exception.
-
-Result: full `tests/architecture/` suite green (628 passed, 6 pre-existing
-env skips). No production-code behavior changed by these fixes.
-
-### Shotgun-Surgery & Coupling Refactor — REF-1…REF-10 + guardrails (2026-07-14)
-
-Implemented `docs/architecture/SHOTGUN-SURGERY-AUDIT.md` remediation plan. All
-executable REFs done; REF-5 (ATR smoothing + risk-free rate choice) and the
-`*-EQ`/`*-BE` suffix policy are deferred to a quant/domain owner (not guessed).
-
-- **Phase 0 (guardrails)**: added `tests/architecture/test_coupling_guardrails.py`
-  (grep-based gates for REF-1/2/3/6/7) + a `coupling-guardrails` job in
-  `.github/workflows/architecture-enforcement.yml`. The `application →
-  infrastructure` import-linter contract already existed and is enforced.
-- **REF-3**: deleted `brokers/common/backoff.py`; added single
-  `exponential_backoff()` in `infrastructure/resilience/backoff.py`; redirected the
-  4 Dhan lazy importers there. `analytics/options/_greeks.py` + `analytics/facade.py`
-  now use `DEFAULT_RISK_FREE_RATE` (from `domain.constants.market`, sourced from
-  `DEFAULT_MARKET_SURFACE`) — converges the 0.06/0.065 split to one constant.
-- **REF-1***: added `domain.symbols.make_instrument_id(sym, exch)` as the canonical
-  InstrumentId builder; `datalake.core.symbols.instrument_id_from_symbol` now
-  delegates to it (keeps its storage suffix-strip; suffix policy deferred).
-- **REF-10**: new `domain/normalize.py::normalize_text()` + `normalize_universe_name()`;
-  routed ad-hoc `upper().strip()`/`strip().upper()` in brokers, interface,
-  infrastructure, plugins, application, and datalake through it. Domain VOs/enums
-  remain the canonical normalization authority (allowed by the guardrail).
-- **REF-2**: slippage now routed through `domain.trading_costs.apply_slippage` in
-  `analytics/replay/signal_processor.py` (2 sites) and `analytics/replay/position_closer.py`
-  (1 site). `paper/*` and `fast_backtest.py` already used it.
-- **REF-7**: deleted docstring-only stub `application/services/historical_data.py`
-  (invited `application → infrastructure` imports).
-- **REF-6**: removed the `trading_context_factory`/ `create_trading_context` wiring
-  hook from `domain.runtime_hooks` (domain must stay pure); added
-  `runtime/replay_factory.py` as the composition-root registry; replay orchestrator
-  now takes an injected `trading_context_factory` and reads the registry, preserving the
-  `analytics → application.oms` layering boundary. Updated `interface/api/main.py` +
-  `tests/conftest.py` to register via the new registry.
-- **REF-4**: Dhan `websocket/connection.py` reconnect constants now come from
-  `domain.constants.resilience` (RETRY_BASE_DELAY_MS/MAX_RETRY_DELAY_MS) instead of
-  hardcoded `1000.0`/`30000.0`. `reconnecting_service.py` already used the constants.
-  Full rewire onto `ReconnectingTransport` is a Phase-4 god-class refactor (deferred).
-- **REF-8**: slippage already centralized (REF-2). Added `ponytail:` note at the
-  `float(Decimal(str(...)))` boundary in `analytics/backtest/fast_backtest.py`;
-  full `Money`/`Quantity` typing of the sim path is a Phase-4 analytics refactor.
-- **REF-9**: consolidated the process-global `_shared_quota` singleton into
-  `runtime/process_state.py` (single owner); `runtime/session_infra.py` delegates to it.
-
-Verification: `tests/architecture/test_coupling_guardrails.py` (5 tests) pass; all
-edited modules import cleanly; no new import-linter violations introduced. The 6
-pre-existing test failures in the working tree (file-size limit, dhan gateway surface
-freeze, behavioral test-naming, import-linter `interface.api → tradex.session` chain,
-`replay_equity_costs` `__new__`-bypass AttributeError) are unrelated to these changes.
-Graphify updated after the change.
+**Shipped:**
+- `context/project-overview.md` (§1/§2/§3/§4/§6/§7) rewritten: analytics
+  console is the product; OMS/execution kernel is internal-only
+  infrastructure for zero-parity backtest/paper simulation, not a CLI goal.
+- **Removed** from `src/brokers/cli/broker.py`: `order`, `cancel`, `modify`,
+  `positions`, `holdings`, `funds`, `orders`, `super_orders`,
+  `forever_orders`. Cleaned the shell menu (`brokers/cli/_shell_nav.py`
+  `_SECTION_DEFS`, `_EXTENSION_ALIASES`) so it doesn't show dead entries.
+- **Removed** from `src/interface/ui/main.py`: `place-order`,
+  `cancel-order`, `modify-order`, `place-orders`, `bracket-order`,
+  `oco-order`, `basket-order`, `risk`, `holdings`, `positions`, `orders`,
+  `trades`, `oms`, `account`/`funds`. Deleted the now-dead
+  `_TRADE_SPINE_CMDS`/`_bootstrap_trade_runtime` path (confirmed
+  `run_backtest.py --parity` builds its `TradingContext` via
+  `application.oms.factory.create_trading_context` directly — not through
+  this CLI-only path — so nothing shared was touched).
+- **Removed** the `position`/`portfolio` Click groups from `src/tradex/cli.py`
+  (today's earlier commits).
+- **Added** new top-level `tradex` groups, each a thin argv-forwarder into
+  the existing `interface.ui.commands.analytics.run()` dispatcher (reuses
+  its broker_service/gateway wiring — no duplicated plumbing):
+  `scanner` (breakout/volume/momentum/rs), `market` (breadth/sector[-rotation
+  /-strength/-volume]), `indicator` (halftrend[-scan]), `strategy` (list),
+  `backtest` (run/paper/replay/optimize/walkforward). `support`
+  (levels/nearest) wired directly to the already-existing
+  `datalake.analytics.support_resistance.SupportResistance` — self-contained,
+  no broker plumbing needed. Smoke-tested: `tradex support levels RELIANCE`
+  runs end-to-end (exit 0); all six new group `--help` pages render clean.
+- **Deliberately NOT wired** (no backing engine exists yet — would be new
+  analytics engineering, not a CLI reorg): `pattern detect` (needs a
+  single-symbol OHLC-DataFrame fetch helper `analytics/scanner/patterns.py`'s
+  `PatternEngine` doesn't have), `market advance-decline/heatmap/leaders/
+  laggards`, `volume spikes/unusual/delivery/delta/dry-up` (only
+  `volume-profile` + `datalake/analytics/relative_volume.py` exist),
+  `scanner opening-range/custom`, a `report` group (`analytics/reports/
+  reports.py` exists but isn't CLI-wired to anything yet). `report`,
+  `data`, `profile` groups from the original spec also not built this pass.
+- Updated tests: `tests/component/ui/endpoint_manifest.py` (`TOP_LEVEL_COMMANDS`,
+  `OFFLINE/LIVE_READONLY/SANDBOX/DESTRUCTIVE_ENDPOINTS` — sandbox tier
+  retired, empty list kept for schema stability), `test_command_registry.py`
+  (manifest-size threshold), `test_shell_nav.py` (extension-alias fallback
+  behavior). Deleted obsolete: `tests/unit/tradex/test_cli_trade_spine.py`,
+  `tests/unit/tradex/test_cli_portfolio.py`, `tests/unit/tradex/test_cli_position.py`,
+  `tests/component/ui/test_order_sandbox_integration.py`.
+- **Follow-up flagged** (spawned as a background task, not done this pass):
+  the broker shell's Extensions menu still lists Dhan's `super_order`/
+  `forever_order` capabilities as dead entries (they come from
+  `infrastructure.adapter_factory.get_broker_extension_classes`, a separate
+  registry from the Click command tree that wasn't touched).
+- **Verification caveat**: multiple *other* agent sessions (Cursor Claude
+  Code, Cline daemons, another Claude Code instance — confirmed via `ps aux`)
+  were editing this exact working directory concurrently while this shipped.
+  One deleted `src/runtime/replay_factory.py` mid-session, breaking the
+  `analytics` → `analytics.replay.engine` import chain (confirmed via direct
+  import isolation this is unrelated to this pivot — `tradex.cli` and
+  `brokers.cli.broker` import clean; only `interface.ui.main` fails, only on
+  that missing module). Full `pytest` verification of anything importing
+  `interface.ui.commands.analytics` (including the new forwarder groups'
+  actual execution, as opposed to their Click registration) was not possible
+  this session — re-run once `runtime/replay_factory.py` is restored by
+  whichever session owns that refactor. A separate concurrent write also
+  clobbered this file's previous version of this entry once already; if
+  this entry vanishes again, that's why — check `git log -p` on this file.
 
 ### Indices sync + asset-routing fix (2026-07-14)
 
@@ -447,10 +318,10 @@ Graphify updated after the change.
 - Tests: `tests/unit/brokers/services/test_live_actionable_gate.py`
 
 **M2: OrderValidator depends on RiskGate port** ✅
+- `src/application/oms/risk_gate_adapter.py` — adapter bridges domain RiskGate to OMS
 - `src/application/oms/order_validator.py` — uses RiskCheckPort protocol (no @runtime_checkable)
 - Backward compatible: RiskManager still satisfies the protocol
-- `RiskGateAdapter` deleted 2026-07-14 (dead code; zero production construction
-  sites — live/sim already route through real `RiskManager` via OrderValidator)
+- Tests: `tests/unit/application/oms/test_risk_gate_adapter.py`
 
 **M3: drift-aware repair in _repair_local_oms** ✅
 - `src/brokers/dhan/portfolio/reconciliation.py` — heals only drift_items, not full snapshot
@@ -478,20 +349,7 @@ Graphify updated after the change.
 ## In Progress
 
 - Phase 1 remainder: optional full collapse of `PaperTradingEngine.run()` onto `ReplayEngine`
-  (thin facade) once session/result mapping is cheap enough. **Not required for
-  analytics research-mode parity** — see doc 21; FastBacktestEngine stays for O(n)
-  multi-symbol CLI scan.
-
-## Completed (analytics research-mode gap — 2026-07-14)
-
-- **Doc 21:** `docs/architecture/e2e-spec/21-analytics-research-mode-gap.md` —
-  PURE_SIM/PARITY split at the analytics layer; OMS kernel already shared (doc 20).
-- Deleted dead `RiskGateAdapter` + test; dropped stale `order_manager` comment.
-- `StrategyRegistry.self_check(golden_bar)` at ReplayEngine/PaperTradingEngine construction.
-- PARITY plumbing: `run_backtest.py --parity`, `Analytics.backtest(trading_context=, mode=)`,
-  `optimize_grid(..., trading_context=)` (single PARITY confirmation of winner).
-- `Analytics.walk_forward(...)` exposed on the facade.
-- Acceptance: `tests/integration/quant/test_analytics_entry_parity.py`.
+  (thin facade) once session/result mapping is cheap enough.
 
 ## Completed (architectural audit docs — 2026-07-13)
 

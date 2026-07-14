@@ -112,6 +112,7 @@ class UpstoxV3SubscriptionManager:
         m = mode.lower().strip()
         aliases = {
             "ltp": "ltpc",
+            "quote": "ltpc",
             "ltpc": "ltpc",
             "greeks": "option_greeks",
             "option_greeks": "option_greeks",

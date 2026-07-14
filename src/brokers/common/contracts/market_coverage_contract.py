@@ -1,4 +1,4 @@
-"""MarketCoverageContract — guarantees every declared MarketSurface has coverage.
+"""MarketCoverageContract — guarantees every declared MarketCoverage has coverage.
 
 Driven entirely by ``BrokerCapabilities.market_surfaces`` (the single source of
 truth for asset/exchange coverage). This is the mechanism that makes adding a
@@ -19,7 +19,7 @@ from decimal import Decimal
 import pytest
 
 from domain import Quote
-from domain.capabilities.market_surface import OPERATIONS, MarketSurface
+from domain.capabilities.market_surface import OPERATIONS, MarketCoverage
 from domain.instruments.instrument_id import allowed_exchanges
 
 # Operations that have a live gateway call to assert against.
@@ -78,7 +78,7 @@ class MarketCoverageContract:
                 self._assert_live_op(live_gateway, s, op)
 
     @staticmethod
-    def _assert_live_op(gw, s: MarketSurface, op: str) -> None:
+    def _assert_live_op(gw, s: MarketCoverage, op: str) -> None:
         if op == "quote":
             q = gw.quote(s.probe_symbol, s.exchange)
             assert isinstance(q, Quote), f"quote() must return Quote for {s}"

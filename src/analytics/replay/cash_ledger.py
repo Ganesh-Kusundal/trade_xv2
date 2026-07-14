@@ -1,11 +1,20 @@
-"""Simulated cash ledger for PARITY-mode replay.
+"""Simulated cash ledger + fixed risk-capital provider for PARITY mode.
 
-Single source of truth for session cash when OMS is wired. Session capital
-is synced from this ledger after each fill — RiskManager still uses the
-TradingContext capital_fn / provider for sizing checks against account size.
+Two distinct capital notions are kept separate (plan: PARITY Risk Capital
+and Context Scope):
+
+* ``SimulatedCashLedger`` — single source of truth for *session cash* when
+  OMS is wired. It declines as fills consume capital; it is used only for
+  session sizing (``session.capital``), never for risk checks.
+* ``FixedAccountCapitalProvider`` — duck-typed ``CapitalProvider`` that
+  returns the *account-size* capital (``config.initial_capital``) and never
+  declines. ``RiskManager`` binds to this so risk % (position / gross /
+  daily-loss) measure against fixed equity, exactly like live FixedCapital.
 """
 
 from __future__ import annotations
+
+from decimal import Decimal
 
 
 class SimulatedCashLedger:
@@ -28,3 +37,20 @@ class SimulatedCashLedger:
     def apply_delta(self, delta: float) -> None:
         """Positive = credit (sell proceeds); negative = debit (buy cost)."""
         self._cash += float(delta)
+
+
+class FixedAccountCapitalProvider:
+    """Fixed account-size capital for RiskManager risk checks (PARITY).
+
+    Returns ``config.initial_capital`` and never declines with fills, so a
+    fully-invested book does not starve the loss / position / gross daily-loss
+    checks of capital. Duck-typed to avoid an analytics -> application import.
+    """
+
+    __slots__ = ("_amount",)
+
+    def __init__(self, amount: float) -> None:
+        self._amount = Decimal(str(amount))
+
+    def get_available_balance(self) -> Decimal:
+        return self._amount

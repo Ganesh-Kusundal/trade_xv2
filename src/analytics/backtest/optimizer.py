@@ -154,7 +154,9 @@ def optimize_grid(
             config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
 
             # Grid search stays PURE_SIM — OMS overhead across N combos is real cost.
-            engine = BacktestEngine(pipeline, strategy, config)
+            engine = BacktestEngine(
+                pipeline, strategy, config, allow_simulate_without_oms=True
+            )
             bt_result = engine.run(data, symbol=symbol)
 
             m = bt_result.metrics

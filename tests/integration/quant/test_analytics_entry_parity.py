@@ -233,6 +233,7 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     """PARITY must block new risk after session equity delta breaches daily-loss."""
     from decimal import Decimal
 
+    from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
     from application.oms.risk_manager import RiskConfig
     from domain.events.types import EventType
 
@@ -244,7 +245,7 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     common_kwargs = dict(
         initial_capital=100_000,
         warmup_bars=5,
-        max_position_pct=100.0,
+        max_position_pct=10.0,  # leave cash so CB capital isn't near-zero
         slippage_pct=0.0,
         commission_flat=0.0,
     )
@@ -254,30 +255,40 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
         replay_events=False,
         capital_fn=lambda: Decimal("100000"),
         risk_config=RiskConfig(
-            max_daily_loss_pct=Decimal("2.0"),  # 2% of capital
+            max_daily_loss_pct=Decimal("2.0"),
             max_position_pct=Decimal("100"),
             max_gross_exposure_pct=Decimal("100"),
             enable_margin_check=False,
         ),
     )
+    # CB defaults trip on bar MTM ticks and block *closes* (desk freeze_all).
+    # Raise threshold so FlipFlop can journal a round-trip; daily-loss still gates.
+    ctx.risk_manager._loss_cb.config = LossCircuitBreakerConfig(
+        loss_threshold_pct=Decimal("99"),
+    )
     ctx.event_bus.subscribe(EventType.RISK_REJECTED.value, rejected.append)
 
-    engine = BacktestEngine(
+    engine = ReplayEngine(
         pipeline,
         strategy,
-        BacktestConfig(**common_kwargs),
-        mode=ResearchMode.PARITY,
+        ReplayConfig(**common_kwargs),
         trading_context=ctx,
     )
     result = engine.run(df, symbol=symbol)
-    session = result.replay.session
+    session = result.session
 
-    assert ctx.risk_manager.daily_pnl < 0, "declining series must leave session in loss"
-    assert rejected or len(session.trades) >= 1, (
-        "expect at least one completed round-trip and/or a risk rejection after daily-loss"
+    assert len(session.trades) >= 1, (
+        "OMS mid-run sells must append SimulatedTrade (trade journal)"
     )
-    # Prove the gate saw the loss: either daily-loss rejection fired, or
-    # RiskManager still reports a loss large enough that check_order would block.
+    assert [_trade_fingerprint(t) for t in session.trades]
+    # Risk capital is FIXED account size — it must NOT track declining session cash.
+    risk_capital = ctx.risk_manager.capital_provider.get_available_balance()
+    assert risk_capital == Decimal("100000"), (
+        f"RiskManager capital must stay fixed at initial: got {risk_capital}"
+    )
+    assert ctx.risk_manager.daily_pnl < 0 or rejected, (
+        "declining FlipFlop must leave session in loss and/or risk-reject"
+    )
     from domain.entities.order import Order
     from domain.enums import OrderType, ProductType, Side
 
@@ -291,9 +302,108 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
         price=Decimal("100"),
         product_type=ProductType.INTRADAY,
     )
-    # If loss already exceeded 2%, further risk must be blocked.
-    if abs(ctx.risk_manager.daily_pnl) / Decimal("100000") * 100 >= Decimal("2.0"):
-        result = ctx.risk_manager.check_order(probe)
-        assert not result.allowed
-        reason = (result.reason or "").lower()
-        assert "loss" in reason, f"expected a loss-based rejection, got: {result.reason}"
+    if abs(ctx.risk_manager.daily_pnl) / risk_capital * 100 >= Decimal("2.0"):
+        check = ctx.risk_manager.check_order(probe)
+        assert not check.allowed
+        reason = (check.reason or "").lower()
+        assert "loss" in reason, f"expected a loss-based rejection, got: {check.reason}"
+
+
+@pytest.mark.paper_replay_parity
+def test_paper_flipflop_journals_trades_and_binds_capital() -> None:
+    """Paper mid-run sells append PaperTrade; risk capital tracks ledger."""
+    from decimal import Decimal
+
+    from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
+    from application.oms.risk_manager import RiskConfig
+
+    pipeline = FeaturePipeline()
+    strategy = StrategyPipeline(strategies=[FlipFlopStrategy()])
+    df = _declining_ohlcv(rows=40)
+    ctx = build_test_trading_context(
+        replay_events=False,
+        capital_fn=lambda: Decimal("100000"),
+        risk_config=RiskConfig(
+            max_daily_loss_pct=Decimal("50"),
+            max_position_pct=Decimal("100"),
+            max_gross_exposure_pct=Decimal("100"),
+            enable_margin_check=False,
+        ),
+    )
+    ctx.risk_manager._loss_cb.config = LossCircuitBreakerConfig(
+        loss_threshold_pct=Decimal("99"),
+    )
+    paper = PaperTradingEngine(
+        pipeline,
+        strategy,
+        PaperConfig(
+            initial_capital=100_000,
+            warmup_bars=5,
+            max_position_pct=10.0,
+            slippage_pct=0.0,
+            commission_flat=0.0,
+        ),
+        trading_context=ctx,
+    )
+    result = paper.run(df, symbol="PAPERFF")
+    assert len(result.session.trades) >= 1
+    risk_capital = ctx.risk_manager.capital_provider.get_available_balance()
+    assert risk_capital == Decimal("100000"), (
+        f"Paper risk capital must stay fixed at initial: got {risk_capital}"
+    )
+
+
+@pytest.mark.paper_replay_parity
+def test_analytics_parity_scope_restores_context() -> None:
+    """run() must restore risk capital binding + pnl-owner flag afterwards.
+
+    A TradingContext reused for live trading after a replay/paper run must NOT
+    keep the analytics-bound fixed capital provider or the muted daily-pnl bus
+    feed — those are scoped to the run only.
+    """
+    from decimal import Decimal
+
+    from application.oms.risk_manager import RiskConfig
+
+    pipeline = FeaturePipeline()
+    strategy = StrategyPipeline(strategies=[AlwaysBuyStrategy()])
+    df = _ohlcv()
+    symbol = "RESTORE"
+
+    common_kwargs = dict(
+        initial_capital=100_000,
+        warmup_bars=5,
+        max_position_pct=100.0,
+        slippage_pct=0.0,
+    )
+
+    for factory in (
+        lambda c: ReplayEngine(
+            pipeline, strategy, ReplayConfig(**common_kwargs), trading_context=c
+        ),
+        lambda c: PaperTradingEngine(
+            pipeline, strategy, PaperConfig(**common_kwargs), trading_context=c
+        ),
+    ):
+        ctx = build_test_trading_context(
+            replay_events=False,
+            capital_fn=lambda: Decimal("100000"),
+            risk_config=RiskConfig(enable_margin_check=False),
+        )
+        ctx.set_analytics_daily_pnl_owner(False)
+        orig_provider = ctx.risk_manager.capital_provider
+
+        engine = factory(ctx)
+        engine.run(df, symbol=symbol)
+
+        # Ownership flag must be restored to its pre-run value.
+        assert ctx._analytics_owns_daily_pnl is False, (
+            "analytics_parity_scope must restore daily-pnl ownership after run()"
+        )
+        # Risk capital provider must be the original live provider, not the
+        # fixed account-size provider bound during the run.
+        assert ctx.risk_manager.capital_provider is orig_provider, (
+            "analytics_parity_scope must restore the original risk capital provider"
+        )
+        assert ctx.risk_manager.capital_provider.get_available_balance() == Decimal("100000")
+

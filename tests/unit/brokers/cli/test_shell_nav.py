@@ -143,10 +143,13 @@ def test_recovery_hint_upstox_funds_maintenance() -> None:
 def test_extension_alias_super_orders() -> None:
     from brokers.cli._shell_nav import filter_extension_commands
 
+    # super_order/forever_order have no CLI alias since the analytics-first
+    # pivot removed their Click commands; they surface under their raw
+    # runtime name (no matching command, so the shell no-ops on selection).
     declared = ["depth_20", "depth_200", "super_order", "forever_order"]
     cmds = filter_extension_commands("dhan", declared)
-    assert "super_orders" in cmds
-    assert "forever_orders" in cmds
+    assert "super_order" in cmds
+    assert "forever_order" in cmds
     assert "depth20" in cmds
     assert "depth200" in cmds
 

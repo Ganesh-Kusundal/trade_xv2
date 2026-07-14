@@ -12,7 +12,7 @@ from domain.capabilities.broker_capabilities import (
     StreamLimitProfile,
 )
 from domain.capabilities.enums import Capability, ConnectionStatus
-from domain.capabilities.market_surface import MarketCoverage, MarketSurface
+from domain.capabilities.market_surface import MarketCoverage
 
 __all__ = [
     "BrokerCapabilities",
@@ -21,7 +21,6 @@ __all__ = [
     "ConnectionStatus",
     "HistoricalWindowConstraint",
     "MarketCoverage",
-    "MarketSurface",
     "RateLimitProfile",
     "StreamLimitProfile",
 ]

@@ -171,8 +171,17 @@ class UpstoxWireAdapter(BatchFetchMixin):
     def stream_order(self, on_order: Any | None = None) -> Any:
         return self._stream_gw.stream_order(on_order)
 
-    def stream_depth(self, symbol: str, exchange: str = "NSE", depth_type: str = "DEPTH_5", on_depth: Any | None = None) -> Any:
-        return self._stream_gw.stream_depth(symbol, exchange, depth_type, on_depth)
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        depth_type: str | None = None,
+        on_depth: Any | None = None,
+        levels: int | None = None,
+    ) -> Any:
+        return self._stream_gw.stream_depth(
+            symbol, exchange, depth_type, on_depth, levels=levels
+        )
 
     def funds(self) -> Balance:
         return self._portfolio_gw.funds()

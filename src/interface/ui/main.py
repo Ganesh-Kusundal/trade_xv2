@@ -22,7 +22,6 @@ if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
     load_dotenv(_ENV_PATH, override=True)
 
 from interface.ui.commands import (
-    account as cmd_account,
     analytics as cmd_analytics,
     benchmark as cmd_benchmark,
     broker as cmd_broker,
@@ -39,12 +38,7 @@ from interface.ui.commands import (
     load_test as cmd_load_test,
     market as cmd_market,
     news as cmd_news,
-    oms as cmd_oms,
-    order_placement as cmd_order_placement,
-    order_composition as cmd_order_composition,
-    risk_controls as cmd_risk_controls,
     cache_management as cmd_cache_management,
-    portfolio as cmd_portfolio,
     quality_report as cmd_quality_report,
     search as cmd_search,
     validate as cmd_validate,
@@ -76,13 +70,6 @@ COMMAND_HANDLERS = {
     "compare": cmd_compare.run,
     "quality-report": cmd_quality_report.run,
     "instrument-info": cmd_instrument.run,
-    "account": cmd_account.run,
-    "funds": cmd_account.run,
-    "holdings": cmd_portfolio.show_holdings,
-    "positions": cmd_portfolio.show_positions,
-    "orders": cmd_oms.show_orders,
-    "trades": cmd_oms.show_trades,
-    "oms": cmd_oms.show_oms_summary,
     "quote": cmd_market.run,
     "depth": cmd_market.run,
     "option-chain": cmd_market.run,
@@ -104,50 +91,10 @@ COMMAND_HANDLERS = {
     "news": cmd_news.run,
     "analytics": cmd_analytics.run,
     "views": cmd_views.run_views,
-    "place-order": cmd_order_placement.place_order,
-    "cancel-order": cmd_order_placement.cancel_order,
-    "modify-order": cmd_order_placement.modify_order,
-    "place-orders": cmd_order_placement.place_orders_batch,
-    "bracket-order": cmd_order_composition.place_bracket_order,
-    "oco-order": cmd_order_composition.place_oco_order,
-    "basket-order": cmd_order_composition.place_basket_order,
-    "risk": cmd_risk_controls.run,
     "cache": cmd_cache_management.run,
 }
 for _name, _fn in COMMAND_HANDLERS.items():
     register_handler(_name, _fn)
-
-# Trade spine commands use runtime.factory.build (TRANS-P5-022).
-_TRADE_SPINE_CMDS = frozenset(
-    {
-        "place-order",
-        "cancel-order",
-        "modify-order",
-        "place-orders",
-        "bracket-order",
-        "oco-order",
-        "basket-order",
-        "oms",
-        "orders",
-        "trades",
-        "risk",
-        "holdings",
-        "positions",
-    }
-)
-
-
-def _bootstrap_trade_runtime(
-    broker_name: str,
-    *,
-    authorize_risk_fail_open: bool,
-) -> Any:
-    from interface.ui.services.compose import build_runtime
-
-    return build_runtime(
-        broker_name,
-        authorize_risk_fail_open=authorize_risk_fail_open,
-    )
 
 
 def _try_create_gateway(
@@ -208,12 +155,6 @@ def main() -> None:
             ("analytics", "Run analytics (scan, rank, backtest, paper, sectors)"),
             ("validate", "Validate data (broker health or CSV file)"),
             ("benchmark", "Benchmark broker latency"),
-            ("account/funds", "Show account balance"),
-            ("holdings", "Show holdings"),
-            ("positions", "Show positions"),
-            ("orders", "Show orders"),
-            ("trades", "Show trades"),
-            ("oms", "Order management summary"),
             ("quote", "Get quote for a symbol"),
             ("depth", "Get market depth"),
             ("option-chain", "Get option chain"),
@@ -259,39 +200,27 @@ def main() -> None:
     tc = None
     _gw: Any = None
 
-    if subcommand in _TRADE_SPINE_CMDS:
-        runtime = _bootstrap_trade_runtime(
-            broker_name,
-            authorize_risk_fail_open=authorize_risk_fail_open,
-        )
-        broker_service = runtime.broker_service
-        gateway = runtime.gateway
-        _gw = gateway
-        tc = runtime.trading_context
-        if tc is not None and tc.event_bus is not None:
-            event_bus_service = EventBusService(event_bus=tc.event_bus)
-    else:
-        broker_service = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
+    broker_service = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
 
-        def _get_gateway() -> Any:
-            nonlocal _gw
-            if _gw is None:
-                load_inst = subcommand in _NEEDS_INSTRUMENTS
-                _gw = _try_create_gateway(broker_name, load_instruments=load_inst)
-            return _gw
-
-        if subcommand not in _NO_GATEWAY_CMDS:
+    def _get_gateway() -> Any:
+        nonlocal _gw
+        if _gw is None:
             load_inst = subcommand in _NEEDS_INSTRUMENTS
-            gateway = _try_create_gateway(
-                broker_name,
-                load_instruments=load_inst,
-                event_bus=event_bus_service.event_bus,
-                lifecycle=broker_service.lifecycle,
-            )
-            _gw = gateway
-            tc = broker_service.trading_context
-            if tc is not None:
-                event_bus_service = EventBusService(event_bus=tc.event_bus)
+            _gw = _try_create_gateway(broker_name, load_instruments=load_inst)
+        return _gw
+
+    if subcommand not in _NO_GATEWAY_CMDS:
+        load_inst = subcommand in _NEEDS_INSTRUMENTS
+        gateway = _try_create_gateway(
+            broker_name,
+            load_instruments=load_inst,
+            event_bus=event_bus_service.event_bus,
+            lifecycle=broker_service.lifecycle,
+        )
+        _gw = gateway
+        tc = broker_service.trading_context
+        if tc is not None:
+            event_bus_service = EventBusService(event_bus=tc.event_bus)
 
     # 3. Subcommand routing
     try:
@@ -325,25 +254,6 @@ def main() -> None:
 
         elif subcommand == "instrument" or subcommand == "instrument-info":
             cmd_instrument.run(cmd_args, broker_service, console)
-
-        elif subcommand == "account" or subcommand == "funds":
-            cmd_account.run(cmd_args, broker_service, console)
-
-        elif subcommand == "holdings":
-            cmd_portfolio.show_holdings(broker_service, console)
-
-        elif subcommand == "positions":
-            cmd_portfolio.show_positions(broker_service, console)
-
-        elif subcommand == "orders":
-            status_filter = cmd_args[0] if cmd_args else None
-            cmd_oms.show_orders(broker_service, console, status_filter)
-
-        elif subcommand == "trades":
-            cmd_oms.show_trades(broker_service, console)
-
-        elif subcommand == "oms":
-            cmd_oms.show_oms_summary(broker_service, console)
 
         elif subcommand == "quote":
             from interface.ui.commands.market_handlers import handle_quote
@@ -446,7 +356,7 @@ def main() -> None:
             else:
                 console.print(f"[red]Error: Unknown command '{subcommand}'[/red]")
                 console.print(
-                    "[yellow]Available commands: broker, analytics, account/funds, holdings, positions, orders, trades, oms, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
+                    "[yellow]Available commands: broker, analytics, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
                 )
                 exit_code = 1
     finally:

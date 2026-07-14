@@ -38,7 +38,7 @@ from domain.instruments.instrument import (
 )
 from domain.options.option_chain import OptionChain
 from domain.universe import Session as DomainSession
-from tradex.session import open_session
+from runtime.session_opener import get_session_opener
 
 
 class BrokerSession:
@@ -61,7 +61,7 @@ class BrokerSession:
         **kwargs: Any,
     ) -> None:
         self._broker_id = (broker or "paper").lower().strip()
-        self._session: DomainSession = open_session(
+        self._session: DomainSession = get_session_opener()(
             self._broker_id,
             mode=mode,
             event_bus=event_bus,

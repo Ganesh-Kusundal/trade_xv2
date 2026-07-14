@@ -17,7 +17,6 @@ from brokers.common.instruments.carrier import BrokerWireRef, LoadStats, Resolve
 from brokers.dhan.identity.identity import DhanIdentityProvider, DhanInstrumentRef
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.resolver import SymbolResolver
-from domain.normalize import normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +165,7 @@ class DhanInstrumentService:
     def search(self, query: str, *, limit: int = 20) -> list[dict]:
         """Search returning dicts for describe/debug tooling."""
         results: list[dict] = []
-        q = normalize_text(query, case="upper", strip=True)
+        q = query.upper().strip()
         for inst in self._resolver.all_instruments():
             if q in inst.symbol.upper() or q in (inst.canonical_symbol or "").upper():
                 results.append(

@@ -414,12 +414,10 @@ class SupportResistance:
             return []
 
 
-# Re-export for backward compatibility
-from datalake.analytics._sr_algorithms import main as _legacy_main  # noqa: E402
-
-
 def main() -> None:
     """CLI entry point for precomputing support/resistance levels."""
+    from datalake.analytics._sr_algorithms import main as _legacy_main
+
     _legacy_main()
 
 

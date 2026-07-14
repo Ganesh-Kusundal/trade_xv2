@@ -159,11 +159,24 @@ class BrokerDataProvider:
         *,
         depth: bool = False,
     ) -> Subscription:
-        """Subscribe to live market data via gateway.stream().
+        """Subscribe to live market data via gateway.stream() / gateway.stream_depth().
 
         Wraps the broker's stream handle in a Subscription object.
         """
-        mode = "DEPTH" if depth else "QUOTE"
+        if depth:
+            def _on_depth(market_depth: MarketDepth) -> None:
+                try:
+                    callback(instrument_id, market_depth)
+                except Exception as exc:
+                    logger.warning("Depth stream callback error for %s: %s", instrument_id, exc)
+
+            handle = self._gateway.stream_depth(
+                symbol=instrument_id.underlying,
+                exchange=instrument_id.exchange,
+                levels=5,
+                on_depth=_on_depth,
+            )
+            return _BrokerSubscription(handle, instrument_id)
 
         def _on_tick(tick: dict) -> None:
             try:
@@ -193,7 +206,7 @@ class BrokerDataProvider:
         handle = self._gateway.stream(
             symbol=instrument_id.underlying,
             exchange=instrument_id.exchange,
-            mode=mode,
+            mode="QUOTE",
             on_tick=_on_tick,
         )
         return _BrokerSubscription(handle, instrument_id)

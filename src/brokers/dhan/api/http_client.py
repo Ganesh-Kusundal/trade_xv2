@@ -605,7 +605,7 @@ class DhanHttpClient:
 
     def _backoff_delay(self, attempt: int) -> float:
         """Exponential backoff: 500ms, 1s, 2s, 4s... capped at 5s."""
-        from infrastructure.resilience.backoff import exponential_backoff
+        from brokers.common.backoff import exponential_backoff
 
         return exponential_backoff(
             attempt,

@@ -6,8 +6,10 @@ Re-exports circuit breaker, retry executor, and the canonical rate limiter
 
 from __future__ import annotations
 
-from infrastructure.resilience.rate_limiter import (
+from infrastructure.resilience._metrics import (
     DhanRateLimiterMetrics,
+)
+from infrastructure.resilience.rate_limiter import (
     create_rate_limiter,
 )
 from brokers.dhan.resilience.circuit_breaker import (

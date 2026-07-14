@@ -415,7 +415,3 @@ def create_rate_limiter(
         configs["data"] = configs["historical"]
 
     return MultiBucketRateLimiter(configs)
-
-
-# Re-export for backward compatibility
-from infrastructure.resilience._metrics import DhanRateLimiterMetrics  # noqa: E402

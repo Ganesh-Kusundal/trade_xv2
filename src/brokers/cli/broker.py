@@ -27,24 +27,15 @@ from brokers.platform_ops import (
     run_verify,
 )
 from brokers.services import (
-    cancel_order,
     extensions_from_session,
     get_capabilities,
     get_depth,
     get_depth30,
-    get_funds,
     get_history,
-    get_holdings,
     get_news,
     get_option_chain,
-    get_orders,
-    get_positions,
     get_quote,
-    list_forever_orders,
-    list_super_orders,
     lookup_symbol,
-    modify_order,
-    place_order,
     probe_depth_ws,
     run_connect,
     run_market_hours,
@@ -408,91 +399,6 @@ def option_chain(ctx: click.Context, underlying: str) -> None:
 
 @broker.command()
 @click.pass_context
-@handle_cli_errors
-def positions(ctx: click.Context) -> None:
-    """Show positions."""
-    present(ctx, get_positions(_bid(ctx), **_svc_kw(ctx)), title="Positions")
-
-
-@broker.command()
-@click.pass_context
-@handle_cli_errors
-def holdings(ctx: click.Context) -> None:
-    """Show holdings."""
-    present(ctx, get_holdings(_bid(ctx), **_svc_kw(ctx)), title="Holdings")
-
-
-@broker.command()
-@click.pass_context
-@handle_cli_errors
-def funds(ctx: click.Context) -> None:
-    """Show funds."""
-    present(ctx, get_funds(_bid(ctx), **_svc_kw(ctx)), title="Funds")
-
-
-@broker.command()
-@click.pass_context
-@handle_cli_errors
-def orders(ctx: click.Context) -> None:
-    """List orders."""
-    present(ctx, get_orders(_bid(ctx), **_svc_kw(ctx)), title="Orders")
-
-
-@broker.command("order")
-@click.argument("symbol")
-@click.argument("quantity", type=int)
-@click.option("--side", default="BUY", type=click.Choice(["BUY", "SELL"], case_sensitive=False))
-@click.option("--price", default=None, type=float)
-@click.option("--order-type", "order_type", default="LIMIT")
-@click.option("--product-type", "product_type", default="INTRADAY")
-@click.pass_context
-def order_cmd(
-    ctx: click.Context,
-    symbol: str,
-    quantity: int,
-    side: str,
-    price: float | None,
-    order_type: str,
-    product_type: str,
-) -> None:
-    """Place an order (paper-safe by default)."""
-    result = place_order(
-        _bid(ctx),
-        symbol,
-        quantity,
-        side=side,
-        price=price,
-        order_type=order_type,
-        product_type=product_type,
-        **_svc_kw(ctx),
-    )
-    present(ctx, result, title="Order placed")
-
-
-@broker.command()
-@click.argument("order_id")
-@click.pass_context
-def cancel(ctx: click.Context, order_id: str) -> None:
-    """Cancel an order by id."""
-    present(ctx, cancel_order(_bid(ctx), order_id, **_svc_kw(ctx)), title="Order cancelled")
-
-
-@broker.command()
-@click.argument("order_id")
-@click.option("--quantity", default=None, type=int)
-@click.option("--price", default=None, type=float)
-@click.pass_context
-def modify(ctx: click.Context, order_id: str, quantity: int | None, price: float | None) -> None:
-    """Modify an open order."""
-    present(
-        ctx,
-        modify_order(_bid(ctx), order_id, quantity=quantity, price=price, **_svc_kw(ctx)),
-        title="Order modified",
-    )
-
-
-@broker.command()
-@click.pass_context
 def capability(ctx: click.Context) -> None:
     """List broker capabilities for an instrument."""
     present(ctx, get_capabilities(_bid(ctx), **_svc_kw(ctx)), title="Capabilities")
@@ -601,20 +507,6 @@ def depth30_cmd(ctx: click.Context, symbol: str) -> None:
 def news(ctx: click.Context, symbol: str | None) -> None:
     """Fetch news (optional SYMBOL filter, Upstox)."""
     present(ctx, get_news(_bid(ctx), symbol=symbol, **_svc_kw(ctx)), title="News")
-
-
-@broker.command("super_orders")
-@click.pass_context
-def super_orders_cmd(ctx: click.Context) -> None:
-    """List Dhan super/bracket orders."""
-    present(ctx, list_super_orders(_bid(ctx), **_svc_kw(ctx)), title="Super orders")
-
-
-@broker.command("forever_orders")
-@click.pass_context
-def forever_orders_cmd(ctx: click.Context) -> None:
-    """List Dhan forever orders."""
-    present(ctx, list_forever_orders(_bid(ctx), **_svc_kw(ctx)), title="Forever orders")
 
 
 @broker.command()

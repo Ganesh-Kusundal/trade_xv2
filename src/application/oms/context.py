@@ -6,6 +6,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable
+from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any  # Only for signal handler frame type
 
@@ -209,6 +210,10 @@ class TradingContext:
         # F5: feed session equity delta (current − session-open) into the risk
         # engine so daily-loss is not absolute MTM. Baseline is re-frozen after
         # event-log replay (below) so overnight book is the open, not a loss.
+        # Analytics PARITY (ReplayEngine / PaperTradingEngine) sets
+        # ``set_analytics_daily_pnl_owner(True)`` so this bus feed is muted and
+        # the session bar feed is the sole writer.
+        self._analytics_owns_daily_pnl = False
         self._session_open_equity = self._compute_equity()
         self._event_bus.subscribe(
             EventType.POSITION_UPDATED.value, self._feed_daily_pnl
@@ -429,6 +434,40 @@ class TradingContext:
                 capital = Decimal("0")
         return capital + book
 
+    def set_analytics_daily_pnl_owner(self, owned: bool) -> None:
+        """When True, mute bus ``_feed_daily_pnl`` (analytics session owns daily_pnl)."""
+        self._analytics_owns_daily_pnl = bool(owned)
+
+    @contextmanager
+    def analytics_parity_scope(self, capital_provider):
+        """Scope PARITY risk bindings to a single run and restore on exit.
+
+        Analytics engines (ReplayEngine / PaperTradingEngine) call this from
+        ``run()`` so the risk capital binding and daily-pnl ownership flag are
+        reverted when the run ends. Without this, a TradingContext reused for
+        live trading after a replay would carry replay's capital provider and a
+        permanently-muted daily-pnl bus feed.
+
+        No-op (immediately yields) when ``capital_provider`` is None or the
+        context has no ``risk_manager`` (PURE_SIM / OMS-less harness).
+        """
+        if capital_provider is None:
+            yield
+            return
+        risk = self._risk_manager
+        if risk is None or not hasattr(risk, "bind_capital_provider"):
+            yield
+            return
+        prev_owner = self._analytics_owns_daily_pnl
+        prev_cap = risk.capital_provider
+        risk.bind_capital_provider(capital_provider)
+        self.set_analytics_daily_pnl_owner(True)
+        try:
+            yield
+        finally:
+            self.set_analytics_daily_pnl_owner(prev_owner)
+            risk.bind_capital_provider(prev_cap)
+
     def _feed_daily_pnl(self, event: DomainEvent | None = None) -> None:
         """Push session equity delta into the risk engine (F5).
 
@@ -436,7 +475,12 @@ class TradingContext:
         book MTM. Called on every ``POSITION_UPDATED`` / ``POSITION_CLOSED``.
         The tracker stores this session delta and records incremental changes
         for the loss circuit breaker.
+
+        Skipped when analytics PARITY owns the feed via
+        :meth:`set_analytics_daily_pnl_owner`.
         """
+        if self._analytics_owns_daily_pnl:
+            return
         if self._risk_manager is None:
             return
         try:

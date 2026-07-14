@@ -62,8 +62,6 @@ from infrastructure.adapter_factory import get_broker_extension_classes
 _SECTION_DEFS: list[tuple[str, list[str]]] = [
     ("Session", ["connect", "discover", "capability", "symbols", "instrument", "mappings"]),
     ("Market", ["quote", "history", "subscribe", "depth", "option_chain"]),
-    ("Portfolio", ["positions", "holdings", "funds", "orders"]),
-    ("Trading", ["order", "cancel", "modify"]),
     (
         "Diagnostics",
         ["diagnose", "health", "doctor", "benchmark", "market_hours", "certify", "verify"],
@@ -91,8 +89,6 @@ _EXTENSION_ALIASES: dict[str, str] = {
     "depth20": "depth_20",
     "depth200": "depth_200",
     "depth30": "depth_30",
-    "super_orders": "super_order",
-    "forever_orders": "forever_order",
     "news": "news",
 }
 

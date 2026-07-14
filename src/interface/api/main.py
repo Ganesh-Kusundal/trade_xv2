@@ -297,13 +297,13 @@ def create_app(
     from domain.runtime_hooks import (
         register_domain_event_factory,
         register_oms_backtest_factory,
+        register_trading_context_factory,
     )
     from infrastructure.event_bus.factory import create_domain_event
-    from runtime.replay_factory import set_trading_context_factory
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
-    set_trading_context_factory(create_trading_context)
+    register_trading_context_factory(create_trading_context)
 
     # ENG-011: single process OMS book for REST, CLI, and tradex.connect.
     if trading_context is not None:

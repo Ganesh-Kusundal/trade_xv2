@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from domain.universe import Session as DomainSession
+from runtime.session_opener import get_session_opener
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,7 @@ def get_active_session(
     with ``tradex.open_session(gateway=...)``. Falls back to a fresh bootstrap
     when no live gateway is available.
     """
-    # Composition seam: application use-case delegates session open to public SDK.
-    from tradex.session import open_session
+    open_session = get_session_opener()
 
     broker_service._ensure_initialized()
     gw = broker_service.active_broker

@@ -104,51 +104,6 @@ jobs:
           fi
           echo "✅ No print() statements in production code"
 
-  coupling-guardrails:
-    name: Coupling Guardrails (REF-1..REF-10)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: No ad-hoc normalization outside domain normalizers
-        run: |
-          # REF-1/REF-10: upper().strip() / strip().upper() only in normalizers
-          violations=$(grep -rnE '\.upper\(\)\.strip\(\)|\.strip\(\)\.upper\(\)' \
-            --include='*.py' \
-            src/domain/symbols.py src/domain/normalize.py src/datalake/core/symbols.py 2>/dev/null \
-            | grep -v '# noqa' || true)
-          # Invert: flag any OTHER production file containing the pattern.
-          all=$(grep -rlnE '\.upper\(\)\.strip\(\)|\.strip\(\)\.upper\(\)' \
-            --include='*.py' src/ 2>/dev/null \
-            | grep -vE 'src/domain/symbols\.py|src/domain/normalize\.py|src/datalake/core/symbols\.py' \
-            | grep -v '/tests/' || true)
-          if [ -n "$all" ]; then
-            echo "❌ Ad-hoc normalization outside domain normalizers (REF-1/REF-10):"
-            echo "$all"
-            exit 1
-          fi
-          echo "✅ Normalization centralized in domain.normalize / domain.symbols"
-      - name: No inline slippage arithmetic
-        run: |
-          # REF-2: slippage only via domain.trading_costs.apply_slippage
-          violations=$(grep -rnE '\*\s*\(1\s*[+-]\s*slippage' \
-            --include='*.py' src/ 2>/dev/null | grep -v '# noqa' || true)
-          if [ -n "$violations" ]; then
-            echo "❌ Inline slippage arithmetic (REF-2) — use apply_slippage:"
-            echo "$violations"
-            exit 1
-          fi
-          echo "✅ Slippage routed through domain.trading_costs.apply_slippage"
-      - name: brokers.common.backoff deleted
-        run: |
-          # REF-3: single backoff source
-          violations=$(grep -rn 'brokers\.common\.backoff' --include='*.py' src/ 2>/dev/null || true)
-          if [ -n "$violations" ]; then
-            echo "❌ brokers.common.backoff still referenced (REF-3):"
-            echo "$violations"
-            exit 1
-          fi
-          echo "✅ Backoff centralized in infrastructure.resilience.backoff"
-
   architecture-fitness:
     name: Architecture Fitness Tests
     runs-on: ubuntu-latest

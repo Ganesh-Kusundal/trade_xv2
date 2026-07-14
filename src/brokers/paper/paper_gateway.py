@@ -487,7 +487,7 @@ class PaperGateway:
             OPTION_CHAIN,
             QUOTE,
             RESOLVE,
-            MarketSurface,
+            MarketCoverage,
         )
         from domain.instruments.asset_kind import AssetKind
 
@@ -568,10 +568,10 @@ class PaperGateway:
             max_batch_size=100,
             market_surfaces=frozenset(
                 {
-                    MarketSurface(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
-                    MarketSurface(AssetKind.OPTIONS, "NFO", "NIFTY", frozenset({OPTION_CHAIN})),
-                    MarketSurface(AssetKind.FUTURES, "NFO", "NIFTY", frozenset({FUTURE_CHAIN})),
-                    MarketSurface(AssetKind.FUTURES, "MCX", "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
+                    MarketCoverage(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
+                    MarketCoverage(AssetKind.OPTIONS, "NFO", "NIFTY", frozenset({OPTION_CHAIN})),
+                    MarketCoverage(AssetKind.FUTURES, "NFO", "NIFTY", frozenset({FUTURE_CHAIN})),
+                    MarketCoverage(AssetKind.FUTURES, "MCX", "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
                 }
             ),
         )

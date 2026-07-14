@@ -104,6 +104,7 @@ class BacktestEngine:
         execution_adapter=None,
         oms_adapter=None,
         mode: ResearchMode | str = ResearchMode.PURE_SIM,
+        allow_simulate_without_oms: bool | None = None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
@@ -124,6 +125,8 @@ class BacktestEngine:
             logger.info(
                 "BacktestEngine mode=pure_sim — OMS optional; not live-parity (ENG-012)"
             )
+        if allow_simulate_without_oms is not None:
+            allow_sim = allow_simulate_without_oms
 
         self._replay_engine = ReplayEngine(
             self._pipeline,

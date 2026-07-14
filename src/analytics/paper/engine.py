@@ -110,15 +110,50 @@ class PaperTradingEngine:
                 "Pass a TradingContext instance from your composition root."
             )
 
+        from analytics.replay.cash_ledger import SimulatedCashLedger
+
+        self._portfolio_tracker = SimulatedCashLedger(self._config.initial_capital)
+        # Risk capital is bound to a FIXED account size (not this ledger) inside
+        # run() via analytics_parity_scope, so TradingContext is never mutated
+        # permanently by paper trading.
+
         # Decompose responsibilities into focused collaborators. The fill-recording
         # callback is shared so every collaborator applies fills through the same
         # FillReducer / PortfolioProjector path.
         self._window_mgr = BarWindowManager(self._pipeline)
         self._signal_processor = PaperSignalProcessor(
-            self._config, self._oms_adapter, self._record_session_fill
+            self._config,
+            self._oms_adapter,
+            self._record_session_fill,
+            on_cash=self._apply_cash_delta,
         )
         self._closer = PaperPositionCloser(
-            self._config, self._oms_adapter, self._record_session_fill
+            self._config,
+            self._oms_adapter,
+            self._record_session_fill,
+            on_cash=self._apply_cash_delta,
+        )
+
+    def _apply_cash_delta(self, session: PaperSession, delta: float) -> None:
+        """Ledger-backed cash update (PARITY SSOT)."""
+        self._portfolio_tracker.apply_delta(delta)
+        session.capital = float(self._portfolio_tracker.get_capital())
+
+    def _feed_parity_risk_state(self, session: PaperSession, bar: HistoricalBar) -> None:
+        from analytics.replay.parity_risk import feed_parity_risk_state
+
+        open_eq = (
+            session.equity_curve[0][1]
+            if session.equity_curve
+            else self._config.initial_capital
+        )
+        feed_parity_risk_state(
+            self._trading_context,
+            current_equity=session.total_equity,
+            open_equity=open_eq,
+            bar_symbol=bar.symbol,
+            bar_close=float(bar.close),
+            has_position=session.has_position(bar.symbol),
         )
 
     # -----------------------------------------------------------------------
@@ -153,10 +188,20 @@ class PaperTradingEngine:
         df[ts_col] = pd.to_datetime(df[ts_col])
         df = df.sort_values(ts_col).reset_index(drop=True)
 
-        if "symbol" in df.columns:
-            return self._run_multi_symbol(df, ts_col)
+        from contextlib import nullcontext
 
-        return self._run_single(df, symbol, ts_col)
+        from analytics.replay.cash_ledger import FixedAccountCapitalProvider
+
+        if self._trading_context is not None:
+            cm = self._trading_context.analytics_parity_scope(
+                FixedAccountCapitalProvider(self._config.initial_capital)
+            )
+        else:
+            cm = nullcontext()
+        with cm:
+            if "symbol" in df.columns:
+                return self._run_multi_symbol(df, ts_col)
+            return self._run_single(df, symbol, ts_col)
 
     def on_bar(self, bar: HistoricalBar, session: PaperSession) -> list[Signal]:
         """Process a single live bar. Call this for real-time streaming.
@@ -225,6 +270,7 @@ class PaperTradingEngine:
         session.equity_curve.append((bar.timestamp, equity))
         if equity > session.peak_equity:
             session.peak_equity = equity
+        self._feed_parity_risk_state(session, bar)
 
         return signals
 
@@ -302,6 +348,7 @@ class PaperTradingEngine:
                 session.equity_curve.append((bar.timestamp, equity))
                 if equity > session.peak_equity:
                     session.peak_equity = equity
+                self._feed_parity_risk_state(session, bar)
                 continue
 
             # Construct candidate and evaluate through strategy pipeline
@@ -320,6 +367,7 @@ class PaperTradingEngine:
             session.equity_curve.append((bar.timestamp, equity))
             if equity > session.peak_equity:
                 session.peak_equity = equity
+            self._feed_parity_risk_state(session, bar)
 
         # Remaining pending: no next bar — fill at last bar open (matches ReplayEngine)
         for symbol, sym_pending in pending_by_symbol.items():

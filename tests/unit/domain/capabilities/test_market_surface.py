@@ -1,4 +1,4 @@
-"""Unit tests for MarketSurface + BrokerCapabilities.market_surfaces / serves()."""
+"""Unit tests for MarketCoverage + BrokerCapabilities.market_surfaces / serves()."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from domain.capabilities.market_surface import (
     OPTION_CHAIN,
     QUOTE,
     RESOLVE,
-    MarketSurface,
+    MarketCoverage,
 )
 from domain.instruments.asset_kind import AssetKind
 
@@ -23,10 +23,10 @@ def _upstox() -> set[tuple[str, str]]:
     return {(s.asset_kind.value, s.exchange) for s in upstox_capabilities().market_surfaces}
 
 
-class TestMarketSurface:
+class TestMarketCoverage:
     def test_frozen_and_equality(self):
-        a = MarketSurface(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({QUOTE, LTP}))
-        b = MarketSurface(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({LTP, QUOTE}))
+        a = MarketCoverage(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({QUOTE, LTP}))
+        b = MarketCoverage(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({LTP, QUOTE}))
         assert a == b
         assert hash(a) == hash(b)
         assert a.supports_operation(QUOTE)

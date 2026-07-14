@@ -12,7 +12,7 @@ from domain.capabilities.market_surface import (
     QUOTE,
     RESOLVE,
     FUTURE_CHAIN,
-    MarketSurface,
+    MarketCoverage,
 )
 from domain.constants.exchanges import CDS, MCX, NFO, NSE
 from domain.instruments.asset_kind import AssetKind
@@ -147,13 +147,13 @@ def dhan_capabilities() -> BrokerCapabilities:
         max_batch_size=1000,
         market_surfaces=frozenset(
             {
-                MarketSurface(AssetKind.EQUITY, NSE, "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
-                MarketSurface(AssetKind.INDEX, NSE, "NIFTY", frozenset({RESOLVE, LTP})),
-                MarketSurface(AssetKind.OPTIONS, NFO, "NIFTY", frozenset({OPTION_CHAIN})),
-                MarketSurface(AssetKind.FUTURES, NFO, "NIFTY", frozenset({FUTURE_CHAIN})),
-                MarketSurface(AssetKind.FUTURES, MCX, "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
-                MarketSurface(AssetKind.OPTIONS, MCX, "GOLD", frozenset({OPTION_CHAIN})),
-                MarketSurface(AssetKind.SPOT, CDS, "USDINR", frozenset({RESOLVE, QUOTE, LTP})),
+                MarketCoverage(AssetKind.EQUITY, NSE, "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
+                MarketCoverage(AssetKind.INDEX, NSE, "NIFTY", frozenset({RESOLVE, LTP})),
+                MarketCoverage(AssetKind.OPTIONS, NFO, "NIFTY", frozenset({OPTION_CHAIN})),
+                MarketCoverage(AssetKind.FUTURES, NFO, "NIFTY", frozenset({FUTURE_CHAIN})),
+                MarketCoverage(AssetKind.FUTURES, MCX, "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
+                MarketCoverage(AssetKind.OPTIONS, MCX, "GOLD", frozenset({OPTION_CHAIN})),
+                MarketCoverage(AssetKind.SPOT, CDS, "USDINR", frozenset({RESOLVE, QUOTE, LTP})),
             }
         ),
     )

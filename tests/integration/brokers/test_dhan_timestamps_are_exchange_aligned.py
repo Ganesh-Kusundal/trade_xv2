@@ -30,10 +30,12 @@ import pytest
 def _import_runtime():
     """Lazy-import the (gitignored) runtime module; skip if unimportable."""
     try:
+        from application.streaming.tick_router import (
+            _parse_exchange_time,
+        )
         from application.streaming.orchestrator import (
             MarketTick,
             StreamOrchestrator,
-            _parse_exchange_time,
         )
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"runtime module not importable: {exc}")

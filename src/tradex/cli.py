@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import importlib
 import sys
-from typing import Any
 
 import click
 
@@ -33,19 +32,219 @@ def tradex() -> None:
 tradex.add_command(broker_group, name="broker")
 
 
+def _dispatch_ui(argv: list[str]) -> None:
+    """Re-invoke ``interface.ui.main`` with a translated argv.
+
+    Reuses its existing broker/gateway bootstrap and the ``analytics``
+    flat dispatcher rather than re-wiring a second copy of that plumbing.
+    """
+    main = importlib.import_module("interface.ui.main").main
+    sys.argv = [sys.argv[0], *argv]
+    main()
+
+
 @tradex.command()
 @click.argument("args", nargs=-1, type=click.UNPROCESSED)
 def ui(args: tuple[str, ...]) -> None:
     """Launch the TradeXV2 rich/Textual terminal (interface.ui.main)."""
-    # Loaded by string so the literal ``interface.ui`` import does not trip the
-    # layer-isolation lint (TID251) — this facade is explicitly allowed to
-    # dispatch into the UI layer.
-    main = importlib.import_module("interface.ui.main").main
+    _dispatch_ui(list(args))
 
-    # ``main()`` parses ``sys.argv[1:]`` directly, so strip the ``tradex ui``
-    # prefix and leave only the arguments intended for the UI itself.
-    sys.argv = [sys.argv[0], *args]
-    main()
+
+# ── Analytics-first top-level groups ────────────────────────────────────────
+# Each command below is a thin argv-translator into the existing
+# ``analytics`` flat dispatcher (``interface.ui.commands.analytics.run``),
+# reusing its broker_service/gateway wiring rather than duplicating it. Only
+# subcommands with a real backing engine are wired — see
+# docs/superpowers/specs/2026-07-14-tradex-cli-hierarchy-design.md and
+# context/progress-tracker.md's "Analytics-first CLI pivot" entry for what's
+# intentionally left out (no backing engine yet: pattern detect, market
+# advance-decline/heatmap/leaders/laggards, volume spikes/unusual/delivery/
+# delta/dry-up, scanner opening-range/custom).
+
+
+@tradex.group()
+def scanner() -> None:
+    """Market scanners (breakout, volume, momentum, relative strength)."""
+
+
+@scanner.command("breakout")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def scanner_breakout(args: tuple[str, ...]) -> None:
+    """Scan the universe for breakout candidates."""
+    _dispatch_ui(["analytics", "scan-breakout", *args])
+
+
+@scanner.command("volume")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def scanner_volume(args: tuple[str, ...]) -> None:
+    """Scan the universe for unusual-volume candidates."""
+    _dispatch_ui(["analytics", "scan-volume", *args])
+
+
+@scanner.command("momentum")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def scanner_momentum(args: tuple[str, ...]) -> None:
+    """Scan the universe for momentum candidates."""
+    _dispatch_ui(["analytics", "scan-momentum", *args])
+
+
+@scanner.command("rs")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def scanner_rs(args: tuple[str, ...]) -> None:
+    """Scan the universe for relative-strength candidates."""
+    _dispatch_ui(["analytics", "scan-rs", *args])
+
+
+@tradex.group()
+def market() -> None:
+    """Market breadth and sector analytics."""
+
+
+@market.command("breadth")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def market_breadth(args: tuple[str, ...]) -> None:
+    """Advance/decline market breadth."""
+    _dispatch_ui(["analytics", "breadth", *args])
+
+
+@market.command("sector")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def market_sector(args: tuple[str, ...]) -> None:
+    """Sector-level analytics."""
+    _dispatch_ui(["analytics", "sector", *args])
+
+
+@market.command("sector-rotation")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def market_sector_rotation(args: tuple[str, ...]) -> None:
+    """Sector rotation analytics."""
+    _dispatch_ui(["analytics", "sector-rotation", *args])
+
+
+@market.command("sector-strength")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def market_sector_strength(args: tuple[str, ...]) -> None:
+    """Sector strength ranking."""
+    _dispatch_ui(["analytics", "sector-strength", *args])
+
+
+@market.command("sector-volume")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def market_sector_volume(args: tuple[str, ...]) -> None:
+    """Sector volume analytics."""
+    _dispatch_ui(["analytics", "sector-volume", *args])
+
+
+@tradex.group()
+def indicator() -> None:
+    """Technical indicators."""
+
+
+@indicator.command("halftrend")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def indicator_halftrend(args: tuple[str, ...]) -> None:
+    """Halftrend indicator for a symbol."""
+    _dispatch_ui(["analytics", "halftrend", *args])
+
+
+@indicator.command("halftrend-scan")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def indicator_halftrend_scan(args: tuple[str, ...]) -> None:
+    """Scan the universe for halftrend signals."""
+    _dispatch_ui(["analytics", "halftrend-scan", *args])
+
+
+@tradex.group()
+def strategy() -> None:
+    """Registered trading strategies."""
+
+
+@strategy.command("list")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def strategy_list(args: tuple[str, ...]) -> None:
+    """List registered strategies."""
+    _dispatch_ui(["analytics", "strategies", *args])
+
+
+@tradex.group()
+def backtest() -> None:
+    """Backtest, paper, and replay simulation (zero-parity OMS kernel)."""
+
+
+@backtest.command("run")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def backtest_run(args: tuple[str, ...]) -> None:
+    """Run a backtest."""
+    _dispatch_ui(["analytics", "backtest", *args])
+
+
+@backtest.command("paper")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def backtest_paper(args: tuple[str, ...]) -> None:
+    """Run paper-trading simulation."""
+    _dispatch_ui(["analytics", "paper", *args])
+
+
+@backtest.command("replay")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def backtest_replay(args: tuple[str, ...]) -> None:
+    """Replay historical data through the OMS kernel."""
+    _dispatch_ui(["analytics", "replay", *args])
+
+
+@backtest.command("optimize")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def backtest_optimize(args: tuple[str, ...]) -> None:
+    """Grid-search strategy parameters."""
+    _dispatch_ui(["analytics", "optimize", *args])
+
+
+@backtest.command("walkforward")
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+def backtest_walkforward(args: tuple[str, ...]) -> None:
+    """Walk-forward validation."""
+    _dispatch_ui(["analytics", "walkforward", *args])
+
+
+@tradex.group()
+def support() -> None:
+    """Support/resistance levels (read-only datalake query)."""
+
+
+@support.command("levels")
+@click.argument("symbol")
+@click.option("--days", default=60, type=int, help="Lookback window in days.")
+@click.option("--top-n", "top_n", default=5, type=int, help="Number of levels per side.")
+@click.pass_context
+def support_levels(ctx: click.Context, symbol: str, days: int, top_n: int) -> None:
+    """Support/resistance levels for SYMBOL."""
+    from dataclasses import asdict
+
+    from brokers.cli._render import present
+    from datalake.analytics.support_resistance import SupportResistance
+
+    levels = SupportResistance().get_levels(symbol, days=days, top_n=top_n)
+    data = {side: [asdict(lvl) for lvl in rows] for side, rows in levels.items()}
+    present(ctx, data, title=f"Support/Resistance — {symbol}")
+
+
+@support.command("nearest")
+@click.argument("symbol")
+@click.option("--price", type=float, required=True, help="Current price to compare against.")
+@click.option("--days", default=60, type=int, help="Lookback window in days.")
+@click.pass_context
+def support_nearest(ctx: click.Context, symbol: str, price: float, days: int) -> None:
+    """Nearest support/resistance to --price for SYMBOL."""
+    from dataclasses import asdict
+
+    from brokers.cli._render import present
+    from datalake.analytics.support_resistance import SupportResistance
+
+    result = dict(SupportResistance().get_nearest_levels(symbol, price, days=days))
+    for key in ("nearest_support", "nearest_resistance"):
+        if result.get(key) is not None:
+            result[key] = asdict(result[key])
+    present(ctx, result, title=f"Nearest levels — {symbol}")
 
 
 # ``version`` is exposed automatically via ``--version`` on the group; this
@@ -124,106 +323,6 @@ def config_reset(ctx: click.Context) -> None:
     store: PreferencesStore = ctx.obj["prefs_store"]
     store.reset()
     click.echo("Preferences reset.")
-
-
-def _session_broker_default() -> str:
-    from brokers.cli._preferences import PreferencesStore
-
-    return PreferencesStore().get("broker.default")
-
-
-@tradex.group()
-@click.option("--broker", default=_session_broker_default, help="Broker id (paper/dhan/upstox).")
-@click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
-@click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
-@click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")
-@click.pass_context
-def position(ctx: click.Context, broker: str, as_json: bool, as_yaml: bool, quiet: bool) -> None:
-    """Position queries (read-only, no OMS required)."""
-    ctx.ensure_object(dict)
-    ctx.obj["broker"] = broker
-    ctx.obj["json"] = as_json
-    ctx.obj["yaml"] = as_yaml
-    ctx.obj["quiet"] = quiet
-
-
-def _open_market_session(ctx: click.Context) -> Any:
-    from brokers.cli._errors import _render_error
-    from domain.connect_errors import ConnectError
-    from tradex.session import open_session
-
-    try:
-        return open_session(ctx.obj["broker"], mode="market")
-    except ConnectError as exc:
-        _render_error(exc)
-        raise SystemExit(1) from exc
-
-
-@position.command("list")
-@click.pass_context
-def position_list(ctx: click.Context) -> None:
-    """List open positions."""
-    from brokers.cli._render import present
-
-    session = _open_market_session(ctx)
-    try:
-        present(ctx, session.account.refresh().positions, title="Positions")
-    finally:
-        session.close()
-
-
-@tradex.group()
-@click.option("--broker", default=_session_broker_default, help="Broker id (paper/dhan/upstox).")
-@click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
-@click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
-@click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")
-@click.pass_context
-def portfolio(ctx: click.Context, broker: str, as_json: bool, as_yaml: bool, quiet: bool) -> None:
-    """Portfolio queries (read-only, no OMS required)."""
-    ctx.ensure_object(dict)
-    ctx.obj["broker"] = broker
-    ctx.obj["json"] = as_json
-    ctx.obj["yaml"] = as_yaml
-    ctx.obj["quiet"] = quiet
-
-
-@portfolio.command("show")
-@click.pass_context
-def portfolio_show(ctx: click.Context) -> None:
-    """Show portfolio summary."""
-    from brokers.cli._render import present
-
-    session = _open_market_session(ctx)
-    try:
-        present(ctx, session.account.refresh().portfolio, title="Portfolio")
-    finally:
-        session.close()
-
-
-@portfolio.command("holdings")
-@click.pass_context
-def portfolio_holdings(ctx: click.Context) -> None:
-    """Show holdings."""
-    from brokers.cli._render import present
-
-    session = _open_market_session(ctx)
-    try:
-        present(ctx, session.account.refresh().holdings, title="Holdings")
-    finally:
-        session.close()
-
-
-@portfolio.command("funds")
-@click.pass_context
-def portfolio_funds(ctx: click.Context) -> None:
-    """Show available funds."""
-    from brokers.cli._render import present
-
-    session = _open_market_session(ctx)
-    try:
-        present(ctx, session.account.refresh().funds, title="Funds")
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":

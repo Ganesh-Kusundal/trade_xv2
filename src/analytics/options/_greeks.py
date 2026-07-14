@@ -7,7 +7,6 @@ import math
 import pandas as pd
 
 from analytics.core.models import AnalysisResult
-from domain.constants.market import DEFAULT_RISK_FREE_RATE
 
 
 def _d1_d2(spot: float, strike: float, t: float, r: float, iv: float) -> tuple[float, float]:
@@ -55,7 +54,7 @@ def _put_theta(spot: float, strike: float, t: float, r: float, iv: float, d1: fl
 def compute_greeks(
     chain: pd.DataFrame,
     spot: float,
-    risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+    risk_free_rate: float = 0.06,
     days_to_expiry: float | None = None,
 ) -> pd.DataFrame:
     """Compute greeks for an option chain DataFrame."""
@@ -97,7 +96,7 @@ class GreeksAnalytics:
         chain: pd.DataFrame,
         multiplier: float = 1.0,
         spot_price: float | None = None,
-        risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+        risk_free_rate: float = 0.06,
         days_to_expiry: float | None = None,
     ) -> AnalysisResult:
         df = chain.copy()

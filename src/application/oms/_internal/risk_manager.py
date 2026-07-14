@@ -428,6 +428,18 @@ class RiskManager:
         """Public accessor for capital provider (used by OrderPlacer)."""
         return self._capital_provider
 
+    def bind_capital_provider(self, provider: CapitalProvider) -> None:
+        """Replace capital source for check_order and DailyPnlTracker.
+
+        ``DailyPnlTracker`` captured ``get_available_balance`` at construct
+        time — both must be rebound or risk continues to see the old capital.
+        ``provider`` must expose ``get_available_balance() -> Decimal``
+        (``CapitalProvider`` or duck-typed equivalent).
+        """
+        with self._lock:
+            self._capital_provider = provider  # type: ignore[assignment]
+            self._daily_pnl_tracker._capital_provider = provider.get_available_balance
+
     def snapshot(self) -> dict:
         """Return a JSON-serializable view of risk-manager state.
 

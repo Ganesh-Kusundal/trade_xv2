@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import ClassVar
 
 from domain.exceptions import TradeXV2Error
-from domain.normalize import normalize_text
 from domain.types import OrderStatus
 
 
@@ -57,7 +56,7 @@ class StatusMapperRegistry:
         Returns:
             Canonical OrderStatus enum value (UNKNOWN when unmapped)
         """
-        normalized = normalize_text(broker_status, case="upper", strip=True, drop=" ")
+        normalized = broker_status.upper().strip().replace(" ", "_")
         if not normalized:
             return OrderStatus.UNKNOWN
         if cls._merged is None:

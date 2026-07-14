@@ -150,11 +150,6 @@ class FastBacktestEngine:
                 ):
                     qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
                     if qty > 0:
-                        # ponytail: slippage applied via domain.trading_costs.apply_slippage
-                        # (single source of truth, REF-2). The float(Decimal(str(...)))
-                        # seam back to float is intentional for the analytics pipeline; the
-                        # full Money/Quantity typing of the sim path is a Phase-4 analytics
-                        # refactor (REF-8 upgrade path) — do not multiply float/Decimal here.
                         entry_price = float(_apply_slippage(Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct))
                         commission = config.commission_flat
                         position = {

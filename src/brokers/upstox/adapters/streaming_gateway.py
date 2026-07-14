@@ -165,10 +165,25 @@ class StreamingGateway:
         self,
         symbol: str,
         exchange: str = "NSE",
-        depth_type: str = "DEPTH_5",  # DEPTH_5, DEPTH_30
+        depth_type: str | None = None,  # DEPTH_5, DEPTH_30 — back-compat
         on_depth: Callable[[MarketDepth], None] | None = None,
+        levels: int | None = None,
     ) -> Any:
-        """Subscribe to Upstox L2 (D5) or L3 (D30) live WebSocket depth ticks."""
+        """Subscribe to Upstox L2 (D5) or L3 (D30) live WebSocket depth ticks.
+
+        *levels* is the canonical entry point (mirrors Dhan's
+        ``stream_depth(levels=...)``); *depth_type* is kept for existing
+        callers. Passing neither defaults to 5-level depth.
+        """
+        from brokers.common.streaming import DepthStreamHandle
+
+        if levels is not None:
+            if levels not in (5, 30):
+                raise ValueError(f"Upstox supports depth levels {{5, 30}}, got: {levels}")
+            depth_type = "DEPTH_30" if levels == 30 else "DEPTH_5"
+        elif depth_type is None:
+            depth_type = "DEPTH_5"
+
         mode = "full_d30" if depth_type == "DEPTH_30" else "full"
         inst_key = self._resolve_key(symbol, exchange)
 
@@ -190,22 +205,14 @@ class StreamingGateway:
         else:
             ws.subscribe([inst_key], mode)
 
-        class DepthStreamHandle:
-            def __init__(self, ws_instance: Any, listener: Any, key: str, sub_mode: str) -> None:
-                self._ws = ws_instance
-                self._listener = listener
-                self._key = key
-                self._mode = sub_mode
+        def _stop() -> None:
+            ws.remove_listener(raw_depth_listener)
+            try:
+                ws.unsubscribe([inst_key])
+            except Exception:
+                pass
 
-            def stop(self, timeout: Any = None) -> None:
-                self._ws.remove_listener(self._listener)
-                try:
-                    self._ws.unsubscribe([self._key])
-                except Exception:
-                    pass
-
-            def disconnect(self) -> None:
-                self.stop()
+        return DepthStreamHandle(initial=None, on_stop=_stop)
 
         return DepthStreamHandle(ws, raw_depth_listener, inst_key, mode)
 

@@ -11,7 +11,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from domain.symbols import make_instrument_id
 from domain.symbols import normalize_exchange
 from domain.symbols import normalize_symbol as _domain_normalize_symbol
 
@@ -83,13 +82,8 @@ def path_to_symbol(path: str | Path) -> str:
 
 
 def normalize_universe_name(name: str) -> str:
-    """Normalize universe name, handling NIFTY50 vs nifty_50 variations.
-
-    Delegates to :func:`domain.normalize.normalize_universe_name`.
-    """
-    from domain.normalize import normalize_universe_name as _norm_universe
-
-    return _norm_universe(name)
+    """Normalize universe name, handling NIFTY50 vs nifty_50 variations."""
+    return name.upper().replace("_", "").replace("-", "").replace(" ", "")
 
 
 def are_same_symbol(a: str, b: str) -> bool:
@@ -100,11 +94,9 @@ def are_same_symbol(a: str, b: str) -> bool:
 def instrument_id_from_symbol(symbol: str, exchange: str = "NSE") -> str:
     """Convert (symbol, exchange) to canonical InstrumentId string.
 
-    Delegates key construction to :func:`domain.symbols.make_instrument_id`
-    (single source of truth) and applies the storage-specific suffix strip on
-    top. Example: instrument_id_from_symbol("RELIANCE", "NSE") → "NSE:RELIANCE"
+    Example: instrument_id_from_symbol("RELIANCE", "NSE") → "NSE:RELIANCE"
     """
-    return make_instrument_id(normalize_symbol_for_storage(symbol), exchange)
+    return f"{normalize_exchange(exchange)}:{normalize_symbol_for_storage(symbol)}"
 
 
 def instrument_id_from_option(

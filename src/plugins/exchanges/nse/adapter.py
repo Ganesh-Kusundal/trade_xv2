@@ -7,8 +7,6 @@ price scaling (paise→INR), and lot/tick sizes.
 
 from __future__ import annotations
 
-from domain.normalize import normalize_text
-
 
 class NseExchangeAdapter:
     """NSE-specific conventions."""
@@ -40,4 +38,4 @@ class NseExchangeAdapter:
 
     def normalize_symbol(self, symbol: str, exchange: str) -> str:
         """Return the canonical symbol (uppercased, stripped)."""
-        return normalize_text(symbol, case="upper", strip=True)
+        return symbol.strip().upper()

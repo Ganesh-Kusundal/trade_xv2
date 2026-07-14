@@ -1,7 +1,7 @@
 # 21 — Analytics Research-Mode Gap (code-grounded)
 
-**Status:** Done — Phase 1 (honest gate test) + Phase 2 (cash ledger +
-daily_pnl feed) verified 2026-07-14
+**Status:** Done — Phase 1–3 (gate tests, cash ledger, capital bind, trade
+journal, paper spine, single daily_pnl writer) verified 2026-07-14
 **Reference:** Continues from `20-mirror-refactoring-plan.md` (OMS kernel parity — DONE)
 **Audience:** Analytics / research / CLI owners
 **Rule:** Do **not** re-propose a Nautilus-style "parity kernel" rebuild for this
@@ -84,16 +84,21 @@ one-line fix.
 
 ---
 
-## 3. Risk state on the PARITY path (Phase 2 — closed)
+## 3. Risk state on the PARITY path (Phase 2 + 3 — closed)
 
 Phase 1 documented that PARITY consulted `check_order` without advancing
-risk state. Phase 2 closes that hole:
+risk state. Phase 2/3 close the remaining holes:
 
 | Concern | Mechanism |
 |---|---|
-| Session cash vs OMS drift | `SimulatedCashLedger` auto-wired when OMS is present (`cash_ledger.py`); fills go through `PositionCloser.apply_cash_delta` |
-| Daily PnL / daily-loss gate | `ReplayEngine._feed_parity_risk_state` pushes `current_equity − session_open` into `RiskManager.update_daily_pnl` each bar (and marks OMS LTP) |
-| Gate observability | Acceptance tests force concentration rejection **and** assert daily-loss trips |
+| Session cash (sizing) | `SimulatedCashLedger` auto-wired when OMS is present (`cash_ledger.py`); fills go through `apply_cash_delta`. Declines with fills — used only for `session.capital`. |
+| Risk capital (fixed) | `FixedAccountCapitalProvider(initial_capital)` bound to `RiskManager` — never declines with fills, identical to live `FixedCapital`. Replaces the earlier cash-backed `LedgerCapitalProvider` bind. |
+| Dual daily_pnl writers | `TradingContext.set_analytics_daily_pnl_owner(True)` mutes bus `_feed_daily_pnl`; sole writer is `feed_parity_risk_state` |
+| Context mutation scope | `TradingContext.analytics_parity_scope(provider)` wraps `run()` in Replay/Paper engines; restores the original capital provider + pnl-owner flag on exit, so a context reused for live is never left with replay state |
+| Mid-run sell trade journal | OMS signal sells append `SimulatedTrade` / `PaperTrade` (same math as PositionCloser) |
+| Paper spine | PaperTradingEngine uses the same ledger, fixed-capital bind, PnL owner, and `feed_parity_risk_state` inside `analytics_parity_scope` |
+| Daily PnL / daily-loss gate | Shared `analytics.replay.parity_risk.feed_parity_risk_state` each bar |
+| Gate observability | Concentration rejection + FlipFlop journal/daily-loss + paper FlipFlop capital-bind + restore-after-run tests |
 
 Remaining live-only edges (not claimed as backtest-identical):
 
@@ -101,12 +106,18 @@ Remaining live-only edges (not claimed as backtest-identical):
   sim clock is injected (out of scope).
 - `TradingState` ACTIVE/REDUCING/HALTED — operator-driven live FSM; not
   auto-transitioned from fills on live either, so not driven from replay.
+- Loss CB / `DailyPnlTracker.is_stale` use wall-clock (multi-day bar calendars
+  do not reset "daily" buckets).
+- Risk capital is now **fixed account size**, so near-full-invested sessions no
+  longer starve CB/position/gross checks — a fully-invested book is correctly
+  sized against the fixed equity base, matching live semantics.
 
 Acceptance coverage:
 
 - Equivalence: `test_analytics_entry_points_parity_equivalence`
 - Concentration gate: `test_analytics_entry_points_parity_rejects_risk_blocked_order`
-- Daily-loss gate: `test_analytics_entry_points_parity_daily_loss_trips`
+- Trade journal + daily-loss/capital bind: `test_analytics_entry_points_parity_daily_loss_trips`
+- Paper journal + capital bind: `test_paper_flipflop_journals_trades_and_binds_capital`
 
 ---
 

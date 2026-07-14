@@ -8,14 +8,10 @@ This is the single source of truth for *market* coverage. ``BrokerCapabilities``
 owns a ``market_surfaces`` frozenset; the shared ``MarketCoverageContract``
 iterates it so adding a broker or exchange is a data edit, never a new
 broker-name branch in test or routing code.
-
-.. deprecated::
-    ``MarketSurface`` is a backward-compatible alias. Use ``MarketCoverage``.
 """
 
 from __future__ import annotations
 
-import warnings as _warnings
 from dataclasses import dataclass, field
 
 from domain.instruments.asset_kind import AssetKind
@@ -50,17 +46,6 @@ class MarketCoverage:
         return operation in self.operations
 
 
-def __getattr__(name: str):
-    if name == "MarketSurface":
-        _warnings.warn(
-            "MarketSurface is deprecated; use MarketCoverage instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return MarketCoverage
-    raise AttributeError(f"module {__name__!r} has no attribute {__name__!r}")
-
-
 __all__ = [
     "FUTURE_CHAIN",
     "LTP",
@@ -69,5 +54,4 @@ __all__ = [
     "QUOTE",
     "RESOLVE",
     "MarketCoverage",
-    "MarketSurface",
 ]

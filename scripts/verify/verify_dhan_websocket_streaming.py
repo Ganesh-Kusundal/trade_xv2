@@ -148,7 +148,7 @@ class WebSocketStreamingTest:
             subscription_handle = self.gateway.stream_depth(
                 self.test_symbol,
                 self.test_exchange,
-                depth_type="DEPTH_5",
+                levels=5,
                 on_depth=on_depth_update
             )
             print(f"✅ Subscribed to depth stream")

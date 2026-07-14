@@ -83,7 +83,9 @@ def test_module_path_for_raises_for_unknown() -> None:
 
 
 def test_manifest_is_nonempty() -> None:
-    assert len(TOP_LEVEL_COMMANDS) >= 40, (
+    # Threshold dropped from 40 by the analytics-first CLI pivot (2026-07-14),
+    # which removed the order/position/portfolio/execution command surface.
+    assert len(TOP_LEVEL_COMMANDS) >= 25, (
         "endpoint_manifest.TOP_LEVEL_COMMANDS must list every CLI "
         "command. If this fails, you probably removed a command from "
         "the router without updating the manifest."

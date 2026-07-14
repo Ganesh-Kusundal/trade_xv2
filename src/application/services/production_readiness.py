@@ -29,7 +29,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from domain.exceptions import TradeXV2Error
-from domain.normalize import normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -325,9 +324,7 @@ class ProductionReadinessChecker:
     def _check_upstox_token(self) -> tuple[bool, str]:
         token = os.environ.get("UPSTOX_ACCESS_TOKEN", "").strip()
         if not token:
-            auth_mode = normalize_text(
-                os.environ.get("UPSTOX_AUTH_MODE", "STATIC"), case="upper", strip=True
-            )
+            auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
             if auth_mode == "TOTP":
                 mobile = os.environ.get("UPSTOX_MOBILE", "").strip()
                 pin = (

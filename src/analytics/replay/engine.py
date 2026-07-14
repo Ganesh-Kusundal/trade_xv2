@@ -144,6 +144,9 @@ class ReplayEngine:
             )
 
         # PARITY cash ledger: single source of truth for session.capital when OMS is on.
+        # Risk capital is bound to a FIXED account size (not this ledger) inside
+        # run() via analytics_parity_scope so the TradingContext is never mutated
+        # permanently by a replay.
         if self._oms_adapter is not None and self._portfolio_tracker is None:
             from analytics.replay.cash_ledger import SimulatedCashLedger
 
@@ -253,38 +256,22 @@ class ReplayEngine:
         session: ReplaySession,
         bar: HistoricalBar,
     ) -> None:
-        """Advance RiskManager daily_pnl from session equity (PARITY only).
+        """Advance RiskManager daily_pnl from session equity (PARITY only)."""
+        from analytics.replay.parity_risk import feed_parity_risk_state
 
-        Live feeds daily PnL via POSITION_UPDATED; ``update_ltp`` does not
-        publish that event, so open-position MTM never reached the gate in
-        backtest. Push ``current_equity − session_open`` each bar so daily-loss
-        behaves like live. PURE_SIM (no trading_context) is a no-op.
-        """
-        ctx = self._trading_context
-        if ctx is None:
-            return
-        risk = getattr(ctx, "risk_manager", None)
-        if risk is None:
-            return
-        if session.has_position(bar.symbol):
-            pm = getattr(ctx, "position_manager", None)
-            if pm is not None:
-                try:
-                    pm.update_ltp(bar.symbol, "NSE", bar.close)
-                except Exception:
-                    logger.debug("parity_oms_ltp_mark_failed", exc_info=True)
         open_eq = (
             session.equity_curve[0][1]
             if session.equity_curve
             else self._config.initial_capital
         )
-        from decimal import Decimal
-
-        delta = Decimal(str(session.current_equity)) - Decimal(str(open_eq))
-        try:
-            risk.update_daily_pnl(delta)
-        except Exception:
-            logger.exception("parity_daily_pnl_feed_failed")
+        feed_parity_risk_state(
+            self._trading_context,
+            current_equity=session.current_equity,
+            open_equity=open_eq,
+            bar_symbol=bar.symbol,
+            bar_close=float(bar.close),
+            has_position=session.has_position(bar.symbol),
+        )
 
     # ------------------------------------------------------------------
     # Feature pipeline
@@ -347,10 +334,20 @@ class ReplayEngine:
         df = df.sort_values(ts_col).reset_index(drop=True)
 
         # If multi-symbol, group and process each
-        if "symbol" in df.columns:
-            return self._run_multi_symbol(df, ts_col)
+        from contextlib import nullcontext
 
-        return self._run_single(df, symbol, ts_col)
+        from analytics.replay.cash_ledger import FixedAccountCapitalProvider
+
+        if self._trading_context is not None:
+            cm = self._trading_context.analytics_parity_scope(
+                FixedAccountCapitalProvider(self._config.initial_capital)
+            )
+        else:
+            cm = nullcontext()
+        with cm:
+            if "symbol" in df.columns:
+                return self._run_multi_symbol(df, ts_col)
+            return self._run_single(df, symbol, ts_col)
 
     def compute_statistics(
         self,

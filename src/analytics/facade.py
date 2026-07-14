@@ -22,7 +22,6 @@ from analytics.backtest import (
     BacktestConfig,
     BacktestEngine,
     BacktestResult,
-    ResearchMode,
 )
 from analytics.core.instrument_analyzer import InstrumentAnalyzer
 from analytics.core.models import AnalysisResult
@@ -30,16 +29,13 @@ from analytics.core.providers import MarketDataProvider
 from analytics.data_fetcher import AnalyticsDataFetcher
 from analytics.engine_factory import AnalyticsEngineFactory
 from analytics.paper import PaperConfig, PaperResult, PaperTradingEngine
-from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.ranking.ranking import RankingFacade
 from analytics.replay import ReplayConfig, ReplayEngine, ReplayResult
 from analytics.scanner.models import ScanResult
 from analytics.sector import SectorAnalyzer
 from analytics.strategy.models import StrategyResult
 from analytics.strategy.pipeline import StrategyPipeline
-from analytics.walk_forward import WalkForwardConfig, WalkForwardEngine, WalkForwardResult
 from domain.instruments.instrument import Instrument
-from domain.constants.market import DEFAULT_RISK_FREE_RATE
 from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
@@ -183,7 +179,7 @@ class Analytics:
         trades: list | None = None,
         *,
         annualization_factor: int = 252,
-        risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
+        risk_free_rate: float = 0.065,
         benchmark: pd.DataFrame | None = None,
     ) -> dict:
         """Compute performance metrics directly from an equity curve + trades.
@@ -393,26 +389,16 @@ class Analytics:
         symbol: str = "SYMBOL",
         config: BacktestConfig | None = None,
         benchmark: pd.DataFrame | None = None,
-        trading_context: object | None = None,
-        mode: ResearchMode | str = ResearchMode.PURE_SIM,
     ) -> BacktestEngine | BacktestResult:
         """Run backtest with rich performance analytics.
 
         If called with no arguments, returns the BacktestEngine for configuration.
         If called with data, runs backtest and returns BacktestResult.
-
-        trading_context / mode:
-            Pass a real ``TradingContext`` (e.g. from
-            ``application.oms.factory.create_trading_context``) with
-            ``mode=ResearchMode.PARITY`` to route fills through the real OMS
-            (RiskManager, IdempotencyGuard, order FSM) instead of PURE_SIM.
         """
-        engine = BacktestEngine(
-            config=config, trading_context=trading_context, mode=mode
-        )
         if data is None:
-            return engine
+            return BacktestEngine(config=config)
         logger.info("Running backtest on %d bars for %s", len(data), symbol)
+        engine = BacktestEngine(config=config)
         return engine.run(data, symbol=symbol, benchmark=benchmark)
 
     def paper(
@@ -432,28 +418,3 @@ class Analytics:
         logger.info("Running paper trading on %d bars for %s", len(data), symbol)
         engine = PaperTradingEngine(config=config)
         return engine.run(data, symbol=symbol)
-
-    def walk_forward(
-        self,
-        data: pd.DataFrame | None = None,
-        *,
-        symbol: str = "SYMBOL",
-        pipeline: FeaturePipeline | None = None,
-        strategy_pipeline: StrategyPipeline | None = None,
-        config: WalkForwardConfig | None = None,
-        max_workers: int | None = None,
-    ) -> WalkForwardEngine | WalkForwardResult:
-        """Run rolling train/test walk-forward validation over a single OHLCV series.
-
-        If called with no arguments, returns the WalkForwardEngine for configuration.
-        If called with data, runs walk-forward and returns WalkForwardResult.
-        """
-        engine = WalkForwardEngine(
-            pipeline or FeaturePipeline(),
-            strategy_pipeline or StrategyPipeline(),
-            config=config,
-        )
-        if data is None:
-            return engine
-        logger.info("Running walk-forward on %d bars for %s", len(data), symbol)
-        return engine.run(data, symbol=symbol, max_workers=max_workers)

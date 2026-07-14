@@ -6,18 +6,20 @@ manifest drives:
 * ``test_command_registry.py`` — registry contract checks
 * ``test_cli_endpoint_matrix.py`` — subprocess smoke tests
 * ``test_commands.py`` — live_readonly integration expansion
-* ``test_order_sandbox_integration.py`` — sandbox order flow
 
 Adding a new CLI command?  Add an entry here or its parent tier
 test will silently miss coverage.
+
+Analytics-first pivot (2026-07-14): the CLI has no order-placement
+surface, so the ``sandbox`` tier (place/cancel real orders) is
+retired — ``SANDBOX_ENDPOINTS`` stays as an empty list for schema
+stability, not because a tier still exists.
 
 Tier definitions
 ----------------
 * ``offline``     — no broker auth required; runs in default CI.
 * ``live_readonly`` — requires ``.env.local`` Dhan creds + valid
   token; skipped otherwise.
-* ``sandbox``     — places/cancels real orders; requires
-  ``DHAN_INTEGRATION=1`` + valid creds; never in default CI.
 * ``destructive`` — explicit confirm/reset paths; not exercised by
   the automated matrix, listed here for completeness.
 """
@@ -75,8 +77,6 @@ OFFLINE_ENDPOINTS: list[CliEndpoint] = [
     CliEndpoint("cache_status", ["cache", "status"], "offline", 0, None, 10),
     CliEndpoint("cache_stats", ["cache", "stats"], "offline", 0, None, 10),
     CliEndpoint("cache_no_args", ["cache"], "offline", 0, None, 10),
-    CliEndpoint("risk_status", ["risk", "status"], "offline", 0, None, 10),
-    CliEndpoint("risk_no_args", ["risk"], "offline", 0, "risk", 10),
     CliEndpoint("instruments_stats", ["instruments", "stats"], "offline", 0, None, 45),
     CliEndpoint("broker", ["broker"], "offline", 0, None, 15),
     CliEndpoint("broker_list", ["broker", "list"], "offline", 0, None, 15),
@@ -86,33 +86,6 @@ OFFLINE_ENDPOINTS: list[CliEndpoint] = [
 
 # ── live_readonly endpoints (require .env.local + valid Dhan token) ─
 LIVE_READONLY_ENDPOINTS: list[CliEndpoint] = [
-    CliEndpoint(
-        "account", ["account"], "live_readonly", 0, None, 30, capability_id="portfolio.funds"
-    ),
-    CliEndpoint(
-        "funds_alias", ["funds"], "live_readonly", 0, None, 30, capability_id="portfolio.funds"
-    ),
-    CliEndpoint(
-        "holdings", ["holdings"], "live_readonly", 0, None, 30, capability_id="portfolio.holdings"
-    ),
-    CliEndpoint(
-        "positions",
-        ["positions"],
-        "live_readonly",
-        0,
-        None,
-        30,
-        capability_id="portfolio.positions",
-    ),
-    CliEndpoint(
-        "orders", ["orders"], "live_readonly", 0, None, 30, capability_id="orders.query_orderbook"
-    ),
-    CliEndpoint(
-        "trades", ["trades"], "live_readonly", 0, None, 30, capability_id="orders.query_trades"
-    ),
-    CliEndpoint(
-        "oms", ["oms"], "live_readonly", 0, None, 30, capability_id="orders.query_orderbook"
-    ),
     CliEndpoint(
         "quote",
         ["quote", "RELIANCE"],
@@ -339,71 +312,15 @@ LIVE_READONLY_ENDPOINTS: list[CliEndpoint] = [
 ]
 
 
-# ── sandbox endpoints (place/cancel — opt-in DHAN_INTEGRATION=1) ──────
-SANDBOX_ENDPOINTS: list[CliEndpoint] = [
-    CliEndpoint(
-        "place_order_market",
-        ["place-order", "RELIANCE", "BUY", "1", "--type", "MARKET"],
-        "sandbox",
-        0,
-        None,
-        30,
-        capability_id="orders.place",
-    ),
-    CliEndpoint(
-        "cancel_order_dummy",
-        ["cancel-order", "TEST-NOT-EXIST"],
-        "sandbox",
-        1,
-        None,
-        30,
-        capability_id="orders.cancel",
-    ),
-    CliEndpoint(
-        "modify_order_dummy",
-        ["modify-order", "TEST-NOT-EXIST"],
-        "sandbox",
-        1,
-        None,
-        30,
-        capability_id="orders.modify",
-    ),
-]
+# ── sandbox endpoints — retired by the analytics-first pivot (no CLI
+# order-placement surface remains); kept empty for schema stability. ──
+SANDBOX_ENDPOINTS: list[CliEndpoint] = []
 
 
 # ── destructive (excluded from automated matrix, listed for docs) ─────
 DESTRUCTIVE_ENDPOINTS: list[CliEndpoint] = [
     CliEndpoint("cache_clear", ["cache", "clear", "--confirm"], "destructive", 0, None, 30),
     CliEndpoint("cache_refresh", ["cache", "refresh"], "destructive", 0, None, 120),
-    CliEndpoint("risk_reset_pnl", ["risk", "reset-pnl", "--confirm"], "destructive", 0, None, 15),
-    CliEndpoint("risk_kill_switch_on", ["risk", "kill-switch", "on"], "destructive", 0, None, 15),
-    CliEndpoint(
-        "place_orders_batch",
-        ["place-orders", "--file", "/tmp/orders.csv"],
-        "destructive",
-        0,
-        None,
-        30,
-    ),
-    CliEndpoint(
-        "bracket_order",
-        ["bracket-order", "RELIANCE", "BUY", "1", "--target", "2500", "--stop-loss", "2400"],
-        "destructive",
-        0,
-        None,
-        30,
-    ),
-    CliEndpoint(
-        "oco_order",
-        ["oco-order", "RELIANCE", "BUY", "1", "--order1-price", "2500", "--order2-price", "2400"],
-        "destructive",
-        0,
-        None,
-        30,
-    ),
-    CliEndpoint(
-        "basket_order", ["basket-order", "--file", "/tmp/basket.csv"], "destructive", 0, None, 30
-    ),
     CliEndpoint("analytics_paper", ["analytics", "paper"], "destructive", 0, None, 60),
     CliEndpoint("analytics_backtest", ["analytics", "backtest"], "destructive", 0, None, 120),
     CliEndpoint("analytics_optimize", ["analytics", "optimize"], "destructive", 0, None, 120),
@@ -439,13 +356,6 @@ TOP_LEVEL_COMMANDS: list[str] = [
     "compare",
     "quality-report",
     "instrument-info",
-    "account",
-    "funds",
-    "holdings",
-    "positions",
-    "orders",
-    "trades",
-    "oms",
     "quote",
     "depth",
     "option-chain",
@@ -464,14 +374,6 @@ TOP_LEVEL_COMMANDS: list[str] = [
     "news",
     "analytics",
     "views",
-    "place-order",
-    "cancel-order",
-    "modify-order",
-    "place-orders",
-    "bracket-order",
-    "oco-order",
-    "basket-order",
-    "risk",
     "cache",
 ]
 

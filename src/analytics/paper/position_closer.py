@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
@@ -17,6 +18,7 @@ from analytics.paper.models import (
     OrderSide,
     OrderStatus,
     PaperOrder,
+    PaperSession,
     PaperTrade,
     PositionSide,
 )
@@ -44,12 +46,27 @@ class PaperPositionCloser:
         Callback ``record_fill(session, *, order_id, symbol, exchange, side,
         quantity, price, timestamp, trade_tag) -> bool`` supplied by the engine
         to apply a fill to the session's portfolio.
+    on_cash:
+        Optional ``(session, delta)`` cash applicator (ledger when wired).
     """
 
-    def __init__(self, config, oms_adapter, record_fill) -> None:
+    def __init__(
+        self,
+        config,
+        oms_adapter,
+        record_fill,
+        on_cash: Callable[[PaperSession, float], None] | None = None,
+    ) -> None:
         self._config = config
         self._oms_adapter = oms_adapter
         self._record_fill = record_fill
+        self._on_cash = on_cash
+
+    def _apply_cash(self, session: PaperSession, delta: float) -> None:
+        if self._on_cash is not None:
+            self._on_cash(session, delta)
+        else:
+            session.capital += delta
 
     def _commission(self, notional: float, side: str) -> float:
         cfg = self._config
@@ -118,7 +135,8 @@ class PaperPositionCloser:
         slippage_cost = view.quantity * float(dec_price) * (config.slippage_pct / 100)
         net_pnl = pnl - commission
         session.daily_pnl += net_pnl
-        session.capital += view.quantity * view.entry_price + net_pnl
+        # exit*qty - commission == entry*qty + net_pnl for long closes
+        self._apply_cash(session, exit_price * view.quantity - commission)
 
         session.trades.append(
             PaperTrade(

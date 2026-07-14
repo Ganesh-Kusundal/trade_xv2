@@ -8,10 +8,11 @@ stay a thin facade. Slippage is applied **once** inside ``OmsBacktestAdapter``
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from decimal import Decimal
 
 from analytics.oms_fill_price import resolve_oms_fill_price
-from analytics.paper.models import PaperSession, Side
+from analytics.paper.models import OrderSide, PaperSession, PaperTrade, Side
 from analytics.strategy.models import Signal
 from domain.candles.historical import HistoricalBar
 from domain.orders.sizing import compute_order_quantity
@@ -35,6 +36,8 @@ class PaperSignalProcessor:
         Callback ``record_fill(session, *, order_id, symbol, exchange, side,
         quantity, price, timestamp, trade_tag) -> bool`` supplied by the engine
         to apply a fill to the session's portfolio.
+    on_cash:
+        Optional ``(session, delta)`` cash applicator (ledger when wired).
     """
 
     def __init__(
@@ -42,10 +45,18 @@ class PaperSignalProcessor:
         config,
         oms_adapter: OmsBacktestAdapterPort,
         record_fill,
+        on_cash: Callable[[PaperSession, float], None] | None = None,
     ) -> None:
         self._config = config
         self._oms_adapter = oms_adapter
         self._record_fill = record_fill
+        self._on_cash = on_cash
+
+    def _apply_cash(self, session: PaperSession, delta: float) -> None:
+        if self._on_cash is not None:
+            self._on_cash(session, delta)
+        else:
+            session.capital += delta
 
     def _commission(self, notional: float, side: str) -> float:
         cfg = self._config
@@ -132,7 +143,7 @@ class PaperSignalProcessor:
                     slippage_pct=config.slippage_pct,
                 )
                 commission = self._commission(fill_px * qty, "BUY")
-                session.capital -= fill_px * qty + commission
+                self._apply_cash(session, -(fill_px * qty + commission))
                 self._record_fill(
                     session,
                     order_id=order_id,
@@ -152,11 +163,11 @@ class PaperSignalProcessor:
                     strategy=signal.strategy,
                 )
         elif signal.is_sell and session.has_position(bar.symbol):
-            domain_pos = session._domain_position(bar.symbol)
-            if domain_pos is None or domain_pos.quantity <= 0:
+            view = session._to_paper_position(bar.symbol)
+            if view is None or view.quantity <= 0:
                 return
-            qty = domain_pos.quantity
-            entry_price = float(domain_pos.avg_price)
+            qty = view.quantity
+            entry_price = float(view.entry_price)
             price = Decimal(str(base))
             order_id = self._oms_adapter.close_long(
                 symbol=bar.symbol,
@@ -164,7 +175,7 @@ class PaperSignalProcessor:
                 quantity=qty,
                 price=price,
                 timestamp=bar.timestamp,
-                strategy=signal.strategy,
+                strategy=view.strategy,
                 reasons=list(signal.reasons),
             )
             if order_id:
@@ -176,8 +187,30 @@ class PaperSignalProcessor:
                     slippage_pct=config.slippage_pct,
                 )
                 commission = self._commission(fill_px * qty, "SELL")
-                session.capital += fill_px * qty - commission
-                session.daily_pnl += (fill_px - entry_price) * qty - commission
+                net_pnl = (fill_px - entry_price) * qty - commission
+                pnl_pct = (
+                    ((fill_px / entry_price) - 1) * 100 if entry_price > 0 else 0.0
+                )
+                slippage_cost = qty * float(price) * (config.slippage_pct / 100)
+                self._apply_cash(session, fill_px * qty - commission)
+                session.daily_pnl += net_pnl
+                session.trades.append(
+                    PaperTrade(
+                        symbol=bar.symbol,
+                        side=OrderSide.BUY,
+                        entry_price=entry_price,
+                        exit_price=fill_px,
+                        quantity=qty,
+                        entry_time=view.entry_time,
+                        exit_time=bar.timestamp,
+                        pnl=net_pnl,
+                        pnl_pct=pnl_pct,
+                        commission=commission,
+                        slippage_cost=slippage_cost,
+                        strategy=view.strategy or signal.strategy,
+                        reasons=list(signal.reasons) or ["paper_signal"],
+                    )
+                )
                 self._record_fill(
                     session,
                     order_id=order_id,
