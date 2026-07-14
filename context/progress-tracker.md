@@ -17,6 +17,44 @@
 
 ## Completed
 
+### TradeX Unified CLI — Phase 1 post-review fixes (2026-07-14)
+
+Design/flow review (not per-command testing, which had already passed)
+caught one real defect and two complexity smells in the Phase 1 work below:
+
+- **Real bug**: `broker switch` persisted `broker.default` but nothing
+  read it back — every command's `--broker` option still defaulted to the
+  literal `"paper"`, so switching had no effect on anything run without an
+  explicit `--broker` flag. Fixed: `--broker`'s default is now a callable
+  (`_default_broker()`) that reads `PreferencesStore`. New regression test
+  `test_broker_option_default_reads_switched_preference` resolves the
+  Click parameter's default directly (no session/network) so it's testable
+  for a non-paper broker id without real credentials.
+- **Simplified** `brokers/cli/_preferences.py`: the `CliPreferences`
+  dataclass + key↔field-name translation table was unused abstraction —
+  every caller only ever used string-keyed `get`/`set`, never the typed
+  attributes. Replaced with a plain `dict[str, str]` merged over defaults;
+  same public `PreferencesStore` API, ~24% fewer lines.
+- **Simplified** `tradex/cli/` package (`__init__.py` + `app.py` +
+  `config_group.py`) back into a single `tradex/cli.py` — the split was
+  scaffolding for hypothetical future command groups, YAGNI per the
+  project's own rule. 129 lines in one file vs. 152 across three.
+
+Both simplifications found via `ponytail-review` on the Phase 1 diff.
+Verification: 73/77 pass in `tests/unit/brokers/cli/ tests/unit/tradex/`
+(same 4 pre-existing unrelated failures as Phase 1, unchanged).
+
+### PARITY trade journal + capital bind (2026-07-14)
+
+Third-level follow-up to true-PARITY Phase 2 (`e2e-spec/21` §3):
+
+- OMS mid-run sells append `SimulatedTrade` / `PaperTrade`.
+- `LedgerCapitalProvider` + `RiskManager.bind_capital_provider` (session cash
+  ≡ risk capital); `TradingContext.set_analytics_daily_pnl_owner` single PnL
+  writer; shared `feed_parity_risk_state` for replay + paper.
+- PaperTradingEngine on the same ledger / bind / feed spine.
+- Tests: FlipFlop journal + capital track; paper FlipFlop.
+
 ### TradeX Unified CLI — Phase 1 Foundation (2026-07-14)
 
 - Restructured `src/tradex/cli.py` → `src/tradex/cli/` package (`app.py` +
