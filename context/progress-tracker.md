@@ -17,6 +17,77 @@
 
 ## Completed
 
+### TradeX Unified CLI — Phase 1 Foundation (2026-07-14)
+
+- Restructured `src/tradex/cli.py` → `src/tradex/cli/` package (`app.py` +
+  `config_group.py`), zero behavior change to existing `tradex broker`/`tradex ui`.
+- New CLI-only preferences store: `brokers/cli/_preferences.py`
+  (`CliPreferences`/`PreferencesStore`, JSON file at `~/.tradex/cli.json`,
+  override via `TRADEX_CLI_CONFIG_PATH`). Explicitly separate from `AppConfig`
+  — does not touch `.env.*` or `src/config/schema.py` (preserves G4).
+- New commands: `tradex config list/get/set/edit/reset`; `tradex broker
+  list/current/switch/status` (appended to the existing `brokers/cli/broker.py`
+  flat command registry, same conventions as its ~30 existing commands).
+- New output modes: `--yaml` and `--quiet`/`-q` on the `broker` group,
+  alongside the existing `--json` (`brokers/cli/_render.py::present()`).
+- Architectural placement decision (recorded so it isn't re-litigated): new
+  CLI-only concerns live in `src/tradex/` (already documented in
+  `context/architecture.md`'s System Boundaries table as owning "Public
+  package + CLI + session wiring"); the existing developer/CI/AI `broker`
+  CLI stays in `src/brokers/cli/` unchanged. No relocation into
+  `src/interface/`, no new `runtime/cli_compose.py` — avoided per
+  project-overview.md's "evolutionary refactoring, no rewrite" principle.
+- Explicitly deferred to later phases (see
+  `docs/superpowers/plans/2026-07-14-tradex-cli-phase1.md`'s "Explicitly Out
+  of Scope" section): `tradex order/position/portfolio/account` (must route
+  live orders through the full OMS via `tradex.connect(mode="trade")`, not
+  the thin `brokers.services.place_order` path `broker order` already uses
+  — that existing thin path is a known pre-existing real-money-safety gap,
+  not something this phase introduced or fixed); `broker
+  add/remove/login/logout/token` (no broker-agnostic `AuthManager` accessor
+  exists yet on any gateway); `broker instruments sync/download/verify/
+  stats/clear-cache/search`; `broker rate-limit`; top-level `tradex doctor`;
+  interactive wizards beyond `click.Choice`/`click.confirm`.
+- **Fixed** (caused by this phase): `tests/architecture/test_file_size_limit.py`
+  — `brokers/cli/broker.py` grew past its approved exemption (487→528 LOC);
+  bumped the exemption with a reason, matching the file's existing pattern.
+- **Found, not fixed (out of scope — belongs to the concurrent uncommitted
+  refactor on this branch, confirmed pre-existing via `git stash` on this
+  session's own commits)**:
+  - `brokers/cli/_render.py::present()`'s `--json`/(new `--yaml`) branches
+    write via `logger.info(...)`, which produces **no output at all**
+    outside of pytest (root logger has no handler, level WARNING) — this
+    also affects the pre-existing `--json` flag and default human-mode
+    `console.print()` output under `CliRunner`, not just the new `--yaml`
+    path. `tests/unit/brokers/cli/test_cli_render.py::test_present_json_mode_when_piped`,
+    `::test_present_json_mode_forced_by_flag`, `::test_cli_json_flag_emits_json`,
+    `::test_cli_discover_runs` already fail on the pre-Phase-1 tree. New
+    tests route around it via `caplog` / forced `sys.stdout.isatty()`
+    (matching this file's own `test_present_quote_snapshot_table` pattern).
+  - `runtime/session_opener.py` (new, untracked file from the concurrent
+    refactor) requires `set_session_opener()` to be called at the
+    composition root before any `BrokerSession(...)` is constructed;
+    `tests/conftest.py` wires it for the test environment, but
+    `src/tradex/__init__.py` does not wire it for a real process — so
+    **every** command that opens a `BrokerSession` (this includes the
+    pre-existing `broker connect`, and this phase's new `broker status`)
+    raises `RuntimeError: session opener not wired at composition root`
+    when run as a bare `tradex` invocation outside pytest. Confirmed this
+    is not new: `broker connect` (untouched by this phase) fails
+    identically. Needs a real fix at `src/tradex/__init__.py` or wherever
+    the production composition root lives — out of scope for CLI Phase 1.
+  - `tests/architecture/test_gateway_surface_freeze.py` (`DhanBrokerGateway`
+    gained `stream_depth`) and `test_module_boundaries_and_decomposition.py`
+    (`lint-imports` binary missing from PATH) — unrelated to CLI, part of
+    the concurrent refactor / environment.
+- Tests: `tests/unit/brokers/cli/test_preferences.py` (8),
+  `test_broker_commands.py` (8), `test_cli_render.py` (+4 new, 4 pre-existing
+  unrelated failures unchanged), `tests/unit/tradex/test_cli_config.py` (6),
+  `tests/unit/tradex/test_cli.py` (3, unchanged). 71/75 pass in
+  `tests/unit/brokers/cli/ tests/unit/tradex/` (4 pre-existing failures,
+  none touching this phase's new code). Architecture suite: 615 passed,
+  3 pre-existing-adjacent failures (1 fixed by this phase, 2 unrelated).
+
 ### True PARITY on backtest risk path (Phase 1 + 2) — 2026-07-14
 
 Second-level review found PARITY consulted `RiskManager.check_order` but did

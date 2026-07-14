@@ -26,7 +26,7 @@ EXEMPTIONS = {
     "application/oms/context.py": (486, "TradingContext facade — decomposed in ADR-011 Phase 3; lifecycle services extracted"),
     "application/oms/order_manager.py": (436, "OrderManager — split tracked in ADR-011 backlog"),
     "application/trading/trading_orchestrator.py": (517, "TradingOrchestrator facade — partially decomposed; remaining split in ADR-011 backlog"),
-    "brokers/cli/broker.py": (487, "CLI broker commands — split tracked in ADR-011 backlog"),
+    "brokers/cli/broker.py": (528, "CLI broker commands — split tracked in ADR-011 backlog; grew via tradex CLI Phase 1 (list/current/switch/status)"),
     "brokers/cli/_shell_nav.py": (415, "CLI shell navigation — types extracted to _shell_types.py; remaining in ADR-011 backlog"),
     "brokers/dhan/api/http_client.py": (500, "Dhan HTTP client — split tracked in ADR-011 backlog"),
     "brokers/dhan/data/depth_feed_base.py": (569, "Dhan depth feed — decomposed in ADR-011 Phase 3; parser delegation inlined"),
