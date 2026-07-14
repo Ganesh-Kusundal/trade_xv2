@@ -141,6 +141,12 @@ class UpstoxMarketDataV3Multiplexer:
         *,
         guid: str | None = None,
     ) -> None:
+        # _subscriptions.subscribe() normalizes aliases (e.g. "ltp" -> "ltpc")
+        # internally for its own bucket tracking, but returns nothing — the
+        # wire payload must use the same normalized value, or Upstox's V3
+        # server silently ignores an unrecognized mode string and never
+        # delivers ticks.
+        mode = self._subscriptions._normalise_mode(mode)
         self._subscriptions.subscribe(instrument_keys, mode)
         if self._socket is not None:
             self._send_subscribe(instrument_keys, mode, guid=guid)
@@ -153,6 +159,7 @@ class UpstoxMarketDataV3Multiplexer:
         *,
         guid: str | None = None,
     ) -> None:
+        mode = self._subscriptions._normalise_mode(mode)
         self._subscriptions.change_mode(instrument_keys, mode)
         if self._socket is not None:
             payload = build_subscribe_payload(instrument_keys, mode, guid=guid)

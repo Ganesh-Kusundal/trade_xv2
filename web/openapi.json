@@ -335,7 +335,7 @@
           "Market Data"
         ],
         "summary": "Get Candles",
-        "description": "Get historical OHLCV candles from the data lake.\n\nSupports multiple timeframes and date range filtering.\nData is sourced from Parquet files in market_data/.\n\nCache-Control headers vary by timeframe:\n- 1m-5m: max-age=30 (30 seconds)\n- 15m-4h: max-age=300 (5 minutes)\n- 1d-1w: max-age=3600 (1 hour)\n\nFreshness headers:\n- X-Data-Stale: true/false\n- X-Data-Last-Update: date of most recent candle\n- X-Data-Days-Old: age in days\n- X-Data-Freshness: ISO timestamp of most recent candle\n- X-Data-Type: historical",
+        "description": "Get historical OHLCV candles from the data lake.\n\nSupports multiple timeframes and date range filtering.\nData is sourced from Parquet files in data/lake/.\n\nCache-Control headers vary by timeframe:\n- 1m-5m: max-age=30 (30 seconds)\n- 15m-4h: max-age=300 (5 minutes)\n- 1d-1w: max-age=3600 (1 hour)\n\nFreshness headers:\n- X-Data-Stale: true/false\n- X-Data-Last-Update: date of most recent candle\n- X-Data-Days-Old: age in days\n- X-Data-Freshness: ISO timestamp of most recent candle\n- X-Data-Type: historical",
         "operationId": "get_candles_api_v1_market_candles_get",
         "parameters": [
           {
@@ -2874,6 +2874,196 @@
         }
       }
     },
+    "/api/v1/orders/trades": {
+      "get": {
+        "tags": [
+          "Orders",
+          "trades"
+        ],
+        "summary": "Get Trades",
+        "description": "Get trade/executed order history.\n\nReturns filled trades with execution price, quantity, and brokerage.\nUses real OMS trade history from processed trade repository.",
+        "operationId": "get_trades_api_v1_orders_trades_get",
+        "parameters": [
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start date (YYYY-MM-DD)",
+              "title": "From Date"
+            },
+            "description": "Start date (YYYY-MM-DD)"
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date (YYYY-MM-DD)",
+              "title": "To Date"
+            },
+            "description": "End date (YYYY-MM-DD)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Max trades",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Max trades"
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/trades/tradebook": {
+      "get": {
+        "tags": [
+          "Orders",
+          "trades"
+        ],
+        "summary": "Get Tradebook",
+        "description": "Get complete tradebook with P&L analysis.\n\nP&L is sourced from the single PositionManager (the authoritative book\nthat fills update), NOT recomputed per-request from a divergent source.",
+        "operationId": "get_tradebook_api_v1_orders_trades_tradebook_get",
+        "parameters": [
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start date",
+              "title": "From Date"
+            },
+            "description": "Start date"
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date",
+              "title": "To Date"
+            },
+            "description": "End date"
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Tradebook Api V1 Orders Trades Tradebook Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orders": {
       "get": {
         "tags": [
@@ -3033,194 +3223,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/orders/trades": {
-      "get": {
-        "tags": [
-          "Orders"
-        ],
-        "summary": "Get Trades",
-        "description": "Get trade/executed order history.\n\nReturns filled trades with execution price, quantity, and brokerage.\nUses real OMS trade history from processed trade repository.",
-        "operationId": "get_trades_api_v1_orders_trades_get",
-        "parameters": [
-          {
-            "name": "from_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Start date (YYYY-MM-DD)",
-              "title": "From Date"
-            },
-            "description": "Start date (YYYY-MM-DD)"
-          },
-          {
-            "name": "to_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "End date (YYYY-MM-DD)",
-              "title": "To Date"
-            },
-            "description": "End date (YYYY-MM-DD)"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "description": "Max trades",
-              "default": 100,
-              "title": "Limit"
-            },
-            "description": "Max trades"
-          },
-          {
-            "name": "X-API-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TradesResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/orders/tradebook": {
-      "get": {
-        "tags": [
-          "Orders"
-        ],
-        "summary": "Get Tradebook",
-        "description": "Get complete tradebook with P&L analysis.\n\nP&L is sourced from the single PositionManager (the authoritative book\nthat fills update), NOT recomputed per-request from a divergent source.",
-        "operationId": "get_tradebook_api_v1_orders_tradebook_get",
-        "parameters": [
-          {
-            "name": "from_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Start date",
-              "title": "From Date"
-            },
-            "description": "Start date"
-          },
-          {
-            "name": "to_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "End date",
-              "title": "To Date"
-            },
-            "description": "End date"
-          },
-          {
-            "name": "X-API-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Tradebook Api V1 Orders Tradebook Get"
                 }
               }
             }
@@ -6231,7 +6233,7 @@
           "losing_trades"
         ],
         "title": "BacktestMetrics",
-        "description": "Backtest performance metrics.\n\nCanonical definition lives in ``domain.backtest.models``.\nRe-exported here for backward compatibility."
+        "description": "Backtest performance metrics."
       },
       "BacktestResultResponse": {
         "properties": {
@@ -6284,7 +6286,7 @@
           "metrics"
         ],
         "title": "BacktestResultResponse",
-        "description": "Backtest result.\n\nCanonical definition lives in ``domain.backtest.models``.\nRe-exported here for backward compatibility."
+        "description": "Backtest result."
       },
       "BacktestRunRequest": {
         "properties": {
@@ -7085,7 +7087,7 @@
           "oi"
         ],
         "title": "OptionContract",
-        "description": "Single option contract with Greeks.\n\nNote: bid/ask are only available from live market data feeds, not from\nhistorical OHLCV parquet files. They will be None for historical data.\niv/delta/gamma/theta/vega require Option Greeks pricing from broker API."
+        "description": "Single option contract with Greeks."
       },
       "OrderRequest": {
         "properties": {
@@ -7518,7 +7520,8 @@
                 "type": "null"
               }
             ],
-            "title": "Bid"
+            "title": "Bid",
+            "description": "Live-only; absent on lake-backed /market/quote"
           },
           "ask": {
             "anyOf": [
@@ -7529,7 +7532,8 @@
                 "type": "null"
               }
             ],
-            "title": "Ask"
+            "title": "Ask",
+            "description": "Live-only; absent on lake-backed /market/quote"
           },
           "bid_qty": {
             "anyOf": [
@@ -7540,7 +7544,8 @@
                 "type": "null"
               }
             ],
-            "title": "Bid Qty"
+            "title": "Bid Qty",
+            "description": "Live-only; use /live/depth"
           },
           "ask_qty": {
             "anyOf": [
@@ -7551,7 +7556,8 @@
                 "type": "null"
               }
             ],
-            "title": "Ask Qty"
+            "title": "Ask Qty",
+            "description": "Live-only; use /live/depth"
           },
           "volume": {
             "anyOf": [
@@ -7628,7 +7634,7 @@
           "timestamp"
         ],
         "title": "QuoteResponse",
-        "description": "Latest quote/LTP snapshot."
+        "description": "Latest quote/LTP snapshot from the data lake (OHLCV-derived).\n\n``bid`` / ``ask`` / ``bid_qty`` / ``ask_qty`` are live-only fields.\nHistorical lake quotes never populate them \u2014 use ``GET /api/v1/live/depth/{symbol}``\nfor Level-2 book. They remain optional so OpenAPI stays honest."
       },
       "ReadinessResponse": {
         "properties": {

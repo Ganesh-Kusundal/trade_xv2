@@ -3,6 +3,8 @@ import { NavLink, Outlet } from "react-router-dom";
 const NAV = [
   { to: "/broker", label: "Broker" },
   { to: "/market", label: "Market" },
+  { to: "/candles", label: "Candles" },
+  { to: "/options", label: "Options" },
   { to: "/positions", label: "Positions" },
   { to: "/orders", label: "Orders" },
   { to: "/diagnostics", label: "Diagnostics" },

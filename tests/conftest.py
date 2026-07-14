@@ -26,13 +26,13 @@ def _register_domain_runtime_hooks() -> None:
     from domain.runtime_hooks import (
         register_domain_event_factory,
         register_oms_backtest_factory,
-        register_trading_context_factory,
     )
     from infrastructure.event_bus.factory import create_domain_event
+    from runtime.replay_factory import set_trading_context_factory
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
-    register_trading_context_factory(create_trading_context)
+    set_trading_context_factory(create_trading_context)
 
     # Ensure broker adapter classes are registered into infrastructure.adapter_factory.
     # Brokers self-register on package import; importing them here guarantees the

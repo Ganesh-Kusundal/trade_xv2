@@ -35,10 +35,15 @@ def initialize_api_services(
 
     logger.info("Initializing TradeXV2 API services from interface API bootstrap...")
 
-    datalake_gateway = DataLakeGateway(root=str(root / "market_data"))
-    data_catalog = DataCatalog(root=str(root / "market_data"), read_only=True)
+    # Canonical lake + catalog (data/lake), not legacy market_data/ (empty of parquet).
+    from domain.ports.data_catalog import DEFAULT_CATALOG_PATH, DEFAULT_DATA_ROOT
+
+    lake_root = root / DEFAULT_DATA_ROOT
+    catalog_path = root / DEFAULT_CATALOG_PATH
+    datalake_gateway = DataLakeGateway(root=str(lake_root))
+    data_catalog = DataCatalog(root=str(lake_root), read_only=True)
     view_manager = ViewManager(
-        catalog_path=root / "market_data" / "catalog.duckdb",
+        catalog_path=catalog_path,
         read_only=True,
     )
 

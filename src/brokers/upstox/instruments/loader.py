@@ -20,16 +20,16 @@ import logging
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import requests
+
+from config.endpoints import Upstox as _UpstoxEndpoints
 
 from .definition import UpstoxInstrumentDefinition
 
 logger = logging.getLogger(__name__)
 
-COMPLETE_JSON_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
-IST = ZoneInfo("Asia/Kolkata")
+COMPLETE_JSON_URL = _UpstoxEndpoints.ASSET_INSTRUMENTS_JSON
 CACHE_VALIDITY_HOURS = 24  # Cache valid for 24 hours
 
 

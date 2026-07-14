@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from domain.constants import SECONDS_PER_DAY
+
 
 @dataclass(frozen=True)
 class ResilienceConfig:
@@ -50,7 +52,7 @@ class ResilienceConfig:
         Escape hatch for broker/adapter-specific resilience knobs.
     """
 
-    idempotency_ttl_seconds: int = 86_400
+    idempotency_ttl_seconds: int = SECONDS_PER_DAY
     idempotency_backend: str = "memory"
     dead_letter_enabled: bool = True
     event_log_enabled: bool = True

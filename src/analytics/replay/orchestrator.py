@@ -114,6 +114,7 @@ class UnifiedReplayOrchestrator:
         data_provider: Any | None = None,
         event_log: Any | None = None,
         event_bus_factory: Any | None = None,
+        trading_context_factory: Any | None = None,
     ) -> None:
         self._feature_pipeline = feature_pipeline
         self._strategy_pipeline = strategy_pipeline
@@ -138,6 +139,10 @@ class UnifiedReplayOrchestrator:
 
         # Event bus factory — inject or use default (lazy import)
         self._event_bus_factory = event_bus_factory
+
+        # TradingContext factory — injected by the composition root via
+        # runtime.replay_factory; falls back to the registry if not passed.
+        self._trading_context_factory = trading_context_factory
 
         # Delegated collaborators
         self._data_loader = ReplayDataLoader(
@@ -285,7 +290,7 @@ class UnifiedReplayOrchestrator:
 
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from domain.runtime_hooks import create_trading_context
+        from runtime.replay_factory import get_trading_context_factory
 
         # P0-1 fix: Build event schedule from merged stream.
         # Instead of publishing ALL events before ANY bars (which broke
@@ -306,10 +311,16 @@ class UnifiedReplayOrchestrator:
             sum(len(evts) for evts in event_schedule.values()),
         )
 
-        tc = self._trading_context or create_trading_context(
-            event_bus=event_bus,
-            replay_events=False,
-        )
+        tc = self._trading_context
+        if tc is None:
+            factory = self._trading_context_factory or get_trading_context_factory()
+            if factory is None:
+                raise RuntimeError(
+                    "No TradingContext available for replay. Inject trading_context=... "
+                    "or trading_context_factory=... at construction, or register one via "
+                    "runtime.replay_factory.set_trading_context_factory() at startup."
+                )
+            tc = factory(event_bus=event_bus, replay_events=False)
 
         config = ReplayConfig(
             initial_capital=self._initial_capital,

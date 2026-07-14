@@ -30,6 +30,11 @@ from interface.api.routers._trades import router as trades_router
 router.include_router(trades_router, prefix="/trades", tags=["trades"])
 
 
+def _order_timestamp(order: Any) -> datetime:
+    """OMS orders may lack timestamp; schema requires datetime (not None)."""
+    return order.timestamp if getattr(order, "timestamp", None) is not None else datetime.now()
+
+
 @router.get("", response_model=OrdersResponse)
 async def get_orders(
     status_filter: str | None = Query(
@@ -77,7 +82,7 @@ async def get_orders(
                 status=o.status.value,
                 filled_quantity=o.filled_quantity,
                 average_price=float(o.average_price) if o.average_price else None,
-                timestamp=o.timestamp,
+                timestamp=_order_timestamp(o),
             )
             for o in orders
         ],
@@ -108,7 +113,7 @@ async def get_order(
         status=order.status.value,
         filled_quantity=order.filled_quantity,
         average_price=float(order.average_price) if order.average_price else None,
-        timestamp=order.timestamp,
+        timestamp=_order_timestamp(order),
     )
 
 

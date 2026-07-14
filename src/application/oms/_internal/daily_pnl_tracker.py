@@ -107,10 +107,10 @@ class DailyPnlTracker:
         """True if the last reset happened before today (IST)."""
         if self._last_reset_at == 0.0:
             return True
-        from datetime import datetime, timezone
-        from zoneinfo import ZoneInfo
+        from datetime import datetime
 
-        ist = ZoneInfo("Asia/Kolkata")
+        from domain.constants.market import IST as ist
+
         reset_date = datetime.fromtimestamp(self._last_reset_at, tz=ist).date()
         today = datetime.now(ist).date()
         return reset_date < today

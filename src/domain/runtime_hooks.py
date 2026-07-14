@@ -20,11 +20,15 @@ class RuntimeHooks:
     Use :func:`set_runtime_hooks` to register all factories at once
     from the composition root. Legacy callers can continue using the
     individual ``register_*`` functions.
+
+    NOTE: the ``trading_context`` factory is intentionally NOT here — domain
+    must not own a wiring concern. Analytics obtains it via
+    ``runtime.replay_factory`` (composition root), preserving the
+    analytics -> application.oms layering boundary. See audit REF-6.
     """
 
     oms_backtest_factory: Callable[..., Any] | None = None
     domain_event_factory: Callable[..., Any] | None = None
-    trading_context_factory: Callable[..., Any] | None = None
 
 
 # ── Module singleton (backward-compatible) ──────────────────────────────
@@ -51,12 +55,6 @@ def register_domain_event_factory(factory: Callable[..., Any]) -> None:
     _runtime_hooks = replace(_runtime_hooks, domain_event_factory=factory)
 
 
-def register_trading_context_factory(factory: Callable[..., Any]) -> None:
-    """Register factory for creating TradingContext from orchestrators."""
-    global _runtime_hooks  # intentional module singleton — backward-compatible DI
-    _runtime_hooks = replace(_runtime_hooks, trading_context_factory=factory)
-
-
 def create_oms_backtest_adapter(trading_context: Any, **kwargs: Any) -> Any:
     """Create an OMS backtest adapter via the registered factory."""
     if _runtime_hooks.oms_backtest_factory is None:
@@ -74,23 +72,11 @@ def create_domain_event(**kwargs: Any) -> Any:
     return _runtime_hooks.domain_event_factory(**kwargs)
 
 
-def create_trading_context(**kwargs: Any) -> Any:
-    """Create a TradingContext via the registered factory."""
-    if _runtime_hooks.trading_context_factory is None:
-        raise RuntimeError(
-            "Trading context factory not registered. "
-            "Call register_trading_context_factory() at application startup."
-        )
-    return _runtime_hooks.trading_context_factory(**kwargs)
-
-
 __all__ = [
     "RuntimeHooks",
     "create_domain_event",
     "create_oms_backtest_adapter",
-    "create_trading_context",
     "register_domain_event_factory",
     "register_oms_backtest_factory",
-    "register_trading_context_factory",
     "set_runtime_hooks",
 ]

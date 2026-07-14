@@ -34,6 +34,7 @@ from brokers.dhan.streaming.session_manager import DhanSessionManager
 from brokers.dhan.execution.super_orders import SuperOrdersAdapter
 from brokers.dhan.identity.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from domain import MarketDepth
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import LifecycleManager
@@ -442,6 +443,17 @@ class DhanConnection:
 
         cached = feed.latest_depth(sid_int)
         if cached is not None:
+            if not cached.bids or not cached.asks:
+                rest = self.market_data.get_depth(symbol, exchange)
+                bids = cached.bids if cached.bids else rest.bids
+                asks = cached.asks if cached.asks else rest.asks
+                return MarketDepth(
+                    symbol=cached.symbol,
+                    bids=bids,
+                    asks=asks,
+                    depth_type=cached.depth_type,
+                    timestamp=cached.timestamp or rest.timestamp,
+                )
             return cached
         return self.market_data.get_depth(symbol, exchange)
 
@@ -483,6 +495,17 @@ class DhanConnection:
 
         cached = feed.latest_depth()
         if cached is not None:
+            if not cached.bids or not cached.asks:
+                rest = self.market_data.get_depth(symbol, exchange)
+                bids = cached.bids if cached.bids else rest.bids
+                asks = cached.asks if cached.asks else rest.asks
+                return MarketDepth(
+                    symbol=cached.symbol,
+                    bids=bids,
+                    asks=asks,
+                    depth_type=cached.depth_type,
+                    timestamp=cached.timestamp or rest.timestamp,
+                )
             return cached
         return self.market_data.get_depth(symbol, exchange)
 

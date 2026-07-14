@@ -6,10 +6,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from runtime.process_state import (
+    get_shared_quota_scheduler,
+    set_shared_quota_scheduler,
+)
 
-# ponytail: shared process quota scheduler; upgrade path = per-account quotas
-_shared_quota: Any | None = None
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,15 +32,15 @@ def wire_gateway_for_session(
     existing_kernel: SessionKernel | None = None,
 ) -> SessionKernel:
     """Register gateway with session-scoped registry and shared quota profiles."""
-    global _shared_quota  # intentional module singleton — shared QuotaScheduler
-
     from application.composer.registry import BrokerRegistry
     from application.composer.router import BrokerRouter
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.defaults import default_source_selection_policy
 
+    _shared_quota = get_shared_quota_scheduler()
     if _shared_quota is None:
         _shared_quota = QuotaScheduler(reserved_headroom=0.20)
+        set_shared_quota_scheduler(_shared_quota)
 
     registry = (
         existing_kernel.registry
@@ -82,7 +84,7 @@ def wire_gateway_for_session(
 
 
 def get_session_quota_scheduler() -> Any | None:
-    return _shared_quota
+    return get_shared_quota_scheduler()
 
 
 def get_session_registry() -> Any | None:

@@ -36,6 +36,7 @@ from analytics.sector import SectorAnalyzer
 from analytics.strategy.models import StrategyResult
 from analytics.strategy.pipeline import StrategyPipeline
 from domain.instruments.instrument import Instrument
+from domain.constants.market import DEFAULT_RISK_FREE_RATE
 from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
@@ -179,7 +180,7 @@ class Analytics:
         trades: list | None = None,
         *,
         annualization_factor: int = 252,
-        risk_free_rate: float = 0.065,
+        risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
         benchmark: pd.DataFrame | None = None,
     ) -> dict:
         """Compute performance metrics directly from an equity curve + trades.

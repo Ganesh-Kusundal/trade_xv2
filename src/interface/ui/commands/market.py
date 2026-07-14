@@ -7,6 +7,7 @@ import re
 import time
 from datetime import date, datetime, timedelta, timezone
 
+from domain.normalize import normalize_text
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
@@ -23,7 +24,7 @@ _INDEX_UNDERLYINGS = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", 
 
 def resolve_exchange(symbol: str) -> str:
     """Resolve the exchange for a given symbol."""
-    sym = symbol.upper().strip()
+    sym = normalize_text(symbol, case="upper", strip=True)
     if sym in _INDEX_UNDERLYINGS:
         return "INDEX"
     # Options have strike digits followed by CE or PE at the end. Futures contain FUT.
@@ -134,7 +135,7 @@ def show_option_chain(
 ) -> None:
     """Display option chain for an underlying asset."""
     gw = broker_service.active_broker
-    sym = symbol.upper().strip()
+    sym = normalize_text(symbol, case="upper", strip=True)
     exchange = "INDEX" if sym in _INDEX_UNDERLYINGS else "NFO"
 
     # Auto-resolve expiry if not provided
@@ -270,7 +271,7 @@ def show_futures(
 ) -> None:
     """Display futures contract details."""
     gw = broker_service.active_broker
-    sym = symbol.upper().strip()
+    sym = normalize_text(symbol, case="upper", strip=True)
     exchange = "NFO"
     # Commodities route to MCX
     if any(c in sym for c in ("GOLD", "SILVER", "CRUDE", "NATURAL", "COPPER", "ZINC")):

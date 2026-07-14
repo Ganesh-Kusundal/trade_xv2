@@ -40,16 +40,25 @@ class CandlesResponse(BaseModel):
 
 
 class QuoteResponse(BaseModel):
-    """Latest quote/LTP snapshot."""
+    """Latest quote/LTP snapshot from the data lake (OHLCV-derived).
+
+    ``bid`` / ``ask`` / ``bid_qty`` / ``ask_qty`` are live-only fields.
+    Historical lake quotes never populate them — use ``GET /api/v1/live/depth/{symbol}``
+    for Level-2 book. They remain optional so OpenAPI stays honest.
+    """
 
     symbol: str
     exchange: str
     ltp: MoneyField
     timestamp: int = Field(..., description="Timestamp (ms)")
-    bid: MoneyField | None = None
-    ask: MoneyField | None = None
-    bid_qty: float | None = None
-    ask_qty: float | None = None
+    bid: MoneyField | None = Field(
+        None, description="Live-only; absent on lake-backed /market/quote"
+    )
+    ask: MoneyField | None = Field(
+        None, description="Live-only; absent on lake-backed /market/quote"
+    )
+    bid_qty: float | None = Field(None, description="Live-only; use /live/depth")
+    ask_qty: float | None = Field(None, description="Live-only; use /live/depth")
     volume: float | None = None
     oi: float | None = None
     open: MoneyField | None = None

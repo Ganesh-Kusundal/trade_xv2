@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-repo_root = Path(__file__).parent.parent
+repo_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(repo_root / "src"))
 sys.path.insert(0, str(repo_root / "scripts"))
 from _connect import bootstrap_or_exit

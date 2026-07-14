@@ -22,7 +22,7 @@ from domain.constants.auth import (
     TOKEN_CLOCK_SKEW_SECONDS,
     TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS,
 )
-from domain.constants.defaults import DEFAULT_LOOKBACK_DAYS
+from domain.constants.defaults import DEFAULT_LOOKBACK_DAYS, DEFAULT_STORAGE_TIMEFRAME
 from domain.constants.exchanges import (
     BCD,
     BFO,
@@ -47,6 +47,7 @@ from domain.constants.market import (
     DEFAULT_EXCHANGE,
     DEFAULT_EXCHANGE_SEGMENT_FALLBACK,
     DEFAULT_TICK_SIZE,
+    IST,
     IST_OFFSET,
     MCX_CLOSE_HOUR_IST,
     MCX_CLOSE_MINUTE_IST,
@@ -93,6 +94,14 @@ from domain.constants.timeouts import (
 )
 
 # ── OMS / reconciliation cadence (not yet split) ──────────────────────────
+
+#: Base time units (seconds). Import these instead of hardcoding ``3600`` /
+#: ``86400`` for hour/day TTLs and intervals across the codebase.
+SECONDS_PER_HOUR: int = 3600
+SECONDS_PER_DAY: int = 86_400
+
+#: SQLite ``busy_timeout`` (milliseconds) applied to order/execution stores.
+SQLITE_BUSY_TIMEOUT_MS: int = 5_000
 
 #: Reconciliation cycle (seconds). Used by TradingContext, factory,
 #: and ReconciliationService default.
@@ -171,6 +180,7 @@ __all__ = [
     "DEFAULT_LOOKBACK_DAYS",
     "DEFAULT_MAX_DAILY_DAYS",
     "DEFAULT_MAX_INTRADAY_DAYS",
+    "DEFAULT_STORAGE_TIMEFRAME",
     # timeouts
     "DEFAULT_STOP_TIMEOUT_SECONDS",
     "DEFAULT_TICK_SIZE",
@@ -181,6 +191,7 @@ __all__ = [
     "DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS",
     "HISTORY_CACHE_TTL_SECONDS",
     "IDX",
+    "IST",
     "IST_OFFSET",
     "MAX_RETRY_ATTEMPTS",
     # resilience
@@ -217,7 +228,10 @@ __all__ = [
     "RISK_MARGIN_SAFETY_MULTIPLIER",
     "RISK_POSITION_PERCENT",
     "RSI_PERIOD_DEFAULT",
+    "SECONDS_PER_DAY",
+    "SECONDS_PER_HOUR",
     "SMA_WINDOW_DEFAULT",
+    "SQLITE_BUSY_TIMEOUT_MS",
     "THIRD_PARTY_LOG_LEVEL",
     "TOKEN_CLOCK_SKEW_SECONDS",
     # auth

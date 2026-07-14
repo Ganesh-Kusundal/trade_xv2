@@ -13,18 +13,29 @@ def build_options_features_sql(published_at: datetime) -> str:
             timestamp as event_time,
             underlying as symbol,
             strike,
-            option_type,
+            -- Canonicalize CALL/PUT and CE/PE from lake parquet
+            CASE
+                WHEN UPPER(option_type) IN ('CALL', 'CE') THEN 'CE'
+                WHEN UPPER(option_type) IN ('PUT', 'PE') THEN 'PE'
+                ELSE UPPER(option_type)
+            END as option_type,
             oi,
-            change_in_oi,
+            0 as change_in_oi,
             volume,
             iv,
-            ltp,
+            close as ltp,
             expiry_kind,
             expiry_code,
             expiry_date,
             spot
-        FROM read_parquet('data/lake/options/chains/expiry=*/underlying=*/data.parquet')
-        WHERE timestamp >= (SELECT MAX(timestamp) FROM v_candles_1m) - INTERVAL '30 days'
+        FROM read_parquet(
+            'data/lake/options/candles/underlying=*/expiry_kind=*/expiry_code=*/data.parquet',
+            hive_partitioning=true
+        )
+        WHERE timestamp >= COALESCE(
+            (SELECT MAX(timestamp) FROM v_candles_1m),
+            CURRENT_TIMESTAMP
+        ) - INTERVAL '30 days'
     ),
     pcr AS (
         SELECT

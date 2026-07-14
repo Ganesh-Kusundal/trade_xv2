@@ -16,6 +16,22 @@ from domain.constants import (
 )
 
 
+def exponential_backoff(
+    attempt: int,
+    base_delay_ms: float = RETRY_BASE_DELAY_MS,
+    max_delay_ms: float = MAX_RETRY_DELAY_MS,
+) -> float:
+    """Single source of truth for exponential backoff delay (seconds).
+
+    Replaces the duplicated broker backoff helper that previously lived under brokers.common.
+    delay = min(base * 2^(attempt-1), max), matching ``ExponentialBackoff``.
+
+    ponytail: no jitter here — callers that need jitter use ``ExponentialBackoff``.
+    """
+    delay_ms = min(base_delay_ms * (2 ** (attempt - 1)), max_delay_ms)
+    return delay_ms / 1000.0
+
+
 class BackoffStrategy(ABC):
     """Abstract strategy for computing retry delays."""
 

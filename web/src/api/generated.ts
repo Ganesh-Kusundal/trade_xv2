@@ -198,7 +198,7 @@ export interface paths {
          * @description Get historical OHLCV candles from the data lake.
          *
          *     Supports multiple timeframes and date range filtering.
-         *     Data is sourced from Parquet files in market_data/.
+         *     Data is sourced from Parquet files in data/lake/.
          *
          *     Cache-Control headers vary by timeframe:
          *     - 1m-5m: max-age=30 (30 seconds)
@@ -972,6 +972,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trades
+         * @description Get trade/executed order history.
+         *
+         *     Returns filled trades with execution price, quantity, and brokerage.
+         *     Uses real OMS trade history from processed trade repository.
+         */
+        get: operations["get_trades_api_v1_orders_trades_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/trades/tradebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tradebook
+         * @description Get complete tradebook with P&L analysis.
+         *
+         *     P&L is sourced from the single PositionManager (the authoritative book
+         *     that fills update), NOT recomputed per-request from a divergent source.
+         */
+        get: operations["get_tradebook_api_v1_orders_trades_tradebook_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders": {
         parameters: {
             query?: never;
@@ -1000,52 +1046,6 @@ export interface paths {
          *     on client retry).
          */
         post: operations["place_order_api_v1_orders_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/orders/trades": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Trades
-         * @description Get trade/executed order history.
-         *
-         *     Returns filled trades with execution price, quantity, and brokerage.
-         *     Uses real OMS trade history from processed trade repository.
-         */
-        get: operations["get_trades_api_v1_orders_trades_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/orders/tradebook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Tradebook
-         * @description Get complete tradebook with P&L analysis.
-         *
-         *     P&L is sourced from the single PositionManager (the authoritative book
-         *     that fills update), NOT recomputed per-request from a divergent source.
-         */
-        get: operations["get_tradebook_api_v1_orders_tradebook_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1880,9 +1880,6 @@ export interface components {
         /**
          * BacktestMetrics
          * @description Backtest performance metrics.
-         *
-         *     Canonical definition lives in ``domain.backtest.models``.
-         *     Re-exported here for backward compatibility.
          */
         BacktestMetrics: {
             /** Total Return Pct */
@@ -1909,9 +1906,6 @@ export interface components {
         /**
          * BacktestResultResponse
          * @description Backtest result.
-         *
-         *     Canonical definition lives in ``domain.backtest.models``.
-         *     Re-exported here for backward compatibility.
          */
         BacktestResultResponse: {
             /** Run Id */
@@ -2282,10 +2276,6 @@ export interface components {
         /**
          * OptionContract
          * @description Single option contract with Greeks.
-         *
-         *     Note: bid/ask are only available from live market data feeds, not from
-         *     historical OHLCV parquet files. They will be None for historical data.
-         *     iv/delta/gamma/theta/vega require Option Greeks pricing from broker API.
          */
         OptionContract: {
             /** Symbol */
@@ -2505,7 +2495,11 @@ export interface components {
         };
         /**
          * QuoteResponse
-         * @description Latest quote/LTP snapshot.
+         * @description Latest quote/LTP snapshot from the data lake (OHLCV-derived).
+         *
+         *     ``bid`` / ``ask`` / ``bid_qty`` / ``ask_qty`` are live-only fields.
+         *     Historical lake quotes never populate them — use ``GET /api/v1/live/depth/{symbol}``
+         *     for Level-2 book. They remain optional so OpenAPI stays honest.
          */
         QuoteResponse: {
             /** Symbol */
@@ -2519,13 +2513,25 @@ export interface components {
              * @description Timestamp (ms)
              */
             timestamp: number;
-            /** Bid */
+            /**
+             * Bid
+             * @description Live-only; absent on lake-backed /market/quote
+             */
             bid?: number | null;
-            /** Ask */
+            /**
+             * Ask
+             * @description Live-only; absent on lake-backed /market/quote
+             */
             ask?: number | null;
-            /** Bid Qty */
+            /**
+             * Bid Qty
+             * @description Live-only; use /live/depth
+             */
             bid_qty?: number | null;
-            /** Ask Qty */
+            /**
+             * Ask Qty
+             * @description Live-only; use /live/depth
+             */
             ask_qty?: number | null;
             /** Volume */
             volume?: number | null;
@@ -4308,6 +4314,82 @@ export interface operations {
             };
         };
     };
+    get_trades_api_v1_orders_trades_get: {
+        parameters: {
+            query?: {
+                /** @description Start date (YYYY-MM-DD) */
+                from_date?: string | null;
+                /** @description End date (YYYY-MM-DD) */
+                to_date?: string | null;
+                /** @description Max trades */
+                limit?: number;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tradebook_api_v1_orders_trades_tradebook_get: {
+        parameters: {
+            query?: {
+                /** @description Start date */
+                from_date?: string | null;
+                /** @description End date */
+                to_date?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_orders_api_v1_orders_get: {
         parameters: {
             query?: {
@@ -4370,82 +4452,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_trades_api_v1_orders_trades_get: {
-        parameters: {
-            query?: {
-                /** @description Start date (YYYY-MM-DD) */
-                from_date?: string | null;
-                /** @description End date (YYYY-MM-DD) */
-                to_date?: string | null;
-                /** @description Max trades */
-                limit?: number;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TradesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_tradebook_api_v1_orders_tradebook_get: {
-        parameters: {
-            query?: {
-                /** @description Start date */
-                from_date?: string | null;
-                /** @description End date */
-                to_date?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */

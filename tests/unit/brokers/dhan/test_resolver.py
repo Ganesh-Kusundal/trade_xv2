@@ -118,3 +118,33 @@ def test_resolve_indices_additional():
         # Test direct INDEX exchange normalization
         inst_idx = r.resolve(symbol, "INDEX")
         assert inst_idx.security_id == sec_id
+
+
+def _equity_row(security_id: str, exch_instrument_type: str) -> dict:
+    return {
+        "SEM_TRADING_SYMBOL": "CHOLAFIN",
+        "SEM_SMST_SECURITY_ID": security_id,
+        "SEM_EXM_EXCH_ID": "NSE_EQ",
+        "SEM_INSTRUMENT_NAME": "EQUITY",
+        "SEM_LOT_UNITS": 1,
+        "SEM_TICK_SIZE": 5.0,
+        "SEM_EXCH_INSTRUMENT_TYPE": exch_instrument_type,
+        "SEM_SERIES": "D1" if exch_instrument_type != "ES" else "EQ",
+    }
+
+
+@pytest.mark.parametrize("row_order", [("DEB", "ES"), ("ES", "DEB")])
+def test_resolve_prefers_equity_share_over_bond_on_symbol_collision(row_order):
+    """A stock and its issuer's bond/NCD can share the same trading symbol
+    on Dhan (e.g. real-world CHOLAFIN: security_id=685 series=EQ type=ES vs
+    security_id=19257 series=D1 type=DEB). Resolution must always prefer
+    the equity share regardless of which row loads first."""
+    stock_id, bond_id = "685", "19257"
+    rows = [_equity_row(stock_id if t == "ES" else bond_id, t) for t in row_order]
+
+    r = SymbolResolver()
+    r.load_from_rows(rows)
+
+    inst = r.resolve("CHOLAFIN", "NSE")
+    assert inst.security_id == stock_id
+    assert inst.is_equity_share is True

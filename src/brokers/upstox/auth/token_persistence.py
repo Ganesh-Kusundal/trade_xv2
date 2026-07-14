@@ -13,6 +13,8 @@ import time
 
 from infrastructure.auth.jwt_expiry import JwtExpiry
 
+from domain.constants import SECONDS_PER_DAY
+
 from .exceptions import UpstoxAuthError
 from .holders import TokenSnapshot, UpstoxStaticTokenHolder
 from .token_expiry import UpstoxTokenExpiry
@@ -212,7 +214,7 @@ class TokenPersistence:
                     from brokers.upstox.auth.login import perform_login
 
                     login_result = perform_login(m._settings, timeout=120)
-                    expires_in = login_result.get("expires_in_seconds", 86400)
+                    expires_in = login_result.get("expires_in_seconds", SECONDS_PER_DAY)
                     issued_at = login_result.get("issued_at_ms", int(time.time() * 1000))
 
                     state = TokenSnapshot(

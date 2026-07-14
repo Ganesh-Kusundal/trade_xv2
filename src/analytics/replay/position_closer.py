@@ -20,6 +20,7 @@ from analytics.replay.models import ReplayConfig, ReplaySession, SimulatedTrade
 from domain.candles.historical import HistoricalBar
 from domain.enums import Side
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
+from domain.trading_costs import apply_slippage
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class PositionCloser:
             )
         else:
             slippage_pct = self._fill_recorder.compute_slippage_pct(bar.volume)
-            exit_price = float(bar.close) * (1 - slippage_pct / 100)
+            exit_price = float(apply_slippage(Decimal(str(bar.close)), side=Side.SELL, slippage_pct=slippage_pct))
             order_id = f"sim-close:{view.symbol}:{session.bar_count}"
 
         notional = exit_price * view.quantity

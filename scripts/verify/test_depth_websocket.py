@@ -9,7 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root / "scripts"))
 from _connect import bootstrap_or_exit
@@ -36,7 +36,7 @@ def test_depth_20_websocket():
         event_bus=event_bus,
     )
 
-    logger.info("Capabilities: depth_20=%s", gateway.capabilities().depth_20)
+    logger.info("Capabilities: depth_20=%s", gateway.capabilities().supports_depth_20_ws)
 
     # Start lifecycle
     lifecycle.start_all()
@@ -95,7 +95,7 @@ def test_depth_200_websocket():
         event_bus=event_bus,
     )
 
-    logger.info("Capabilities: depth_200=%s", gateway.capabilities().depth_200)
+    logger.info("Capabilities: depth_200=%s", gateway.capabilities().supports_depth_200_ws)
 
     # Start lifecycle
     lifecycle.start_all()

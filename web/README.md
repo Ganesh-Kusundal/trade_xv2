@@ -6,8 +6,38 @@ TradeXV2 trading OS. It consumes the existing FastAPI backend
 (`src/interface/ui/`): broker status, market quotes, positions, orders,
 diagnostics, and performance.
 
-> The backend is the source of truth — **no Python files were modified.** This
-> SPA lives entirely under `web/`.
+> The SPA consumes the FastAPI backend under `src/interface/api/`. Lake-backed
+> routes resolve parquet under `data/lake/` (see API bootstrap). Contract
+> regression tests live in `tests/integration/api/test_contract.py` and
+> `web/src/test/contract.test.tsx`.
+
+## Pages
+
+| Route          | Component              | What it shows                                         |
+|----------------|------------------------|-------------------------------------------------------|
+| `/broker`      | `BrokerStatus`         | Broker connectivity / health                         |
+| `/market`      | `MarketQuotes`         | Symbol quote + L2 depth + live LTP (WS)               |
+| `/candles`     | `Candles`              | Historical OHLCV candlestick chart (`/market/candles`)|
+| `/options`     | `Options`              | Chain, PCR, Max Pain, IV surface, CE/PE vol profile  |
+| `/positions`   | `Positions`            | Open positions + P&L                                  |
+| `/orders`      | `Orders`               | Order book (place / cancel)                           |
+| `/diagnostics` | `Diagnostics`          | Service diagnostics                                   |
+| `/performance` | `Performance`          | Performance metrics                                    |
+
+> **Note on `/options` analytics:** PCR / Max-Pain / IV-Surface read DuckDB
+> views (`v_pcr`, `v_max_pain`, `v_iv_surface`) in `data/lake/catalog.duckdb`.
+> If those return 404/500, materialize once with
+> `ViewManager(catalog_path="data/lake/catalog.duckdb").create_all()` (or
+> `python -m analytics.precompute_features`). Option-chain and volume-profile
+> read `data/lake/options/candles/` parquet directly (`CALL`/`PUT` normalized
+> to CE/PE in the SPA).
+>
+> **Note on `/candles`:** equity and index candles live under
+> `data/lake/equities/candles/` and `data/lake/indices/candles/`. The gateway
+> resolves both (e.g. `RELIANCE`, `NIFTY`). Missing symbols still 404.
+>
+> **Note on `/market/quote` bid/ask:** lake quotes omit bid/ask (live-only via
+> `/live/depth`). The SPA shows "—" when those fields are absent.
 
 ## Stack
 
@@ -70,8 +100,14 @@ and configure CORS (see Backend Gaps). The SPA also accepts `VITE_API_BASE`
 ### 4. Tests
 
 ```bash
-npm test             # Vitest component tests (MarketQuotes + Positions)
+npm test             # Vitest (components + SPA↔backend contract.test.tsx)
 npm run test:e2e   # Playwright smoke (needs `npx playwright install` + running servers)
+```
+
+Backend contract suite (real parquet under `data/lake`):
+
+```bash
+.venv/bin/python -m pytest tests/integration/api/test_contract.py -q
 ```
 
 ## Project layout
@@ -107,6 +143,11 @@ All under `http://127.0.0.1:8080/api/v1` (prefix `APIConfig.api_prefix`):
 | Market         | `GET /market/quote/{symbol}`               | `quote()`              |
 | Market         | `GET /market/candles`                      | `candles()`            |
 | Market         | `GET /live/depth/{symbol}`                  | `depth()`              |
+| Options        | `GET /options/chain/{underlying}`          | `optionChain()`        |
+| Options        | `GET /options/pcr/{underlying}`            | `pcr()`                |
+| Options        | `GET /options/max-pain/{underlying}`        | `maxPain()`            |
+| Options        | `GET /options/iv-surface/{underlying}`      | `ivSurface()`          |
+| Options        | `GET /options/volume-profile/{underlying}` | `volumeProfile()`      |
 | Portfolio      | `GET /portfolio/positions`                  | `positions()`           |
 | Portfolio      | `GET /portfolio/holdings`                   | `holdings()`            |
 | Portfolio      | `GET /portfolio/summary`                    | `portfolioSummary()`    |
@@ -126,23 +167,23 @@ All under `http://127.0.0.1:8080/api/v1` (prefix `APIConfig.api_prefix`):
 `{action:"subscribe",symbols:[...]}`, server streams
 `{type:"quote",symbol,ltp,...}`.
 
-## Backend gaps discovered (NOT patched — for team review)
+## Remaining backend gaps (NOT patched — for team review)
 
-1. **CORS `allow_headers` omits `X-API-Key`** (`src/interface/api/config.py`
-   `cors_allow_headers = ["Authorization","Content-Type","X-Correlation-ID"]`).
-   With the default `AUTH_MODE=api_key`, a browser preflight would reject the
-   `X-API-Key` header. Worked around in dev via the Vite proxy (same-origin,
-   no preflight). Fix: add `"X-API-Key"` to `cors_allow_headers`.
-
-2. **WebSocket auth via header** (`src/interface/api/ws/market.py` checks
+1. **WebSocket auth via header** (`src/interface/api/ws/market.py` checks
    `websocket.headers.get("x-api-key")`; `auth.py` says "never query string").
    Browsers cannot set headers on a `WebSocket` handshake, so a browser WS
    is rejected even when a key would be valid. Worked around by running the
    backend with `AUTH_MODE=none` for local dev. Fix: accept the key as a
    query param (or cookie) for the WS upgrade, or disable WS auth in dev.
 
-3. **No static-file serving for the SPA.** The backend does not serve the
+2. **No static-file serving for the SPA.** The backend does not serve the
    built `dist/` bundle. For production, either serve `dist/` from a static
    host/edge and set CORS, or add a `StaticFiles` mount in `main.py`.
 
-These are intentionally left as backend concerns — the SPA only notes them.
+### Fixed (contract audit)
+
+- CORS `allow_headers` now includes `X-API-Key`.
+- API bootstrap / gateway / options SQL point at `data/lake` (equity + index
+  candles, options hive layout).
+- Lake `/market/quote` documents bid/ask as live-only; `/live/quote` returns
+  numeric floats; SPA coerces defensively.

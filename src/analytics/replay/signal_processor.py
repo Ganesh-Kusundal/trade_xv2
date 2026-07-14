@@ -24,6 +24,7 @@ from domain.enums import Side
 from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.simulation_position_meta import PositionMeta
+from domain.trading_costs import apply_slippage
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class SignalProcessor:
 
         if signal.is_buy and not session.has_position(bar.symbol):
             slippage_pct = self._fill_recorder.compute_slippage_pct(bar.volume)
-            price = base_price * (1 + slippage_pct / 100)
+            price = float(apply_slippage(Decimal(str(base_price)), side=Side.BUY, slippage_pct=slippage_pct))
             qty = compute_order_quantity(
                 equity=session.current_equity,
                 price=price,
@@ -144,7 +145,7 @@ class SignalProcessor:
             if view is None:
                 return
             slippage_pct = self._fill_recorder.compute_slippage_pct(bar.volume)
-            price = base_price * (1 - slippage_pct / 100)
+            price = float(apply_slippage(Decimal(str(base_price)), side=Side.SELL, slippage_pct=slippage_pct))
             notional = price * view.quantity
             commission = self._fill_recorder.compute_commission(notional, "SELL")
             proceeds = notional - commission

@@ -194,6 +194,7 @@ class InstrumentLoader:
                     "SEM_OPTION_TYPE": _safe_opt_str(r, "SEM_OPTION_TYPE"),
                     "SEM_CUSTOM_SYMBOL": _safe_opt_str(r, "SEM_CUSTOM_SYMBOL"),
                     "SM_SYMBOL_NAME": _safe_opt_str(r, "SM_SYMBOL_NAME"),
+                    "SEM_EXCH_INSTRUMENT_TYPE": _safe_opt_str(r, "SEM_EXCH_INSTRUMENT_TYPE"),
                 }
             )
         return out

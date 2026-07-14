@@ -11,6 +11,12 @@ import type {
   TransactionType,
 } from "../types";
 
+/** Statuses for which Cancel is enabled — matches non-terminal OrderStatus values. */
+export const CANCELLABLE_ORDER_STATUSES = [
+  "OPEN",
+  "PARTIALLY_FILLED",
+] as const;
+
 /**
  * Order book widget (mirrors the TUI `OmsConsoleWidget`): list orders,
  * place a test order, and cancel open orders via the OMS. Placement routes
@@ -178,7 +184,9 @@ export function Orders() {
                   <button
                     type="button"
                     onClick={() => void cancel(o.order_id)}
-                    disabled={!["OPEN", "PARTIALLY_FILLED", "TRIGGER_PENDING"].includes(o.status)}
+                    disabled={
+                      !(CANCELLABLE_ORDER_STATUSES as readonly string[]).includes(o.status)
+                    }
                   >
                     Cancel
                   </button>

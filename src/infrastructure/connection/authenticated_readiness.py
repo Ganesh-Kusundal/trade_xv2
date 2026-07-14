@@ -93,6 +93,14 @@ def _probe_upstox(gateway: Any) -> AuthProbeResult:
                         probe_name="upstox.profile_or_market_status",
                     )
             except Exception as exc:
+                # /v2/user/profile 401s for any account without the registered
+                # static IP, regardless of token validity — fall back to market
+                # status (no IP restriction) before concluding the token is bad.
+                if token and _upstox_market_status_ok(oauth_client, token):
+                    return AuthProbeResult(
+                        ok=True,
+                        probe_name="upstox.profile_or_market_status",
+                    )
                 rejected = is_token_rejection(exc)
                 return AuthProbeResult(
                     ok=False,

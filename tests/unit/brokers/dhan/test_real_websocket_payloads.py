@@ -117,6 +117,43 @@ class TestRealDhanWebSocketPayloads:
         assert len(result["depth"]["bids"]) == 2
         assert len(result["depth"]["asks"]) == 2
 
+    def test_transform_quote_full_data_extracts_best_bid_ask(self):
+        """Full Data frames (FULL mode) carry a nested depth ladder; the top level is the best bid/ask."""
+        feed = self._make_feed()
+        payload = {
+            "type": "Full Data",
+            "security_id": "2885",
+            "last_price": "2450.55",
+            "depth": [
+                {
+                    "bid_quantity": 100,
+                    "ask_quantity": 50,
+                    "bid_orders": 5,
+                    "ask_orders": 2,
+                    "bid_price": "2450.00",
+                    "ask_price": "2451.00",
+                },
+                {
+                    "bid_quantity": 80,
+                    "ask_quantity": 60,
+                    "bid_orders": 4,
+                    "ask_orders": 3,
+                    "bid_price": "2449.50",
+                    "ask_price": "2451.50",
+                },
+            ],
+        }
+        result = feed._transform_quote(payload)
+        assert result["bid"] == Decimal("2450.00")
+        assert result["ask"] == Decimal("2451.00")
+
+    def test_transform_quote_no_depth_leaves_bid_ask_none(self):
+        feed = self._make_feed()
+        payload = {"type": "Ticker Data", "security_id": "2885", "last_price": "2450.55"}
+        result = feed._transform_quote(payload)
+        assert result["bid"] is None
+        assert result["ask"] is None
+
     def test_transform_depth_empty_levels(self):
         feed = self._make_feed()
         payload = {

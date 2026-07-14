@@ -70,6 +70,8 @@ class SubscriptionEngine:
                                 close=data.get("close", Decimal("0")),
                                 volume=int(data.get("volume", 0)),
                                 change=data.get("change", Decimal("0")),
+                                bid=data.get("bid"),
+                                ask=data.get("ask"),
                             )
                             _cb(q)
                         except Exception as exc:

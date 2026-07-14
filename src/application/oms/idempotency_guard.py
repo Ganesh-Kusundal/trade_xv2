@@ -16,11 +16,13 @@ import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from domain.constants import SECONDS_PER_DAY
+
 if TYPE_CHECKING:
     from application.oms.order_manager import OrderResult
     from domain.entities import Order
 
-_PENDING_TTL = 86400  # 24 hours — long enough for any real placement session
+_PENDING_TTL = SECONDS_PER_DAY  # 24 hours — long enough for any real placement session
 
 
 class _PendingStore:

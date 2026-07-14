@@ -6,6 +6,7 @@ import pytest
 
 from brokers.dhan.domain import ForeverOrderRequest
 from brokers.dhan.execution.forever_orders import ForeverOrdersAdapter
+from domain import OrderStatus
 
 
 def test_place_forever_order_single(fake_client, resolver):
@@ -178,7 +179,7 @@ def test_get_all_forever_orders(fake_client, resolver):
     assert orders[0].order_id == "FO001"
     assert orders[0].trading_symbol == "RELIANCE"
     assert orders[1].order_id == "FO002"
-    assert orders[1].order_status == "CLOSED"
+    assert orders[1].order_status == OrderStatus.CANCELLED
 
 
 def test_place_forever_order_validation_oco(fake_client, resolver):

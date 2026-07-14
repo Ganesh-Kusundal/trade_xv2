@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Generic, TypeVar
 
+from domain.constants import SECONDS_PER_DAY
 from infrastructure.idempotency.exceptions import IdempotencyError
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class IdempotencyService(Generic[T]):
         self,
         primary_backend: IdempotencyCacheBackend[T],
         fallback_backend: IdempotencyCacheBackend[T] | None = None,
-        default_ttl_seconds: int = 86400,  # 24 hours default
+        default_ttl_seconds: int = SECONDS_PER_DAY,
         enable_fallback: bool = True,
     ):
         """Initialize the idempotency service.

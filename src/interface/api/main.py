@@ -35,6 +35,37 @@ from interface.api.deps import get_container, initialize_all_services
 logger = logging.getLogger(__name__)
 
 
+def _wire_market_session(
+    *,
+    datalake_gateway: Any = None,
+    broker_service: Any = None,
+) -> None:
+    """Attach a domain Session to market + live routers (quote/depth/ltp)."""
+    gateway = None
+    broker_name = "datalake"
+    if broker_service is not None:
+        try:
+            gateway = broker_service.active_broker
+            broker_name = getattr(broker_service, "active_broker_name", None) or "broker"
+        except Exception as exc:
+            logger.warning("Could not read active broker for Session: %s", exc)
+    if gateway is None:
+        gateway = datalake_gateway
+    if gateway is None:
+        logger.warning("No gateway available — market Session not wired")
+        return
+
+    from domain.session import Session
+    from infrastructure.providers.broker.broker_data_provider import BrokerDataProvider
+    from interface.api.routers import market as market_router
+    from interface.api.routers.live import market as live_market
+
+    session = Session(BrokerDataProvider(gateway, broker_name=str(broker_name)))
+    market_router.set_session(session)
+    live_market.set_session(session)
+    logger.info("Market Session wired (provider=%s)", broker_name)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
@@ -266,13 +297,13 @@ def create_app(
     from domain.runtime_hooks import (
         register_domain_event_factory,
         register_oms_backtest_factory,
-        register_trading_context_factory,
     )
     from infrastructure.event_bus.factory import create_domain_event
+    from runtime.replay_factory import set_trading_context_factory
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
-    register_trading_context_factory(create_trading_context)
+    set_trading_context_factory(create_trading_context)
 
     # ENG-011: single process OMS book for REST, CLI, and tradex.connect.
     if trading_context is not None:
@@ -291,6 +322,13 @@ def create_app(
         market_data_composer=market_data_composer,
         execution_composer=execution_composer,
         **additional_services,
+    )
+
+    # Wire domain Session for /market/quote and /live/* instrument paths.
+    # Without this, those routes return 503 ("Session not wired").
+    _wire_market_session(
+        datalake_gateway=datalake_gateway,
+        broker_service=broker_service,
     )
 
     # Create FastAPI app

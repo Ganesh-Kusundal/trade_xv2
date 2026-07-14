@@ -199,7 +199,7 @@ class DepthPacketParser:
         if self.header_carries_security_id:
             sec_id = depth_data["header_value"]
         else:
-            sec_id = self._resolve_implicit_security_id(subscriptions, depth_cache)
+            sec_id = self.resolve_implicit_security_id(subscriptions, depth_cache)
         if sec_id is None:
             counters["dropped_depths"] = counters.get("dropped_depths", 0) + 1
             logger.warning(

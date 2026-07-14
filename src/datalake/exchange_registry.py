@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import threading
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,7 @@ class _ExchangeState:
 
     _active_adapter: ExchangeAdapter | None = None
     _discovered = False
+    _lock = threading.Lock()
 
     @classmethod
     def set_active(cls, adapter: ExchangeAdapter) -> None:
@@ -36,14 +38,25 @@ class _ExchangeState:
 
     @classmethod
     def get_active(cls) -> ExchangeAdapter:
-        if cls._active_adapter is None and not cls._discovered:
-            cls.discover()
-        if cls._active_adapter is None:
-            raise ExchangeNotConfigured(
-                "No exchange adapter registered. Install an exchange plugin "
-                "(e.g. ``pip install tradex[NSE]``) or call set_active_adapter()."
-            )
-        return cls._active_adapter
+        # discover() sets _discovered=True before _active_adapter is
+        # populated (plugin import takes time). An *unlocked* fast-path
+        # check here (even a "double-checked" one that only takes the
+        # lock conditionally) is still racy: a concurrent thread can
+        # observe _discovered=True and _active_adapter=None in the same
+        # torn read -- the exact transitional state discover() passes
+        # through -- and raise before the discovering thread finishes.
+        # The lock must guard the whole read-check-return, not just the
+        # discover() call; it's an uncontended stdlib Lock so the cost
+        # per call is negligible next to any real broker I/O.
+        with cls._lock:
+            if cls._active_adapter is None and not cls._discovered:
+                cls.discover()
+            if cls._active_adapter is None:
+                raise ExchangeNotConfigured(
+                    "No exchange adapter registered. Install an exchange plugin "
+                    "(e.g. ``pip install tradex[NSE]``) or call set_active_adapter()."
+                )
+            return cls._active_adapter
 
     @classmethod
     def discover(cls) -> list[str]:

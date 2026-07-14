@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from cachetools import TTLCache
 
+from domain.constants import SECONDS_PER_DAY
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
 from domain.state_machine import IllegalTransitionError, StateMachine
 
@@ -55,7 +56,7 @@ class OrderStateValidator:
         transitions: dict[OrderStatus, frozenset[OrderStatus]] | None = None,
         enforce: bool = True,
         max_orders: int = 10000,
-        ttl_seconds: int = 86400,
+        ttl_seconds: int = SECONDS_PER_DAY,
     ) -> None:
         """Initialize the state validator.
 

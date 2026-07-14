@@ -40,6 +40,10 @@ from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 from brokers.dhan.resolver import SymbolResolver
+
+# Registers Dhan-specific status strings (PLACED, TRIGGERED, CLOSED, ...) with
+# StatusMapperRegistry — import is for its registration side effect only.
+import brokers.dhan.status_mapper  # noqa: F401
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from domain import Balance, DepthLevel, MarketDepth, Quote, ReconciliationReport
 

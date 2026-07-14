@@ -6,6 +6,8 @@ from pathlib import Path
 
 from infrastructure.config.settings import BrokerSettings, SettingsLoaderBase
 
+from config.endpoints import Upstox as _UpstoxEndpoints
+
 UPSTOX_PREFIX = "UPSTOX"
 
 # ── Operational defaults (REF-4) ───────────────────────────────────────────
@@ -138,15 +140,13 @@ class UpstoxConnectionSettings(BrokerSettings):
     def base_v2(self) -> str:
         if self.rest_base_url:
             return self.rest_base_url.rstrip("/")
-        if self.is_sandbox:
-            return "https://sandbox-api.upstox.com"
-        return "https://api.upstox.com"
+        urls = _UpstoxEndpoints.sandbox() if self.is_sandbox else _UpstoxEndpoints.production()
+        return urls.base_v2
 
     @property
     def base_hft(self) -> str:
-        if self.is_sandbox:
-            return "https://sandbox-api-hft.upstox.com"
-        return "https://api-hft.upstox.com"
+        urls = _UpstoxEndpoints.sandbox() if self.is_sandbox else _UpstoxEndpoints.production()
+        return urls.base_hft
 
 
 class UpstoxSettingsLoader(SettingsLoaderBase):

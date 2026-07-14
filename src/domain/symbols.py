@@ -88,3 +88,29 @@ def make_instrument_key(symbol: str, exchange: str) -> tuple[str, str]:
         Normalized (symbol, exchange) pair.
     """
     return (normalize_symbol(symbol), normalize_exchange(exchange))
+
+
+def make_instrument_id(symbol: str, exchange: str) -> str:
+    """Create a canonical InstrumentId string in ``EXCHANGE:SYMBOL`` form.
+
+    This is the single source of truth for instrument-id construction. The
+    datalake storage variant (``instrument_id_from_symbol``) delegates here and
+    applies its storage-specific suffix stripping on top.
+
+    NOTE: suffix policy for ``*-EQ`` / ``*-BE`` instruments (keep vs strip) is a
+    deferred domain decision — see audit REF-1. This builder keeps suffixes to
+    stay consistent with :func:`make_position_key`.
+
+    Parameters
+    ----------
+    symbol : str
+        Trading symbol.
+    exchange : str
+        Exchange identifier.
+
+    Returns
+    -------
+    str
+        Instrument id in ``EXCHANGE:SYMBOL`` format.
+    """
+    return f"{normalize_exchange(exchange)}:{normalize_symbol(symbol)}"

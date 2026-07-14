@@ -47,15 +47,25 @@ class DataLakeGateway(MarketDataGateway):
 
     def __init__(self, root: str = "market_data") -> None:
         self._root = Path(root)
+        # Prefer equities; indices consulted as fallback in _candle_candidates.
         self._candles_dir = self._root / "equities" / "candles"
 
     def _parquet_path(self, symbol: str, timeframe: str) -> Path:
         return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
 
+    def _candle_candidates(self, symbol: str, timeframe: str) -> list[Path]:
+        """Equity then index hive paths under the lake root."""
+        leaf = Path(f"timeframe={timeframe}") / symbol_to_path(symbol) / "data.parquet"
+        return [
+            self._root / "equities" / "candles" / leaf,
+            self._root / "indices" / "candles" / leaf,
+        ]
+
     def _load_parquet(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
         symbol = normalize_symbol_for_storage(symbol)
-        path = self._parquet_path(symbol, timeframe)
-        if path.exists():
+        for path in self._candle_candidates(symbol, timeframe):
+            if not path.exists():
+                continue
             try:
                 return pd.read_parquet(path)
             except Exception as exc:

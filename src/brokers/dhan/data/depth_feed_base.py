@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -475,6 +476,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                             message = await asyncio.wait_for(ws.recv(), timeout=30.0)
 
                             if isinstance(message, bytes):
+                                counters = {"published_depths": 0, "dropped_depths": 0}
                                 self._parser.process_binary_message(
                                     message,
                                     note_message_received=self._note_message_received,
@@ -489,8 +491,10 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                                     feed_name=self.name,
                                     snapshot_callbacks=self._snapshot_callbacks,
                                     next_correlation_id=self.next_correlation_id,
-                                    counters={"published_depths": 0, "dropped_depths": 0},
+                                    counters=counters,
                                 )
+                                self._published_depths += counters["published_depths"]
+                                self._dropped_depths += counters["dropped_depths"]
 
                             backoff = 1.0
 
@@ -645,3 +649,59 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         if ws is None:
             return
         self._close_active_websocket(ws, loop=loop)
+
+    def _parse_depth_packet(self, data: bytes, response_code: int, header_value: int) -> dict:
+        """Backwards compatibility helper for tests."""
+        return self._parser.parse_packet(data, header_value, response_code)
+
+    def _process_binary_message(self, data: bytes) -> None:
+        """Backwards compatibility helper for tests."""
+        counters = {"published_depths": 0, "dropped_depths": 0}
+        self._parser.process_binary_message(
+            data,
+            note_message_received=self._note_message_received,
+            subscriptions=self._subscriptions,
+            depth_cache=self._depth_cache,
+            depth_cache_lock=self._depth_cache_lock,
+            sec_id_to_symbol=self._sec_id_to_symbol,
+            depth_callbacks=self._depth_callbacks,
+            callback_lock=self._callback_lock,
+            event_bus=self._event_bus,
+            event_name=self.EVENT_NAME,
+            feed_name=self.name,
+            snapshot_callbacks=self._snapshot_callbacks,
+            next_correlation_id=self.next_correlation_id,
+            counters=counters,
+        )
+        self._published_depths += counters["published_depths"]
+        self._dropped_depths += counters["dropped_depths"]
+
+    def _dispatch_depth(self, depth_data: dict) -> None:
+        """Backwards compatibility helper for tests."""
+        if "header_value" not in depth_data:
+            if not self.header_carries_security_id and self._subscriptions:
+                try:
+                    depth_data["header_value"] = int(self._subscriptions[0][1])
+                except (ValueError, IndexError):
+                    depth_data["header_value"] = 0
+            else:
+                depth_data["header_value"] = 0
+
+        counters = {"published_depths": 0, "dropped_depths": 0}
+        self._parser._dispatch_depth(
+            depth_data,
+            subscriptions=self._subscriptions,
+            depth_cache=self._depth_cache,
+            depth_cache_lock=self._depth_cache_lock,
+            sec_id_to_symbol=self._sec_id_to_symbol,
+            depth_callbacks=self._depth_callbacks,
+            callback_lock=self._callback_lock,
+            event_bus=self._event_bus,
+            event_name=self.EVENT_NAME,
+            feed_name=self.name,
+            snapshot_callbacks=self._snapshot_callbacks,
+            next_correlation_id=self.next_correlation_id,
+            counters=counters,
+        )
+        self._published_depths += counters["published_depths"]
+        self._dropped_depths += counters["dropped_depths"]

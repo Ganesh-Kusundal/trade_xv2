@@ -17,7 +17,7 @@ def _item(side: str, price: float, qty: int):
 
 
 def test_derive_expected_equity_applies_commission_and_slippage():
-    orch = UnifiedReplayOrchestrator.__new__(UnifiedReplayOrchestrator)
+    orch = UnifiedReplayOrchestrator()
     items = [_item("BUY", 100.0, 10), _item("SELL", 110.0, 10)]
     # No costs: buy 1000, sell 1100 → equity 100100
     raw = orch._derive_expected_equity(

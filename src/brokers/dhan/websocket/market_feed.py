@@ -23,6 +23,7 @@ from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmi
 from brokers.dhan.websocket._helpers import (
     _DhanContext,
     _normalize_sdk_depth,
+    _sdk_market_feed_class,
     _to_decimal,
     _transform_depth,
     _transform_quote,
@@ -141,31 +142,80 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
     @property
     def _instruments(self) -> list[tuple]:
-        return self._sub._instruments
+        if getattr(self, "_sub", None) is not None:
+            return self._sub._instruments
+        return getattr(self, "__instruments_fallback", [])
 
     @_instruments.setter
     def _instruments(self, value: list[tuple]) -> None:
-        self._sub._instruments = value
+        if getattr(self, "_sub", None) is not None:
+            self._sub._instruments = value
+        else:
+            object.__setattr__(self, "__instruments_fallback", value)
 
     @property
     def _subscribed_instruments(self) -> set:
-        return self._sub._subscribed_instruments
+        if getattr(self, "_sub", None) is not None:
+            return self._sub._subscribed_instruments
+        return getattr(self, "__subscribed_instruments_fallback", set())
+
+    @_subscribed_instruments.setter
+    def _subscribed_instruments(self, value: set) -> None:
+        if getattr(self, "_sub", None) is not None:
+            self._sub._subscribed_instruments = value
+        else:
+            object.__setattr__(self, "__subscribed_instruments_fallback", value)
 
     @property
     def _quote_callbacks(self) -> list:
-        return self._sub._quote_callbacks
+        if getattr(self, "_sub", None) is not None:
+            return self._sub._quote_callbacks
+        if not hasattr(self, "__quote_callbacks_fallback"):
+            object.__setattr__(self, "__quote_callbacks_fallback", [])
+        return getattr(self, "__quote_callbacks_fallback")
+
+    @_quote_callbacks.setter
+    def _quote_callbacks(self, value: list) -> None:
+        if getattr(self, "_sub", None) is not None:
+            self._sub._quote_callbacks = value
+        else:
+            object.__setattr__(self, "__quote_callbacks_fallback", value)
 
     @property
     def _depth_callbacks(self) -> list:
-        return self._sub._depth_callbacks
+        if getattr(self, "_sub", None) is not None:
+            return self._sub._depth_callbacks
+        if not hasattr(self, "__depth_callbacks_fallback"):
+            object.__setattr__(self, "__depth_callbacks_fallback", [])
+        return getattr(self, "__depth_callbacks_fallback")
+
+    @_depth_callbacks.setter
+    def _depth_callbacks(self, value: list) -> None:
+        if getattr(self, "_sub", None) is not None:
+            self._sub._depth_callbacks = value
+        else:
+            object.__setattr__(self, "__depth_callbacks_fallback", value)
 
     @property
     def _last_tick_time(self) -> dict[str, datetime]:
-        return self._sub._last_tick_time
+        if getattr(self, "_sub", None) is not None:
+            return self._sub._last_tick_time
+        if not hasattr(self, "__last_tick_time_fallback"):
+            object.__setattr__(self, "__last_tick_time_fallback", {})
+        return getattr(self, "__last_tick_time_fallback")
 
     @property
     def _feed(self) -> Any | None:
-        return self._conn.feed if getattr(self, "_conn", None) is not None else None
+        if getattr(self, "_conn", None) is not None:
+            return self._conn.feed
+        return getattr(self, "__feed_fallback", None)
+
+    @_feed.setter
+    def _feed(self, value: Any | None) -> None:
+        if getattr(self, "_conn", None) is not None:
+            self._conn.feed = value
+        else:
+            object.__setattr__(self, "__feed_fallback", value)
 
     @property
     def _thread(self) -> threading.Thread | None:
@@ -175,7 +225,6 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
     @_thread.setter
     def _thread(self, value: threading.Thread | None) -> None:
-        # Used by partial-construction unit tests that set _thread=None.
         if getattr(self, "_conn", None) is not None:
             self._conn._thread = value
         else:
@@ -193,6 +242,45 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             self._conn._disconnect_time = value
         else:
             object.__setattr__(self, "__disconnect_time_fallback", value)
+
+    @property
+    def _reconnect_count(self) -> int:
+        if getattr(self, "_conn", None) is not None:
+            return self._conn._reconnect_count
+        return getattr(self, "__reconnect_count_fallback", 0)
+
+    @_reconnect_count.setter
+    def _reconnect_count(self, value: int) -> None:
+        if getattr(self, "_conn", None) is not None:
+            self._conn._reconnect_count = value
+        else:
+            object.__setattr__(self, "__reconnect_count_fallback", value)
+
+    @property
+    def _last_message_at(self) -> datetime | None:
+        if getattr(self, "_conn", None) is not None:
+            return self._conn._last_message_at
+        return getattr(self, "__last_message_at_fallback", None)
+
+    @_last_message_at.setter
+    def _last_message_at(self, value: datetime | None) -> None:
+        if getattr(self, "_conn", None) is not None:
+            self._conn._last_message_at = value
+        else:
+            object.__setattr__(self, "__last_message_at_fallback", value)
+
+    @property
+    def _is_connected(self) -> bool:
+        if getattr(self, "_conn", None) is not None:
+            return self._conn._is_connected
+        return getattr(self, "__is_connected_fallback", False)
+
+    @_is_connected.setter
+    def _is_connected(self, value: bool) -> None:
+        if getattr(self, "_conn", None) is not None:
+            self._conn._is_connected = value
+        else:
+            object.__setattr__(self, "__is_connected_fallback", value)
 
     def _on_close(self, feed) -> None:
         """Compatibility shim — SDK close callback lives on connection."""
@@ -220,27 +308,50 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
     def connect(self) -> None:
         """Start the WebSocket connection in a background daemon thread."""
-        self._conn.connect()
+        if getattr(self, "_conn", None) is not None:
+            self._conn.connect()
+        else:
+            self.start()
 
     def start(self) -> None:
         """ManagedService protocol: start the WebSocket thread.
 
         Idempotent — re-calling while the thread is alive is a no-op.
         """
-        self._conn.start()
+        if getattr(self, "_conn", None) is not None:
+            self._conn.start()
+        else:
+            thread = getattr(self, "_thread", None)
+            if thread and thread.is_alive():
+                return
+            self._stop_event.clear()
+            thread = threading.Thread(target=self._run, name=getattr(self, "name", "dhan.market_feed"), daemon=True)
+            object.__setattr__(self, "__thread_fallback", thread)
+            thread.start()
 
     def disconnect(self, timeout_seconds: float = 5.0) -> None:
         """Stop the WebSocket connection."""
-        self._conn.disconnect(timeout_seconds=timeout_seconds)
+        if getattr(self, "_conn", None) is not None:
+            self._conn.disconnect(timeout_seconds=timeout_seconds)
+        else:
+            self.stop(timeout_seconds=timeout_seconds)
 
     def stop(self, timeout_seconds: float = 5.0) -> None:
         """ManagedService protocol: stop the WebSocket thread."""
-        self._conn.stop(timeout_seconds=timeout_seconds)
+        if getattr(self, "_conn", None) is not None:
+            self._conn.stop(timeout_seconds=timeout_seconds)
+        else:
+            self._stop_event.set()
+            thread = getattr(self, "_thread", None)
+            if thread and thread.is_alive():
+                thread.join(timeout=timeout_seconds)
 
     @property
     def is_connected(self) -> bool:
         """Return True if the feed is connected and not stale."""
-        return self._conn.is_connected
+        if getattr(self, "_conn", None) is not None:
+            return self._conn.is_connected
+        return bool(getattr(self, "_is_connected", False))
 
     # ------------------------------------------------------------------
     # Public API — subscriptions (delegated to self._sub)
@@ -519,3 +630,8 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
     def clear_symbol_tracking(self, symbol: str) -> None:
         """Remove last-tick-time tracking for a symbol (called on unsubscribe)."""
         self._sub.clear_symbol_tracking(symbol)
+
+    def _run(self) -> None:
+        """Compatibility shim — run connection loop."""
+        if getattr(self, "_conn", None) is not None:
+            self._conn._run()

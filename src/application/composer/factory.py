@@ -351,8 +351,9 @@ def create_composers_from_infra(
     """
     if risk_manager is None:
         from application.oms._internal.risk_manager import RiskConfig, RiskManager
+        from application.oms.position_manager import PositionManager
 
-        risk_manager = RiskManager(config=RiskConfig())
+        risk_manager = RiskManager(PositionManager(), config=RiskConfig())
     if order_manager is None:
         from application.oms.order_manager import OrderManager
 
@@ -458,8 +459,9 @@ def create_composers(
 
     if risk_manager is None:
         from application.oms._internal.risk_manager import RiskConfig, RiskManager
+        from application.oms.position_manager import PositionManager
 
-        risk_manager = RiskManager(config=RiskConfig())
+        risk_manager = RiskManager(PositionManager(), config=RiskConfig())
 
     from application.oms.order_manager import OrderManager
 

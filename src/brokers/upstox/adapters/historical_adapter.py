@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from domain.constants.market import IST
 from domain.parsing import parse_timestamp
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ def _to_ist_timestamp(value: Any) -> Any:
     ts = parse_timestamp(value)
     if ts is None:
         return pd.NaT
-    ist = ZoneInfo("Asia/Kolkata")
+    ist = IST
     if ts.tzinfo is None:
         return ts.replace(tzinfo=ist)
     return ts.astimezone(ist)

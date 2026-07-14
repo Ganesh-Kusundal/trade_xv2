@@ -116,6 +116,9 @@ def noop_admission_patch():
     import unittest.mock as mock
 
     with mock.patch(
+        "brokers.dhan.websocket.connection.MarketFeedConnectionAdmission",
+        side_effect=lambda *args, **kwargs: NoopAdmission(),
+    ), mock.patch(
         "brokers.dhan.websocket.market_feed.MarketFeedConnectionAdmission",
         side_effect=lambda *args, **kwargs: NoopAdmission(),
     ):

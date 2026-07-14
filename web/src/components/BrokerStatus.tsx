@@ -34,7 +34,16 @@ export function BrokerStatus() {
           </div>
           <div>
             <dt>Status</dt>
-            <dd className={health.data.status === "healthy" ? "ok" : "error"}>
+            <dd
+              className={
+                health.data.status === "healthy"
+                  ? "ok"
+                  : health.data.status === "degraded"
+                    ? "warn"
+                    : "error"
+              }
+              data-testid="broker-status"
+            >
               {health.data.status}
             </dd>
           </div>

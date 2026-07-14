@@ -285,7 +285,7 @@ export interface OptionContractRow {
   symbol: string;
   expiry: string;
   strike: number;
-  option_type: string; // CE or PE
+  option_type: string; // CE/PE or CALL/PUT (backend emits CALL/PUT)
   ltp: number;
   bid?: number | null;
   ask?: number | null;

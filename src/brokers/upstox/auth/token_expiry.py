@@ -8,9 +8,9 @@ Mirrors Trade_J ``UpstoxTokenExpiry``.
 from __future__ import annotations
 
 from datetime import datetime, time
-from zoneinfo import ZoneInfo
 
-IST = ZoneInfo("Asia/Kolkata")
+from domain.constants.market import IST
+
 EXPIRY_TIME = time(3, 30)
 
 

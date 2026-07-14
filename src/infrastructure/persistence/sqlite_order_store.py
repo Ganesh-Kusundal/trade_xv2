@@ -24,6 +24,7 @@ try:
 except ImportError:  # pragma: no cover — Windows dev environments
     fcntl = None  # type: ignore[assignment]
 
+from domain.constants import SQLITE_BUSY_TIMEOUT_MS
 from domain.entities import Order
 from domain.exceptions import TradeXV2Error
 from domain.types import OrderStatus, OrderType, ProductType, Side
@@ -116,7 +117,7 @@ class SqliteOrderStore:
         # for the OMS single-writer invariant with multiple reader threads.
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
         self._init_schema()
 
     def _acquire_writer_lock(self) -> None:

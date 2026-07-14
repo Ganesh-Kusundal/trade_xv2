@@ -403,12 +403,17 @@ def _make_offline_gateway():
         ]
     )
 
+    from brokers.dhan.instruments.service import DhanInstrumentService
+    from brokers.dhan.streaming.connection import DhanConnection
+
     conn = mock.MagicMock()
-    conn.instruments = resolver
+    conn.instruments = DhanInstrumentService(resolver=resolver)
     conn.client_id = "testclient"
     conn.access_token = "testtoken"
     conn.depth_20_feed = None
     conn.depth_200_feed = None
+    conn.subscribe_depth_20 = DhanConnection.subscribe_depth_20.__get__(conn, DhanConnection)
+    conn.subscribe_depth_200 = DhanConnection.subscribe_depth_200.__get__(conn, DhanConnection)
     conn.market_data.get_depth.return_value = MarketDepth(
         bids=[DepthLevel(Decimal("1330"), 50, 2)],
         asks=[DepthLevel(Decimal("1331"), 30, 1)],

@@ -10,14 +10,15 @@ from datetime import time
 from decimal import Decimal
 
 from domain.constants.market import DEFAULT_TICK_SIZE
+from domain.market.hours import NSE_EQUITY_CLOSE, NSE_EQUITY_OPEN
 
 
 @dataclass(frozen=True, slots=True)
 class TradingHours:
     """Exchange trading hours for a specific session."""
 
-    open: time = time(9, 15)
-    close: time = time(15, 30)
+    open: time = NSE_EQUITY_OPEN
+    close: time = NSE_EQUITY_CLOSE
     timezone: str = "Asia/Kolkata"
 
     def is_within(self, check_time: time) -> bool:

@@ -39,6 +39,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from application.composer.factory import _fetch_gap_bars, _split_instrument_key
+from domain.constants import DEFAULT_STORAGE_TIMEFRAME
 from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,6 @@ logger = logging.getLogger(__name__)
 # the reconciler cheap and bounded even after a long disconnect.
 DEFAULT_MAX_GAP_SPAN = timedelta(days=7)
 DEFAULT_MAX_INSTRUMENTS = 50
-DEFAULT_TIMEFRAME = "1m"
 
 
 class GapReconciler:
@@ -78,7 +78,7 @@ class GapReconciler:
         self,
         historical_coordinator: Any | None,
         *,
-        timeframe: str = DEFAULT_TIMEFRAME,
+        timeframe: str = DEFAULT_STORAGE_TIMEFRAME,
         max_gap_span: timedelta = DEFAULT_MAX_GAP_SPAN,
         max_instruments: int = DEFAULT_MAX_INSTRUMENTS,
         last_known_fn: Callable[[str], datetime | None] | None = None,

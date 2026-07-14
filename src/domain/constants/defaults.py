@@ -67,4 +67,10 @@ data seeded from the symbol name hash."""
 
 DEFAULT_LOOKBACK_DAYS: int = 90
 DEFAULT_TIMEFRAME: str = "1D"
-"""Canonical defaults used in 15+ method signatures across the codebase."""
+"""Canonical *analysis* default used in 15+ method signatures across the
+codebase (daily bars). Distinct from :data:`DEFAULT_STORAGE_TIMEFRAME`."""
+
+DEFAULT_STORAGE_TIMEFRAME: str = "1m"
+"""Canonical *storage* granularity for the datalake (minute bars). This is the
+single source of truth for the ``"1m"`` partition timeframe; the datalake and
+the gap reconciler both reference it instead of hardcoding the literal."""

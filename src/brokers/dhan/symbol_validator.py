@@ -177,7 +177,7 @@ class DhanSymbolValidator:
                         }
                     )
             except Exception:
-                logger.debug("symbol_candidate_build_failed: %s", inst.symbol)
+                logger.debug("symbol_candidate_build_failed: %s", symbol)
 
         if not candidates:
             # Check for partial matches or underlying name

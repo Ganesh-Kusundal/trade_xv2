@@ -33,6 +33,8 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
+from domain.constants import SECONDS_PER_DAY
+
 from .config import UpstoxConnectionSettings, UpstoxSettingsLoader
 from .pkce import PkcePair, UpstoxPkceUtil
 from .redirect_server import UpstoxRedirectServer
@@ -163,7 +165,7 @@ def _persist_state(settings: UpstoxConnectionSettings, result: dict) -> None:
     if not settings.token_state_file:
         return
     settings.token_state_file.parent.mkdir(parents=True, exist_ok=True)
-    expires_at_ms = int(time.time() * 1000) + int(result.get("expires_in_seconds", 86400)) * 1000
+    expires_at_ms = int(time.time() * 1000) + int(result.get("expires_in_seconds", SECONDS_PER_DAY)) * 1000
     state = {
         "access_token": result.get("access_token", ""),
         "refresh_token": result.get("refresh_token"),

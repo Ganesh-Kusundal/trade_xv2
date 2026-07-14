@@ -16,6 +16,8 @@ DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     "PLACED": OrderStatus.OPEN,
     "TRIGGERED": OrderStatus.OPEN,
     "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_CANCELLED,
+    # Forever/GTT order terminal state: rule closed by user without triggering.
+    "CLOSED": OrderStatus.CANCELLED,
 }
 
 # Register Dhan mappings at module load

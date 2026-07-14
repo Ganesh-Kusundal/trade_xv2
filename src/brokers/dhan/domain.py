@@ -105,6 +105,7 @@ class DhanInstrument:
     instrument_type: InstrumentType
     option_type: OptionType | None = None
     sm_symbol_name: str | None = None
+    exch_instrument_type: str | None = None
 
     @property
     def symbol(self) -> str:
@@ -149,6 +150,17 @@ class DhanInstrument:
     @property
     def is_future(self) -> bool:
         return self.instrument_type == InstrumentType.FUTURE
+
+    @property
+    def is_equity_share(self) -> bool:
+        """True for Dhan's SEM_EXCH_INSTRUMENT_TYPE == "ES" (Equity Share).
+
+        Distinguishes the actual listed stock from other EQUITY-typed rows
+        that share the same trading symbol -- corporate bonds/NCDs (DEB),
+        T-bills (TB), govt/corp bonds (GB/CB), etc. can collide on
+        SEM_TRADING_SYMBOL with the stock they belong to.
+        """
+        return self.exch_instrument_type == "ES"
 
 
 # OrderSide remains available via __getattr__ deprecation shim.

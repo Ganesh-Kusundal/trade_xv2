@@ -13,6 +13,8 @@ from urllib.parse import urlencode
 
 import requests
 
+from domain.constants import SECONDS_PER_DAY
+
 from .exceptions import UpstoxAuthError
 
 
@@ -181,6 +183,6 @@ class UpstoxOAuthClient:
         return TokenResponse(
             access_token=payload.get("access_token", ""),
             refresh_token=payload.get("refresh_token"),
-            expires_in_seconds=int(payload.get("expires_in", 86400)),
+            expires_in_seconds=int(payload.get("expires_in", SECONDS_PER_DAY)),
             issued_at_ms=int(time.time() * 1000),
         )

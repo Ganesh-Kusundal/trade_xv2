@@ -177,5 +177,8 @@ class DhanSegmentMapper:
         return parsed or ExchangeSegment.NSE
 
     def from_exchange(self, exchange: str) -> ExchangeSegment:
-        wire = EXCHANGE_TO_SEGMENT.get(str(exchange or "NSE").upper(), DEFAULT_SEGMENT)
+        key = str(exchange or "NSE").upper()
+        wire = EXCHANGE_TO_SEGMENT.get(key)
+        if wire is None:
+            raise ValueError(f"Unknown exchange: {exchange!r}")
         return self.from_wire(wire)

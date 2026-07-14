@@ -17,6 +17,8 @@ from typing import Any, Generic, TypeVar
 
 from infrastructure.idempotency.service import IdempotencyCacheBackend
 
+from domain.constants import SECONDS_PER_DAY
+
 T = TypeVar("T")
 
 
@@ -38,7 +40,7 @@ class MemoryIdempotencyCache(IdempotencyCacheBackend[T]):
     All operations are thread-safe using a reentrant lock.
     """
 
-    def __init__(self, default_ttl_seconds: int = 86400, max_size: int = 10000):
+    def __init__(self, default_ttl_seconds: int = SECONDS_PER_DAY, max_size: int = 10000):
         """Initialize the memory cache.
         
         Args:

@@ -61,16 +61,17 @@ async def live_quote(
         )
     if response:
         apply_live_headers(response, "domain")
+    # Numeric floats — same contract as /api/v1/market/quote (MoneyField → float).
     return {
         "symbol": symbol,
         "exchange": exchange,
-        "ltp": str(q.ltp),
-        "open": str(q.open),
-        "high": str(q.high),
-        "low": str(q.low),
-        "close": str(q.close),
-        "volume": q.volume,
-        "change_pct": str(q.change_pct),
+        "ltp": float(q.ltp),
+        "open": float(q.open) if q.open is not None else None,
+        "high": float(q.high) if q.high is not None else None,
+        "low": float(q.low) if q.low is not None else None,
+        "close": float(q.close) if q.close is not None else None,
+        "volume": float(q.volume) if q.volume is not None else 0.0,
+        "change_pct": float(q.change_pct) if q.change_pct is not None else None,
     }
 
 
@@ -82,7 +83,7 @@ async def live_ltp(
 ) -> dict[str, Any]:
     instrument = _get_session().universe.equity(symbol, exchange)
     q = instrument.refresh()
-    ltp = str(q.ltp) if q else "0"
+    ltp = float(q.ltp) if q else 0.0
     if response:
         apply_live_headers(response, "domain")
     return {"symbol": symbol, "exchange": exchange, "ltp": ltp}

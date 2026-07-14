@@ -2,12 +2,17 @@ import { useState } from "react";
 import { useApi } from "../api/ApiContext";
 import { useAsync } from "../hooks/useAsync";
 import { fmtNum, fmtPct } from "../utils/format";
+import { VolumeProfileLwChart } from "./charts/TradingCharts";
+import type {
+  IVSurfaceResponse,
+  MaxPainResponse,
+  OptionChainResponse,
+  PCRResponse,
+  VolumeProfileResponse,
+} from "../types";
 
 /**
- * Options analytics widget: option chain, PCR, max pain, IV surface, and a
- * CE/PE volume-profile bar chart for an underlying. Mirrors the backend
- * `/options/*` endpoints (data is sourced from historical OHLCV parquet, so
- * bid/ask are not available here — see backend note on the chain endpoint).
+ * Options analytics: chain, PCR, max pain, IV, CE/PE volume via Lightweight Charts.
  */
 export function Options() {
   const api = useApi();
@@ -15,14 +20,14 @@ export function Options() {
   const [submitted, setSubmitted] = useState("NIFTY");
   const [strikeRange, setStrikeRange] = useState(10);
 
-  const chain = useAsync<ReturnType<typeof api.optionChain>>(
+  const chain = useAsync<OptionChainResponse>(
     () => api.optionChain(submitted, { strike_range: strikeRange }),
     [submitted, strikeRange],
   );
-  const pcr = useAsync<ReturnType<typeof api.pcr>>(() => api.pcr(submitted), [submitted]);
-  const maxPain = useAsync<ReturnType<typeof api.maxPain>>(() => api.maxPain(submitted), [submitted]);
-  const iv = useAsync<ReturnType<typeof api.ivSurface>>(() => api.ivSurface(submitted), [submitted]);
-  const vol = useAsync<ReturnType<typeof api.volumeProfile>>(
+  const pcr = useAsync<PCRResponse>(() => api.pcr(submitted), [submitted]);
+  const maxPain = useAsync<MaxPainResponse>(() => api.maxPain(submitted), [submitted]);
+  const iv = useAsync<IVSurfaceResponse>(() => api.ivSurface(submitted), [submitted]);
+  const vol = useAsync<VolumeProfileResponse>(
     () => api.volumeProfile(submitted),
     [submitted],
   );
@@ -59,48 +64,18 @@ export function Options() {
         <button type="submit">Analyze</button>
       </form>
 
-      {/* Summary tiles */}
       <div className="kv" data-testid="options-summary">
-        <SummaryTile
-          label="Spot"
-          state={maxPain}
-          render={(d) => fmtNum(d.spot)}
-        />
-        <SummaryTile
-          label="Max Pain"
-          state={maxPain}
-          render={(d) => fmtNum(d.max_pain_strike)}
-        />
-        <SummaryTile
-          label="PCR (OI)"
-          state={pcr}
-          render={(d) => fmtNum(d.pcr_oi, 3)}
-        />
-        <SummaryTile
-          label="PCR (Vol)"
-          state={pcr}
-          render={(d) => fmtNum(d.pcr_volume, 3)}
-        />
-        <SummaryTile
-          label="ATM IV"
-          state={iv}
-          render={(d) => fmtPct(d.atm_iv * 100)}
-        />
-        <SummaryTile
-          label="IV Skew"
-          state={iv}
-          render={(d) => fmtNum(d.iv_skew, 3)}
-        />
+        <SummaryTile label="Spot" state={maxPain} render={(d) => fmtNum(d.spot)} />
+        <SummaryTile label="Max Pain" state={maxPain} render={(d) => fmtNum(d.max_pain_strike)} />
+        <SummaryTile label="PCR (OI)" state={pcr} render={(d) => fmtNum(d.pcr_oi, 3)} />
+        <SummaryTile label="PCR (Vol)" state={pcr} render={(d) => fmtNum(d.pcr_volume, 3)} />
+        <SummaryTile label="ATM IV" state={iv} render={(d) => fmtPct(d.atm_iv * 100)} />
+        <SummaryTile label="IV Skew" state={iv} render={(d) => fmtNum(d.iv_skew, 3)} />
       </div>
 
-      {/* Volume profile bar chart */}
       <h3>Volume Profile (CE vs PE)</h3>
-      <VolumeProfileChart
-        state={vol}
-        spot={maxPain.data?.spot}
-      />
+      <VolumeProfileSection state={vol} />
 
-      {/* Option chain table */}
       <h3>Option Chain</h3>
       {chain.loading && <p className="muted">Loading chain…</p>}
       {chain.error && (
@@ -120,15 +95,18 @@ export function Options() {
             </tr>
           </thead>
           <tbody>
-            {chain.data.contracts.map((c) => (
-              <tr key={`${c.symbol}-${c.option_type}`}>
-                <td>{fmtNum(c.strike, 1)}</td>
-                <td className={c.option_type === "CE" ? "pnl-pos" : "pnl-neg"}>{c.option_type}</td>
-                <td>{fmtNum(c.ltp)}</td>
-                <td>{fmtNum(c.volume, 0)}</td>
-                <td>{fmtNum(c.oi, 0)}</td>
-              </tr>
-            ))}
+            {chain.data.contracts.map((c, i) => {
+              const isCall = c.option_type.toUpperCase().startsWith("C");
+              return (
+                <tr key={`${c.symbol}-${c.expiry}-${c.strike}-${c.option_type}-${i}`}>
+                  <td>{fmtNum(c.strike, 1)}</td>
+                  <td className={isCall ? "pnl-pos" : "pnl-neg"}>{isCall ? "CE" : "PE"}</td>
+                  <td>{fmtNum(c.ltp)}</td>
+                  <td>{fmtNum(c.volume, 0)}</td>
+                  <td>{fmtNum(c.oi, 0)}</td>
+                </tr>
+              );
+            })}
             {chain.data.contracts.length === 0 && (
               <tr>
                 <td colSpan={5} className="muted">
@@ -160,17 +138,24 @@ function SummaryTile<T>({
   return (
     <div>
       <dt>{label}</dt>
-      <dd data-testid={`tile-${label.replace(/\s+/g, "-").toLowerCase()}`}>{value}</dd>
+      <dd
+        data-testid={`tile-${label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/-+$/, "")}`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
 
-function VolumeProfileChart({
+function VolumeProfileSection({
   state,
-  spot,
 }: {
-  state: AsyncState<{ profile: { strike: number; ce_volume: number; pe_volume: number; total_volume: number }[] }>;
-  spot?: number;
+  state: AsyncState<{
+    profile: { strike: number; ce_volume: number; pe_volume: number; total_volume: number }[];
+  }>;
 }) {
   if (state.loading) return <p className="muted">Loading volume profile…</p>;
   if (state.error)
@@ -181,51 +166,5 @@ function VolumeProfileChart({
     );
   const profile = state.data?.profile ?? [];
   if (profile.length === 0) return <p className="muted">No volume data</p>;
-
-  // ponytail: fixed viewBox, simple stacked horizontal bars. No chart lib.
-  const W = 100;
-  const maxTotal = Math.max(...profile.map((p) => p.total_volume), 1);
-  const rowH = 3.2;
-  const H = profile.length * rowH + 4;
-  const spotY =
-    spot !== undefined
-      ? (() => {
-          const strikes = profile.map((p) => p.strike);
-          const lo = Math.min(...strikes);
-          const hi = Math.max(...strikes);
-          if (hi === lo) return null;
-          const idx = (spot - lo) / (hi - lo);
-          return `${Math.max(2, Math.min(H - 2, idx * H))}`;
-        })()
-      : null;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      role="img"
-      aria-label="CE/PE volume profile by strike"
-      data-testid="volume-profile-chart"
-      preserveAspectRatio="none"
-      style={{ display: "block", maxHeight: "320px" }}
-    >
-      {profile.map((p, i) => {
-        const y = i * rowH + 2;
-        const ceW = (p.ce_volume / maxTotal) * (W / 2);
-        const peW = (p.pe_volume / maxTotal) * (W / 2);
-        return (
-          <g key={p.strike}>
-            <rect x={0} y={y} width={ceW} height={rowH - 0.4} fill="#3fb950" />
-            <rect x={W / 2} y={y} width={peW} height={rowH - 0.4} fill="#f85149" />
-            <text x={W / 2 + 1} y={y + rowH - 1} fill="#8b949e" fontSize={2.2}>
-              {p.strike}
-            </text>
-          </g>
-        );
-      })}
-      {spotY !== null && (
-        <line x1={0} y1={spotY} x2={W} y2={spotY} stroke="#58a6ff" strokeWidth={0.5} strokeDasharray="2 1" />
-      )}
-    </svg>
-  );
+  return <VolumeProfileLwChart profile={profile} />;
 }

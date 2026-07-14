@@ -17,6 +17,7 @@ from domain.execution_contracts import (
 from domain.enums import OrderType, ProductType
 from domain.types import Side
 from domain.ports.execution_ledger import ExecutionLedgerPort
+from domain.constants import SQLITE_BUSY_TIMEOUT_MS
 
 
 def _parse_order_type(raw: str) -> OrderType:
@@ -46,7 +47,7 @@ class SqliteExecutionLedger(ExecutionLedgerPort):
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=FULL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
         self._init_schema()
 
     def _init_schema(self) -> None:

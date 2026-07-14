@@ -160,6 +160,21 @@ class SymbolResolver:
                         or (not i_active and not e_active and i_exp > e_exp)
                     ):
                         new_by_symbol[(k, inst.exchange)] = inst
+                elif (
+                    not existing.is_option
+                    and not inst.is_option
+                    and not existing.is_future
+                    and not inst.is_future
+                    and inst.is_equity_share
+                    and not existing.is_equity_share
+                ):
+                    # Same trading symbol can be shared by a listed stock and
+                    # one of its issuer's bonds/NCDs/T-bills (Dhan distinguishes
+                    # them only via SEM_EXCH_INSTRUMENT_TYPE, e.g. "ES" vs
+                    # "DEB"/"TB"/"GB"/"CB" -- not by SEM_TRADING_SYMBOL). Always
+                    # prefer the actual equity share so historical/live equity
+                    # requests don't silently resolve to a near-data-free bond.
+                    new_by_symbol[(k, inst.exchange)] = inst
 
             new_by_sid[inst.security_id] = inst
 
@@ -392,12 +407,15 @@ class SymbolResolver:
             canonical_symbol=canonical,
         )
 
+        exch_instrument_type = (row.get("SEM_EXCH_INSTRUMENT_TYPE") or "").strip() or None
+
         return DhanInstrument(
             domain_instrument=domain_inst,
             exchange=exchange,
             instrument_type=itype,
             option_type=option_type,
             sm_symbol_name=sm_symbol_name,
+            exch_instrument_type=exch_instrument_type,
         )
 
 

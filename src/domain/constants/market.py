@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from domain.conventions import DEFAULT_MARKET_SURFACE
 
@@ -91,10 +92,14 @@ SMA_WINDOW_DEFAULT: int = 20
 # ── Timezone (IST = UTC+5:30, no DST) ─────────────────────────────────────
 
 #: Fixed IST offset. Use this instead of ``timezone(timedelta(hours=5,
-#: minutes=30))`` scattered across files. ``ZoneInfo("Asia/Kolkata")`` is
-#: the preferred public alternative and is used in some modules; both
-#: represent the same offset.
+#: minutes=30))`` scattered across files. ``IST`` (below) is the preferred
+#: public alternative; both represent the same offset.
 IST_OFFSET = timezone(timedelta(hours=5, minutes=30))
+
+#: Canonical IANA IST timezone. Import this instead of constructing
+#: ``ZoneInfo("Asia/Kolkata")`` inline. Equivalent offset to ``IST_OFFSET``
+#: but DST/history-aware via the tz database.
+IST = ZoneInfo("Asia/Kolkata")
 
 __all__ = [
     "ATR_PERIOD_DEFAULT",
@@ -105,6 +110,7 @@ __all__ = [
     "DEFAULT_PRICE_SCALE",
     "DEFAULT_RISK_FREE_RATE",
     "DEFAULT_TICK_SIZE",
+    "IST",
     "IST_OFFSET",
     "MCX_CLOSE_HOUR_IST",
     "MCX_CLOSE_MINUTE_IST",

@@ -24,13 +24,21 @@ class TestDhanMarketFeedMaxReconnectAttempts:
         from brokers.dhan.websocket import DhanMarketFeed
 
         # Create feed with mocked SDK
-        with patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as mock_sdk:
+        with patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as mock_sdk, \
+             patch("brokers.dhan.websocket.connection._sdk_market_feed_class") as mock_sdk_conn:
             mock_sdk_instance = MagicMock()
             mock_sdk.return_value = mock_sdk_instance
+            mock_sdk_conn.return_value = mock_sdk_instance
+
+            mock_admission = MagicMock()
+            mock_admission.try_acquire.return_value = True
+            mock_admission.seconds_until_connect_allowed.return_value = 0.0
+            mock_admission.lock_held = True
 
             feed = DhanMarketFeed(
                 client_id="test_client",
                 access_token="test_token",
+                admission=mock_admission,
             )
             # Manually set the feed to avoid SDK initialization
             feed._feed = mock_sdk_instance

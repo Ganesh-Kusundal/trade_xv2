@@ -126,6 +126,21 @@ class UpstoxTokenManager:
     def bootstrap(self) -> TokenSnapshot:
         """Acquire the initial state from settings or the persisted JSON file."""
         with self._lock:
+            # Fixed-token modes never refresh (mirrors ensure_valid()'s precedence) —
+            # bootstrap must reuse the holder already built at __init__ from settings,
+            # not force a TOTP mint that these modes were configured to avoid.
+            if self._settings.analytics_only or (
+                self._settings.is_extended and self._settings.extended_token
+            ):
+                token = self._holder.bearer_token()
+                state = TokenSnapshot(
+                    access_token=token,
+                    expires_at_ms=self._holder.expiry_epoch_ms(),
+                    source="ANALYTICS" if self._settings.analytics_only else "EXTENDED",
+                )
+                self._state = state
+                return state
+
             if self._settings.is_totp:
                 return self._refresher._bootstrap_totp_if_needed()
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
-_IST = ZoneInfo("Asia/Kolkata")
+from domain.constants.market import IST as _IST
+
 _TIMESTAMP_COLUMNS = ("timestamp", "date", "datetime", "time")
 
 

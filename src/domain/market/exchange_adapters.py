@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from datetime import datetime, time
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
+
+from domain.constants.market import IST
+from domain.market.hours import NSE_EQUITY_CLOSE, NSE_EQUITY_OPEN
 
 if TYPE_CHECKING:
     from domain.ports.exchange_adapter import ExchangeAdapterPort
@@ -18,10 +20,10 @@ class NSEExchangeAdapter:
     """NSE (National Stock Exchange of India) adapter."""
 
     exchange_code = "NSE"
-    timezone = ZoneInfo("Asia/Kolkata")
+    timezone = IST
 
-    _OPEN = time(9, 15)
-    _CLOSE = time(15, 30)
+    _OPEN = NSE_EQUITY_OPEN
+    _CLOSE = NSE_EQUITY_CLOSE
 
     def is_trading_hours(self, now: datetime) -> bool:
         local = now.astimezone(self.timezone)
@@ -37,10 +39,10 @@ class BSEExchangeAdapter:
     """BSE (Bombay Stock Exchange) adapter."""
 
     exchange_code = "BSE"
-    timezone = ZoneInfo("Asia/Kolkata")
+    timezone = IST
 
-    _OPEN = time(9, 15)
-    _CLOSE = time(15, 30)
+    _OPEN = NSE_EQUITY_OPEN
+    _CLOSE = NSE_EQUITY_CLOSE
 
     def is_trading_hours(self, now: datetime) -> bool:
         local = now.astimezone(self.timezone)
@@ -56,7 +58,7 @@ class MCXExchangeAdapter:
     """MCX (Multi Commodity Exchange) adapter."""
 
     exchange_code = "MCX"
-    timezone = ZoneInfo("Asia/Kolkata")
+    timezone = IST
 
     _OPEN = time(9, 0)
     _CLOSE = time(23, 30)

@@ -84,9 +84,12 @@ def symbol_partition_path(
         raise ValueError(
             f"unsupported timeframe {timeframe!r}; supported: {sorted(SUPPORTED_TIMEFRAMES)}"
         )
+    from config.indices import is_index
+
+    asset = "indices" if is_index(symbol) else "equities"
     return (
         Path(root)
-        / "equities"
+        / asset
         / "candles"
         / f"timeframe={timeframe}"
         / f"symbol={symbol}"

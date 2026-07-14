@@ -50,7 +50,12 @@ class APIConfig:
         default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     )
     cors_allow_headers: list[str] = field(
-        default_factory=lambda: ["Authorization", "Content-Type", "X-Correlation-ID"]
+        default_factory=lambda: [
+            "Authorization",
+            "Content-Type",
+            "X-Correlation-ID",
+            "X-API-Key",
+        ]
     )
     max_page_size: int = 1000
     default_page_size: int = 100

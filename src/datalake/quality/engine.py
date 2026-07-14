@@ -67,14 +67,9 @@ class DataQualityEngine:
         """Run all quality checks for a symbol."""
         report = QualityReport(symbol=symbol, timeframe=timeframe)
 
-        parquet_path = (
-            self._root
-            / "equities"
-            / "candles"
-            / f"timeframe={timeframe}"
-            / f"symbol={symbol}"
-            / "data.parquet"
-        )
+        from datalake.core.paths import symbol_partition_path
+
+        parquet_path = symbol_partition_path(str(self._root), symbol, timeframe)
         if not parquet_path.exists():
             report.status = "MISSING"
             report.issues.append(f"No data file found: {parquet_path}")

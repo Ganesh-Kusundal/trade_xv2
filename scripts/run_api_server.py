@@ -24,14 +24,20 @@ logger = logging.getLogger(__name__)
 
 def create_api_app():
     """Create API app with all services initialized via runtime bootstrap."""
+    import os
+
     configure_logging()
     project_root = Path(__file__).parent.parent
     bootstrap_environment(project_root)
     services = initialize_api_services(project_root)
 
+    # Honor AUTH_MODE from env (local SPA: AUTH_MODE=none TRADEX_ALLOW_AUTH_NONE=1).
+    auth_mode = (os.getenv("AUTH_MODE") or "api_key").strip().lower()
     config = APIConfig(
         host="127.0.0.1",
         port=8080,
+        auth_mode=auth_mode,
+        api_key=os.getenv("API_KEY", ""),
         cors_origins=[
             "http://localhost:5173",
             "http://localhost:3000",

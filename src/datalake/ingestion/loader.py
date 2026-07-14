@@ -10,6 +10,7 @@ All symbols are normalized (uppercased, stripped) before writing.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from datetime import time as dt_time
 from pathlib import Path
@@ -22,7 +23,7 @@ from infrastructure.batch_executor import batch_execute
 from datalake.core.paths import symbol_partition_path
 from datalake.core.io import atomic_parquet_write
 from datalake.core.schema import enforce_canonical_schema
-from datalake.ingestion.broker_selection import select_historical_source
+from datalake.ingestion.broker_selection import _TIMEFRAME_ALIASES, select_historical_source
 
 from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
@@ -67,32 +68,48 @@ class HistoricalDataLoader:
         exchange: str | None = None,
         *,
         gateways: dict[str, Any] | None = None,
+        fetch_fn: Callable[[str, str, str, int], pd.DataFrame] | None = None,
     ) -> dict:
         """Download historical data for a single symbol.
 
-        Pass either *gateway* (a single broker gateway -- existing
-        behavior, unchanged) or *gateways* (a ``{broker_id: gateway}``
-        dict). When *gateways* is given, the broker offering the most
-        historical range for *timeframe* is auto-selected via
-        :func:`select_historical_source` (e.g. Dhan over Upstox for
-        intraday timeframes, where Upstox only covers 30 days).
+        Three fetch strategies, in precedence order:
+
+        1. *fetch_fn* -- ``(symbol, exchange, timeframe, lookback_days) ->
+           DataFrame``. The recommended path for real syncs: the caller
+           supplies a quota-aware, multi-broker-federated fetcher (see
+           ``scripts/sync_datalake.py``'s use of
+           ``application.composer.market_data.MarketDataComposer
+           .fetch_historical`` -- not imported here, since ``datalake``
+           doesn't depend on ``application``; the caller adapts it to
+           this narrow callable shape).
+        2. *gateway* -- a single broker gateway (existing behavior,
+           unchanged). Chunked via :meth:`_fetch_history_chunked` but no
+           pre-emptive rate limiting or cross-broker failover.
+        3. *gateways* -- a ``{broker_id: gateway}`` dict; the broker with
+           the largest historical range for *timeframe* is auto-selected
+           via :func:`select_historical_source`, then fetched via (2).
 
         Returns
         -------
         Dict with keys: rows, duplicates_dropped, invalid_dropped.
         """
-        if gateway is None:
+        if fetch_fn is None and gateway is None:
             if not gateways:
-                raise ValueError("download_symbol requires either gateway= or gateways=")
+                raise ValueError(
+                    "download_symbol requires one of fetch_fn=, gateway=, or gateways="
+                )
             _, gateway = select_historical_source(timeframe, gateways)
 
         symbol = normalize_symbol_for_storage(symbol)
         if exchange is None:
             exchange = get_active_exchange_code()
         try:
-            df = gateway.history(
-                symbol, exchange=exchange, timeframe=timeframe, lookback_days=years * 365
-            )
+            if fetch_fn is not None:
+                df = fetch_fn(symbol, exchange, timeframe, years * 365)
+            else:
+                df = self._fetch_history_chunked(
+                    gateway, symbol, exchange, timeframe, lookback_days=years * 365
+                )
         except Exception as exc:
             logger.error("Failed to download %s: %s", symbol, exc)
             return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
@@ -156,16 +173,21 @@ class HistoricalDataLoader:
         timeframe: str = "1m",
         *,
         gateways: dict[str, Any] | None = None,
+        fetch_fn: Callable[[str, str, str, int], pd.DataFrame] | None = None,
     ) -> dict[str, dict[str, int]]:
         """Download data for all symbols in a universe.
 
-        See :meth:`download_symbol` for the *gateway* vs *gateways*
-        (auto-select) contract -- the same broker is resolved once here
-        and passed to every symbol's download.
+        See :meth:`download_symbol` for the *fetch_fn* / *gateway* vs
+        *gateways* (auto-select) contract -- when *gateway*/*gateways* is
+        used, the same broker is resolved once here and passed to every
+        symbol's download; *fetch_fn* is passed through as-is (it's
+        already broker-agnostic).
         """
-        if gateway is None:
+        if fetch_fn is None and gateway is None:
             if not gateways:
-                raise ValueError("download_universe requires either gateway= or gateways=")
+                raise ValueError(
+                    "download_universe requires one of fetch_fn=, gateway=, or gateways="
+                )
             _, gateway = select_historical_source(timeframe, gateways)
 
         import csv
@@ -190,7 +212,9 @@ class HistoricalDataLoader:
 
         def _download_one(sym: str) -> dict:
             logger.info("Downloading %s...", sym)
-            return self.download_symbol(sym, gateway, years=years, timeframe=timeframe)
+            return self.download_symbol(
+                sym, gateway, years=years, timeframe=timeframe, fetch_fn=fetch_fn
+            )
 
         def _on_error(sym: str, exc: Exception) -> None:
             logger.error("Failed to download %s: %s", sym, exc)
@@ -215,15 +239,18 @@ class HistoricalDataLoader:
         gateway: Any = None,
         timeframe: str = "1m",
         *,
+        exchange: str | None = None,
         gateways: dict[str, Any] | None = None,
+        fetch_fn: Callable[[str, str, str, int], pd.DataFrame] | None = None,
     ) -> int:
         """Download only missing data for a symbol -- the standard
         auto-detect-and-sync entry point: compares on-disk state against
         the broker, fetches only the missing window, and merges it in
         (see :meth:`_write_parquet`) rather than replacing the file.
 
-        See :meth:`download_symbol` for the *gateway* vs *gateways*
-        (auto-select) contract.
+        See :meth:`download_symbol` for the *fetch_fn* / *gateway* vs
+        *gateways* contract, and *exchange* (e.g. ``"INDEX"`` for NIFTY on
+        Dhan -- defaults to the active exchange's code when omitted).
 
         Uses actual candle count comparison, not just last date,
         to detect gaps within the date range.
@@ -232,19 +259,22 @@ class HistoricalDataLoader:
         existing_path = self._parquet_path(symbol, timeframe)
         if not existing_path.exists():
             return self.download_symbol(
-                symbol, gateway, years=5, timeframe=timeframe, gateways=gateways
+                symbol, gateway, years=5, timeframe=timeframe, exchange=exchange,
+                gateways=gateways, fetch_fn=fetch_fn
             )["rows"]
 
         try:
             existing = pd.read_parquet(existing_path)
         except Exception:
             return self.download_symbol(
-                symbol, gateway, years=5, timeframe=timeframe, gateways=gateways
+                symbol, gateway, years=5, timeframe=timeframe, exchange=exchange,
+                gateways=gateways, fetch_fn=fetch_fn
             )["rows"]
 
         if existing.empty:
             return self.download_symbol(
-                symbol, gateway, years=5, timeframe=timeframe, gateways=gateways
+                symbol, gateway, years=5, timeframe=timeframe, exchange=exchange,
+                gateways=gateways, fetch_fn=fetch_fn
             )["rows"]
 
         ts = pd.to_datetime(existing["timestamp"])
@@ -272,8 +302,68 @@ class HistoricalDataLoader:
 
         logger.info("%s: downloading %d missing days", symbol, days_missing)
         return self.download_symbol(
-            symbol, gateway, years=1, timeframe=timeframe, gateways=gateways
+            symbol, gateway, years=1, timeframe=timeframe, exchange=exchange,
+            gateways=gateways, fetch_fn=fetch_fn
         )["rows"]
+
+    def _fetch_history_chunked(
+        self,
+        gateway: Any,
+        symbol: str,
+        exchange: str,
+        timeframe: str,
+        lookback_days: int,
+    ) -> pd.DataFrame:
+        """Fetch *lookback_days* of history, splitting into chunks no
+        larger than the broker's own ``max_chunk_days`` for *timeframe*.
+
+        gateway.history(..., lookback_days=N) sends N as one request with
+        no chunking. Dhan's intraday endpoint hard-rejects any single
+        request spanning more than 90 days (DH-905: "Data for Intraday
+        Charts can be fetched for 90 days at a time") -- the exact limit
+        already recorded in BrokerCapabilities.historical_windows and
+        used by select_historical_source(). Reusing that same data here
+        instead of a second hardcoded "90".
+        """
+        max_chunk = self._max_chunk_days(gateway, timeframe)
+        if lookback_days <= max_chunk:
+            return gateway.history(
+                symbol, exchange=exchange, timeframe=timeframe, lookback_days=lookback_days
+            )
+
+        today = datetime.now().date()
+        overall_from = today - pd.Timedelta(days=lookback_days)
+        frames: list[pd.DataFrame] = []
+        chunk_start = overall_from
+        while chunk_start < today:
+            chunk_end = min(chunk_start + pd.Timedelta(days=max_chunk), today)
+            page = gateway.history(
+                symbol,
+                exchange=exchange,
+                timeframe=timeframe,
+                from_date=str(chunk_start),
+                to_date=str(chunk_end),
+            )
+            if page is not None and not page.empty:
+                frames.append(page)
+            chunk_start = chunk_end + pd.Timedelta(days=1)
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    @staticmethod
+    def _max_chunk_days(gateway: Any, timeframe: str, default: int = 90) -> int:
+        """Read the broker's max_chunk_days for *timeframe*; a conservative
+        default (Dhan's actual intraday cap) if capabilities aren't
+        available, so an unrecognised gateway still degrades safely
+        rather than sending an oversized request."""
+        target_tf = _TIMEFRAME_ALIASES.get(timeframe, timeframe)
+        try:
+            windows = gateway.capabilities().historical_windows
+        except Exception:
+            return default
+        for window in windows:
+            if window.timeframe == target_tf:
+                return window.max_chunk_days
+        return default
 
     def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""

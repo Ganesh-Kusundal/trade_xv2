@@ -17,13 +17,11 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
-from zoneinfo import ZoneInfo
 
+from domain.constants.market import IST
 from infrastructure.io.parquet import atomic_parquet_write
 
 logger = logging.getLogger(__name__)
-
-IST = ZoneInfo("Asia/Kolkata")
 
 
 class SupportsHistoricalCandles(Protocol):

@@ -10,6 +10,7 @@ from decimal import Decimal
 from domain.market_enums import ExchangeSegment, InstrumentType
 from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 from domain.exchange_segments import canonical_exchange_short, parse_segment
+from domain.normalize import normalize_text
 from domain.symbols import normalize_exchange, normalize_symbol
 
 # Exchange suffixes to strip for canonical symbol (matches datalake.core.symbols)
@@ -25,7 +26,7 @@ def _normalize_instrument_symbol(symbol: str) -> str:
     """
     if not symbol:
         return ""
-    s = symbol.strip().upper()
+    s = normalize_text(symbol, case="upper", strip=True)
     # Reject path-traversal characters (matches datalake.core.symbols)
     if "/" in s or "\\" in s or ".." in s or "\x00" in s:
         raise ValueError(f"Invalid symbol (path traversal detected): {symbol!r}")

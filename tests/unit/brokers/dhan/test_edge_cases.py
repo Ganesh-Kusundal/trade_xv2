@@ -160,9 +160,11 @@ class TestOrderValidation:
 class TestGatewayShortcuts:
     """Edge cases for Gateway convenience methods."""
 
-    def test_history_empty_result(self, offline_gateway):
-        df = offline_gateway.history("NONEXISTENT", exchange="NSE")
-        assert len(df) == 0
+    def test_history_unresolvable_symbol_raises(self, offline_gateway):
+        """history() for a non-existent symbol should raise InstrumentNotFoundError,
+        consistent with option_chain() and every other resolve()-backed lookup."""
+        with pytest.raises(InstrumentNotFoundError):
+            offline_gateway.history("NONEXISTENT", exchange="NSE")
 
     def test_option_chain_no_expiries(self, offline_gateway):
         """Option chain for non-existent symbol should raise InstrumentNotFoundError."""

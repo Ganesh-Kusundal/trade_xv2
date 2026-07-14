@@ -43,7 +43,7 @@ class TestDhanConnection:
         """connection.instruments must be the exact resolver passed in."""
         conn, _, resolver = self._make_connection()
 
-        assert conn.instruments is resolver
+        assert conn.instruments.resolver is resolver
 
     # -- load_instruments from rows --------------------------------------
 

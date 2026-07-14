@@ -138,12 +138,28 @@ def _normalize_sdk_depth(raw_depth: Any) -> dict[str, list[dict[str, Any]]]:
     return {"bids": [], "asks": []}
 
 
+def _best_bid_ask(raw_depth: Any) -> tuple[Decimal | None, Decimal | None]:
+    """Extract best (top-of-book) bid/ask from a Full Data frame's ``depth`` list."""
+    if not isinstance(raw_depth, list) or not raw_depth:
+        return None, None
+    top = raw_depth[0]
+    if not isinstance(top, dict):
+        return None, None
+    bid = top.get("bid_price")
+    ask = top.get("ask_price")
+    return (
+        Decimal(str(bid)) if bid not in (None, "") else None,
+        Decimal(str(ask)) if ask not in (None, "") else None,
+    )
+
+
 def _transform_quote(data: dict, resolver: Any = None) -> dict:
     """Transform a raw SDK ticker/quote frame into a canonical quote dict."""
     from domain.ports.time_service import get_current_clock
 
     security_id = str(data.get("security_id", ""))
     symbol = _resolve_security_symbol(security_id, resolver)
+    bid, ask = _best_bid_ask(data.get("depth"))
     return {
         "symbol": symbol,
         "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
@@ -153,6 +169,8 @@ def _transform_quote(data: dict, resolver: Any = None) -> dict:
         "close": Decimal(str(data["close"])) if data.get("close") else None,
         "volume": int(data.get("volume", 0)),
         "change": Decimal("0"),
+        "bid": bid,
+        "ask": ask,
         "timestamp": get_current_clock().now(),
     }
 

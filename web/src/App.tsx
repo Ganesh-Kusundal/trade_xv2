@@ -7,6 +7,8 @@ import { Positions } from "./components/Positions";
 import { Orders } from "./components/Orders";
 import { Diagnostics } from "./components/Diagnostics";
 import { Performance } from "./components/Performance";
+import { Options } from "./components/Options";
+import { Candles } from "./components/Candles";
 
 export function App() {
   return (
@@ -16,6 +18,8 @@ export function App() {
         <Route index element={<Navigate to="/broker" replace />} />
         <Route path="/broker" element={<BrokerStatus />} />
         <Route path="/market" element={<MarketQuotes />} />
+        <Route path="/candles" element={<Candles />} />
+        <Route path="/options" element={<Options />} />
         <Route path="/positions" element={<Positions />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/diagnostics" element={<Diagnostics />} />

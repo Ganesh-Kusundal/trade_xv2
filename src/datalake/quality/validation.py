@@ -23,9 +23,9 @@ from pathlib import Path
 
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from datalake.core.constants import MAX_PRICE
 
-MAX_PRICE = 10_000_000.0  # 1 crore per share, sanity cap
+logger = logging.getLogger(__name__)
 
 
 @dataclass

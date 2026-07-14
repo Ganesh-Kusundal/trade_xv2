@@ -13,9 +13,9 @@ import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from domain.constants.market import IST
 from domain.lifecycle_health import HealthState, build_health
 from domain.ports.lifecycle import ManagedServicePort as ManagedService
 
@@ -135,7 +135,7 @@ class TotpRefreshScheduler(ManagedService):
 
     def _run(self) -> None:
         """Main scheduler loop — check every 60 seconds if it's time to refresh."""
-        ist = ZoneInfo("Asia/Kolkata")
+        ist = IST
         while not self._stop_event.is_set():
             try:
                 now = datetime.now(ist)

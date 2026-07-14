@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -32,6 +33,7 @@ class DhanWireAdapter:
 
     def __init__(self, connection: DhanConnection):
         self._conn = connection
+        self._stream_lock = threading.Lock()
         enforce_gateway_capabilities(self)
 
     @property
@@ -372,7 +374,16 @@ class DhanWireAdapter:
         ``security_id`` values are never exposed to the caller — mapping is
         internal to the connection.
         """
-        return self._conn.subscribe_stream(symbol, exchange, mode=mode, on_tick=on_tick)
+        return self._conn.subscription_engine.subscribe_market(symbol, exchange, mode=mode, on_tick=on_tick)
+
+    def unstream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        on_tick: Any | None = None,
+    ) -> None:
+        """Unsubscribe from a live tick stream for *symbol* on *exchange*."""
+        self._conn.subscription_engine.unsubscribe_market(symbol, exchange, on_tick=on_tick)
 
     # ── Parallel Data Fetching ──────────────────────────────────────
 

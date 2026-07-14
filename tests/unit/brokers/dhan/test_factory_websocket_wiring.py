@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from brokers.dhan.identity.factory import BrokerFactory
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
@@ -10,6 +11,13 @@ from infrastructure.lifecycle.lifecycle import HealthState
 
 class TestFactoryWebSocketWiring:
     """Verify that BrokerFactory auto-creates and registers WebSocket services."""
+
+    @pytest.fixture(autouse=True)
+    def clean_registry(self):
+        from brokers.dhan.identity.account_registry import AccountConnectionRegistry
+        AccountConnectionRegistry.release_all()
+        yield
+        AccountConnectionRegistry.release_all()
 
     def test_factory_auto_creates_market_feed_with_lifecycle(self, tmp_path):
         """Factory.create() should auto-create DhanMarketFeed when lifecycle provided."""

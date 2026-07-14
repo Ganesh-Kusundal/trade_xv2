@@ -27,12 +27,18 @@ from plugins.exchanges.nse import ADAPTER, CALENDAR
 
 @pytest.fixture(autouse=True)
 def _reset_registry():
-    """Ensure each test starts with a clean registry."""
-    exchange_registry._active_adapter = None
-    exchange_registry._discovered = False
+    """Ensure each test starts with a clean registry.
+
+    The real state lives on exchange_registry._ExchangeState (a class
+    attribute), not a module-level exchange_registry._active_adapter --
+    that name doesn't exist on the module, so assigning to it silently
+    created an unused attribute and never actually reset anything.
+    """
+    exchange_registry._ExchangeState._active_adapter = None
+    exchange_registry._ExchangeState._discovered = False
     yield
-    exchange_registry._active_adapter = None
-    exchange_registry._discovered = False
+    exchange_registry._ExchangeState._active_adapter = None
+    exchange_registry._ExchangeState._discovered = False
 
 
 class TestNsePluginProtocol:

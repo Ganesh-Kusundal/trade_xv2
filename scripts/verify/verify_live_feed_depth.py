@@ -14,7 +14,7 @@ import threading
 import time
 from decimal import Decimal
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -28,7 +28,7 @@ def record(test: str, segment: str, status: str, detail: str = ""):
 
 
 def test_live_feed_and_depth():
-    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     sys.path.insert(0, os.path.join(_root, "src"))
     sys.path.insert(0, os.path.join(_root, "scripts"))
     from _connect import bootstrap_or_exit
@@ -51,11 +51,11 @@ def test_live_feed_and_depth():
     instruments.append(("IDX_I", "NIFTY", inst))
 
     # NFO Futures — nearest NIFTY future
-    nfo_futs = conn.instruments.get_futures("NIFTY", "NFO")
+    future_chain = gw.future_chain("NIFTY", "NFO")
     from datetime import date
 
     today = str(date.today())
-    active_futs = [f for f in nfo_futs if f.expiry and f.expiry >= today]
+    active_futs = [c for c in future_chain.contracts if c.expiry and c.expiry >= today]
     if active_futs:
         fut = active_futs[0]
         instruments.append(("NFO", f"NIFTY FUT ({fut.expiry})", fut))

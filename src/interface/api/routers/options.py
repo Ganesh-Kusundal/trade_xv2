@@ -25,6 +25,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
+def _is_catalog_lock_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "lock" in msg or "could not set" in msg
+
+
+def _reraise_options_query(exc: Exception, *, what: str) -> None:
+    """Map DuckDB catalog lock conflicts to 503; other failures stay 500."""
+    if _is_catalog_lock_error(exc):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"{what} unavailable: catalog.duckdb is locked by another process "
+                "(e.g. sync_datalake). Retry when the writer finishes."
+            ),
+            headers={"Retry-After": "30"},
+        ) from exc
+    logger.error("%s failed: %s", what, exc)
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"{what} failed: {exc!s}",
+    ) from exc
+
+
 @router.get("/chain/{underlying}", response_model=OptionChainResponse)
 async def get_option_chain(
     underlying: str,
@@ -79,7 +102,15 @@ async def get_option_chain(
             query += " AND expiry_date = ?"
             params.append(expiry)
 
-        query += " ORDER BY strike, option_type LIMIT ?"
+        # Latest bar per contract — parquet has one row per candle timestamp.
+        query += """
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY symbol, expiry_date, strike, option_type
+                ORDER BY timestamp DESC
+            ) = 1
+            ORDER BY strike, option_type
+            LIMIT ?
+        """
         # Validate and bound the limit parameter to prevent excessive resource usage
         safe_limit = max(2, min(int(strike_range * 2), 200))
         params.append(safe_limit)
@@ -178,11 +209,7 @@ async def get_pcr(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("PCR fetch failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PCR fetch failed: {exc!s}",
-        ) from exc
+        _reraise_options_query(exc, what="PCR fetch")
 
 
 @router.get("/max-pain/{underlying}", response_model=MaxPainResponse)
@@ -237,11 +264,7 @@ async def get_max_pain(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("Max pain fetch failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Max pain fetch failed: {exc!s}",
-        ) from exc
+        _reraise_options_query(exc, what="Max pain fetch")
 
 
 @router.get("/iv-surface/{underlying}", response_model=IVSurfaceResponse)
@@ -301,11 +324,7 @@ async def get_iv_surface(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("IV surface fetch failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"IV surface fetch failed: {exc!s}",
-        ) from exc
+        _reraise_options_query(exc, what="IV surface fetch")
 
 
 @router.get("/volume-profile/{underlying}", response_model=dict)
@@ -357,9 +376,9 @@ async def get_options_volume_profile(
             bucket = strike_map.setdefault(strike_val, {"ce": 0.0, "pe": 0.0, "total": 0.0})
             vol = float(volume or 0.0)
             opt = (option_type or "").upper()
-            if opt == "CE":
+            if opt in ("CE", "CALL"):
                 bucket["ce"] += vol
-            elif opt == "PE":
+            elif opt in ("PE", "PUT"):
                 bucket["pe"] += vol
             bucket["total"] += vol
 
