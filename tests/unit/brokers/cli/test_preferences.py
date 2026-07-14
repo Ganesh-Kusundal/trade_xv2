@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.cli._preferences import CliPreferences, PreferencesStore
+from brokers.cli._preferences import PreferencesStore
 
 
 @pytest.mark.unit
 def test_load_missing_file_returns_defaults(tmp_path) -> None:
     store = PreferencesStore(path=tmp_path / "cli.json")
-    assert store.load() == CliPreferences(broker_default="paper", output_format="human")
+    assert store.load() == {"broker.default": "paper", "output.format": "human"}
 
 
 @pytest.mark.unit
@@ -18,7 +18,7 @@ def test_set_then_get_round_trips(tmp_path) -> None:
     store = PreferencesStore(path=tmp_path / "cli.json")
     store.set("broker.default", "dhan")
     assert store.get("broker.default") == "dhan"
-    assert store.load().broker_default == "dhan"
+    assert store.load()["broker.default"] == "dhan"
 
 
 @pytest.mark.unit
@@ -66,4 +66,4 @@ def test_corrupt_file_falls_back_to_defaults(tmp_path) -> None:
     path = tmp_path / "cli.json"
     path.write_text("{not valid json")
     store = PreferencesStore(path=path)
-    assert store.load() == CliPreferences()
+    assert store.load() == {"broker.default": "paper", "output.format": "human"}

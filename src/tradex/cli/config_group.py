@@ -23,7 +23,7 @@ def config(ctx: click.Context) -> None:
 def list_cmd(ctx: click.Context) -> None:
     """Show all CLI preferences."""
     store: PreferencesStore = ctx.obj["prefs_store"]
-    for key, value in store.load().as_dict().items():
+    for key, value in store.load().items():
         click.echo(f"{key}={value}")
 
 
