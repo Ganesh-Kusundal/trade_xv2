@@ -54,8 +54,15 @@ from brokers.services import (
 from brokers.session import BrokerSession, available_brokers
 
 
+def _default_broker() -> str:
+    """Resolve the --broker default from the switched preference (falls back to paper)."""
+    from brokers.cli._preferences import PreferencesStore
+
+    return PreferencesStore().get("broker.default")
+
+
 @click.group()
-@click.option("--broker", default="paper", help="Broker id (paper/dhan/upstox).")
+@click.option("--broker", default=_default_broker, help="Broker id (paper/dhan/upstox). Defaults to the switched default (see `broker switch`).")
 @click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
 @click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
 @click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")

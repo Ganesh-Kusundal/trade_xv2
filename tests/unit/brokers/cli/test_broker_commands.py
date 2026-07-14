@@ -99,3 +99,30 @@ def test_broker_status_paper(cli_config_env, caplog) -> None:
     assert info["broker_id"] == "paper"
     assert info["connected"] is True
     assert "extensions" in info
+
+
+@pytest.mark.unit
+def test_broker_option_default_reads_switched_preference(cli_config_env) -> None:
+    """The whole point of `switch` is not having to pass --broker every time.
+
+    Resolves the --broker option's default at the Click parameter level
+    (no session/network involved) so this is testable for a non-paper
+    broker id without real credentials.
+    """
+    import click
+
+    from brokers.cli._preferences import PreferencesStore
+
+    PreferencesStore().set("broker.default", "dhan")
+    opt = next(p for p in broker.params if p.name == "broker")
+    ctx = click.Context(broker)
+    assert opt.get_default(ctx) == "dhan"
+
+
+@pytest.mark.unit
+def test_broker_option_explicit_flag_overrides_switched_preference(cli_config_env) -> None:
+    from brokers.cli._preferences import PreferencesStore
+
+    PreferencesStore().set("broker.default", "dhan")
+    result = CliRunner().invoke(broker, ["--broker", "paper", "current"])
+    assert result.exit_code == 0, result.output
