@@ -172,5 +172,59 @@ def position_list(ctx: click.Context) -> None:
         session.close()
 
 
+@tradex.group()
+@click.option("--broker", default=_session_broker_default, help="Broker id (paper/dhan/upstox).")
+@click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
+@click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
+@click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")
+@click.pass_context
+def portfolio(ctx: click.Context, broker: str, as_json: bool, as_yaml: bool, quiet: bool) -> None:
+    """Portfolio queries (read-only, no OMS required)."""
+    ctx.ensure_object(dict)
+    ctx.obj["broker"] = broker
+    ctx.obj["json"] = as_json
+    ctx.obj["yaml"] = as_yaml
+    ctx.obj["quiet"] = quiet
+
+
+@portfolio.command("show")
+@click.pass_context
+def portfolio_show(ctx: click.Context) -> None:
+    """Show portfolio summary."""
+    from brokers.cli._render import present
+
+    session = _open_market_session(ctx)
+    try:
+        present(ctx, session.account.refresh().portfolio, title="Portfolio")
+    finally:
+        session.close()
+
+
+@portfolio.command("holdings")
+@click.pass_context
+def portfolio_holdings(ctx: click.Context) -> None:
+    """Show holdings."""
+    from brokers.cli._render import present
+
+    session = _open_market_session(ctx)
+    try:
+        present(ctx, session.account.refresh().holdings, title="Holdings")
+    finally:
+        session.close()
+
+
+@portfolio.command("funds")
+@click.pass_context
+def portfolio_funds(ctx: click.Context) -> None:
+    """Show available funds."""
+    from brokers.cli._render import present
+
+    session = _open_market_session(ctx)
+    try:
+        present(ctx, session.account.refresh().funds, title="Funds")
+    finally:
+        session.close()
+
+
 if __name__ == "__main__":
     tradex()
