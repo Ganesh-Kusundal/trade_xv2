@@ -273,6 +273,37 @@ def discover(ctx: click.Context) -> None:
     present(ctx, available_brokers(), title="Brokers")
 
 
+@broker.command("list")
+@click.pass_context
+@handle_cli_errors
+def list_cmd(ctx: click.Context) -> None:
+    """List registered brokers with connection/active status.
+
+    # ponytail: no broker-agnostic account-id accessor exists yet, so the
+    # "Account" column from the original CLI spec mockup is omitted here —
+    # add once brokers.services exposes one.
+    """
+    from brokers.cli._preferences import PreferencesStore
+
+    default_broker = PreferencesStore().get("broker.default")
+    rows: list[dict] = []
+    for broker_id in available_brokers():
+        connected = True
+        if broker_id != "paper":
+            try:
+                s = BrokerSession(broker_id)
+                try:
+                    status_from_session(s)
+                finally:
+                    s.close()
+            except Exception:
+                connected = False
+        rows.append(
+            {"broker": broker_id, "connected": connected, "active": broker_id == default_broker}
+        )
+    present(ctx, rows, title="Brokers")
+
+
 @broker.command()
 @click.argument("symbol")
 @click.pass_context
