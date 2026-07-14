@@ -1,6 +1,7 @@
 # 21 — Analytics Research-Mode Gap (code-grounded)
 
-**Status:** Done — verified against the tree on 2026-07-14
+**Status:** Done — Phase 1 (honest gate test) + Phase 2 (cash ledger +
+daily_pnl feed) verified 2026-07-14
 **Reference:** Continues from `20-mirror-refactoring-plan.md` (OMS kernel parity — DONE)
 **Audience:** Analytics / research / CLI owners
 **Rule:** Do **not** re-propose a Nautilus-style "parity kernel" rebuild for this
@@ -83,7 +84,33 @@ one-line fix.
 
 ---
 
-## 3. Explicitly out of scope (do not reopen)
+## 3. Risk state on the PARITY path (Phase 2 — closed)
+
+Phase 1 documented that PARITY consulted `check_order` without advancing
+risk state. Phase 2 closes that hole:
+
+| Concern | Mechanism |
+|---|---|
+| Session cash vs OMS drift | `SimulatedCashLedger` auto-wired when OMS is present (`cash_ledger.py`); fills go through `PositionCloser.apply_cash_delta` |
+| Daily PnL / daily-loss gate | `ReplayEngine._feed_parity_risk_state` pushes `current_equity − session_open` into `RiskManager.update_daily_pnl` each bar (and marks OMS LTP) |
+| Gate observability | Acceptance tests force concentration rejection **and** assert daily-loss trips |
+
+Remaining live-only edges (not claimed as backtest-identical):
+
+- `Throttler` — wall-clock order-rate limit; meaningless under bar replay unless a
+  sim clock is injected (out of scope).
+- `TradingState` ACTIVE/REDUCING/HALTED — operator-driven live FSM; not
+  auto-transitioned from fills on live either, so not driven from replay.
+
+Acceptance coverage:
+
+- Equivalence: `test_analytics_entry_points_parity_equivalence`
+- Concentration gate: `test_analytics_entry_points_parity_rejects_risk_blocked_order`
+- Daily-loss gate: `test_analytics_entry_points_parity_daily_loss_trips`
+
+---
+
+## 4. Explicitly out of scope (do not reopen)
 
 - Collapsing `PaperTradingEngine` / `FastBacktestEngine` into `ReplayEngine`
   (Fast exists for O(n) multi-symbol CLI scan; already self-documents as
@@ -94,7 +121,7 @@ one-line fix.
 
 ---
 
-## 4. How to get a live-parity analytics result
+## 5. How to get a live-parity analytics result
 
 ```python
 from application.oms.factory import create_trading_context

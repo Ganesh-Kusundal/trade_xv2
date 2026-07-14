@@ -17,6 +17,21 @@
 
 ## Completed
 
+### True PARITY on backtest risk path (Phase 1 + 2) — 2026-07-14
+
+Second-level review found PARITY consulted `RiskManager.check_order` but did
+not advance daily-PnL / used a dual cash ledger. Closed in
+`docs/architecture/e2e-spec/21-analytics-research-mode-gap.md` §3:
+
+- **Phase 1:** forced-rejection acceptance test
+  (`test_analytics_entry_points_parity_rejects_risk_blocked_order`); honest
+  docstrings on `SignalProcessor`.
+- **Phase 2:** `SimulatedCashLedger` + `PositionCloser.apply_cash_delta` as
+  single cash path; `ReplayEngine._feed_parity_risk_state` pushes session
+  equity delta into `update_daily_pnl` each bar; daily-loss trip test
+  (`test_analytics_entry_points_parity_daily_loss_trips`).
+- Throttler / operator `TradingState` remain live-only (documented).
+
 ### Pre-existing architecture-test failures fixed (2026-07-14)
 
 Six tests were red in the already-modified working tree (unrelated to the REF

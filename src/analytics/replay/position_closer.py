@@ -105,7 +105,7 @@ class PositionCloser:
             else 0.0
         )
 
-        session.capital += notional - commission
+        self.apply_cash_delta(session, notional - commission)
         session.trades.append(
             SimulatedTrade(
                 symbol=view.symbol,
@@ -200,7 +200,7 @@ class PositionCloser:
             else 0.0
         )
 
-        session.capital += notional - commission
+        self.apply_cash_delta(session, notional - commission)
         session.trades.append(
             SimulatedTrade(
                 symbol=view.symbol,
@@ -229,8 +229,30 @@ class PositionCloser:
         )
         session.clear_position(view.symbol)
 
+    def apply_cash_delta(self, session: ReplaySession, delta: float) -> None:
+        """Apply cash change; ledger is authoritative when portfolio_tracker is set.
+
+        Positive ``delta`` credits (sell proceeds); negative debits (buy cost).
+        Without a tracker, mutates ``session.capital`` directly (PURE_SIM).
+        """
+        tracker = self._portfolio_tracker
+        if tracker is None:
+            session.capital += float(delta)
+            return
+        apply = getattr(tracker, "apply_delta", None)
+        if callable(apply):
+            apply(delta)
+        elif delta < 0 and hasattr(tracker, "debit"):
+            tracker.debit(-delta)
+        elif delta > 0 and hasattr(tracker, "credit"):
+            tracker.credit(delta)
+        else:
+            session.capital += float(delta)
+            return
+        session.capital = float(tracker.get_capital())
+
     def sync_from_tracker(self, session: ReplaySession) -> None:
-        """Sync session cash from PortfolioTracker (OMS-backed capital)."""
+        """Sync session cash from portfolio_tracker (OMS-backed capital)."""
         if self._portfolio_tracker is None:
             return
         session.capital = float(self._portfolio_tracker.get_capital())

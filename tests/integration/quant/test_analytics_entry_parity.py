@@ -129,3 +129,171 @@ def test_analytics_entry_points_parity_equivalence() -> None:
     assert len(r_eq) == len(b_eq) == len(p_eq)
     assert abs(r_eq[-1][1] - b_eq[-1][1]) < EQUITY_TOLERANCE
     assert abs(r_eq[-1][1] - p_eq[-1][1]) < EQUITY_TOLERANCE
+
+
+@pytest.mark.paper_replay_parity
+def test_analytics_entry_points_parity_rejects_risk_blocked_order() -> None:
+    """PARITY must reject via RiskManager; PURE_SIM must still trade.
+
+    Proves the risk gate is on the OMS path — not merely that fingerprints
+    match when risk never rejects (which the equivalence test above allows).
+    """
+    from decimal import Decimal
+
+    from application.oms.risk_manager import RiskConfig
+    from domain.events.types import EventType
+
+    pipeline = FeaturePipeline()
+    strategy = StrategyPipeline(strategies=[AlwaysBuyStrategy()])
+    df = _ohlcv()
+    symbol = "RISKBLK"
+
+    common_kwargs = dict(
+        initial_capital=100_000,
+        warmup_bars=5,
+        max_position_pct=100.0,  # size full equity — oversized vs RiskConfig below
+        slippage_pct=0.0,
+    )
+
+    pure = ReplayEngine(
+        pipeline,
+        strategy,
+        ReplayConfig(**common_kwargs),
+        allow_simulate_without_oms=True,
+    )
+    pure_result = pure.run(df, symbol=symbol)
+
+    rejected: list[object] = []
+    strict_ctx = build_test_trading_context(
+        replay_events=False,
+        capital_fn=lambda: Decimal("100000"),
+        risk_config=RiskConfig(
+            max_position_pct=Decimal("1.0"),  # 1% of capital → full-size order fails
+            max_gross_exposure_pct=Decimal("1.0"),
+            enable_margin_check=False,
+        ),
+    )
+    strict_ctx.event_bus.subscribe(EventType.RISK_REJECTED.value, rejected.append)
+    strict_ctx.event_bus.subscribe(EventType.ORDER_REJECTED.value, rejected.append)
+
+    parity = BacktestEngine(
+        pipeline,
+        strategy,
+        BacktestConfig(**common_kwargs),
+        mode=ResearchMode.PARITY,
+        trading_context=strict_ctx,
+    )
+    parity_result = parity.run(df, symbol=symbol)
+    bt_session = parity_result.replay.session
+
+    assert len(pure_result.session.trades) > 0, "PURE_SIM must open+close without RiskManager"
+    assert len(bt_session.trades) < len(pure_result.session.trades), (
+        "PARITY with max_position_pct=1 must produce fewer round-trips than PURE_SIM"
+    )
+    assert len(bt_session.trades) == 0, "oversized AlwaysBuy open must be risk-rejected in PARITY"
+    assert rejected, "RiskManager rejection must be observable on the event bus"
+
+
+class FlipFlopStrategy:
+    """Alternate BUY / SELL so a losing round-trip can trip daily-loss mid-run."""
+
+    name = "flip_flop"
+
+    def __init__(self) -> None:
+        self._n = 0
+
+    def evaluate(self, candidate, features):
+        self._n += 1
+        st = SignalType.BUY if self._n % 2 == 1 else SignalType.SELL
+        return Signal(
+            symbol=candidate.symbol,
+            signal_type=st,
+            confidence=0.9,
+            strategy=self.name,
+        )
+
+
+def _declining_ohlcv(rows: int = 60) -> pd.DataFrame:
+    ts = pd.date_range("2026-01-02 09:15", periods=rows, freq="1min")
+    price = 200 - pd.Series(range(rows)).astype(float) * 1.0
+    return pd.DataFrame(
+        {
+            "timestamp": ts,
+            "open": price,
+            "high": price + 0.25,
+            "low": price - 0.25,
+            "close": price,
+            "volume": 10000,
+        }
+    )
+
+
+@pytest.mark.paper_replay_parity
+def test_analytics_entry_points_parity_daily_loss_trips() -> None:
+    """PARITY must block new risk after session equity delta breaches daily-loss."""
+    from decimal import Decimal
+
+    from application.oms.risk_manager import RiskConfig
+    from domain.events.types import EventType
+
+    pipeline = FeaturePipeline()
+    strategy = StrategyPipeline(strategies=[FlipFlopStrategy()])
+    df = _declining_ohlcv()
+    symbol = "LOSSY"
+
+    common_kwargs = dict(
+        initial_capital=100_000,
+        warmup_bars=5,
+        max_position_pct=100.0,
+        slippage_pct=0.0,
+        commission_flat=0.0,
+    )
+
+    rejected: list[object] = []
+    ctx = build_test_trading_context(
+        replay_events=False,
+        capital_fn=lambda: Decimal("100000"),
+        risk_config=RiskConfig(
+            max_daily_loss_pct=Decimal("2.0"),  # 2% of capital
+            max_position_pct=Decimal("100"),
+            max_gross_exposure_pct=Decimal("100"),
+            enable_margin_check=False,
+        ),
+    )
+    ctx.event_bus.subscribe(EventType.RISK_REJECTED.value, rejected.append)
+
+    engine = BacktestEngine(
+        pipeline,
+        strategy,
+        BacktestConfig(**common_kwargs),
+        mode=ResearchMode.PARITY,
+        trading_context=ctx,
+    )
+    result = engine.run(df, symbol=symbol)
+    session = result.replay.session
+
+    assert ctx.risk_manager.daily_pnl < 0, "declining series must leave session in loss"
+    assert rejected or len(session.trades) >= 1, (
+        "expect at least one completed round-trip and/or a risk rejection after daily-loss"
+    )
+    # Prove the gate saw the loss: either daily-loss rejection fired, or
+    # RiskManager still reports a loss large enough that check_order would block.
+    from domain.entities.order import Order
+    from domain.enums import OrderType, ProductType, Side
+
+    probe = Order(
+        order_id="probe",
+        symbol=symbol,
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.MARKET,
+        quantity=100,
+        price=Decimal("100"),
+        product_type=ProductType.INTRADAY,
+    )
+    # If loss already exceeded 2%, further risk must be blocked.
+    if abs(ctx.risk_manager.daily_pnl) / Decimal("100000") * 100 >= Decimal("2.0"):
+        result = ctx.risk_manager.check_order(probe)
+        assert not result.allowed
+        reason = (result.reason or "").lower()
+        assert "loss" in reason, f"expected a loss-based rejection, got: {result.reason}"

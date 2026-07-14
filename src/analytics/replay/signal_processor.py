@@ -1,8 +1,15 @@
 """SignalProcessor — signal routing and fill simulation for replay.
 
 Extracted from ReplayEngine to isolate signal → fill logic into a
-focused, testable module.  Routes through OMS when available for
-backtest-live parity; falls back to direct simulation in pure backtest mode.
+focused, testable module.  Routes through OMS when available so
+``RiskManager.check_order`` runs (PARITY path); falls back to direct
+simulation in pure backtest mode.
+
+Honest scope (see ``docs/architecture/e2e-spec/21-analytics-research-mode-gap.md``):
+OMS routing consults the same ``check_order`` function as live. Session cash
+on the PARITY path goes through ``SimulatedCashLedger`` /
+``PositionCloser.apply_cash_delta``. ``ReplayEngine._feed_parity_risk_state``
+advances ``daily_pnl`` each bar. Throttler remains live/wall-clock-only.
 
 Dependencies (injected via constructor):
     - FillRecorder (commission, slippage, fill recording)
@@ -41,7 +48,10 @@ class SignalProcessor:
         directly (pure backtest mode).
     on_sync:
         Optional callback invoked after OMS fills to sync session capital
-        from a PortfolioTracker.
+        from a portfolio tracker (legacy; prefer ``on_cash``).
+    on_cash:
+        Optional ``(session, delta)`` cash applicator. When set, OMS-path
+        fills use this instead of mutating ``session.capital`` directly.
     """
 
     def __init__(
@@ -49,11 +59,21 @@ class SignalProcessor:
         fill_recorder: FillRecorder,
         oms_adapter: OmsBacktestAdapterPort | None = None,
         on_sync: Callable[[ReplaySession], None] | None = None,
+        on_cash: Callable[[ReplaySession, float], None] | None = None,
     ) -> None:
         self._fill_recorder = fill_recorder
         self._oms_adapter = oms_adapter
         self._on_sync = on_sync
+        self._on_cash = on_cash
 
+    def _apply_oms_cash(self, session: ReplaySession, delta: float) -> None:
+        """Debit/credit session cash after an OMS fill (ledger when wired)."""
+        if self._on_cash is not None:
+            self._on_cash(session, delta)
+            return
+        session.capital += delta
+        if self._on_sync is not None:
+            self._on_sync(session)
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -203,10 +223,12 @@ class SignalProcessor:
         *,
         fill_price: float | None = None,
     ) -> None:
-        """Route signal through OMS for backtest-live parity (P0-2).
+        """Route signal through OMS (PARITY path).
 
-        Opens/closes positions via :class:`OmsBacktestAdapter`, which consults
-        the same risk gates, idempotency ledger, and event bus as live trading.
+        Opens/closes via :class:`OmsBacktestAdapter`, which runs
+        ``RiskManager.check_order``, the idempotency ledger, and the event
+        bus. Session cash is applied via ``on_cash`` (ledger). Daily PnL is
+        advanced by ``ReplayEngine._feed_parity_risk_state``. See e2e-spec/21.
         """
         if signal.is_buy and not session.has_position(bar.symbol):
             base_price = fill_price if fill_price is not None else bar.close
@@ -246,7 +268,6 @@ class SignalProcessor:
                     notional = fill_px * qty
                     commission = self._fill_recorder.compute_commission(notional, "BUY")
                     cost = notional + commission
-                    session.capital -= cost
                     self._fill_recorder.record(
                         session,
                         order_id=order_id,
@@ -265,8 +286,7 @@ class SignalProcessor:
                         target=signal.target,
                         strategy=signal.strategy,
                     )
-                    if self._on_sync is not None:
-                        self._on_sync(session)
+                    self._apply_oms_cash(session, -cost)
 
         elif signal.is_sell and session.has_position(bar.symbol):
             view = session._to_simulated_position(bar.symbol)
@@ -294,7 +314,6 @@ class SignalProcessor:
                 notional = fill_px * view.quantity
                 commission = self._fill_recorder.compute_commission(notional, "SELL")
                 proceeds = notional - commission
-                session.capital += proceeds
                 self._fill_recorder.record(
                     session,
                     order_id=order_id,
@@ -307,5 +326,4 @@ class SignalProcessor:
                     trade_tag="close",
                 )
                 session.clear_position(bar.symbol)
-                if self._on_sync is not None:
-                    self._on_sync(session)
+                self._apply_oms_cash(session, proceeds)

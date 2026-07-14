@@ -143,6 +143,12 @@ class ReplayEngine:
                 "Pass allow_simulate_without_oms=True for pure backtest mode without OMS."
             )
 
+        # PARITY cash ledger: single source of truth for session.capital when OMS is on.
+        if self._oms_adapter is not None and self._portfolio_tracker is None:
+            from analytics.replay.cash_ledger import SimulatedCashLedger
+
+            self._portfolio_tracker = SimulatedCashLedger(self._config.initial_capital)
+
         # Sub-modules extracted for focused responsibility.
         self._fill_recorder = FillRecorder(self._config)
         self._position_closer = PositionCloser(
@@ -151,9 +157,8 @@ class ReplayEngine:
         self._signal_processor = SignalProcessor(
             self._fill_recorder,
             self._oms_adapter,
-            on_sync=self._position_closer.sync_from_tracker,
+            on_cash=self._position_closer.apply_cash_delta,
         )
-
     # ------------------------------------------------------------------
     # Delegation wrappers (backward-compatible private methods)
     # ------------------------------------------------------------------
@@ -243,10 +248,47 @@ class ReplayEngine:
         """Close position at specific price (for stop-loss/target triggers)."""
         self._position_closer.close_at_price(session, bar, exit_price, reason)
 
+    def _feed_parity_risk_state(
+        self,
+        session: ReplaySession,
+        bar: HistoricalBar,
+    ) -> None:
+        """Advance RiskManager daily_pnl from session equity (PARITY only).
+
+        Live feeds daily PnL via POSITION_UPDATED; ``update_ltp`` does not
+        publish that event, so open-position MTM never reached the gate in
+        backtest. Push ``current_equity − session_open`` each bar so daily-loss
+        behaves like live. PURE_SIM (no trading_context) is a no-op.
+        """
+        ctx = self._trading_context
+        if ctx is None:
+            return
+        risk = getattr(ctx, "risk_manager", None)
+        if risk is None:
+            return
+        if session.has_position(bar.symbol):
+            pm = getattr(ctx, "position_manager", None)
+            if pm is not None:
+                try:
+                    pm.update_ltp(bar.symbol, "NSE", bar.close)
+                except Exception:
+                    logger.debug("parity_oms_ltp_mark_failed", exc_info=True)
+        open_eq = (
+            session.equity_curve[0][1]
+            if session.equity_curve
+            else self._config.initial_capital
+        )
+        from decimal import Decimal
+
+        delta = Decimal(str(session.current_equity)) - Decimal(str(open_eq))
+        try:
+            risk.update_daily_pnl(delta)
+        except Exception:
+            logger.exception("parity_daily_pnl_feed_failed")
+
     # ------------------------------------------------------------------
     # Feature pipeline
     # ------------------------------------------------------------------
-
     def _run_features(
         self,
         window_df: pd.DataFrame,
@@ -469,6 +511,7 @@ class ReplayEngine:
                 session.equity_curve.append((bar_ts, equity))
                 if equity > session.peak_equity:
                     session.peak_equity = equity
+                self._feed_parity_risk_state(session, bar)
                 continue
 
             candidate = Candidate(symbol=symbol, score=50.0, reasons=["replay"])
@@ -488,6 +531,7 @@ class ReplayEngine:
                     session.equity_curve.append((bar_ts, equity))
                     if equity > session.peak_equity:
                         session.peak_equity = equity
+                    self._feed_parity_risk_state(session, bar)
                     continue
 
             # Run StrategyPipeline
@@ -511,10 +555,11 @@ class ReplayEngine:
             session.equity_curve.append((bar_ts, equity))
             if equity > session.peak_equity:
                 session.peak_equity = equity
+            self._feed_parity_risk_state(session, bar)
 
         if session.has_position(bar.symbol):
             self._close_position(session, bar, "End of replay")
-
+            self._feed_parity_risk_state(session, bar)
         # Process any remaining pending signals (next-bar-open with no next bar)
         if pending_signals:
             for sig, _sig_bar in pending_signals:
@@ -593,6 +638,7 @@ class ReplayEngine:
                 session.equity_curve.append((bar_ts, equity))
                 if equity > session.peak_equity:
                     session.peak_equity = equity
+                self._feed_parity_risk_state(session, bar)
                 continue
 
             candidate = Candidate(symbol=symbol, score=50.0, reasons=["replay"])
@@ -610,6 +656,7 @@ class ReplayEngine:
                     session.equity_curve.append((bar_ts, equity))
                     if equity > session.peak_equity:
                         session.peak_equity = equity
+                    self._feed_parity_risk_state(session, bar)
                     continue
 
             signals = self._strategy.evaluate_single(candidate, features)
@@ -629,11 +676,12 @@ class ReplayEngine:
             session.equity_curve.append((bar_ts, equity))
             if equity > session.peak_equity:
                 session.peak_equity = equity
+            self._feed_parity_risk_state(session, bar)
 
         for symbol, bar in last_bars.items():
             if session.has_position(symbol):
                 self._close_position(session, bar, "End of replay")
-
+                self._feed_parity_risk_state(session, bar)
         for symbol, sym_pending in pending_signals.items():
             if not sym_pending:
                 continue
