@@ -91,3 +91,11 @@ def test_broker_switch_interactive_prompts_for_choice(cli_config_env) -> None:
     result = CliRunner().invoke(broker, ["switch"], input="paper\ny\n")
     assert result.exit_code == 0, result.output
     assert PreferencesStore().get("broker.default") == "paper"
+
+
+@pytest.mark.unit
+def test_broker_status_paper(cli_config_env, caplog) -> None:
+    info = _invoke_json(["--broker", "paper", "status"], caplog)
+    assert info["broker_id"] == "paper"
+    assert info["connected"] is True
+    assert "extensions" in info

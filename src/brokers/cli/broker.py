@@ -337,6 +337,20 @@ def switch(ctx: click.Context, broker_id: str | None, yes: bool) -> None:
 
 
 @broker.command()
+@click.pass_context
+@handle_cli_errors
+def status(ctx: click.Context) -> None:
+    """Show current session status and capability extensions for the broker."""
+    s = BrokerSession(_bid(ctx))
+    try:
+        info = status_from_session(s)
+        info["extensions"] = extensions_from_session(s)
+    finally:
+        s.close()
+    present(ctx, info, title=f"Status — {info['broker_id']}")
+
+
+@broker.command()
 @click.argument("symbol")
 @click.pass_context
 @handle_cli_errors
