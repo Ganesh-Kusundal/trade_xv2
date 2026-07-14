@@ -305,6 +305,38 @@ def list_cmd(ctx: click.Context) -> None:
 
 
 @broker.command()
+@click.pass_context
+@handle_cli_errors
+def current(ctx: click.Context) -> None:
+    """Show the configured default broker."""
+    from brokers.cli._preferences import PreferencesStore
+
+    present(ctx, {"broker.default": PreferencesStore().get("broker.default")}, title="Current broker")
+
+
+@broker.command()
+@click.argument("broker_id", required=False)
+@click.option("--yes", "-y", is_flag=True, help="Skip the confirmation prompt.")
+@click.pass_context
+def switch(ctx: click.Context, broker_id: str | None, yes: bool) -> None:
+    """Switch the default broker (interactive picker if BROKER_ID is omitted)."""
+    from brokers.cli._preferences import PreferencesStore
+
+    choices = available_brokers()
+    if broker_id is None:
+        broker_id = click.prompt("Switch to", type=click.Choice(choices))
+    elif broker_id not in choices:
+        raise click.ClickException(f"unknown broker {broker_id!r} (known: {sorted(choices)})")
+
+    if not yes and not click.confirm(f"Switch default broker to {broker_id!r}?"):
+        click.echo("Aborted.")
+        return
+
+    PreferencesStore().set("broker.default", broker_id)
+    present(ctx, {"broker.default": broker_id}, title="Switched")
+
+
+@broker.command()
 @click.argument("symbol")
 @click.pass_context
 @handle_cli_errors

@@ -51,3 +51,43 @@ def test_broker_list_marks_configured_default_active(cli_config_env, caplog) -> 
     assert by_id["paper"]["active"] is False
     if "dhan" in by_id:
         assert by_id["dhan"]["active"] is True
+
+
+@pytest.mark.unit
+def test_broker_current_defaults_to_paper(cli_config_env, caplog) -> None:
+    info = _invoke_json(["current"], caplog)
+    assert info == {"broker.default": "paper"}
+
+
+@pytest.mark.unit
+def test_broker_switch_with_arg_and_yes_flag_persists(cli_config_env) -> None:
+    from brokers.cli._preferences import PreferencesStore
+
+    result = CliRunner().invoke(broker, ["switch", "paper", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert PreferencesStore().get("broker.default") == "paper"
+
+
+@pytest.mark.unit
+def test_broker_switch_rejects_unknown_broker(cli_config_env) -> None:
+    result = CliRunner().invoke(broker, ["switch", "not-a-real-broker", "--yes"])
+    assert result.exit_code != 0
+
+
+@pytest.mark.unit
+def test_broker_switch_aborts_without_confirmation(cli_config_env) -> None:
+    from brokers.cli._preferences import PreferencesStore
+
+    PreferencesStore().set("broker.default", "paper")
+    result = CliRunner().invoke(broker, ["switch", "paper"], input="n\n")
+    assert result.exit_code == 0, result.output
+    assert "Aborted" in result.output
+
+
+@pytest.mark.unit
+def test_broker_switch_interactive_prompts_for_choice(cli_config_env) -> None:
+    from brokers.cli._preferences import PreferencesStore
+
+    result = CliRunner().invoke(broker, ["switch"], input="paper\ny\n")
+    assert result.exit_code == 0, result.output
+    assert PreferencesStore().get("broker.default") == "paper"
