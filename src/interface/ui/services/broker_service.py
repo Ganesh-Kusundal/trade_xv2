@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 # Legacy — kept for backward compatibility; new code should use
 # ``broker_registry.resolve_env_path()``.
-_ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env.local"
+_ENV_PATH = Path(__file__).resolve().parents[4] / ".env.local"
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +262,14 @@ class BrokerService:
         if self._initialized:
             return
         self._initialized = True
+        # Broker WebSocket services (e.g. Upstox's asyncio-based market feed)
+        # need a live, persistently-pumping event loop before their start()
+        # runs via self._lifecycle.start_all() / register() below — otherwise
+        # they fall back to an ephemeral loop that's closed the instant
+        # connect() returns, silently killing the read loop.
+        from runtime.event_loop import ensure_runtime_loop_running
+
+        ensure_runtime_loop_running()
         # Paper always available for diagnostics / sim
         try:
             self._paper = PaperGateway()

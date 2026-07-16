@@ -49,6 +49,7 @@ from interface.ui.commands import (
     websocket as cmd_websocket,
 )
 from interface.ui.commands.registry import lookup_handler, register_handler
+from interface.ui.services import compose as _compose  # noqa: F401  (wires session opener on import)
 from interface.ui.services.broker_registry import bootstrap_gateway
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.event_bus_service import EventBusService

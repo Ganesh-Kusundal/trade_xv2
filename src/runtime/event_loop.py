@@ -33,6 +33,7 @@ __all__ = [
     "assert_single_loop_boundary",
     "ensure_runtime_loop",
     "get_runtime_loop",
+    "ensure_runtime_loop_running",
     "new_dedicated_loop",
     "run_coro_sync",
     "set_runtime_loop",
@@ -43,6 +44,7 @@ T = TypeVar("T")
 # Process-wide singular runtime loop and the discipline lock guarding it.
 _RUNTIME_LOOP: asyncio.AbstractEventLoop | None = None
 _LOOP_LOCK = threading.Lock()
+_RUNTIME_LOOP_THREAD: threading.Thread | None = None
 
 
 def ensure_runtime_loop() -> asyncio.AbstractEventLoop:
@@ -56,6 +58,33 @@ def ensure_runtime_loop() -> asyncio.AbstractEventLoop:
         if _RUNTIME_LOOP is None or _RUNTIME_LOOP.is_closed():
             _RUNTIME_LOOP = asyncio.new_event_loop()
         return _RUNTIME_LOOP
+
+
+def ensure_runtime_loop_running() -> asyncio.AbstractEventLoop:
+    """Ensure the process-wide runtime loop exists AND is pumping.
+
+    ``ensure_runtime_loop()`` alone only creates the loop object — nothing
+    ever called ``run_forever()`` on it, so any code that reached the async
+    boundary (e.g. a WebSocket ``connect()``) via ``run_coro_sync`` fell back
+    to a short-lived ephemeral loop that gets torn down the instant the
+    calling coroutine returns, silently killing background tasks it
+    scheduled (a WebSocket read loop, for example). Call this once from a
+    composition root before wiring anything that depends on a live asyncio
+    loop; idempotent and safe to call from any thread.
+    """
+    loop = ensure_runtime_loop()
+    global _RUNTIME_LOOP_THREAD
+    with _LOOP_LOCK:
+        thread = _RUNTIME_LOOP_THREAD
+        needs_start = thread is None or not thread.is_alive()
+        if needs_start:
+            thread = threading.Thread(
+                target=loop.run_forever, name="runtime-event-loop", daemon=True
+            )
+            _RUNTIME_LOOP_THREAD = thread
+    if needs_start:
+        thread.start()
+    return loop
 
 
 def set_runtime_loop(loop: asyncio.AbstractEventLoop) -> None:
