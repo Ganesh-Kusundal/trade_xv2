@@ -1,32 +1,25 @@
-"""Trading context — wires EventBus, OMS, Position and Risk managers."""
+"""Trading context — wires EventBus, OMS, Position and Risk managers.
+
+Re-exports from sub-modules maintain backward compatibility for all
+``from application.oms.context import TradingContext`` imports.
+"""
 
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 from decimal import Decimal
-from typing import Any  # Only for signal handler frame type
+from typing import Any
 
+from application.oms.context._types import CancellationResult  # noqa: F401
+from application.oms.context.lifecycle import TradingContextLifecycleMixin
+from application.oms.context.wiring import TradingContextWiringMixin
 from application.oms.event_log_replay import EventLogReplayService
-from application.oms.lifecycle import (
-    register_daily_pnl_reset as _register_daily_pnl_reset_fn,
-    register_dlq_monitor as _register_dlq_monitor_fn,
-    register_processed_trade_cleanup as _register_processed_trade_cleanup_fn,
-)
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from application.oms.shutdown_coordinator import ShutdownCoordinator
-
-# The concrete TradingOrchestrator was previously imported here (guarded by
-# a try/except "to avoid circular dependency") but was dead code: neither
-# the import nor its _HAS_ORCHESTRATOR flag were ever read anywhere in this
-# file. All real typing/usage already goes through the ITradingOrchestrator
-# protocol below, which is also what makes this module safe from depending
-# on application.trading (and transitively analytics.*) at all — see the
-# "Trading does not import Analytics (D2)" import-linter contract.
 from application.oms.protocols import (
     IBrokerGateway,
     IReconciliationService,
@@ -46,7 +39,6 @@ from domain.ports import (
     OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
-from domain.ports.lifecycle import LifecycleManagerPort
 
 logger = logging.getLogger(__name__)
 
@@ -66,25 +58,7 @@ def _as_decimal(value: object) -> Decimal:
     return Decimal(str(value))
 
 
-from dataclasses import dataclass as _dataclass
-
-
-@_dataclass(frozen=True)
-class CancellationResult:
-    """Typed result for cancel_all_open_orders."""
-
-    orders_cancelled: int = 0
-    orders_failed: int = 0
-    failed_order_ids: tuple[str, ...] = ()
-
-    def __getitem__(self, key: str) -> int | tuple[str, ...]:
-        try:
-            return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key) from None
-
-
-class TradingContext:
+class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
     """Container for the central trading services used by gateways and CLI.
 
     A single context should be shared across an app so that order, position,
@@ -293,101 +267,7 @@ class TradingContext:
         self._shutdown_lock = threading.Lock()
         self._shutdown_in_progress = False
 
-    def attach_lifecycle(self, lifecycle: LifecycleManagerPort) -> None:
-        """Register the context's managed services with a lifecycle.
-
-        Callers that own a :class:`LifecycleManager` (the CLI, the TUI,
-        the live gateway) MUST call this so the reconciliation service,
-        DLQ monitor, DailyPnlResetScheduler, and any future managed
-        services participate in deterministic start/stop.
-        """
-        if self._reconciliation_service is not None:
-            lifecycle.register(self._reconciliation_service)
-            if os.getenv("TRADEX_SKIP_STARTUP_RECONCILIATION") != "1":
-                self._reconciliation_service.run_now()
-        _register_processed_trade_cleanup_fn(lifecycle, self._processed_trades)
-        _register_dlq_monitor_fn(lifecycle, self._dead_letter_queue)
-        _register_daily_pnl_reset_fn(lifecycle, self._risk_manager)
-
-        # Register TradingContext itself as a ManagedService so
-        # it participates in deterministic start/stop via the lifecycle.
-        lifecycle.register(self)
-
-        if self._orchestrator is not None:
-            lifecycle.register(self._orchestrator)
-            logger.info("TradingOrchestrator registered with lifecycle")
-
-    def attach_reconciliation_service(
-        self,
-        reconciliation_service: IReconciliationService,
-        *,
-        lifecycle: LifecycleManagerPort | None = None,
-        reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
-    ) -> None:
-        """Attach a broker reconciliation service to a live TradingContext.
-
-        Mirrors the ``reconciliation_service`` wiring done in ``__init__`` so
-        callers (the OMS bootstrap, which must build the broker reconciler
-        with ``oms=self.order_manager`` *after* the context exists) can attach
-        it post-construction. This is the method the bootstrap actually calls;
-        previously it was referenced but never implemented, so reconciliation
-        silently never attached on that path (local OMS state never healed
-        against broker truth).
-
-        Idempotent: a second call replaces the existing service, unsubscribing
-        the prior hot-path requests so events are not double-handled.
-        """
-        if self._reconciliation_service is not None:
-            # ponytail: replace-in-place rather than raise — bootstrap can be
-            # re-entered on broker switch; unsubscribe the exact lambda hooks
-            # we registered (they capture the wrapper, so they must be stored).
-            for _evt, _h in getattr(self, "_recon_handlers", []):
-                try:
-                    self._event_bus.unsubscribe(_evt, _h)
-                except Exception:  # pragma: no cover - defensive
-                    pass
-            self._order_manager.clear_placement_gate()
-            try:
-                self._reconciliation_service.stop()
-            except Exception:  # pragma: no cover - defensive
-                pass
-
-        # I6: lightweight ExecutionEngine for reconciliation heal; mirrors __init__.
-        from application.execution.execution_engine import ExecutionEngine
-        from application.execution.fill_source import SimulatedFillSource
-
-        self._reconciliation_engine = ExecutionEngine(
-            fill_source=SimulatedFillSource(),
-            trading_context=self,
-        )
-        self._reconciliation_service = ReconciliationService(
-            order_manager=self._order_manager,
-            position_manager=self._position_manager,
-            reconciliation_service=reconciliation_service,
-            interval_seconds=reconciliation_interval_seconds,
-            event_bus=self._event_bus,
-            on_first_success=self._mark_reconciliation_ready,
-            execution_engine=self._reconciliation_engine,
-        )
-        self._order_manager.set_placement_gate(self._reconciliation_placement_gate)
-        # Mirror __init__: orders stay gated until the first clean reconciliation.
-        self._reconciliation_ready = False
-        # G6: hot-path reconciliation — wake the loop on order lifecycle events.
-        # The bus invokes handlers with the event arg, so wrap the no-arg
-        # request_reconciliation (same fix as the __init__ wiring). Store the
-        # lambda handles so a re-attach can unsubscribe exactly these.
-        _on_trade = lambda *_a: self._reconciliation_service.request_reconciliation()
-        _on_order = lambda *_a: self._reconciliation_service.request_reconciliation()
-        self._event_bus.subscribe(EventType.TRADE_APPLIED.value, _on_trade)
-        self._event_bus.subscribe(EventType.ORDER_UPDATED.value, _on_order)
-        self._recon_handlers = [
-            (EventType.TRADE_APPLIED.value, _on_trade),
-            (EventType.ORDER_UPDATED.value, _on_order),
-        ]
-        if lifecycle is not None:
-            lifecycle.register(self._reconciliation_service)
-            if os.getenv("TRADEX_SKIP_STARTUP_RECONCILIATION") != "1":
-                self._reconciliation_service.run_now()
+    # ── Properties ──────────────────────────────────────────────────────
 
     @property
     def event_bus(self) -> EventBusPort:
@@ -578,162 +458,8 @@ class TradingContext:
             return
         self._replay_service.replay()
 
-    # ── Graceful shutdown (B2 fix) ──────────────────────────────────────
 
-    # ManagedService protocol attributes
-    name: str = "oms.trading_context"
-    _shutdown_gateway: IBrokerGateway | None = None  # Injectable gateway for testing
-
-    async def shutdown(
-        self,
-        cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
-    ) -> dict:
-        """Graceful shutdown sequence.
-
-        Sequence:
-            1. Halt new order placement (set kill_switch)
-            2. Cancel all open orders at broker
-            3. Flush event log to disk
-            4. Emit SYSTEM_SHUTDOWN event
-
-        Args:
-            cancel_orders: If True, cancel all open orders at broker.
-            gateway: MarketDataGateway for order cancellation. If None,
-                     orders are cancelled locally only.
-
-        Returns:
-            dict with shutdown results:
-                - orders_cancelled: count of successfully cancelled orders
-                - orders_failed: count of failed cancellations
-                - event_log_flushed: bool
-                - connections_closed: int
-        """
-        with self._shutdown_lock:
-            if self._shutdown_in_progress:
-                logger.debug("TradingContext.shutdown: already in progress, skipping")
-                return {
-                    "orders_cancelled": 0,
-                    "orders_failed": 0,
-                    "event_log_flushed": False,
-                    "connections_closed": 0,
-                }
-            self._shutdown_in_progress = True
-        return self._execute_shutdown_sequence(cancel_orders, gateway)
-
-    def _execute_shutdown_sequence(
-        self,
-        cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
-    ) -> dict:
-        """Shared shutdown steps — delegates to :class:`ShutdownCoordinator`."""
-        effective_gateway = gateway or self._shutdown_gateway
-        return self._shutdown_coordinator.execute(
-            cancel_orders=cancel_orders,
-            gateway=effective_gateway,
-        )
-
-    def cancel_all_open_orders(
-        self,
-        gateway: IBrokerGateway | None = None,
-    ) -> CancellationResult:
-        """Cancel all open orders, optionally via a broker gateway.
-
-        For each OPEN order in the OMS:
-            1. If gateway is provided, call gateway.cancel_order()
-            2. Update local order status to CANCELLED
-            3. Collect success/failure
-
-        Args:
-            gateway: MarketDataGateway with cancel_order() method.
-        """
-        cancelled, failed, failed_ids = self._shutdown_coordinator.cancel_all(
-            gateway=gateway,
-        )
-        return CancellationResult(
-            orders_cancelled=cancelled,
-            orders_failed=failed,
-            failed_order_ids=failed_ids,
-        )
-
-    # ── ManagedService protocol implementation ──────────────────────────
-
-    def start(self) -> None:
-        """Start the trading context. Idempotent.
-
-        Currently a no-op — the context is fully initialized in
-        __init__. This method exists to satisfy the ManagedService
-        protocol.
-        """
-        logger.debug("TradingContext.start: no-op (already initialized)")
-
-    def stop(self, timeout_seconds: float = 30.0) -> None:
-        """Stop the trading context. Delegates to shutdown().
-
-        This method satisfies the ManagedService protocol so
-        TradingContext can be registered with a LifecycleManager
-        for deterministic shutdown.
-        """
-        logger.info("TradingContext.stop: initiating graceful shutdown")
-        try:
-            try:
-                from application.ports import run_coro_sync
-
-                run_coro_sync(
-                    self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway)
-                )
-            except RuntimeError:
-                self._sync_shutdown()
-        except Exception as exc:
-            logger.exception(
-                "TradingContext.stop: shutdown failed: %s: %s",
-                type(exc).__name__,
-                exc,
-            )
-
-    def _sync_shutdown(self) -> dict:
-        """Synchronous shutdown path when async is unavailable."""
-        with self._shutdown_lock:
-            if self._shutdown_in_progress:
-                logger.debug("TradingContext._sync_shutdown: already in progress, skipping")
-                return {
-                    "orders_cancelled": 0,
-                    "orders_failed": 0,
-                    "event_log_flushed": False,
-                    "connections_closed": 0,
-                }
-            self._shutdown_in_progress = True
-        return self._execute_shutdown_sequence(
-            cancel_orders=True,
-            gateway=self._shutdown_gateway,
-        )
-
-    # ── Signal handlers ─────────────────────────────────────────────────
-
-    def register_signal_handlers(self) -> None:
-        """Register SIGTERM/SIGINT handlers for graceful shutdown.
-
-        On receiving a signal, the handler calls _sync_shutdown() and
-        then exits cleanly. This is Docker/K8s friendly — the
-        process terminates within the grace period.
-
-        Must be called from the main thread.
-        """
-        import signal
-
-        original_handlers = {}
-
-        def _signal_handler(signum: int, frame: Any) -> None:
-            sig_name = signal.Signals(signum).name
-            logger.info(
-                "TradingContext: received %s, initiating graceful shutdown",
-                sig_name,
-            )
-            self._sync_shutdown()
-            # Restore original handler and re-raise for default behavior
-            if signum in original_handlers:
-                signal.signal(signum, original_handlers[signum])
-
-        original_handlers[signal.SIGTERM] = signal.signal(signal.SIGTERM, _signal_handler)
-        original_handlers[signal.SIGINT] = signal.signal(signal.SIGINT, _signal_handler)
-        logger.info("TradingContext: signal handlers registered for SIGTERM, SIGINT")
+__all__ = [
+    "CancellationResult",
+    "TradingContext",
+]
