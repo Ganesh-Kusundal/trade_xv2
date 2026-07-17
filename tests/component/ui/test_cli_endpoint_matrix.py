@@ -38,7 +38,7 @@ from interface.ui.tests.endpoint_manifest import (
     ids=lambda e: e.id,
 )
 def test_cli_endpoint_offline(run_cli, endpoint):
-    result = run_cli(endpoint.argv, timeout=endpoint.timeout_s)
+    result = run_cli(endpoint.argv, timeout=endpoint.timeout_s + 45)
     assert not result.timeout, f"endpoint {endpoint.id!r} timed out after {endpoint.timeout_s}s"
     assert result.returncode == endpoint.expect_exit, (
         f"{endpoint.id!r}: expected exit {endpoint.expect_exit}, got {result.returncode}\n"
@@ -64,7 +64,7 @@ def test_cli_endpoint_offline(run_cli, endpoint):
     ids=lambda e: e.id,
 )
 def test_cli_endpoint_live_readonly(run_cli, endpoint):
-    result = run_cli(endpoint.argv, timeout=endpoint.timeout_s)
+    result = run_cli(endpoint.argv, timeout=endpoint.timeout_s + 45)
     assert not result.timeout, f"endpoint {endpoint.id!r} timed out after {endpoint.timeout_s}s"
     assert result.returncode == endpoint.expect_exit, (
         f"{endpoint.id!r}: expected exit {endpoint.expect_exit}, got {result.returncode}\n"

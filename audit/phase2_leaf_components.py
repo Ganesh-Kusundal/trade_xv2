@@ -86,9 +86,11 @@ def test_risk_manager():
         max_gross_exposure_pct=Decimal("80"),
         kill_switch=False,
     )
-    # MarginChecker requires config (discovered at runtime)
-    margin = MarginChecker(config=config)
-    rm = RiskManager(config=config, capital_provider=FakeCapital(), margin_checker=margin)
+    # RiskManager requires position_manager (discovered at runtime)
+    from application.oms.position_manager import PositionManager
+    from infrastructure.event_bus.event_bus import EventBus
+    pm = PositionManager(EventBus())
+    rm = RiskManager(position_manager=pm, config=config, capital_provider=FakeCapital())
 
     snap = rm.snapshot()
     for key in ["kill_switch", "daily_pnl", "max_daily_loss_pct", "trading_state", "loss_circuit_breaker"]:
@@ -133,7 +135,7 @@ def test_strategy_pipeline():
     df["trend"] = "Uptrend"
     df["market_structure"] = "Breakout"
 
-    candidate = Candidate(symbol="MCX:CRUDEOIL26JULFUT", exchange="MCX")
+    candidate = Candidate(symbol="MCX:CRUDEOIL26JULFUT", exchange="MCX", score=100.0)
     pipeline = StrategyPipeline(strategies=[MomentumStrategy(), BreakoutStrategy()])
     results = pipeline.evaluate([candidate], {"MCX:CRUDEOIL26JULFUT": df})
 
@@ -190,14 +192,14 @@ def test_event_bus():
 
     # DeadLetterQueue uses .stats() not .size() — discovered at runtime
     stats = dlq.stats()
-    assert stats["total_failures"] >= 1 or stats.get("pushed", 0) >= 1 or len(dlq.peek()) >= 1, \
+    assert stats.get("pushed", 0) >= 1 or stats.get("size", 0) >= 1 or len(dlq.peek()) >= 1, \
         f"DLQ empty after handler failure: {stats}"
     ok("EventBus — handler exception → DLQ, not propagated")
 
     # Unsubscribe
     sub_id = bus.subscribe("UNSUB_TEST", lambda e: received.append(e))
     before = len(received)
-    bus.unsubscribe("UNSUB_TEST", sub_id)
+    bus.unsubscribe(sub_id)
     bus.publish(DomainEvent.now("UNSUB_TEST", {}))
     assert len(received) == before
     ok("EventBus.unsubscribe() — handler not called after unsubscribe")
