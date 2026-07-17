@@ -13,11 +13,17 @@ live env) and that the factory refuses a disabled gate in a live env.
 from __future__ import annotations
 
 import os
-from unittest.mock import MagicMock
-
 import pytest
 
 from runtime import parity_gate
+
+
+class _FakeResult:
+    """Real subprocess result stub for the parity verifiers."""
+
+    returncode = 0
+    stderr = ""
+    stdout = ""
 from runtime.production_config import is_production_environment
 from runtime.resilience import ResilienceConfig
 
@@ -39,7 +45,7 @@ def test_live_env_ignores_skip_flag_runs_verifiers(monkeypatch):
     monkeypatch.setattr(
         parity_gate.subprocess,
         "run",
-        lambda *a, **k: calls.append((a, k)) or MagicMock(returncode=0, stderr="", stdout=""),
+        lambda *a, **k: calls.append((a, k)) or _FakeResult(),
     )
     # Pretend every referenced verifier script/test exists so the gate reaches
     # subprocess.run.
@@ -60,7 +66,7 @@ def test_dev_env_honours_skip_flag(monkeypatch):
     monkeypatch.setattr(
         parity_gate.subprocess,
         "run",
-        lambda *a, **k: calls.append((a, k)) or MagicMock(returncode=0, stderr="", stdout=""),
+        lambda *a, **k: calls.append((a, k)) or _FakeResult(),
     )
     from pathlib import Path
 

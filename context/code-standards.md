@@ -29,6 +29,15 @@
 - **File size**: ADR-011 enforces a per-file LOC cap; split god-facades
   (e.g. `UpstoxBroker`) into focused modules.
 - **No mock/fake data** in production code (integration tests only).
+- **Mock policy:** tests may use real protocol fakes (e.g. `FakeHttpClient`,
+  plain stub objects with only the attributes the code reads) but **must not**
+  use `MagicMock` / `unittest.mock.patch` over safety-critical logic. The
+  order/gate/parity path (live-order authority, extended-order executors,
+  parity gate) is **mock-free by CI enforcement**
+  (`tests/architecture/test_no_mock_in_integration.py`) — a mock that silently
+  returns `None` for an unauthorized order is the exact class of real-money bug
+  to avoid. A test that needs a double on that path must use a real fake, not a
+  `MagicMock`.
 
 ## 3. Layering & Imports
 

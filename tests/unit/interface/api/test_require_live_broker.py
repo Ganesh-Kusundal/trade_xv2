@@ -9,11 +9,25 @@ risk rejected), 503 when the broker service is unavailable.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
 from interface.api import deps
+
+
+class _BrokerServiceStub:
+    """Real stub for the live broker service.
+
+    Implements only the attributes ``require_live_broker`` reads — no mocking
+    of the order/gate/parity logic (test-integrity policy: no mocks on the
+    safety path).
+    """
+
+    def __init__(self, name, live_actionable, allow_live, active_broker=None):
+        self.active_broker_name = name
+        self.live_actionable = live_actionable
+        self.allow_live_orders = allow_live
+        self.active_broker = active_broker
 
 
 def _patch_broker_service(monkeypatch, svc):
@@ -22,10 +36,7 @@ def _patch_broker_service(monkeypatch, svc):
 
 
 def test_blocks_when_authority_blocks(monkeypatch):
-    svc = MagicMock()
-    svc.active_broker_name = "dhan"
-    svc.live_actionable = True
-    svc.allow_live_orders = False
+    svc = _BrokerServiceStub("dhan", live_actionable=True, allow_live=False)
     _patch_broker_service(monkeypatch, svc)
 
     def _auth(**kwargs):
@@ -38,10 +49,7 @@ def test_blocks_when_authority_blocks(monkeypatch):
 
 
 def test_blocks_when_allow_live_off(monkeypatch):
-    svc = MagicMock()
-    svc.active_broker_name = "dhan"
-    svc.live_actionable = True
-    svc.allow_live_orders = False
+    svc = _BrokerServiceStub("dhan", live_actionable=True, allow_live=False)
     _patch_broker_service(monkeypatch, svc)
 
     def _auth(**kwargs):
@@ -54,11 +62,9 @@ def test_blocks_when_allow_live_off(monkeypatch):
 
 
 def test_passes_when_authorized(monkeypatch):
-    svc = MagicMock()
-    svc.active_broker_name = "dhan"
-    svc.live_actionable = True
-    svc.allow_live_orders = True
-    svc.active_broker = "GATEWAY"
+    svc = _BrokerServiceStub(
+        "dhan", live_actionable=True, allow_live=True, active_broker="GATEWAY"
+    )
     _patch_broker_service(monkeypatch, svc)
 
     captured = {}
