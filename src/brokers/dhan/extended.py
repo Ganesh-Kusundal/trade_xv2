@@ -9,7 +9,7 @@ positions) and re-exposes their methods for backward compatibility.
 
 Usage::
 
-    gateway = DhanBrokerGateway(connection)
+    gateway = DhanWireAdapter(connection)
 
     # Broker-specific operations via extended
     expiries = gateway.extended.get_option_expiries("NIFTY", "NFO")

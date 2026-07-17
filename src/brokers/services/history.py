@@ -8,7 +8,7 @@ both the live API and ``BrokerSession`` (zero-parity).
 All historical fetches now flow through:
     BrokerSession.history() / history_batch()
         -> HistoricalDataCoordinator.fetch_sync()
-        -> CommonBrokerGateway.get_historical_bars()
+        -> BrokerAdapter.get_historical_bars()
 
 The coordinator provides chunk planning, conflict resolution, explicit gap
 detection and degraded-mode reporting that this module lacked. Do not add new

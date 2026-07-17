@@ -1,4 +1,4 @@
-"""UpstoxBrokerFactory — creates configured UpstoxBrokerGateway instances.
+"""UpstoxBrokerFactory — creates configured UpstoxWireAdapter instances.
 
 Implements BrokerProviderFactory for polymorphic factory pattern.
 """

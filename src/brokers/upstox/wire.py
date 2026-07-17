@@ -208,7 +208,7 @@ class UpstoxWireAdapter(BatchFetchMixin):
         return upstox_capabilities()
 
     def list_capabilities(self):
-        """CommonBrokerGateway-compatible capability descriptor (session kernel)."""
+        """BrokerAdapter-compatible capability descriptor (session kernel)."""
         from brokers.common.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(self.capabilities(), frozenset())
@@ -262,11 +262,11 @@ def create_wire_adapter(broker: UpstoxBroker | UpstoxWireAdapter) -> UpstoxWireA
     return UpstoxWireAdapter(broker)
 
 
-UpstoxBrokerGateway = UpstoxWireAdapter
+
 
 __all__ = [
     "UpstoxWireAdapter",
-    "UpstoxBrokerGateway",
+    "UpstoxWireAdapter",
     "create_wire_adapter",
 ]
 

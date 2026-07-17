@@ -12,7 +12,7 @@ Gateway-level adapters compose lower-level adapters into focused public APIs:
 - StreamingGateway: WebSocket streams, tick parsing, depth streaming
 - PortfolioGateway: funds, positions, holdings
 
-The main UpstoxBrokerGateway acts as a thin facade delegating to these adapters.
+The main UpstoxWireAdapter acts as a thin facade delegating to these adapters.
 
 P-2.2: Removed duplicate MarketDataAdapter - use brokers.upstox.market_data.market_data_adapter
 which implements the MarketDataProvider ABC correctly.

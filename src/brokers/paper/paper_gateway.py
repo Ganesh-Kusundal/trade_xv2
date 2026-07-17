@@ -472,7 +472,7 @@ class PaperGateway:
     # =======================================================================
 
     def list_capabilities(self):
-        """CommonBrokerGateway-compatible capability descriptor (registry/router)."""
+        """BrokerAdapter-compatible capability descriptor (registry/router)."""
         from brokers.common.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(self.capabilities(), frozenset())

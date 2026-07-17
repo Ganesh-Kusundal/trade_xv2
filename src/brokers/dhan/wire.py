@@ -444,7 +444,7 @@ class DhanWireAdapter:
         return dhan_capabilities()
 
     def list_capabilities(self):
-        """CommonBrokerGateway-compatible capability descriptor (session kernel)."""
+        """BrokerAdapter-compatible capability descriptor (session kernel)."""
         from brokers.common.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(self.capabilities(), frozenset())
@@ -518,4 +518,4 @@ def create_wire_adapter(connection: DhanConnection | DhanWireAdapter) -> DhanWir
     return DhanWireAdapter(connection)
 
 
-DhanBrokerGateway = DhanWireAdapter
+

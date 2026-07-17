@@ -377,19 +377,19 @@ def open_session(
         QueryDispatcher,
     )
 
-    command_dispatcher = CommandDispatcher(event_bus=event_bus)
+    command_dispatcher = None
     order_command_fn = None
     if oms is not None:
         order_manager = getattr(oms, "order_manager", None)
         submit_fn = getattr(oms, "_submit_fn", None)
         if order_manager is not None:
-            command_dispatcher.register_handler(
-                OrderCommandHandler(order_manager, submit_fn=submit_fn)
-            )
             # F7: single PlaceOrder mapping via build_order_dispatcher
-            order_command_fn = build_order_dispatcher(
+            command_dispatcher, order_command_fn = build_order_dispatcher(
                 order_manager, submit_fn=submit_fn, event_bus=event_bus
             )
+
+    if command_dispatcher is None:
+        command_dispatcher = CommandDispatcher(event_bus=event_bus)
     # Subscribe / history route through the session's DataProvider when present.
     if data is not None:
         command_dispatcher.register_handler(SubscribeCommandHandler(data))

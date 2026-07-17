@@ -2,7 +2,7 @@
 ``UpstoxConnectionSettings`` + ``UpstoxTokenManager`` and exposes them
 as direct attributes.
 
-This is a plain class (no ABC base). The ``UpstoxBrokerGateway`` wrapper
+This is a plain class (no ABC base). The ``UpstoxWireAdapter`` wrapper
 implements the ``MarketDataGateway`` contract; this class provides the
 adapter wiring.
 

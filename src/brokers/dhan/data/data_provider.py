@@ -1,4 +1,4 @@
-"""Dhan DataProvider — adapts DhanBrokerGateway to the domain DataProvider port.
+"""Dhan DataProvider — adapts DhanWireAdapter to the domain DataProvider port.
 
 Used by ``tradex.connect("dhan", mode="market"|"trade")`` so
 ``session.universe.equity(...).refresh()`` works without importing the gateway.
@@ -47,7 +47,7 @@ class _DhanSubscriptionHandle(SubscriptionHandle):
 
 
 class DhanDataProvider(DataProvider):
-    """Adapts ``DhanBrokerGateway`` to domain ``DataProvider`` (InstrumentId API)."""
+    """Adapts ``DhanWireAdapter`` to domain ``DataProvider`` (InstrumentId API)."""
 
     def __init__(self, gateway: Any, *, broker_id: str = "dhan") -> None:
         self._gw = gateway

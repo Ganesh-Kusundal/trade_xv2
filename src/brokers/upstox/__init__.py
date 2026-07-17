@@ -11,7 +11,7 @@ from typing import Any
 from .auth.config import UpstoxConnectionSettings, UpstoxSettingsLoader
 from .broker import UpstoxBroker as _UpstoxBroker
 from .factory import UpstoxBrokerFactory
-from .wire import UpstoxBrokerGateway
+from .wire import UpstoxWireAdapter
 
 
 class UpstoxBroker:
@@ -33,7 +33,7 @@ class UpstoxBroker:
 __all__ = [
     "UpstoxBroker",
     "UpstoxBrokerFactory",
-    "UpstoxBrokerGateway",
+    "UpstoxWireAdapter",
     "UpstoxConnectionSettings",
     "UpstoxSettingsLoader",
 ]

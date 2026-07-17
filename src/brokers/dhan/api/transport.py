@@ -1,6 +1,6 @@
 """DhanTransport — domain ports over the Dhan gateway facade (transport).
 
-``DhanOrderTransport`` / ``DhanTransport`` wrap ``DhanBrokerGateway`` so OMS and
+``DhanOrderTransport`` / ``DhanTransport`` wrap ``DhanWireAdapter`` so OMS and
 Instrument code depend on ``ExecutionProvider`` / ``BrokerTransport``, not the
 gateway class. The gateway remains as ops transport (Wave C — evolutionary).
 """
@@ -36,7 +36,7 @@ _DHAN_CAPABILITIES: tuple[Capability, ...] = (
 
 
 class DhanOrderTransport(ExecutionProvider):
-    """Adapts DhanBrokerGateway order methods to the domain ExecutionProvider port."""
+    """Adapts DhanWireAdapter order methods to the domain ExecutionProvider port."""
 
     def __init__(self, gateway: Any) -> None:
         self._gateway = gateway

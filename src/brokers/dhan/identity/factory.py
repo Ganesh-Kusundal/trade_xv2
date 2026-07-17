@@ -1,4 +1,4 @@
-"""BrokerFactory — creates configured DhanBrokerGateway instances with AuthManager.
+"""BrokerFactory — creates configured DhanWireAdapter instances with AuthManager.
 
 Implements BrokerProviderFactory for polymorphic factory pattern.
 
@@ -32,7 +32,7 @@ from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.dhan.identity.account_registry import AccountConnectionRegistry
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.streaming.session_manager import DhanSessionManager
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.config.settings import DhanConnectionSettings, DhanSettingsLoader
 logger = logging.getLogger(__name__)
@@ -215,8 +215,8 @@ class BrokerFactory(BrokerProviderFactory):
         reconciliation_service: object | None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None,
         lifecycle: Any | None,
-    ) -> DhanBrokerGateway:
-        """Create DhanConnection + DhanBrokerGateway (transport facade)."""
+    ) -> DhanWireAdapter:
+        """Create DhanConnection + DhanWireAdapter (transport facade)."""
         connection = DhanConnection(
             client=client,
             event_bus=event_bus,
@@ -229,11 +229,11 @@ class BrokerFactory(BrokerProviderFactory):
         # Required by authenticated_readiness._force_dhan_token_refresh
         connection._auth = auth
         connection._session_manager = DhanSessionManager(connection, auth)
-        return DhanBrokerGateway(connection)
+        return DhanWireAdapter(connection)
 
     def _wire_websocket_services(
         self,
-        gateway: DhanBrokerGateway,
+        gateway: DhanWireAdapter,
         client: DhanHttpClient,
         token: str,
         lifecycle: Any | None,
@@ -268,7 +268,7 @@ class BrokerFactory(BrokerProviderFactory):
 
     def _setup_token_refresh_scheduler(
         self,
-        gateway: DhanBrokerGateway,
+        gateway: DhanWireAdapter,
         auth: AuthManager,
         client: DhanHttpClient,
         settings: DhanConnectionSettings,

@@ -29,12 +29,10 @@ def build_order_dispatcher(
     *,
     submit_fn: Any | None = None,
     event_bus: Any | None = None,
-) -> Callable[[Any], Any]:
+) -> tuple[CommandDispatcher, Callable[[Any], Any]]:
     """Build the ADR-012 order-command closure backed by ``OrderManager.place_order``.
 
-    Prep for F7: single factory used by ``TradingRuntimeFactory`` (and later
-    every composition root) so ``OrderPlacer.order_command_fn`` cannot bypass
-    the OMS.
+    Returns the configured CommandDispatcher and the order closure.
     """
     from application.oms.order_manager import OrderResult
 
@@ -63,7 +61,7 @@ def build_order_dispatcher(
 
     # Tag so OrderPlacer can assert the closure is OMS-backed (ADR-012).
     order_command_fn.__oms_backed__ = True  # type: ignore[attr-defined]
-    return order_command_fn
+    return command_dispatcher, order_command_fn
 
 
 __all__ = [

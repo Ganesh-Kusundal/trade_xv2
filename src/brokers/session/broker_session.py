@@ -235,7 +235,7 @@ class BrokerSession:
         """Construct a single-broker ``HistoricalDataCoordinator`` for this session.
 
         Wraps this session's wire adapter (``provider._gw``) in the
-        ``CommonBrokerGateway`` adapter and registers it with a fresh
+        ``BrokerAdapter`` adapter and registers it with a fresh
         registry/router/quota scheduler. This is the 3-line coordinator
         construction (registry + router + quota_fn) inlined — no new module.
         """

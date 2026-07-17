@@ -267,16 +267,15 @@ def build_oms_service(
         )
 
     # Paper / explicit unsafe standalone — fixed capital, no live margin API.
-    position_manager = PositionManager(event_bus=event_bus)
-    risk_manager = RiskManager(
-        position_manager,
-        RiskConfig(enable_margin_check=False),
-        capital_provider=FixedCapitalProvider(capital),
-    )
-    order_manager = OrderManager(
+    from application.oms.factory import create_trading_context
+
+    ctx = create_trading_context(
         event_bus=event_bus,
-        risk_manager=risk_manager,
+        risk_config=RiskConfig(enable_margin_check=False),
+        capital_fn=FixedCapitalProvider(capital),
+        replay_events=False,
     )
+
     if is_live and allow_unsafe_standalone:
         import logging
 
@@ -286,7 +285,7 @@ def build_oms_service(
             bid,
         )
     return OmsOrderService(
-        order_manager,
+        ctx.order_manager,
         make_submit_fn(execution_provider),
         execution_provider=execution_provider,
     )

@@ -135,7 +135,7 @@ def _wire_trading_orchestrator(
         dry_run=orchestrator_dry_run,
     )
 
-    order_command_fn = build_order_dispatcher(
+    _, order_command_fn = build_order_dispatcher(
         tc.order_manager,
         event_bus=tc.event_bus,
     )

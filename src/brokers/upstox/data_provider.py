@@ -1,4 +1,4 @@
-"""Upstox DataProvider — adapts UpstoxBrokerGateway to domain DataProvider port."""
+"""Upstox DataProvider — adapts UpstoxWireAdapter to domain DataProvider port."""
 
 from __future__ import annotations
 

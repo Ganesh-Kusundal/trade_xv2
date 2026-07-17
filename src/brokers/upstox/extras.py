@@ -7,7 +7,7 @@ while preserving backward compatibility during the deprecation period.
 
 Usage::
 
-    gateway = UpstoxBrokerGateway(broker)
+    gateway = UpstoxWireAdapter(broker)
 
     # New way (recommended)
     ipos = gateway.extended.get_ipos()
