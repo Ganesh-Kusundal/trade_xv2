@@ -21,11 +21,13 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from domain.exceptions import LiveBrokerBlockedError
 from domain.ports.event_publisher import EventBusPort
 from domain.ports.market_data import MarketDataPort
 from domain.ports.order_service import OrderServicePort
 from domain.ports.risk_manager import RiskManagerPort
-from infrastructure.di import container as di_container
+from application.oms.live_order_authority import RiskRejectedError, authorize_live_order
+from infrastructure.di import ServiceNotFoundError, container as di_container
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +256,12 @@ def get_execution_composer() -> Any:
 
 
 def require_live_broker() -> Any:
-    """Return the active broker gateway or raise 503 when unavailable."""
+    """Return the active broker gateway or raise 503/403 when unavailable.
+
+    Enforces the single live-order authority (P1-T3 / drift D3): every live
+    order path through the API must pass the live-actionable readiness gate and
+    the ``allow_live_orders`` flag before the broker is returned to a router.
+    """
     svc = get_broker_service()
     if svc is None:
         raise HTTPException(
@@ -262,6 +269,34 @@ def require_live_broker() -> Any:
             detail="Live broker not configured",
             headers={"Retry-After": "30"},
         )
+    broker = svc.active_broker_name or "unknown"
+    try:
+        risk_manager = get_risk_manager()
+    except (HTTPException, ServiceNotFoundError):
+        # Risk manager not wired (e.g. diagnostics-only mode, or DI key
+        # unregistered). The authority treats a None risk manager as "no risk
+        # check" — the live-actionable gate and allow_live_orders flag still
+        # enforce the block.
+        risk_manager = None
+    try:
+        authorize_live_order(
+            broker=broker,
+            allow_live_orders=getattr(svc, "allow_live_orders", False),
+            risk_manager=risk_manager,
+            live_actionable=lambda: bool(getattr(svc, "live_actionable", False)),
+        )
+    except LiveBrokerBlockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
+    except RiskRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
     try:
         return svc.active_broker
     except Exception as exc:

@@ -248,6 +248,24 @@ class BrokerService:
         """The broker ID the OMS submit_fn is wired to."""
         return getattr(self, "_oms_broker_id", None)
 
+    @property
+    def allow_live_orders(self) -> bool:
+        """Whether the active broker is permitted to place live orders.
+
+        Mirrors the per-broker guard enforced by the leaf order adapters
+        (``broker.settings.allow_live_orders``), so the API gate and the
+        executor-level gate agree on the same source of truth. Returns
+        ``False`` for paper/mock/unknown brokers (fail-closed).
+        """
+        name = self._manager.get_active_broker_name()
+        gw = self.gateways.get(name)
+        if gw is None:
+            return False
+        settings = getattr(gw, "settings", None)
+        if settings is None:
+            return False
+        return bool(getattr(settings, "allow_live_orders", False))
+
     # ==================================================================
     # Initialization
     # ==================================================================
