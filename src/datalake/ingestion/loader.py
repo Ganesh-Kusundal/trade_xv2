@@ -105,7 +105,7 @@ class HistoricalDataLoader:
         if exchange is None:
             exchange = get_active_exchange_code()
         # Let fetch failures (rate limits, network errors, ...) propagate.
-        # Every caller (sync_datalake.py, IncrementalUpdater, download_universe)
+        # Every caller (sync_datalake.py, download_universe)
         # already wraps its per-symbol call in batch_execute(), which
         # isolates the exception per-item and reports it via on_error --
         # swallowing it here instead made real failures indistinguishable
@@ -136,8 +136,10 @@ class HistoricalDataLoader:
 
         # Validate intraday completeness
         if timeframe in ("1m", "5m", "15m", "30m"):
+            from datalake.core.nse_calendar import COMPLETENESS_OK_FRACTION
+
             completeness = self._check_intraday_completeness(df, timeframe)
-            if completeness < 0.90:  # Less than 90% complete
+            if completeness < COMPLETENESS_OK_FRACTION:
                 logger.warning(
                     "%s: Intraday completeness only %.1f%% (expected ~375 candles/day for 1m)",
                     symbol,
@@ -297,11 +299,14 @@ class HistoricalDataLoader:
         # is what lets a mid-day run catch up to the latest candle).
         incomplete_day = False
         if timeframe in ("1m", "5m", "15m", "30m"):
-            from datalake.core.nse_calendar import expected_candles_per_day
+            from datalake.core.nse_calendar import (
+                COMPLETENESS_OK_FRACTION,
+                expected_candles_per_day,
+            )
 
             last_day_candles = (ts.dt.date == last_date.date()).sum()
             expected_last_day = expected_candles_per_day(timeframe)
-            if last_day_candles < expected_last_day * 0.90:  # Less than 90%
+            if last_day_candles < expected_last_day * COMPLETENESS_OK_FRACTION:
                 incomplete_day = True
                 logger.warning(
                     "%s: Last day incomplete (%d/%d candles)",
@@ -417,9 +422,9 @@ class HistoricalDataLoader:
         """Write DataFrame to hive-partitioned Parquet, merging with any
         existing data instead of overwriting it.
 
-        repair_missing() and IncrementalUpdater.update_daily() both write
-        incremental windows (e.g. 1 year) that are shorter than the full
-        history already on disk (e.g. 5+ years) -- a blind overwrite here
+        repair_missing() writes incremental windows (e.g. a few days) that
+        are shorter than the full history already on disk (e.g. 5+ years)
+        -- a blind overwrite here
         would silently truncate the file to just the incremental window.
         Mirrors sync_options.py's read-merge-dedupe-write pattern.
         """

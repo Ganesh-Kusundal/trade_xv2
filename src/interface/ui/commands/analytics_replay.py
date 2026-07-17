@@ -93,7 +93,9 @@ def run_replay(args: list[str], console: Console) -> None:
     )
 
     console.print(f"[dim]Running replay: {symbol}, {len(data)} bars, warmup={warmup}[/dim]")
-    engine = ReplayEngine(pipeline, strategy, config)
+    engine = ReplayEngine(
+        pipeline, strategy, config, allow_simulate_without_oms=True
+    )
     result = engine.run(data, symbol=symbol)
 
     console.print("\n[bold cyan]=== REPLAY RESULTS ===[/bold cyan]\n")

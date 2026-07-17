@@ -164,7 +164,9 @@ def run_paper(args: list[str], console: Console) -> None:
     console.print(
         f"[dim]Running paper trading: ₹{capital:,.0f} capital, {max_positions} max positions, {slippage}% slippage[/dim]"
     )
-    engine = PaperTradingEngine(pipeline, strategy, config)
+    engine = PaperTradingEngine(
+        pipeline, strategy, config, allow_simulate_without_oms=True
+    )
     result = engine.run(data, symbol="PAPER")
 
     console.print("\n[bold cyan]=== PAPER TRADING RESULTS ===[/bold cyan]\n")

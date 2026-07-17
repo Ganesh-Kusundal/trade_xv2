@@ -38,6 +38,7 @@ from domain.session_status import (
 from domain.universe import Session as DomainSession
 from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
 from runtime.broker_discovery import discover_broker_plugins
+from runtime.wire_runtime_hooks import wire_runtime_hooks
 
 # ── Extracted responsibility modules ──────────────────────────────────
 # These keep the composition root focused. The private ``_`` aliases below
@@ -93,6 +94,11 @@ def open_session(
     # so out-of-tree packages under ``tradex.brokers`` self-register (Part 4 §3.2).
     ensure_core_plugins()
     discover_broker_plugins()
+    # Composition-root wiring: register the real OMS / domain-event /
+    # trading-context factories so replay & backtest engines route through
+    # the shared OMS kernel (zero-parity) instead of silently falling
+    # back to PURE_SIM when a trading_context is supplied.
+    wire_runtime_hooks()
     broker_id = (broker or "paper").lower().strip()
     plugin = get_broker_plugin(broker_id)
     trace_id = uuid.uuid4().hex[:16]

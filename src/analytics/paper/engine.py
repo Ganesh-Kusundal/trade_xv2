@@ -97,7 +97,7 @@ class PaperTradingEngine:
         if oms_adapter is not None:
             self._oms_adapter = oms_adapter
         elif trading_context is not None:
-            self._oms_adapter = get_oms_backtest_factory()(
+            self._oms_adapter = get_oms_backtest_factory(
                 trading_context,
                 mode="paper",
                 slippage_pct=self._config.slippage_pct,

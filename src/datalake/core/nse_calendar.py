@@ -121,6 +121,11 @@ REGULAR_SESSION_MINUTES: int = 375
 EARLY_CLOSE_SESSION_MINUTES: int = 255
 #: Timeframe -> minutes-per-candle. Single source for candle-count math.
 TIMEFRAME_MINUTES: dict[str, int] = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60}
+#: Fraction of expected candles a day/chunk must have to count as "complete".
+#: Single source for both loader.py's incomplete_day check and
+#: quality/monitor.py's completeness PASS threshold (previously each
+#: hardcoded ``0.90`` / ``90`` independently).
+COMPLETENESS_OK_FRACTION: float = 0.90
 
 
 def expected_candles_per_day(timeframe: str = "1m", *, early_close: bool = False) -> int:

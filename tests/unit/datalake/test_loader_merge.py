@@ -1,12 +1,12 @@
 """HistoricalDataLoader._write_parquet must merge, not overwrite.
 
 Regression guard for a real data-loss bug: repair_missing() (the
-auto-detect-and-sync entry point) and IncrementalUpdater.update_daily()
-both fetch a *shorter* window than the full history already on disk
-(e.g. repair_missing fetches years=1 even when the file holds 6 years).
-_write_parquet used to blindly overwrite the target file with whatever
-was just fetched, silently truncating years of history. Fixed to
-read-merge-dedupe-write, mirroring sync_options.py's existing pattern.
+auto-detect-and-sync entry point) fetches a *shorter* window than the
+full history already on disk (e.g. a few days' gap-fill even when the
+file holds 6 years). _write_parquet used to blindly overwrite the target
+file with whatever was just fetched, silently truncating years of
+history. Fixed to read-merge-dedupe-write, mirroring sync_options.py's
+existing pattern.
 """
 
 from __future__ import annotations
@@ -134,8 +134,8 @@ class TestGatewaysAutoSelect:
     """download_symbol/download_universe/repair_missing accept a
     gateways={broker_id: gw} dict as an alternative to a single gateway=,
     auto-selecting via select_historical_source() -- backward compatible
-    with existing single-gateway callers (IncrementalUpdater, the
-    archived refresh script), which keep passing gateway= positionally."""
+    with existing single-gateway callers (the archived refresh script),
+    which keep passing gateway= positionally."""
 
     def test_download_symbol_auto_selects_from_gateways_dict(self, tmp_path: Path) -> None:
         from dataclasses import dataclass
@@ -263,6 +263,87 @@ class TestRepairMissingExchangePassthrough:
         loader2 = HistoricalDataLoader(root=str(tmp_path))
         loader2.repair_missing("NIFTY", timeframe="1d", exchange="INDEX", fetch_fn=fetch_fn2)
         assert calls == [("NIFTY", "INDEX")]
+
+
+class TestRepairMissingLookbackSize:
+    """repair_missing() must request only the actual gap, not a hardcoded
+    full year. Regression guard: it used to always call
+    download_symbol(..., years=1) regardless of how small the real gap
+    was, turning a 1-day catch-up sync into a 365-day re-fetch for every
+    symbol -- a real production incident (51-minute sync instead of ~2
+    minutes)."""
+
+    def test_small_gap_requests_small_lookback_not_a_year(self, tmp_path: Path) -> None:
+        import datetime
+
+        calls: list[int] = []
+
+        def fetch_fn(symbol, exchange, timeframe, lookback_days):
+            calls.append(lookback_days)
+            yesterday = datetime.date.today() - datetime.timedelta(days=1)
+            return _candles([f"{yesterday.isoformat()} 09:15:00"])
+
+        loader = HistoricalDataLoader(root=str(tmp_path))
+        loader.repair_missing("RELIANCE", timeframe="1d", fetch_fn=fetch_fn)
+        calls.clear()
+
+        # Second run: on-disk data now ends yesterday -- a real 1-day gap.
+        def fetch_fn2(symbol, exchange, timeframe, lookback_days):
+            calls.append(lookback_days)
+            today = datetime.date.today()
+            return _candles([f"{today.isoformat()} 09:15:00"])
+
+        loader2 = HistoricalDataLoader(root=str(tmp_path))
+        loader2.repair_missing("RELIANCE", timeframe="1d", fetch_fn=fetch_fn2)
+
+        assert calls, "expected a fetch for the 1-day gap"
+        assert calls[0] < 30, (
+            f"lookback_days={calls[0]} for a 1-day gap -- should be a handful "
+            "of days, not years=1 (365)"
+        )
+
+
+class TestRepairMissingRaisesOnTotalFailure:
+    """repair_missing() must raise when a real gap was detected but every
+    broker returned nothing -- not silently return 0. Regression guard: it
+    used to return rows=0 in both cases, so a symbol every broker rejects
+    (e.g. a delisted/renamed instrument) got folded into sync_datalake.py's
+    "Already up to date" bucket instead of "Errors", hiding a real fetch
+    failure from the run summary (found via GSPL/JBCHEPHARM in production)."""
+
+    def test_raises_when_gap_exists_but_fetch_returns_nothing(self, tmp_path: Path) -> None:
+        import datetime
+
+        def seed_fetch_fn(symbol, exchange, timeframe, lookback_days):
+            old = datetime.date.today() - datetime.timedelta(days=20)
+            return _candles([f"{old.isoformat()} 09:15:00"])
+
+        loader = HistoricalDataLoader(root=str(tmp_path))
+        loader.repair_missing("RELIANCE", timeframe="1d", fetch_fn=seed_fetch_fn)
+
+        def failing_fetch_fn(symbol, exchange, timeframe, lookback_days):
+            return pd.DataFrame()  # every broker rejected this symbol
+
+        loader2 = HistoricalDataLoader(root=str(tmp_path))
+        with pytest.raises(RuntimeError, match="RELIANCE"):
+            loader2.repair_missing("RELIANCE", timeframe="1d", fetch_fn=failing_fetch_fn)
+
+    def test_no_raise_when_genuinely_up_to_date(self, tmp_path: Path) -> None:
+        import datetime
+
+        def seed_fetch_fn(symbol, exchange, timeframe, lookback_days):
+            today = datetime.date.today()
+            return _candles([f"{today.isoformat()} 09:15:00"])
+
+        loader = HistoricalDataLoader(root=str(tmp_path))
+        loader.repair_missing("RELIANCE", timeframe="1d", fetch_fn=seed_fetch_fn)
+
+        def unused_fetch_fn(symbol, exchange, timeframe, lookback_days):
+            raise AssertionError("should not be called -- no gap exists")
+
+        loader2 = HistoricalDataLoader(root=str(tmp_path))
+        rows = loader2.repair_missing("RELIANCE", timeframe="1d", fetch_fn=unused_fetch_fn)
+        assert rows == 0
 
 
 class TestSymbolPartitionPathRoutesIndices:

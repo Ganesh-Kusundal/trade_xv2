@@ -105,15 +105,18 @@ def _check_freshness(days_old: int, last_date: str) -> tuple[QualityMetric, str 
 def _check_completeness(
     avg_candles: float, expected: int
 ) -> tuple[QualityMetric, str | None] | None:
+    from datalake.core.nse_calendar import COMPLETENESS_OK_FRACTION
+
     if expected <= 0:
         return None
+    ok_pct = COMPLETENESS_OK_FRACTION * 100
     completeness = min(avg_candles / expected, 1.0)
     pct = completeness * 100
-    status = "PASS" if pct >= 90 else "WARNING" if pct >= 70 else "FAIL"
+    status = "PASS" if pct >= ok_pct else "WARNING" if pct >= 70 else "FAIL"
     metric = QualityMetric(
         name="completeness",
         value=pct,
-        threshold=90.0,
+        threshold=ok_pct,
         status=status,
         details=f"{avg_candles:.0f}/{expected} candles/day ({pct:.1f}%)",
     )

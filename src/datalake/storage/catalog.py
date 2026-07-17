@@ -444,35 +444,6 @@ class DataCatalog:
             ],
         )
 
-    def import_universe_from_csv(self, universe_name: str, csv_path: str | Path) -> int:
-        """Import symbols from a legacy CSV file into universe_symbols table.
-
-        Reads the CSV (expected to have a ``symbol`` column;
-        ``nifty_sector_mapping.csv`` uses ``symbol, sector``),
-        normalises each symbol, and inserts into the DuckDB
-        ``universe_symbols`` table.
-
-        Args:
-            universe_name: Universe or sector name (e.g. ``'NIFTY50'``, ``'BANKING'``).
-            csv_path: Path to the CSV file.
-
-        Returns:
-            Number of symbols imported.
-        """
-        import pandas as pd
-
-        df = pd.read_csv(csv_path)
-        col = "symbol" if "symbol" in df.columns else df.columns[0]
-        symbols = [normalize_symbol_for_storage(s) for s in df[col].dropna().unique()]
-
-        self.conn.executemany(
-            "INSERT OR IGNORE INTO universe_symbols (universe, symbol) VALUES (?, ?)",
-            [(universe_name, s) for s in symbols],
-        )
-        logger.info(
-            "Imported %d symbols into universe '%s' from %s", len(symbols), universe_name, csv_path
-        )
-        return len(symbols)
 
     def summary(self) -> dict:
         """Get catalog summary."""

@@ -7,52 +7,33 @@ from unittest.mock import MagicMock
 
 
 class TestHistoricalIntervalMapping:
-    """Verify 1M key collision fix — 1m should map to minutes, not months."""
+    """Verify the real _INTERVAL_MAP -- 1m (the datalake's canonical lowercase
+    timeframe) must resolve to minutes, not silently fall through to the
+    ("days", "1") default via resolve_timeframe()'s .upper() call. That
+    fallthrough was a real bug: every "1m" 1-minute request returned a
+    single midnight daily candle instead of real intraday data, which the
+    session-hours validator then correctly (but silently) dropped."""
 
-    def _get_interval_map(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+    def test_1m_resolves_to_minutes_not_days_default(self):
+        from brokers.upstox.adapters.historical_adapter import HistoricalAdapter
 
-        broker = MagicMock()
-        UpstoxBrokerGateway(broker)
-        interval_map = {
-            "1": ("minutes", "1"),
-            "1MIN": ("minutes", "1"),
-            "3": ("minutes", "3"),
-            "3MIN": ("minutes", "3"),
-            "5": ("minutes", "5"),
-            "5MIN": ("minutes", "5"),
-            "15": ("minutes", "15"),
-            "15MIN": ("minutes", "15"),
-            "30": ("minutes", "30"),
-            "30MIN": ("minutes", "30"),
-            "60": ("hours", "1"),
-            "60MIN": ("hours", "1"),
-            "1H": ("hours", "1"),
-            "4H": ("hours", "4"),
-            "1D": ("days", "1"),
-            "D": ("days", "1"),
-            "DAY": ("days", "1"),
-            "1W": ("weeks", "1"),
-            "W": ("weeks", "1"),
-            "MON": ("months", "1"),
-            "MONTH": ("months", "1"),
-        }
-        return interval_map
-
-    def test_1m_maps_to_minutes(self):
-        mapping = self._get_interval_map()
-        assert "1M" not in mapping, "1M key should not exist (ambiguous)"
-        assert mapping["1MIN"] == ("minutes", "1")
+        assert HistoricalAdapter.resolve_timeframe("1m") == ("minutes", "1")
+        assert HistoricalAdapter.resolve_timeframe("5m") == ("minutes", "5")
+        assert HistoricalAdapter.resolve_timeframe("15m") == ("minutes", "15")
+        assert HistoricalAdapter.resolve_timeframe("30m") == ("minutes", "30")
+        assert HistoricalAdapter.resolve_timeframe("60m") == ("hours", "1")
 
     def test_month_maps_to_months(self):
-        mapping = self._get_interval_map()
-        assert mapping["MON"] == ("months", "1")
-        assert mapping["MONTH"] == ("months", "1")
+        from brokers.upstox.adapters.historical_adapter import _INTERVAL_MAP
+
+        assert _INTERVAL_MAP["MON"] == ("months", "1")
+        assert _INTERVAL_MAP["MONTH"] == ("months", "1")
 
     def test_no_duplicate_keys(self):
-        mapping = self._get_interval_map()
-        keys = list(mapping.keys())
-        assert len(keys) == len(set(keys)), "Duplicate keys found in interval_map"
+        from brokers.upstox.adapters.historical_adapter import _INTERVAL_MAP
+
+        keys = list(_INTERVAL_MAP.keys())
+        assert len(keys) == len(set(keys)), "Duplicate keys found in _INTERVAL_MAP"
 
 
 class TestGetOrderbook:

@@ -14,6 +14,7 @@ from analytics.replay.models import ReplayConfig
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
 from application.oms.factory import create_trading_context
+from runtime.wire_runtime_hooks import wire_runtime_hooks
 
 
 def _norm_side(side: object) -> str:
@@ -49,6 +50,9 @@ class AlwaysBuyStrategy:
 
 @pytest.fixture
 def trading_context():
+    # Composition-root wiring: register the real OMS backtest factory so the
+    # replay engine routes through the shared OMS kernel (zero-parity), not SIM.
+    wire_runtime_hooks()
     return build_test_trading_context(replay_events=False)
 
 

@@ -215,6 +215,71 @@ class TestHistoricalDataCoordinator:
             assert indices == list(range(len(series.bars)))
 
     @pytest.mark.asyncio
+    async def test_short_chunk_silently_missing_tail_day_triggers_gap_fill(self, instrument):
+        """Regression guard: a chunk that "succeeds" (non-empty) but silently
+        stops short of to_date (e.g. a broker's historical endpoint dropping
+        today's in-progress session from an otherwise-valid multi-day
+        response) must not be accepted as complete. Found in production:
+        Upstox always returns real data for the requested range's earlier
+        days but silently omits the trailing (today) day with no error --
+        the emptiness-only fallback check let this through for ~499/501
+        symbols in one real sync run. GapDetector already flags the gap;
+        this verifies it's actually acted on (a second broker is tried for
+        just the missing day), not just recorded and ignored."""
+        today = date.today()
+        from_date = today - timedelta(days=2)
+
+        def upstox_bars(request, quota):
+            # Real Upstox behavior: returns the earlier days, silently
+            # omits to_date entirely (no error, just fewer bars than asked).
+            req_to = date.fromisoformat(request.to_date)
+            if req_to == today:
+                from_d = date.fromisoformat(request.from_date)
+                days = [from_d + timedelta(days=i) for i in range((req_to - from_d).days)]
+            else:
+                from_d, to_d = date.fromisoformat(request.from_date), req_to
+                days = [from_d + timedelta(days=i) for i in range((to_d - from_d).days + 1)]
+            return [
+                _bar(
+                    request.instrument, request.timeframe,
+                    datetime(d.year, d.month, d.day, 9, 15, tzinfo=timezone.utc),
+                    Decimal("100.00"), "upstox", request.request_id,
+                )
+                for d in days
+            ]
+
+        def dhan_bars(request, quota):
+            # Only ever asked for the gap (today) once gap-fill kicks in.
+            from_d = date.fromisoformat(request.from_date)
+            return [
+                _bar(
+                    request.instrument, request.timeframe,
+                    datetime(from_d.year, from_d.month, from_d.day, 9, 15, tzinfo=timezone.utc),
+                    Decimal("100.00"), "dhan", request.request_id,
+                )
+            ]
+
+        dhan = InMemoryBrokerGateway("dhan", dhan_capabilities(), historical_fn=dhan_bars)
+        upstox = InMemoryBrokerGateway("upstox", upstox_capabilities(), historical_fn=upstox_bars)
+        coordinator = _make_coordinator(dhan, upstox)
+
+        query = HistoricalQuery(
+            instrument=instrument,
+            timeframe="1m",
+            from_date=from_date,
+            to_date=today,
+            request_id="hist-req-gapfill",
+        )
+        series, ledger = await coordinator.fetch(query)
+
+        bar_dates = {b.event_time.date() for b in series.bars}
+        assert today in bar_dates, "gap-fill should have recovered today's missing data"
+        assert series.gaps == []
+        assert any(c.broker_id == "dhan" and c.to_date == today for c in ledger.chunks), (
+            "dhan should have been tried specifically for the missing tail day"
+        )
+
+    @pytest.mark.asyncio
     async def test_middle_chunk_failure_produces_explicit_gap(self, instrument):
         """A failed MIDDLE chunk must surface as a gap + degraded, not silent truncation."""
         today = date.today()

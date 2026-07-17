@@ -4,7 +4,6 @@ Provides:
 - Hive-partitioned Parquet storage for OHLCV bars
 - DuckDB catalog for metadata and fast queries
 - Research API for scanner/strategy/backtest
-- Incremental update engine
 - Data quality tracking
 
 Usage:
@@ -30,7 +29,6 @@ from datalake.ingestion.loader import HistoricalDataLoader
 from datalake.quality.engine import DataQualityEngine
 from datalake.quality.universe import UniverseQualityEngine
 from datalake.research.api import ResearchAPI
-from datalake.ingestion.updater import IncrementalUpdater
 from datalake.analytics.vwap import compute_daily_vwap, compute_vwap
 
 __all__ = [
@@ -39,7 +37,6 @@ __all__ = [
     "DataLake",
     "DataQualityEngine",
     "HistoricalDataLoader",
-    "IncrementalUpdater",
     "ResearchAPI",
     "UniverseQualityEngine",
     "compute_daily_vwap",
@@ -55,7 +52,6 @@ class DataLake:
         self._catalog = DataCatalog(root)
         self._quality = DataQualityEngine(root, self._catalog)
         self._loader = HistoricalDataLoader(root, self._catalog)
-        self._updater = IncrementalUpdater(root, self._catalog, self._loader)
         self._api = ResearchAPI(root, self._catalog)
 
     @property
@@ -69,10 +65,6 @@ class DataLake:
     @property
     def loader(self) -> HistoricalDataLoader:
         return self._loader
-
-    @property
-    def updater(self) -> IncrementalUpdater:
-        return self._updater
 
     # Research API shortcuts
     def history(self, symbol: str, years: int = 5, timeframe: str = "1m"):

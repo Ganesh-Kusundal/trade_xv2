@@ -4,8 +4,8 @@ DatalakeTools.health_check() (queries the real on-disk Parquet files,
 unlike the legacy datalake.quality.health_check.run_health_check()
 which targets an empty curated/ view).
 
-Run this after any sync (scripts/sync_datalake.py, IncrementalUpdater,
-...) to catch corruption -- duplicate timestamps, OHLC inconsistency,
+Run this after any sync (scripts/sync_datalake.py) to catch corruption --
+duplicate timestamps, OHLC inconsistency,
 negative volume, future timestamps, candles outside NSE session hours
 (the exact fingerprint of the Dhan/Upstox timezone bug fixed in this
 session) -- before it accumulates silently for months.

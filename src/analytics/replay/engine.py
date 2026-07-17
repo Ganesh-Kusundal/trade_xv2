@@ -121,7 +121,7 @@ class ReplayEngine:
             self._oms_adapter = oms_adapter
         elif trading_context is not None:
             cfg = self._config
-            self._oms_adapter = get_oms_backtest_factory()(
+            self._oms_adapter = get_oms_backtest_factory(
                 trading_context,
                 mode="replay",
                 slippage_pct=cfg.slippage_pct,

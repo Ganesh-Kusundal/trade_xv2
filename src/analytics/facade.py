@@ -377,9 +377,9 @@ class Analytics:
         If called with data, runs replay and returns ReplayResult.
         """
         if data is None:
-            return ReplayEngine(config=config)
+            return ReplayEngine(config=config, allow_simulate_without_oms=True)
         logger.info("Running replay on %d bars for %s", len(data), symbol)
-        engine = ReplayEngine(config=config)
+        engine = ReplayEngine(config=config, allow_simulate_without_oms=True)
         return engine.run(data, symbol=symbol)
 
     def backtest(
@@ -414,7 +414,7 @@ class Analytics:
         If called with data, runs paper trading and returns PaperResult.
         """
         if data is None:
-            return PaperTradingEngine(config=config)
+            return PaperTradingEngine(config=config, allow_simulate_without_oms=True)
         logger.info("Running paper trading on %d bars for %s", len(data), symbol)
-        engine = PaperTradingEngine(config=config)
+        engine = PaperTradingEngine(config=config, allow_simulate_without_oms=True)
         return engine.run(data, symbol=symbol)
