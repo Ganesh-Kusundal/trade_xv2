@@ -113,6 +113,32 @@ class TestNSECalendar:
         count = count_trading_days(date(2024, 1, 29), date(2024, 1, 31))
         assert count == 3
 
+    def test_known_holidays_excluded(self):
+        # Cross-checked against zero-candle days in the datalake and NSE's
+        # official yearly "Trading holidays" circulars.
+        for d in [
+            date(2021, 7, 21),   # Bakri Id 2021 (shifted from originally notified Jul 20)
+            date(2021, 9, 10),   # Ganesh Chaturthi 2021
+            date(2021, 11, 5),   # Diwali-Balipratipada 2021
+            date(2022, 8, 31),   # Ganesh Chaturthi 2022
+            date(2022, 10, 24),  # Diwali-Laxmi Pujan 2022 (regular session closed; Muhurat trading only)
+            date(2022, 10, 26),  # Diwali-Balipratipada 2022
+            date(2024, 1, 22),   # Ram Mandir Pran Pratishtha (ad-hoc Maharashtra holiday)
+            date(2024, 5, 20),   # Lok Sabha election polling day (Mumbai)
+            date(2026, 1, 15),   # Maharashtra civic body elections (ad-hoc holiday)
+        ]:
+            assert not is_trading_day(d), f"{d} should be an NSE holiday"
+
+    def test_adjacent_trading_days_included(self):
+        # Days next to holidays, and dates previously miscoded as holidays
+        # that are in fact regular trading days.
+        for d in [
+            date(2021, 7, 20),   # originally-notified Bakri Id date; actual holiday was Jul 21
+            date(2022, 10, 25),  # trading day between the two Diwali holidays
+            date(2026, 3, 6),    # previously miscoded as Holi; real Holi 2026 is Mar 3
+        ]:
+            assert is_trading_day(d), f"{d} should be a regular trading day"
+
 
 # ── F9: PIT strict mode default ──────────────────────────────────────────
 
