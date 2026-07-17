@@ -22,7 +22,6 @@ if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
     load_dotenv(_ENV_PATH, override=True)
 
 from interface.ui.commands import (
-    analytics as cmd_analytics,
     benchmark as cmd_benchmark,
     broker as cmd_broker,
     compare as cmd_compare,
@@ -53,6 +52,13 @@ from interface.ui.services import compose as _compose  # noqa: F401  (wires sess
 from interface.ui.services.broker_registry import bootstrap_gateway
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.event_bus_service import EventBusService
+
+
+def _run_analytics_lazy(*args, **kwargs):
+    from interface.ui.commands import analytics as cmd_analytics
+
+    return cmd_analytics.run(*args, **kwargs)
+
 
 # ── Command registry (single source of truth for CLI dispatch) ───────────
 # Every top-level command in cli/tests/endpoint_manifest.TOP_LEVEL_COMMANDS
@@ -90,7 +96,7 @@ COMMAND_HANDLERS = {
     "doctor": cmd_doctor.run,
     "load-test": cmd_load_test.run,
     "news": cmd_news.run,
-    "analytics": cmd_analytics.run,
+    "analytics": _run_analytics_lazy,
     "views": cmd_views.run_views,
     "cache": cmd_cache_management.run,
 }
@@ -258,7 +264,7 @@ def main() -> None:
             cmd_benchmark.run(cmd_args, broker_service, console)
 
         elif subcommand == "analytics":
-            result = cmd_analytics.run(cmd_args, broker_service, console)
+            result = _run_analytics_lazy(cmd_args, broker_service, console)
             if result is not None and not getattr(result, "success", True):
                 exit_code = 1
 
