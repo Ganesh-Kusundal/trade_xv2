@@ -26,7 +26,10 @@ _curated_cache_lock = threading.Lock()
 class ParquetStore:
     """Load and resample OHLCV candles from the local parquet lake."""
 
-    def __init__(self, root: str = "market_data", curated_root: str = CURATED_ROOT) -> None:
+    def __init__(self, root: str | None = None, curated_root: str = CURATED_ROOT) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._candles_dir = self._root / "equities" / "candles"
         self._curated_root = Path(curated_root)

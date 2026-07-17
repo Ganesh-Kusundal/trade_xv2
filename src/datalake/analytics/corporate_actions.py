@@ -47,7 +47,10 @@ class CorporateAction:
 class CorporateActionStore:
     """DuckDB-backed store for corporate actions and adjustment factors."""
 
-    def __init__(self, root: str = "market_data") -> None:
+    def __init__(self, root: str | None = None) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._db_path = self._root / "catalog.duckdb"
         self._conn = None

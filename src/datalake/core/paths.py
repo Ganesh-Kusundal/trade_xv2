@@ -181,7 +181,7 @@ def legacy_symbol_partition_path(
 
 
 def migrate_legacy_to_curated(
-    root: str = "market_data",
+    root: str | None = None,
     curated_root: str = CURATED_ROOT,
     timeframe: str = "1m",
     target_mb: int = 150,
@@ -193,6 +193,9 @@ def migrate_legacy_to_curated(
     Thin wrapper over the migration script implementation (TOS-P6-010).
     Defaults to ``dry_run=True`` so accidental imports are safe.
     """
+    if root is None:
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        root = DEFAULT_DATA_PATHS.lake_root
     try:
         from scripts.migration.migrate_to_curated_layout import migrate
     except ImportError:

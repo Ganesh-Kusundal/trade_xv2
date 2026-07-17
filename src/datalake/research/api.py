@@ -23,8 +23,11 @@ class ResearchAPI:
     """Fast local data access for research."""
 
     def __init__(
-        self, root: str = "market_data", catalog=None
+        self, root: str | None = None, catalog=None
     ) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog = catalog
         # Delegate to DataLakeGateway for unified data access path

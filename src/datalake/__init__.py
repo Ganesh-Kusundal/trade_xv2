@@ -9,7 +9,7 @@ Provides:
 Usage:
     from datalake import DataLake
 
-    lake = DataLake("market_data")
+    lake = DataLake()
 
     # Research API
     df = lake.history("RELIANCE", years=5)
@@ -47,7 +47,10 @@ __all__ = [
 class DataLake:
     """Unified entry point for the market data lake."""
 
-    def __init__(self, root: str = "market_data") -> None:
+    def __init__(self, root: str | None = None) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = root
         self._catalog = DataCatalog(root)
         self._quality = DataQualityEngine(root, self._catalog)

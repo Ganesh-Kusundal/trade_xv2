@@ -11,7 +11,7 @@ strategies, or own backtest engines. Wire it into analytics consumers
 Usage:
     from datalake.gateway import DataLakeGateway
 
-    gw = DataLakeGateway(root="market_data")
+    gw = DataLakeGateway()
     df = gw.history("RELIANCE", timeframe="1D", lookback_days=365)
 """
 
@@ -45,7 +45,10 @@ class DataLakeGateway(MarketDataGateway):
     Trading methods raise NotImplementedError.
     """
 
-    def __init__(self, root: str = "market_data") -> None:
+    def __init__(self, root: str | None = None) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         # Prefer equities; indices consulted as fallback in _candle_candidates.
         self._candles_dir = self._root / "equities" / "candles"

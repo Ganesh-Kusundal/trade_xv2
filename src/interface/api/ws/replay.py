@@ -145,7 +145,7 @@ async def _stream_replay_candles(
         from datalake.gateway import DataLakeGateway
 
         logger.warning("DI container not available — falling back to direct DataLakeGateway")
-        gateway = DataLakeGateway(root="market_data")
+        gateway = DataLakeGateway()
     df = gateway.history(symbol, timeframe=timeframe, from_date=date, to_date=date)
     if df.empty:
         await replay_manager.send_to_client(

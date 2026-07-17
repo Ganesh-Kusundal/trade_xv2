@@ -27,7 +27,10 @@ class DataCatalog:
 
     _schema_lock = threading.Lock()
 
-    def __init__(self, root: str = "market_data", read_only: bool = False) -> None:
+    def __init__(self, root: str | None = None, read_only: bool = False) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._db_path = self._root / "catalog.duckdb"
         self._read_only = read_only

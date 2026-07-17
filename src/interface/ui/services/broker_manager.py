@@ -196,8 +196,9 @@ class BrokerManager:
         # when the local Parquet directory exists, otherwise the
         # operator gets a hint to bootstrap it.
         from pathlib import Path as _Path
+        from domain.ports.data_catalog import DataPaths
         datalake_status = (
-            "Available" if _Path("market_data").exists() else "Directory not found"
+            "Available" if DataPaths().lake_path.exists() else "Directory not found"
         )
         statuses.append({"broker": "DataLake (read-only)", "status": datalake_status})
         return statuses

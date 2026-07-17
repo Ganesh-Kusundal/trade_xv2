@@ -54,13 +54,13 @@ class DataLakeMarketDataProvider:
     def __init__(
         self,
         gateway: Any | None = None,
-        root: str = "market_data",
+        root: str | None = None,
     ) -> None:
         # Lazy import to avoid circular dependencies at module level.
         from datalake.gateway import DataLakeGateway
 
         self._gateway: DataLakeGateway = gateway or DataLakeGateway(root=root)
-        self._root = root
+        self._root = root or "data/lake"
 
     # ── MarketDataPort: single-symbol access ────────────────────────
 

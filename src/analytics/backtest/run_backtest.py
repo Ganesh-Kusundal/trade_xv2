@@ -113,7 +113,7 @@ def run_single_backtest(symbol: str, years: int = 5, *, parity: bool = False):
     logger.info("BACKTEST: %s | %dY | 1m%s", symbol, years, " | PARITY" if parity else "")
     logger.info("=" * 60)
 
-    gw = DataLakeGateway(root="market_data")
+    gw = DataLakeGateway()
     data = gw.history(symbol, timeframe="1m", lookback_days=years * 365)
     if data.empty:
         logger.warning("No data for %s", symbol)
@@ -166,7 +166,7 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
     logger.info("SCAN + BACKTEST: Top %d | %dY | 1m", top_n, years)
     logger.info("=" * 60)
 
-    gw = DataLakeGateway(root="market_data")
+    gw = DataLakeGateway()
     all_symbols = gw.list_symbols(timeframe="1m")
     logger.info("Universe: %d symbols", len(all_symbols))
 

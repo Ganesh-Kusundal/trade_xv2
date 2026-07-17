@@ -62,7 +62,7 @@ def create_paper_gateway(
 def create_datalake_gateway(
     env_path: Path | None = None,
     *,
-    root: str = "market_data",
+    root: str | None = None,
     **kwargs: Any,
 ) -> Any | None:
     from datalake.gateway import DataLakeGateway

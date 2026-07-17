@@ -58,7 +58,7 @@ def run_replay(args: list[str], console: Console) -> None:
         try:
             from datalake.gateway import DataLakeGateway
 
-            gw = DataLakeGateway(root="market_data")
+            gw = DataLakeGateway()
             data = gw.history(symbol, timeframe="1m", from_date=date, to_date=date)
             if data.empty:
                 console.print(f"[red]No data for {symbol} on {date}[/red]")

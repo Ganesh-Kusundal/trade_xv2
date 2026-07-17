@@ -194,9 +194,12 @@ class DataQualityMonitor:
 
     def __init__(
         self,
-        root: str = "market_data",
+        root: str | None = None,
         connect_fn: Callable[[], duckdb.DuckDBPyConnection] | None = None,
     ) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog_path = self._root / "catalog.duckdb"
         self._connect = connect_fn or (lambda: duckdb.connect(str(self._catalog_path), read_only=True))

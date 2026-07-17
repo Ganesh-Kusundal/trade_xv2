@@ -52,7 +52,10 @@ class UniverseQualityReport:
 class UniverseQualityEngine:
     """Cross-symbol quality checks for an entire universe."""
 
-    def __init__(self, root: str = "market_data", catalog=None) -> None:
+    def __init__(self, root: str | None = None, catalog=None) -> None:
+        if root is None:
+            from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+            root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog = catalog
         self._symbol_quality = DataQualityEngine(root, catalog)
