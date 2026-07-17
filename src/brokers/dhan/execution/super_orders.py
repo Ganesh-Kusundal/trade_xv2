@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
 
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
@@ -50,6 +51,7 @@ class SuperOrdersAdapter:
         product_type: str = "INTRADAY",
         order_type: str = "LIMIT",
         correlation_id: str | None = None,
+        authorize: Callable[[], None] | None = None,
     ) -> SuperOrder:
         """Place a super order with Entry + Target + Stop Loss legs.
 
@@ -72,7 +74,13 @@ class SuperOrdersAdapter:
         Raises:
             ValueError: If validation fails (target/SL logic)
             SuperOrderError: If API call fails
+            LiveBrokerBlockedError / RiskRejectedError: If ``authorize`` blocks.
         """
+        # Live-order authority (defense in depth). Runs before any side effect
+        # (idempotency reservation, wire call) so a blocked order is a no-op.
+        if authorize is not None:
+            authorize()
+
         # Generate correlation_id if not provided
         cid = correlation_id or uuid.uuid4().hex
 

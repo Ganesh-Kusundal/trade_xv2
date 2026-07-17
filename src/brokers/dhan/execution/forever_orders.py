@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
 
 from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
@@ -37,11 +38,17 @@ class ForeverOrdersAdapter:
         self._resolver = self._identity.resolver
         self._idempotency = idempotency or IdempotencyCache()
 
-    def place_forever_order(self, request: ForeverOrderRequest) -> ForeverOrder:
+    def place_forever_order(
+        self,
+        request: ForeverOrderRequest,
+        authorize: Callable[[], None] | None = None,
+    ) -> ForeverOrder:
         """Place a forever order (SINGLE or OCO).
 
         Args:
             request: ForeverOrderRequest with order details
+            authorize: Optional live-order authority; called before any side
+                effect. Raises to block the order.
 
         Returns:
             ForeverOrder with created order information
@@ -49,7 +56,12 @@ class ForeverOrdersAdapter:
         Raises:
             ValueError: If validation fails (OCO requires additional fields)
             ForeverOrderError: If API call fails
+            LiveBrokerBlockedError / RiskRejectedError: If ``authorize`` blocks.
         """
+        # Live-order authority (defense in depth) — before any side effect.
+        if authorize is not None:
+            authorize()
+
         # Generate correlation_id for idempotency
         cid = request.correlation_id or uuid.uuid4().hex
 

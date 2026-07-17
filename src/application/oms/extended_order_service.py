@@ -103,11 +103,15 @@ class ExtendedOrderService:
                 status=OrderStatus.OPEN,
                 validity=Validity(payload.get("validity", "DAY")),
             )
-        except (ValueError, TypeError):
-            # Payload cannot be coerced into a domain order (e.g. missing or
-            # malformed fields). Fall back to the kill-switch-only check already
-            # performed by the caller rather than silently allowing the order.
-            return None
+        except (ValueError, TypeError) as exc:
+            # D2 fix: a payload we cannot model into a domain order is a payload
+            # we cannot risk-check, so we REJECT it — never silently allow it
+            # through on the kill-switch-only path (the old silent-skip bug).
+            return ExtendedOrderResult(
+                success=False,
+                error=f"Order payload could not be risk-modelled: {exc}",
+                risk_rejected=True,
+            )
 
         result = self._risk.check_order(order)
         if not result.allowed:
