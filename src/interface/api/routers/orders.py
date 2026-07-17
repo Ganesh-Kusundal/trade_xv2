@@ -1,6 +1,5 @@
 """Orders endpoints (orders, trades, orderbook)."""
 
-from __future__ import annotations
 
 import logging
 import uuid
