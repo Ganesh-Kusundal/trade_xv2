@@ -134,6 +134,10 @@ class DeadLetterQueue:
                 "dropped": self._dropped,
             }
 
+    def size(self) -> int:
+        """Convenience alias for stats()["size"]."""
+        return self.stats()["size"]
+
     def clear(self) -> None:
         with self._lock:
             self._items.clear()

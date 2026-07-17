@@ -73,6 +73,11 @@ def normalize_ohlcv(
     if data.empty:
         return pd.DataFrame(columns=OHLCV_COLUMNS)
 
+    # Accept "datetime" as alias for "timestamp" (both names are in use across callers)
+    if "timestamp" not in data.columns and "datetime" in data.columns:
+        data = data.copy()
+        data["timestamp"] = data["datetime"]
+
     required = {"timestamp", "open", "high", "low", "close", "volume"}
     missing = required.difference(data.columns)
     if missing:

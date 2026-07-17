@@ -203,3 +203,9 @@ class StrategyResult:
             if s.symbol == symbol:
                 return s
         return None
+
+# Backward-compatible re-export — Candidate lives in evaluator_bridge
+try:
+    from analytics.strategy.evaluator_bridge import Candidate  # noqa: F401
+except ImportError:
+    pass
