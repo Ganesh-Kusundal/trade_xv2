@@ -67,12 +67,18 @@ class ResilienceConfig:
         """Build from environment with sane defaults (env wins over defaults)."""
         import os
 
+        env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+        is_live_env = env in ("production", "staging")
+        # In live environments the parity gate is mandatory — SKIP_PARITY_GATE
+        # must not be able to disable it via this config path either.
+        skip_parity = (os.getenv("SKIP_PARITY_GATE", "0") == "1") and not is_live_env
+
         defaults = dict(
             idempotency_ttl_seconds=int(os.getenv("TRADEX_IDEMPOTENCY_TTL", "86400")),
             idempotency_backend=os.getenv("TRADEX_IDEMPOTENCY_BACKEND", "memory"),
             dead_letter_enabled=os.getenv("TRADEX_DLQ_ENABLED", "1") != "0",
             event_log_enabled=os.getenv("TRADEX_EVENT_LOG_ENABLED", "1") != "0",
-            parity_gate_enabled=os.getenv("SKIP_PARITY_GATE", "0") != "1",
+            parity_gate_enabled=not skip_parity,
             max_async_bus_queue=int(os.getenv("TRADEX_ASYNC_BUS_QUEUE", "10000")),
         )
         defaults.update(overrides)

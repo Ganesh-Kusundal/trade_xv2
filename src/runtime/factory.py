@@ -217,6 +217,15 @@ def build_from_broker_service(
             "(quant parity must pass before live boot)"
         )
 
+    # In live environments the parity gate is mandatory and cannot be disabled
+    # via config (parity_gate_enabled=False) or code (skip_parity_gate). The
+    # gate always runs; only non-live dev/test environments may opt out.
+    if is_production_environment() and not resilience.parity_gate_enabled:
+        raise RuntimeError(
+            "parity_gate_enabled=False is forbidden in production/staging "
+            "(quant parity must pass before live boot)"
+        )
+
     if not opts.skip_parity_gate and resilience.parity_gate_enabled:
         assert_runtime_parity_or_raise()
 

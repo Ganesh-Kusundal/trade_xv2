@@ -16,18 +16,25 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def assert_runtime_parity_or_raise() -> None:
     """Run parity verifiers; raise RuntimeError if checks fail.
 
-    Skipped when ``SKIP_PARITY_GATE=1`` (local dev / tests).
+    Skipped in non-live environments only when ``SKIP_PARITY_GATE=1``
+    (local dev / tests) or under pytest.
+
     LIVE environments (``TRADEX_ENV`` = ``production`` or ``staging``)
-    **must not** honour ``SKIP_PARITY_GATE`` — the gate always runs.
+    **never** honour ``SKIP_PARITY_GATE`` — the determinism gate always
+    runs before a live boot (zero-parity rule: backtest/replay/live must
+    share identical logic). The env flag is ignored there so a mis-set
+    environment variable cannot silently disable the gate.
     """
     env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
     is_live_env = env in ("production", "staging")
 
-    if not is_live_env and os.getenv("SKIP_PARITY_GATE", "0") == "1":
+    if is_live_env:
+        # Parity is mandatory in prod/staging — ignore SKIP_PARITY_GATE.
+        logger.info("parity_gate: running (live env=%s, SKIP_PARITY_GATE ignored)", env)
+    elif os.getenv("SKIP_PARITY_GATE", "0") == "1":
         logger.debug("parity_gate: skipped (SKIP_PARITY_GATE=1, env=%s)", env)
         return
-
-    if not is_live_env and os.getenv("PYTEST_CURRENT_TEST"):
+    elif os.getenv("PYTEST_CURRENT_TEST"):
         return
 
     failures: list[str] = []
