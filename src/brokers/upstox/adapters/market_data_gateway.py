@@ -325,4 +325,16 @@ class MarketDataGateway:
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
         """Resolve canonical symbol to Upstox instrument_key (broker-internal)."""
-        return self._broker.instruments.resolve_instrument_key(symbol, exchange)
+        segment = self._resolve_exchange_segment(symbol, exchange)
+        inst = self._broker.instruments.resolve(symbol=symbol, exchange_segment=segment)
+        if inst and inst.instrument_key:
+            return inst.instrument_key
+        return f"{segment}|{symbol}"
+
+    def _resolve_exchange_segment(self, symbol: str, exchange: str) -> str:
+        # Fallback heuristic for exchange segments
+        if exchange.upper() == "NSE":
+            if symbol.upper() in {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"}:
+                return "IDX_I"
+            return "NSE_EQ"
+        return "NSE_EQ"

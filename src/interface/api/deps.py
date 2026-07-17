@@ -339,18 +339,31 @@ def initialize_all_services(
         # G7: use the public TradingContext.risk_manager property (no getattr reflection).
         risk_manager = trading_context.risk_manager
 
+    from infrastructure.providers.null.stubs import (
+        NullBrokerService,
+        NullDataCatalog,
+        NullDataLakeGateway,
+        NullEventBus,
+        NullExecutionComposer,
+        NullMarketDataComposer,
+        NullOrderManager,
+        NullPositionManager,
+        NullRiskManager,
+        NullViewManager,
+    )
+
     services = SimpleNamespace(
-        datalake_gateway=datalake_gateway,
-        view_manager=view_manager,
-        data_catalog=data_catalog,
-        event_bus=event_bus,
-        broker_service=broker_service,
+        datalake_gateway=datalake_gateway or NullDataLakeGateway(),
+        view_manager=view_manager or NullViewManager(),
+        data_catalog=data_catalog or NullDataCatalog(),
+        event_bus=event_bus or NullEventBus(),
+        broker_service=broker_service or NullBrokerService(),
         trading_context=trading_context,
-        order_manager=order_manager,
-        position_manager=position_manager,
-        risk_manager=risk_manager,
-        market_data_composer=market_data_composer,
-        execution_composer=execution_composer,
+        order_manager=order_manager or NullOrderManager(),
+        position_manager=position_manager or NullPositionManager(),
+        risk_manager=risk_manager or NullRiskManager(),
+        market_data_composer=market_data_composer or NullMarketDataComposer(),
+        execution_composer=execution_composer or NullExecutionComposer(),
         extra=additional_services,
     )
 
@@ -370,4 +383,4 @@ def initialize_all_services(
             missing,
         )
     else:
-        logger.info("All services initialized successfully")
+        logger.info("All services initialized (with NullProviders for missing components)")

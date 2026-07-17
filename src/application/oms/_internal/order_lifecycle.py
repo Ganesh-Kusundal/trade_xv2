@@ -290,12 +290,19 @@ class OrderLifecycle:
             if order.status.is_terminal:
                 return OrderResult(success=False, error="Order already final")
 
-            if cancel_fn is not None:
-                try:
-                    if not cancel_fn(order_id):
-                        return OrderResult(success=False, error="Broker cancel failed")
-                except Exception as exc:
-                    return OrderResult(success=False, error=str(exc))
+        if cancel_fn is not None:
+            try:
+                if not cancel_fn(order_id):
+                    return OrderResult(success=False, error="Broker cancel failed")
+            except Exception as exc:
+                return OrderResult(success=False, error=str(exc))
+
+        with lock:
+            order = orders.get(order_id)
+            if order is None:
+                return OrderResult(success=False, error="Order not found")
+            if order.status.is_terminal:
+                return OrderResult(success=False, error="Order already final")
 
             old_status = order.status
             updated = order.with_status(OrderStatus.CANCELLED)

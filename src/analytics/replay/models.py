@@ -473,7 +473,7 @@ class ReplayResult:
         """Annualized Sharpe ratio from equity curve returns."""
         if len(self.session.equity_curve) < 2:
             return 0.0
-        equities = [eq for _, eq in self.session.equity_curve]
+        equities = [float(eq) for _, eq in self.session.equity_curve]
         returns = [(equities[i] / equities[i - 1] - 1) for i in range(1, len(equities))]
         if not returns:
             return 0.0

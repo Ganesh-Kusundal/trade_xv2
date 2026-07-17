@@ -154,7 +154,7 @@ class BacktestResult:
             "alpha": round(m.alpha * 100, 2),
             "beta": round(m.beta, 2),
             "information_ratio": round(m.information_ratio, 2),
-            "final_equity": round(self.replay.final_equity, 2),
+            "final_equity": round(float(self.replay.final_equity), 2),
             "avg_holding_bars": round(ta.avg_holding_bars, 1),
             "max_consecutive_wins": ta.max_consecutive_wins,
             "max_consecutive_losses": ta.max_consecutive_losses,

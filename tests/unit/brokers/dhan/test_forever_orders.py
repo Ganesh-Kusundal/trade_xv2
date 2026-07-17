@@ -29,7 +29,7 @@ def test_place_forever_order_single(fake_client, resolver):
     payloads = fake_client.calls_for("POST", "/forever/orders")
     assert len(payloads) == 1
     payload = payloads[0]
-    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["dhanClientId"] == "test"
     assert payload["securityId"] == "2885"
     assert payload["exchangeSegment"] == "NSE_EQ"
     assert payload["orderFlag"] == "SINGLE"

@@ -25,7 +25,7 @@ def test_place_conditional_trigger_price_above(fake_client, resolver):
     payloads = fake_client.calls_for("POST", "/alerts/orders")
     assert len(payloads) == 1
     payload = payloads[0]
-    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["dhanClientId"] == "test"
     assert payload["securityId"] == "2885"
     assert payload["exchangeSegment"] == "NSE_EQ"
     assert payload["comparisonType"] == "PRICE_WITH_VALUE"

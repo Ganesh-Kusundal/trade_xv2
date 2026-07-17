@@ -41,7 +41,7 @@ class TestDhanMarketFeedMaxReconnectAttempts:
                 admission=mock_admission,
             )
             # Manually set the feed to avoid SDK initialization
-            feed._feed = mock_sdk_instance
+            feed._conn._feed = mock_sdk_instance
 
         return feed, mock_sdk_instance
 
@@ -50,7 +50,7 @@ class TestDhanMarketFeedMaxReconnectAttempts:
         feed, mock_sdk = mock_feed
 
         # Set max attempts to 5 for fast testing
-        monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "5")
+        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 5)
 
         # Simulate 6 consecutive failures
         call_count = 0
@@ -82,7 +82,7 @@ class TestDhanMarketFeedMaxReconnectAttempts:
         """Reconnect count should reset after successful connection."""
         feed, mock_sdk = mock_feed
 
-        monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "50")
+        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 50)
 
         # Simulate: fail 3 times, succeed, fail again
         call_count = 0
@@ -199,7 +199,7 @@ class TestDhanMarketFeedHealthMetrics:
         """max_reconnect_attempts should be configurable via env var."""
         from brokers.dhan.websocket import DhanMarketFeed
 
-        monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "100")
+        monkeypatch.setattr("config.ws_settings.DHAN_MAX_RECONNECT_ATTEMPTS", 100)
 
         feed = DhanMarketFeed(
             client_id="test_client",
@@ -221,7 +221,7 @@ class TestDhanMarketFeedChaosScenarios:
         from brokers.dhan.websocket import DhanMarketFeed
 
         # Use small max for faster test
-        monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "3")
+        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 3)
 
         with mock_market_feed_class() as mock_sdk:
             mock_sdk_instance = MagicMock()
@@ -236,7 +236,7 @@ class TestDhanMarketFeedChaosScenarios:
                 client_id="test_client",
                 access_token="test_token",
             )
-            feed._feed = mock_sdk_instance
+            feed._conn._feed = mock_sdk_instance
 
             # Run reconnect loop
             thread = threading.Thread(target=feed._run, daemon=True)
@@ -258,7 +258,7 @@ class TestDhanMarketFeedChaosScenarios:
         from brokers.dhan.websocket import DhanMarketFeed
 
         # Use larger max to allow multiple cycles
-        monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "20")
+        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 20)
 
         with mock_market_feed_class() as mock_sdk:
             mock_sdk_instance = MagicMock()
@@ -284,7 +284,7 @@ class TestDhanMarketFeedChaosScenarios:
                 client_id="test_client",
                 access_token="test_token",
             )
-            feed._feed = mock_sdk_instance
+            feed._conn._feed = mock_sdk_instance
 
             thread = threading.Thread(target=feed._run, daemon=True)
             thread.start()

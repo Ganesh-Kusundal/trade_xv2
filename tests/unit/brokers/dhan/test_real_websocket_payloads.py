@@ -43,7 +43,7 @@ class TestRealDhanWebSocketPayloads:
         assert result["high"] == Decimal("2460.00")
         assert result["low"] == Decimal("2420.50")
         assert result["close"] == Decimal("2425.75")
-        assert result["security_id"] == "2885"
+        assert "security_id" not in result
 
     def test_transform_quote_ltp_only_payload(self):
         feed = self._make_feed()
@@ -112,7 +112,7 @@ class TestRealDhanWebSocketPayloads:
             "depth": depth_data,
         }
         result = feed._transform_depth(payload)
-        assert result["security_id"] == "2885"
+        assert "security_id" not in result
         assert result["ltp"] == Decimal("2450.55")
         assert len(result["depth"]["bids"]) == 2
         assert len(result["depth"]["asks"]) == 2
@@ -161,7 +161,7 @@ class TestRealDhanWebSocketPayloads:
             "depth": [],
         }
         result = feed._transform_depth(payload)
-        assert result["security_id"] == "2885"
+        assert "security_id" not in result
         assert result["depth"] == {"bids": [], "asks": []}
 
     def test_transform_quote_volume_as_int(self):
@@ -179,5 +179,5 @@ class TestRealDhanWebSocketPayloads:
         feed = self._make_feed()
         payload = {"last_price": "100"}
         result = feed._transform_quote(payload)
-        assert result["security_id"] == ""
+        assert "security_id" not in result
         assert result["ltp"] == Decimal("100")

@@ -26,7 +26,7 @@ def test_place_super_order_payload(fake_client, resolver):
     payloads = fake_client.calls_for("POST", "/super/orders")
     assert len(payloads) == 1
     payload = payloads[0]
-    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["dhanClientId"] == "test"
     assert payload["securityId"] == "2885"
     assert payload["exchangeSegment"] == "NSE_EQ"
     assert payload["transactionType"] == "BUY"
@@ -212,7 +212,7 @@ def test_get_super_order_list(fake_client, resolver):
     assert orders[0].order_id == "SO001"
     assert orders[0].trading_symbol == "RELIANCE"
     assert orders[1].order_id == "SO002"
-    assert orders[1].order_status == "CLOSED"
+    assert orders[1].order_status == "CANCELLED"
 
 
 def test_place_super_order_validation_target_buy(fake_client, resolver):

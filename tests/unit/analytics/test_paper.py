@@ -26,13 +26,18 @@ from domain.enums import Side
 from domain.orders.sizing import compute_order_quantity
 
 
-@pytest.fixture
-def mock_oms_adapter():
-    """Mock OmsBacktestAdapterPort that returns fake order IDs."""
+def make_mock_oms_adapter():
+    """Factory for mock OmsBacktestAdapterPort."""
     adapter = MagicMock()
     adapter.open_long.return_value = "mock-order-001"
     adapter.close_long.return_value = "mock-order-002"
     return adapter
+
+
+@pytest.fixture
+def mock_oms_adapter():
+    """Mock OmsBacktestAdapterPort that returns fake order IDs."""
+    return make_mock_oms_adapter()
 
 
 def _make_ohlcv(n=100, start_price=100.0, symbol="TEST"):
@@ -232,14 +237,14 @@ class TestPaperTrade:
 class TestEngineSingle:
     def test_basic_run(self):
         r = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
         ).run(_make_ohlcv(100), symbol="T")
         assert isinstance(r, PaperResult)
         assert r.bars_processed == 100
         assert r.config.initial_capital == 100_000
 
     def test_empty_data(self):
-        r = PaperTradingEngine(_pipeline(), oms_adapter=mock_oms_adapter).run(
+        r = PaperTradingEngine(_pipeline(), oms_adapter=make_mock_oms_adapter()).run(
             pd.DataFrame(), symbol="T"
         )
         assert r.bars_processed == 0
@@ -247,29 +252,31 @@ class TestEngineSingle:
 
     def test_no_timestamp_raises(self):
         with pytest.raises(ValueError, match="timestamp"):
-            PaperTradingEngine(_pipeline(), oms_adapter=mock_oms_adapter).run(
+            PaperTradingEngine(_pipeline(), oms_adapter=make_mock_oms_adapter()).run(
                 pd.DataFrame({"close": [100]})
             )
 
     def test_no_signals_preserves_capital(self):
+        from analytics.strategy.pipeline import StrategyPipeline
         r = PaperTradingEngine(
             _pipeline(),
+            strategy_pipeline=StrategyPipeline([]),
             config=PaperConfig(initial_capital=50_000, warmup_bars=50),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         ).run(_make_ohlcv(100), symbol="T")
         assert r.final_equity == 50_000
         assert r.session.position_count == 0
 
     def test_equity_curve(self):
         r = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
         ).run(_make_ohlcv(100), symbol="T")
         assert len(r.session.equity_curve) > 0
         assert r.session.equity_curve[0][1] == 100_000
 
     def test_peak_equity(self):
         r = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
         ).run(_make_ohlcv(100), symbol="T")
         assert r.session.peak_equity >= 100_000
 
@@ -280,7 +287,7 @@ class TestEngineSingle:
 class TestEngineMulti:
     def test_multi_run(self):
         r = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
         ).run(_make_multi(100, ["R", "T"]))
         assert r.bars_processed > 0
 
@@ -288,7 +295,7 @@ class TestEngineMulti:
         r = PaperTradingEngine(
             _pipeline(),
             config=PaperConfig(warmup_bars=5, max_positions=2),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         ).run(_make_multi(100, ["A", "B", "C", "D"]))
         assert r.session.position_count <= 2
 
@@ -299,7 +306,7 @@ class TestEngineMulti:
 class TestOnBar:
     def test_on_bar(self):
         engine = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=2), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=2), oms_adapter=make_mock_oms_adapter()
         )
         session = PaperSession(capital=100_000)
         session.peak_equity = 100_000
@@ -319,7 +326,7 @@ class TestOnBar:
 
     def test_warmup_no_signals(self):
         engine = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=10), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=10), oms_adapter=make_mock_oms_adapter()
         )
         session = PaperSession(capital=100_000)
         session.peak_equity = 100_000
@@ -345,7 +352,7 @@ class TestPositionManagement:
         r = PaperTradingEngine(
             _pipeline(),
             config=PaperConfig(warmup_bars=5, stop_loss_pct=1.0, slippage_pct=0.0),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         ).run(_make_ohlcv(100), symbol="T")
         assert isinstance(r, PaperResult)
 
@@ -353,15 +360,15 @@ class TestPositionManagement:
         r = PaperTradingEngine(
             _pipeline(),
             config=PaperConfig(warmup_bars=5, max_positions=2),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         ).run(_make_multi(100, ["A", "B", "C", "D", "E", "F"]))
         assert r.session.position_count <= 2
 
     def test_commission_tracked(self):
         r = PaperTradingEngine(
             _pipeline(),
-            config=PaperConfig(warmup_bars=10, commission_pct=0.001),
-            oms_adapter=mock_oms_adapter,
+            config=PaperConfig(warmup_bars=10, commission_flat=10.0),
+            oms_adapter=make_mock_oms_adapter(),
         ).run(_make_ohlcv(100), symbol="T")
         if r.session.trades:
             assert r.session.total_commission > 0
@@ -371,7 +378,7 @@ class TestPositionManagement:
         engine = PaperTradingEngine(
             _pipeline(),
             config=PaperConfig(commission_flat=0.0, commission_pct=0.0, slippage_pct=0.0),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         )
         session = PaperSession(capital=100_000)
         session.bootstrap_position(
@@ -386,11 +393,11 @@ class TestPositionManagement:
             )
         )
         assert session.daily_pnl == 0.0
-        engine._close_position(
+        engine._closer.close(
+            session,
             "T",
             110.0,
             datetime.now(timezone.utc),
-            session,
             "manual close",
         )
         assert "T" not in session.positions
@@ -403,7 +410,7 @@ class TestPositionManagement:
 class TestPaperResult:
     def test_summary_keys(self):
         r = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
         ).run(_make_ohlcv(100), symbol="T")
         s = r.summary
         for key in [
@@ -424,6 +431,6 @@ class TestPaperResult:
 
     def test_total_return_pct(self):
         r = PaperTradingEngine(
-            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+            _pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
         ).run(_make_ohlcv(100), symbol="T")
         assert isinstance(r.total_return_pct, float)

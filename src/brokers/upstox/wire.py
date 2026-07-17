@@ -261,12 +261,11 @@ def create_wire_adapter(broker: UpstoxBroker | UpstoxWireAdapter) -> UpstoxWireA
         return broker
     return UpstoxWireAdapter(broker)
 
-
-
-
 __all__ = [
     "UpstoxWireAdapter",
-    "UpstoxWireAdapter",
+    "UpstoxBrokerGateway",
     "create_wire_adapter",
 ]
 
+# Backward compatibility for old tests
+UpstoxBrokerGateway = UpstoxWireAdapter

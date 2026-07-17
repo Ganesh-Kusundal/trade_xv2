@@ -36,8 +36,22 @@ def _make_catalog_with_daily(catalog_path, daily_rows: list[dict]) -> None:
         )
     """)
     if daily_rows:
-        pd.DataFrame(daily_rows)
-        c.execute("INSERT INTO v_daily_summary SELECT * FROM df")
+        import datetime
+        for row in daily_rows:
+            # DuckDB inserts directly from dicts using prepared statement
+            c.execute(
+                "INSERT INTO v_daily_summary VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    row["trade_date"],
+                    row["symbol"],
+                    row["day_open"],
+                    row["day_high"],
+                    row["day_low"],
+                    row["day_close"],
+                    row["day_volume"],
+                    row.get("day_oi", 0),
+                ]
+            )
     c.close()
 
 

@@ -110,6 +110,26 @@ def test_cancel_order(order_manager: OrderManager) -> None:
     assert result.order.status == OrderStatus.CANCELLED
 
 
+def test_cancel_order_releases_oms_lock_before_broker_cancel(
+    order_manager: OrderManager,
+) -> None:
+    order = order_manager.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10)).order
+    lock_states: list[bool] = []
+
+    def cancel_fn(order_id: str) -> bool:
+        assert order_id == order.order_id
+        lock_states.append(order_manager._lock._is_owned())
+        assert lock_states[-1] is False, "broker cancel must run outside OMS lock"
+        return True
+
+    result = order_manager.cancel_order(order.order_id, cancel_fn=cancel_fn)
+
+    assert result.success is True
+    assert result.order is not None
+    assert result.order.status == OrderStatus.CANCELLED
+    assert lock_states == [False]
+
+
 def test_cancel_filled_order_fails(order_manager: OrderManager) -> None:
     order = order_manager.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10)).order
     trade = Trade(

@@ -33,8 +33,8 @@ def test_dataframe_provider_option_chain() -> None:
         option_chains={"NIFTY": {"strikes": [{"strike": 100}]}},
     )
     result = provider.option_chain("NIFTY")
-    assert len(result["strikes"]) == 1
-    assert provider.option_chain("BANKNIFTY") == {"strikes": []}
+    assert len(result.strikes) == 1
+    assert len(provider.option_chain("BANKNIFTY").strikes) == 0
 
 
 def test_dataframe_provider_ltp() -> None:

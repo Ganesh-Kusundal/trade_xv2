@@ -13,6 +13,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ def setup_telemetry(
     if otlp_endpoint and _HAS_OTLP:
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)  # type: ignore[call-arg]
         logger.info("OTLP exporter configured → %s", otlp_endpoint)
-    elif _HAS_CONSOLE_EXPORTER:
+    elif _HAS_CONSOLE_EXPORTER and os.getenv("OTEL_EXPORTER") == "console":
         exporter = ConsoleSpanExporter()  # type: ignore[call-arg]
         logger.info("Using ConsoleSpanExporter (dev mode)")
     else:

@@ -63,7 +63,7 @@ def _make_gateway(
     # Configure the resolver mock
     mock_resolver = MagicMock()
     mock_resolver.resolve.return_value = resolver_defn
-    broker.instrument_resolver = mock_resolver
+    broker.instruments = mock_resolver
 
     gateway = UpstoxBrokerGateway(broker)
     return gateway, ws, broker

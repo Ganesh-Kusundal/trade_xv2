@@ -25,7 +25,7 @@ def test_place_order_payload(fake_client, resolver):
     payloads = fake_client.calls_for("POST", "/orders")
     assert len(payloads) == 1
     payload = payloads[0]
-    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["dhanClientId"] == "test"
     assert payload["securityId"] == "2885"
     assert payload["exchangeSegment"] == "NSE_EQ"
     assert payload["transactionType"] == "BUY"
@@ -340,7 +340,7 @@ def test_place_slice_order_payload(fake_client, resolver):
     payloads = fake_client.calls_for("POST", "/orders/slicing")
     assert len(payloads) == 1
     payload = payloads[0]
-    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["dhanClientId"] == "test"
     assert payload["securityId"] == "2885"
     assert payload["exchangeSegment"] == "NSE_EQ"
     assert payload["quantity"] == 1000

@@ -193,7 +193,19 @@ class DhanWireAdapter:
 
 
     def cancel_order(self, order_id: str) -> OrderResponse:
-        return self._conn.orders.cancel_order(order_id)
+        result = self._conn.orders.cancel_order(order_id)
+        if result.success:
+            order = self.get_order(order_id)
+            if order and order.status.name == "FILLED":
+                from domain import OrderResponse as DomainOrderResponse, OrderStatus
+                return DomainOrderResponse(
+                    success=False,
+                    order_id=order_id,
+                    message="Cancel failed: order already filled",
+                    error_code="ALREADY_EXECUTED",
+                    status=OrderStatus.REJECTED,
+                )
+        return result
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing order, delegating to the orders adapter."""
@@ -203,9 +215,13 @@ class DhanWireAdapter:
         """Cancel all open orders, delegating to the orders adapter."""
         return self._conn.orders.cancel_all_orders()
 
-    def get_order(self, order_id: str) -> Order:
+    def get_order(self, order_id: str) -> Order | None:
         """Fetch a single order by id (parity with Upstox/Paper gateways)."""
-        return self._conn.orders.get_order(order_id)
+        try:
+            return self._conn.orders.get_order(order_id)
+        except Exception as e:
+            logger.warning("get_order_failed", extra={"order_id": order_id, "error": str(e)})
+            return None
 
     def get_orderbook(self) -> list[Order]:
         return self._conn.orders.get_orderbook()
@@ -517,5 +533,11 @@ def create_wire_adapter(connection: DhanConnection | DhanWireAdapter) -> DhanWir
         return connection
     return DhanWireAdapter(connection)
 
+__all__ = [
+    "DhanWireAdapter",
+    "DhanBrokerGateway",
+    "create_wire_adapter",
+]
 
-
+# Backward compatibility for old tests
+DhanBrokerGateway = DhanWireAdapter

@@ -203,10 +203,10 @@ def test_to_position():
     p = UpstoxDomainMapper.to_position(payload)
     assert isinstance(p, Position)
     assert p.symbol == "RELIANCE"
-    assert p.quantity == 10
-    assert p.avg_price == Decimal("2500")
-    assert p.unrealized_pnl == Decimal("100")
-    assert p.ltp == Decimal("2510")
+    assert int(p.quantity) == 10
+    assert p.avg_price.to_decimal() == Decimal("2500")
+    assert p.unrealized_pnl.to_decimal() == Decimal("100")
+    assert p.ltp.to_decimal() == Decimal("2510")
 
 
 def test_to_holding():
@@ -220,9 +220,9 @@ def test_to_holding():
     }
     h = UpstoxDomainMapper.to_holding(payload)
     assert isinstance(h, Holding)
-    assert h.quantity == 100
-    assert h.avg_price == Decimal("2400")
-    assert h.pnl == Decimal("10000")
+    assert int(h.quantity) == 100
+    assert h.avg_price.to_decimal() == Decimal("2400")
+    assert h.pnl.to_decimal() == Decimal("10000")
 
 
 def test_to_trade():
@@ -239,8 +239,8 @@ def test_to_trade():
     t = UpstoxDomainMapper.to_trade(payload)
     assert isinstance(t, Trade)
     assert t.trade_id == "TRD1"
-    assert t.quantity == 5
-    assert t.price == Decimal("2500")
+    assert int(t.quantity) == 5
+    assert t.price.to_decimal() == Decimal("2500")
     assert t.side is Side.BUY
 
 

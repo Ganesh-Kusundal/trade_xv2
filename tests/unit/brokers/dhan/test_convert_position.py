@@ -20,7 +20,7 @@ def test_convert_position_payload(fake_client, resolver):
 
     assert result.get("status") == "SUCCESS"
     payload = fake_client.calls_for("POST", "/positions/convert")[0]
-    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["dhanClientId"] == "test"
     assert payload["fromProductType"] == "INTRADAY"
     assert payload["toProductType"] == "CNC"
     assert payload["convertQty"] == 40

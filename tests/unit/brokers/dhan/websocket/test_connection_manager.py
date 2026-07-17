@@ -2,7 +2,7 @@
 
 import pytest
 import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from brokers.dhan.websocket.connection_manager import WebSocketConnectionManager
 
@@ -176,8 +176,8 @@ class TestWebSocketConnectionManager:
         # Mock the start method and is_connected property to track calls
         with patch.object(feed, 'start') as mock_feed_start, \
              patch.object(stream, 'start') as mock_stream_start, \
-             patch.object(feed, '_is_connected', False), \
-             patch.object(stream, '_is_connected', False):
+             patch.object(type(feed), 'is_connected', new_callable=PropertyMock, return_value=False), \
+             patch.object(type(stream), 'is_connected', new_callable=PropertyMock, return_value=False):
             
             manager.start_all()
             

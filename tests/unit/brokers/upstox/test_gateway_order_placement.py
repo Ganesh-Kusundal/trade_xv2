@@ -78,7 +78,7 @@ class TestGatewayOrderPlacement:
 
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with patch("brokers.upstox.wire.logger") as mock_logger:
+        with patch("brokers.upstox.adapters.order_gateway.logger") as mock_logger:
             response = gateway.place_order(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -139,7 +139,7 @@ class TestGatewayOrderPlacement:
 
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with patch("brokers.upstox.wire.logger") as mock_logger:
+        with patch("brokers.upstox.adapters.order_gateway.logger") as mock_logger:
             response = gateway.place_order(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -173,7 +173,7 @@ class TestGatewayOrderPlacement:
 
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with patch("brokers.upstox.wire.logger") as mock_logger:
+        with patch("brokers.upstox.adapters.order_gateway.logger") as mock_logger:
             response = gateway.place_order(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -207,7 +207,7 @@ class TestResolveInstrumentKey:
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False
-        mock_broker.instrument_resolver = UpstoxInstrumentResolver()
+        mock_broker.instruments = UpstoxInstrumentResolver()
 
         # Load index instrument
         index_def = UpstoxInstrumentDefinition(
@@ -219,7 +219,7 @@ class TestResolveInstrumentKey:
             tick_size=0.05,
             lot_size=1,
         )
-        mock_broker.instrument_resolver.register(index_def)
+        mock_broker.instruments.register(index_def)
 
         gateway = UpstoxBrokerGateway(mock_broker)
         key = gateway._resolve_instrument_key("NIFTY", "NSE")
@@ -237,7 +237,7 @@ class TestResolveInstrumentKey:
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False
-        mock_broker.instrument_resolver = UpstoxInstrumentResolver()
+        mock_broker.instruments = UpstoxInstrumentResolver()
 
         # Load equity instrument
         equity_def = UpstoxInstrumentDefinition(
@@ -249,7 +249,7 @@ class TestResolveInstrumentKey:
             tick_size=0.05,
             lot_size=1,
         )
-        mock_broker.instrument_resolver.register(equity_def)
+        mock_broker.instruments.register(equity_def)
 
         gateway = UpstoxBrokerGateway(mock_broker)
         key = gateway._resolve_instrument_key("RELIANCE", "NSE")
@@ -263,8 +263,8 @@ class TestResolveInstrumentKey:
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False
-        mock_broker.instrument_resolver = MagicMock()
-        mock_broker.instrument_resolver.resolve.return_value = None
+        mock_broker.instruments = MagicMock()
+        mock_broker.instruments.resolve.return_value = None
 
         gateway = UpstoxBrokerGateway(mock_broker)
         key = gateway._resolve_instrument_key("UNKNOWN", "NSE")

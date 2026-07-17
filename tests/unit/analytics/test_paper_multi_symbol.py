@@ -13,12 +13,18 @@ from analytics.paper.models import PaperConfig, PaperPosition, PositionSide
 from analytics.pipeline.pipeline import FeaturePipeline
 
 
-@pytest.fixture
-def mock_oms_adapter():
+def make_mock_oms_adapter():
+    """Factory for mock OmsBacktestAdapterPort."""
     adapter = MagicMock()
     adapter.open_long.return_value = "mock-order-001"
     adapter.close_long.return_value = "mock-order-002"
     return adapter
+
+
+@pytest.fixture
+def mock_oms_adapter():
+    """Mock OmsBacktestAdapterPort that returns fake order IDs."""
+    return make_mock_oms_adapter()
 
 
 def _pipeline():
@@ -54,18 +60,19 @@ class TestPaperMultiSymbolChronological:
     def test_processes_bars_in_timestamp_order(self, mock_oms_adapter):
         df = _interleaved_multi_df()
         processed_order: list[tuple[str, datetime]] = []
-        original_check_exits = PaperTradingEngine._check_exits
-
-        def tracking_check_exits(self, bar, session):
-            processed_order.append((bar.symbol, bar.timestamp))
-            return original_check_exits(self, bar, session)
-
         engine = PaperTradingEngine(
             _pipeline(),
             config=PaperConfig(warmup_bars=0),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         )
-        engine._check_exits = tracking_check_exits.__get__(engine, PaperTradingEngine)
+
+        original_check_exits = engine._closer.check_exits
+
+        def tracking_check_exits(session, bar):
+            processed_order.append((bar.symbol, bar.timestamp))
+            return original_check_exits(session, bar)
+
+        engine._closer.check_exits = tracking_check_exits
         engine.run(df)
 
         expected = list(zip(df["symbol"], df["timestamp"]))
@@ -98,7 +105,7 @@ class TestPaperMultiSymbolChronological:
                 commission_pct=0.0,
                 commission_flat=0.0,
             ),
-            oms_adapter=mock_oms_adapter,
+            oms_adapter=make_mock_oms_adapter(),
         )
 
         def seed_positions(self, bars, session):
