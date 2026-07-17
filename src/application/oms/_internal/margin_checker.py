@@ -90,6 +90,25 @@ class MarginChecker:
         self._pending_meta.pop(correlation_id, None)
         self._pending_at.pop(correlation_id, None)
 
+    def reduce_pending(self, correlation_id: str, filled_quantity: int, price: Decimal) -> None:
+        """Reduce pending exposure by filled amount (called on every fill).
+
+        R3: partial fills must shrink the pending reservation so the filled
+        portion stops inflating gross exposure. Without this, both pending
+        AND filled amounts are counted, causing spurious risk rejections.
+        """
+        if not correlation_id:
+            return
+        current = self._pending_by_correlation.get(correlation_id, Decimal("0"))
+        fill_notional = Decimal(str(filled_quantity)) * price
+        new_pending = max(Decimal("0"), current - fill_notional)
+        if new_pending <= 0:
+            self._pending_by_correlation.pop(correlation_id, None)
+            self._pending_meta.pop(correlation_id, None)
+            self._pending_at.pop(correlation_id, None)
+        else:
+            self._pending_by_correlation[correlation_id] = new_pending
+
     def reserve_pending(self, order: Order, notional: Decimal) -> None:
         """Record a pending exposure reservation for ``order``."""
         self._sweep_expired()

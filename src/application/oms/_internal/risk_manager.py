@@ -203,6 +203,10 @@ class RiskManager:
         """Release a pending exposure reservation (idempotent)."""
         self._margin_checker.release_pending(correlation_id)
 
+    def reduce_pending(self, correlation_id: str, filled_quantity: int, price: Decimal) -> None:
+        """Reduce pending exposure by filled amount (R3)."""
+        self._margin_checker.reduce_pending(correlation_id, filled_quantity, price)
+
     # -- Public API --
 
     def check_order(self, order: Order) -> RiskResult:

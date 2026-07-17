@@ -379,6 +379,13 @@ class OrderManager:
             order = self.get_order(trade.order_id)
             if order is not None:
                 self._persist_order(order)
+                # R3: reduce pending on every fill to prevent double-count
+                if self._risk_manager is not None and order.correlation_id:
+                    self._risk_manager.reduce_pending(
+                        order.correlation_id,
+                        filled_quantity=int(trade.quantity),
+                        price=trade.price.to_decimal() if hasattr(trade.price, "to_decimal") else Decimal(str(trade.price)),
+                    )
                 # R2: release risk-pending on fill path when order is terminal.
                 if (
                     self._risk_manager is not None
