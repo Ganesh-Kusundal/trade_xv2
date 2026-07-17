@@ -80,3 +80,9 @@ repos:
         files: \.py$
         pass_filenames: false
         description: Detect hardcoded exchange/segment constants outside constants module
+
+      - id: check-file-loc
+        name: Check file LOC limit (ADR-011)
+        entry: python scripts/check_file_loc.py
+        language: system
+        types: [python]
