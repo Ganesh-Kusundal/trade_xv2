@@ -489,10 +489,14 @@ day, earlier — now marked superseded) and today's own
 **Regression tests:**
 - `tests/integration/api/test_contract.py` — 10 tests, real parquet + `create_app`
 - `web/src/test/contract.test.tsx` — CALL/PUT→CE/PE, missing bid/ask, cancel whitelist
+  (NOTE: the Web SPA is **not implemented** — `web/` holds only `.env.example`;
+  these `web/*` references are aspirational and do not exist in the repo.)
 - Regenerated `web/openapi.json` + `web/src/api/generated.ts`; README gaps updated
+  (see note above — these generated web artifacts are not present.)
 
 **Charts (TradingView Lightweight Charts):**
 - `web/src/components/charts/TradingCharts.tsx` — candle + CE/PE volume profile
+  (aspirational — SPA not implemented; see note above.)
 - `Candles.tsx` / `Options.tsx` wired; Vitest skips canvas init in `MODE=test`
 
 ### Phase A: E2E Spec Gap Closure — Clock Injection + Paper Bypass Retirement (2026-07-13)
@@ -613,7 +617,7 @@ day, earlier — now marked superseded) and today's own
 - `context/architecture.md` — layering contract, invariants, known violations G1–G8.
 - `context/code-standards.md` — Python/TS conventions, quality gates, test rules.
 - `context/ai-workflow-rules.md` — agent discipline, scoping, real-money safety.
-- `web/DESIGN.md` — web visual language tokens.
+- `web/DESIGN.md` — web visual language tokens (planned; SPA not implemented — see note above).
 - `CLAUDE.md` — entry point pointing agents at the six files.
 - `.cursor/rules/six-file-context.mdc` — enforcement rule (must read context first).
 
@@ -743,7 +747,9 @@ day, earlier — now marked superseded) and today's own
 - Deliverables: CURRENT-STATE.md, PRIORITIZED-AUDIT.md, TARGET-STATE.md
 - Headline: domain + broker import direction clean; zero-parity broken (paper≠replay); parity gate
   skipped by CLI default; recon detect-only; daily-loss = absolute MTM; order idempotency in-memory;
-  application→infrastructure false-green; API→UI inversion; normalize_symbol split-brain
+  application→infrastructure false-green; API→UI inversion (RESOLVED — interface
+  layers already use `runtime.broker_accessors`; import-linter confirms
+  API/UI↛broker-impl isolation, 16/0 contracts); normalize_symbol split-brain
 - Next implementation gate: Phase 0 in TARGET-STATE.md (no code in this session)
 
 ### Session: Dhan broker connectivity verification + fixes
@@ -808,7 +814,8 @@ day, earlier — now marked superseded) and today's own
 ## Open Questions
 
 - Is `web/styles.css` the intended single source of truth for theme, or will a design
-  system be adopted? (tokens in `web/DESIGN.md` are placeholders until confirmed.)
+  system be adopted? (NOTE: the Web SPA is not implemented; `web/styles.css` and
+  `web/DESIGN.md` do not exist yet — these are aspirational.)
 
 ## Architecture Decisions
 

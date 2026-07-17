@@ -7,8 +7,9 @@
 ## 1. Context First (mandatory gate)
 
 - Before ANY implementation or architectural decision, read the six context files in
-  order: `project-overview.md` → `architecture.md` → `web/DESIGN.md` (if UI) →
-  `code-standards.md` → this file → `progress-tracker.md`.
+  order: `project-overview.md` → `architecture.md` → `code-standards.md` → this file
+  → `progress-tracker.md`. (When the Web SPA is implemented, add `web/DESIGN.md`
+  after `architecture.md` — it does not exist yet.)
 - Before exploring code, run **graphify** (`graphify query/explain/path`) per
   `.cursor/rules/graphify.mdc`. Do not grep/Read blindly.
 - If a requirement is ambiguous, resolve against `project-overview.md` and
@@ -48,7 +49,8 @@
 - `src/domain/` entities/ports — stable core; change only via ADR.
 - `docs/architecture/adr/*` — decision records.
 - `pyproject.toml` import-linter contracts — adding `ignore_imports` must be justified.
-- Generated files: `web/src/api/generated.ts` (regenerate, don't hand-edit).
+- Generated files: `web/src/api/generated.ts` (planned, not yet generated — the
+  Web SPA under `web/` is not implemented; `web/` holds only `.env.example`).
 - `graphify-out/` — generated artifact.
 
 ## 7. Documentation & Graph Sync

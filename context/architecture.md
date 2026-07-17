@@ -25,7 +25,7 @@
 | Runtime | Python | Composition root — the ONLY layer touching concrete brokers/plugins. |
 | Brokers | Python (plugins) | Dhan / Upstox / Paper adapters satisfying `BrokerAdapter`. |
 | Datalake | Python + DuckDB | Ingestion, quality, storage, analytics, research. |
-| Interface | Python (FastAPI/Textual/Click) + React/TS | Web SPA, API, TUI, CLI, two MCP servers. |
+| Interface | Python (FastAPI/Textual/Click) | API, TUI, CLI, two MCP servers. (A React/TS Web SPA under `web/` is planned but not yet implemented — `web/` holds only `.env.example`.) |
 | Config | Pydantic `AppConfig` | Single config schema (`src/config/schema.py`). |
 
 ## 2. System Boundaries (folder → responsibility)
@@ -40,7 +40,7 @@
 | `src/datalake/` | Data ingestion/quality/storage/analytics. |
 | `src/interface/` | Presentation layers over the `tradex` SDK. |
 | `src/config/` | Single `AppConfig` schema. |
-| `web/` | React/TS SPA (Tier 3-I Web Trading UI). |
+| `web/` | Placeholder for a planned React/TS SPA — currently only `.env.example` exists. |
 | `tradex/` | Public package + CLI + session wiring. |
 
 ## 3. Dependency Rule (enforced by import-linter — CI-blocking for rules 1–4)
@@ -110,7 +110,7 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 | G5 | Duplicated infra (dual event bus, triple idempotency, two MCP) | ⚠️ | ✅ DONE — event bus unified to `EventBusPort` Protocol (3→1); dead idempotency backends deleted (~1095 lines); Upstox alias removed |
 | G6 | Reconciliation off hot path | ⚠️ | ✅ DONE — `request_reconciliation()` wakes loop on TRADE_APPLIED/ORDER_UPDATED events; periodic timer retained as safety net |
 | G7 | Reflection `getattr` kill-switch | ⚠️ | ✅ DONE — uses `RiskManagerPort` injection |
-| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; doc refs updated in `web/README.md`, `src/config/README.md`, `src/interface/api/bootstrap.py` |
+| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; doc refs updated in `src/config/README.md`, `src/interface/api/bootstrap.py` (the `web/README.md` reference is historical — the Web SPA is not implemented; `web/` holds only `.env.example`) |
 
 ## Architectural Migration Progress
 

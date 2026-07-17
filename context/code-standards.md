@@ -7,7 +7,10 @@
 ## 1. Language & Tooling
 
 - **Python** backend (target: 3.11+). Strict typing — mypy in CI (strict-ish).
-- **TypeScript/React** frontend in `web/` (Vite + React 18 + react-router 6 + Vitest).
+- **TypeScript/React** frontend in `web/` is **planned but not yet implemented**
+  (`web/` currently holds only `.env.example`). The conventions below apply
+  once the SPA is scaffolded; do not reference `web/` source files as if they
+  exist today.
 - Format/lint: **ruff** (Python), **Prettier/ESLint-equivalent via Vite** (TS). Run the
   project's pre-commit (`ruff`, `mypy`, `gitleaks`, arch tests) before committing.
 - Quality gates (from `pyproject.toml`): ruff, mypy, bandit, safety, coverage
@@ -43,6 +46,10 @@
 - Keep the repo root clean — no ad-hoc `run_*.sh` / `pytest_runner*.py` (G8).
 
 ## 5. TypeScript / Web Conventions (`web/`)
+
+> **Status:** The Web SPA is not yet implemented. `web/` contains only
+> `.env.example`. The conventions below are the target for when the SPA is
+> scaffolded; they describe a planned interface, not existing source.
 
 - React 18 function components + hooks. State via hooks; data via `src/api` + generated
   client (`scripts/gen_openapi.py` → `src/api/generated.ts`). Do not hand-edit generated

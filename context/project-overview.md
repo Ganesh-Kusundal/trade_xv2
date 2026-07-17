@@ -8,7 +8,7 @@
 ## 1. What This Is (one paragraph)
 
 TradeXV2 is a deployable, **multi-broker market analytics and research console** —
-a `git`/`kubectl`/`dbt`-style CLI (plus React Web SPA, FastAPI, Textual TUI, and two
+a `git`/`kubectl`/`dbt`-style CLI (plus FastAPI, Textual TUI, and two
 MCP servers) for scanning, analyzing, and backtesting strategies against Dhan / Upstox
 market data. The broker layer's job is market-data acquisition and lifecycle
 (quotes, depth, history, instruments, subscriptions), not order placement — there is
@@ -69,7 +69,10 @@ rule), even though none of them are reachable from a live broker order-placement
   scoped to authenticating market-data access.
 - **Platform / Infra**: resilience (circuit breaker, rate limiter, retry), persistence,
   config, lifecycle, metrics, observability.
-- **Interfaces**: Web (React/TS SPA), FastAPI, Textual TUI, Click CLI, two MCP servers.
+- **Interfaces**: FastAPI, Textual TUI, Click CLI, two MCP servers.
+  (A React/TS Web SPA under `web/` is planned but **not yet implemented** —
+  `web/` currently holds only `.env.example`. Do not reference `web/` source
+  files as if they exist.)
 - **Datalake**: ingestion, quality monitoring, storage, analytics, research.
 
 ## 5. In Scope (what we are building / maintaining)
