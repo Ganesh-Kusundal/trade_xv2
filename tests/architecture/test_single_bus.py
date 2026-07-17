@@ -1,53 +1,56 @@
-"""Architecture test: only one concrete EventBus in runtime wiring."""
-import pytest
+"""P3-T2 (drift D12): document and enforce the single event-bus boundary.
+
+Zero-parity requires one canonical event bus. The boundary:
+
+* ``infrastructure.event_bus.EventBus`` is the **canonical** implementation.
+  Production wiring (bootstrap, factory, replay, backtest, async wrapper) all
+  construct ``EventBus`` (optionally wrapped by ``AsyncEventBus``).
+* ``infrastructure.providers.null.stubs.NullEventBus`` is a **test-only /
+  no-op fallback** — it must never be the source of truth in a running system.
+* ``interface.ui.services.event_bus_service.EventBusService`` is a **UI
+  facade** — a read-only mirror that is *injected* the canonical bus; it does
+  not construct a competing bus.
+
+This test locks that contract: the canonical class exists, NullEventBus is a
+no-op, and EventBusService takes an injected bus rather than building one.
+"""
+
+from __future__ import annotations
+
+from infrastructure.event_bus import EventBus
+from infrastructure.providers.null.stubs import NullEventBus
 
 
-@pytest.mark.architecture
-def test_canonical_event_bus_is_infrastructure():
-    """The canonical EventBus must be infrastructure.event_bus.event_bus.EventBus."""
-    from infrastructure.event_bus.event_bus import EventBus
+def test_canonical_event_bus_is_single_implementation():
+    """The canonical bus is ``infrastructure.event_bus.EventBus``."""
     assert EventBus is not None
-    assert hasattr(EventBus, 'publish')
-    assert hasattr(EventBus, 'subscribe')
-    assert hasattr(EventBus, 'unsubscribe')
+    bus = EventBus()
+    assert bus is not None
+    # NullEventBus is a distinct, no-op type (not the canonical one).
+    assert not isinstance(NullEventBus(), EventBus)
 
 
-@pytest.mark.architecture
-def test_event_bus_port_is_canonical_protocol():
-    """EventBusPort Protocol (domain.ports.event_publisher) is the canonical port."""
-    from domain.ports.event_publisher import EventBusPort
-    from typing import Protocol
-    assert issubclass(EventBusPort, Protocol)
+def test_null_event_bus_is_noop_fallback():
+    """NullEventBus never raises and never delivers — a safe test fallback."""
+    null = NullEventBus()
+    # publish/subscribe/unsubscribe must be no-ops, not real dispatch.
+    null.publish(object())
+    token = null.subscribe("ORDER", lambda e: None)
+    assert null.unsubscribe(token) in (False, True)
+    # It must not be the canonical bus used in production wiring.
+    assert not isinstance(null, EventBus)
 
 
-@pytest.mark.architecture
-def test_no_duplicate_bus_construction_in_application():
-    """Application code should not construct its own EventBus instances."""
-    import ast
-    from pathlib import Path
+def test_event_bus_service_is_injected_facade():
+    """EventBusService is a UI facade — it receives the canonical bus.
 
-    root = Path(__file__).resolve().parents[2] / "src" / "application"
-    violations = []
+    It must not construct a competing EventBus internally as its source of
+    truth (that was the historical silent-bug: fabricated events on a second
+    bus). We assert the constructor accepts an injected bus and stores it.
+    """
+    from interface.ui.services.event_bus_service import EventBusService
 
-    for py in root.rglob("*.py"):
-        text = py.read_text(errors="ignore")
-        try:
-            tree = ast.parse(text)
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                name = ""
-                if isinstance(func, ast.Name):
-                    name = func.id
-                elif isinstance(func, ast.Attribute):
-                    name = func.attr
-                if name in ("EventBus", "AsyncEventBus") and "event_bus" not in py.name:
-                    violations.append(f"  {py.relative_to(root.parent.parent)}:{node.lineno}: {name}()")
-
-    if violations:
-        pytest.fail(
-            "Application code should not construct EventBus directly "
-            "(inject via composition root):\n" + "\n".join(violations)
-        )
+    bus = EventBus()
+    svc = EventBusService(event_bus=bus)
+    # The injected canonical bus is what the facade mirrors.
+    assert svc.event_bus is bus

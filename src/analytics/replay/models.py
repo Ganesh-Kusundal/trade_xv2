@@ -224,10 +224,12 @@ class SimulatedTrade:
         """Convert to canonical ``domain.entities.Trade`` via shared helper.
 
         ponytail: SimulatedTrade stays a thin session record; domain Trade is SSOT.
+        The conversion itself lives in ``analytics.shared.trade_types`` so
+        replay and paper share one mapping.
         """
-        from domain.entities.trade import build_domain_trade
+        from analytics.shared.trade_types import sim_trade_to_domain
 
-        return build_domain_trade(
+        return sim_trade_to_domain(
             trade_id=f"sim:{self.symbol}:{id(self)}",
             symbol=self.symbol,
             side=self.side,
