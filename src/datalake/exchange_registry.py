@@ -18,7 +18,10 @@ from typing import TYPE_CHECKING
 from domain.exceptions import ExchangeNotConfigured
 
 if TYPE_CHECKING:
+    from datetime import time
+
     from domain.ports.exchange_adapter import ExchangeAdapter
+    from domain.ports.exchange_calendar import TradingCalendar
 
 logger = logging.getLogger(__name__)
 

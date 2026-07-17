@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from domain import DepthLevel, MarketDepth, Quote
+from domain.constants import DEFAULT_EXCHANGE
 from domain.ports.time_service import get_current_clock
 
 
@@ -21,7 +22,7 @@ class PaperMarketData:
             self._base_prices[symbol] = 500.0 + random.uniform(0, 4500)
         return self._base_prices[symbol]
 
-    def get_quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def get_quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         base = self._base(symbol)
         change_pct = random.uniform(-0.02, 0.02)
         ltp_f = base * (1 + change_pct)
@@ -52,10 +53,10 @@ class PaperMarketData:
             timestamp=get_current_clock().now(),
         )
 
-    def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def get_ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         return self.get_quote(symbol, exchange).ltp
 
-    def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def get_depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         base = self._base(symbol)
         ltp = base * (1 + random.uniform(-0.01, 0.01))
         bids = [

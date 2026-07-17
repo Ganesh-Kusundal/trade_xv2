@@ -13,6 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from domain import Balance, Position, Trade
+from domain.primitives.value_objects import Money
 from application.portfolio import PortfolioContext, PortfolioService
 
 SRC = Path(__file__).resolve().parents[4] / "src"
@@ -92,9 +93,9 @@ def test_apply_trade_mutates_state_correctly():
     pos = ctx.apply_trade(buy)
     assert isinstance(pos, Position)
     assert pos.quantity == 10
-    assert pos.avg_price == Decimal("100")
-    assert pos.unrealized_pnl == Decimal("0")
-    assert pos.realized_pnl == Decimal("0")
+    assert pos.avg_price == Money(100)
+    assert pos.unrealized_pnl == Money(0)
+    assert pos.realized_pnl == Money(0)
 
     sell = Trade(
         trade_id="t2",
@@ -107,17 +108,17 @@ def test_apply_trade_mutates_state_correctly():
     )
     pos = ctx.apply_trade(sell)
     assert pos.quantity == 6
-    assert pos.avg_price == Decimal("100")
+    assert pos.avg_price == Money(100)
     # realized = 4 * (110 - 100) = 40
-    assert pos.realized_pnl == Decimal("40")
+    assert pos.realized_pnl == Money(40)
     # ltp updated to fill price -> unrealized = 6 * (110 - 100) = 60
-    assert pos.unrealized_pnl == Decimal("60")
+    assert pos.unrealized_pnl == Money(60)
 
     # The context is the single typed owner of this state.
     assert ctx.get_position("A", "X") is pos
     assert len(ctx.get_positions()) == 1
-    assert ctx.total_realized_pnl() == Decimal("40")
-    assert ctx.total_unrealized_pnl() == Decimal("60")
+    assert ctx.total_realized_pnl() == Money(40)
+    assert ctx.total_unrealized_pnl() == Money(60)
 
 
 def test_apply_balance_is_typed():

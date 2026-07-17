@@ -344,6 +344,7 @@ class TestMarketDataCheck:
 
     def test_quote_success(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
+        mock_session = MagicMock()
         quote = MagicMock()
         quote.ltp = 2450.50
         quote.open = 2400.00
@@ -351,32 +352,37 @@ class TestMarketDataCheck:
         quote.low = 2390.00
         quote.close = 2440.00
         quote.volume = 1500000
-        mock_broker_service.active_broker.quote.return_value = quote
 
-        strategy = MarketDataCheck()
-        results = strategy.execute(mock_broker_service)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_quote", return_value=quote):
+                strategy = MarketDataCheck(quick_mode=True)
+                results = strategy.execute(mock_broker_service)
 
         assert any(r.name == "Quote" and r.status == "PASS" for r in results)
 
     def test_quote_ltp_zero(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
+        mock_session = MagicMock()
         quote = MagicMock()
         quote.ltp = 0
-        mock_broker_service.active_broker.quote.return_value = quote
 
-        strategy = MarketDataCheck()
-        results = strategy.execute(mock_broker_service)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_quote", return_value=quote):
+                strategy = MarketDataCheck(quick_mode=True)
+                results = strategy.execute(mock_broker_service)
 
         assert any(r.name == "Quote" and r.status == "WARN" for r in results)
 
     def test_quick_mode_skips_depth(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
+        mock_session = MagicMock()
         quote = MagicMock()
         quote.ltp = 2450.50
-        mock_broker_service.active_broker.quote.return_value = quote
 
-        strategy = MarketDataCheck(quick_mode=True)
-        results = strategy.execute(mock_broker_service)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_quote", return_value=quote):
+                strategy = MarketDataCheck(quick_mode=True)
+                results = strategy.execute(mock_broker_service)
 
         assert any(r.name == "Market Depth" and r.status == "INFO" for r in results)
         assert any(r.name == "Historical Data" and r.status == "INFO" for r in results)
@@ -434,15 +440,19 @@ class TestPortfolioCheck:
 
     def test_positions_success(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
-        mock_broker_service.active_broker.positions.return_value = []
-        mock_broker_service.active_broker.holdings.return_value = []
+        mock_session = MagicMock()
+        mock_acct = MagicMock()
+        mock_acct.positions = []
+        mock_acct.holdings = []
         funds = MagicMock()
         funds.available_balance = 100000.0
         funds.sod_limit = 50000.0
-        mock_broker_service.active_broker.funds.return_value = funds
+        mock_acct.funds = funds
 
-        strategy = PortfolioCheck()
-        results = strategy.execute(mock_broker_service)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+                strategy = PortfolioCheck()
+                results = strategy.execute(mock_broker_service)
 
         assert any(r.name == "Positions" and r.status == "PASS" for r in results)
         assert any(r.name == "Holdings" and r.status == "PASS" for r in results)
@@ -450,14 +460,18 @@ class TestPortfolioCheck:
 
     def test_funds_no_available_balance(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
-        mock_broker_service.active_broker.positions.return_value = []
-        mock_broker_service.active_broker.holdings.return_value = []
+        mock_session = MagicMock()
+        mock_acct = MagicMock()
+        mock_acct.positions = []
+        mock_acct.holdings = []
         funds = MagicMock()
         funds.available_balance = None
-        mock_broker_service.active_broker.funds.return_value = funds
+        mock_acct.funds = funds
 
-        strategy = PortfolioCheck()
-        results = strategy.execute(mock_broker_service)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+                strategy = PortfolioCheck()
+                results = strategy.execute(mock_broker_service)
 
         assert any(r.name == "Funds" and r.status == "WARN" for r in results)
 

@@ -16,6 +16,8 @@ from decimal import Decimal
 
 import pytest
 
+from tests.support.wait_utils import wait_until
+
 from application.oms import PositionManager, RiskConfig, RiskManager
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
@@ -494,8 +496,8 @@ class TestConcurrentStrategyExecutionConflicts:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        # Wait for half-open
-        time.sleep(0.25)
+        # Wait for half-open (CB auto-transitions OPEN -> HALF_OPEN after open_duration)
+        wait_until(lambda: cb.state != CircuitState.OPEN, timeout=2)
 
         # Multiple threads trying to use circuit breaker
         results = []

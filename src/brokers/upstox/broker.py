@@ -6,10 +6,9 @@ This is a plain class (no ABC base). The ``UpstoxBrokerGateway`` wrapper
 implements the ``MarketDataGateway`` contract; this class provides the
 adapter wiring.
 
-ponytail: god-facade (~470 LOC). Lifecycle helpers (connect/disconnect) and
-capability registry are the next extract targets when a change forces a touch;
-do not split preemptively — ADR-011 ceiling, upgrade via focused modules like
-dhan's ConnectionLifecycle.
+The construction is organized into three bundles (ClientBundle, AdapterBundle,
+OrderBundle) in ``brokers.upstox.bundles`` for readability while keeping
+the public attribute surface unchanged for backward compatibility.
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ from infrastructure.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.upstox.bundles import AdapterBundle, ClientBundle, OrderBundle
 from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
 from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
 from brokers.upstox.instruments.search import UpstoxInstrumentSearch

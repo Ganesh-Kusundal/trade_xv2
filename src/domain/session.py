@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from domain._session_instruments import SessionInstrumentMixin
@@ -196,7 +198,6 @@ class SessionDx:
     def get_ltp_data(
         self, names: str | list[str] | tuple[str, ...]
     ) -> dict[str, Decimal | None]:
-        from decimal import Decimal
         if isinstance(names, str):
             names = [names]
         return self._session.ltp_many(list(names))
@@ -209,7 +210,6 @@ class SessionDx:
         return self._session.quote_many(list(names))
 
     def atm_strikes(self, underlying: str, expiry: int | date | str = 0):
-        from datetime import date
         chain = self._session.option_chain(underlying, expiry=expiry)
         sel = chain.select_strikes("ATM")
         return sel.ce, sel.pe, sel.strike
@@ -217,7 +217,6 @@ class SessionDx:
     def otm_strikes(
         self, underlying: str, expiry: int | date | str = 0, steps: int = 1
     ):
-        from datetime import date
         chain = self._session.option_chain(underlying, expiry=expiry)
         sel = chain.select_strikes("OTM", steps=steps)
         return sel.ce, sel.pe, sel.ce_strike, sel.pe_strike
@@ -225,7 +224,6 @@ class SessionDx:
     def itm_strikes(
         self, underlying: str, expiry: int | date | str = 0, steps: int = 1
     ):
-        from datetime import date
         chain = self._session.option_chain(underlying, expiry=expiry)
         sel = chain.select_strikes("ITM", steps=steps)
         return sel.ce, sel.pe, sel.ce_strike, sel.pe_strike

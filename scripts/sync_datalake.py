@@ -59,6 +59,20 @@ def _existing_symbols(root: str, asset: str, timeframe: str) -> list[str]:
     )
 
 
+def _load_delisted(root: str) -> set[str]:
+    """Symbols every broker has confirmed can't be fetched -- e.g. GSPL,
+    JBCHEPHARM (both reject on Dhan *and* Upstox as of 2026-07-17). Skips
+    them at the source instead of re-discovering the same broker rejection
+    every run. Edit data/lake/delisted_symbols.csv to add/remove entries."""
+    path = Path(root) / "delisted_symbols.csv"
+    if not path.exists():
+        return set()
+    import csv
+
+    with open(path) as f:
+        return {row["symbol"] for row in csv.DictReader(f)}
+
+
 def _build_federated_fetch_fn():
     """Wire the existing application-layer smart router (BrokerRouter +
     QuotaScheduler + HistoricalDataCoordinator) and adapt it to the
@@ -125,6 +139,12 @@ def main() -> int:
         gateway = bootstrap_or_exit("dhan", load_instruments=True)
 
     equities = _existing_symbols(ROOT, "equities", args.timeframe)
+    delisted = _load_delisted(ROOT)
+    if delisted:
+        skipped = [s for s in equities if s in delisted]
+        if skipped:
+            print(f"Skipping {len(skipped)} delisted symbol(s): {', '.join(skipped)}")
+        equities = [s for s in equities if s not in delisted]
     symbols = [(s, "equities") for s in equities]
     if args.limit:
         symbols = symbols[: args.limit]

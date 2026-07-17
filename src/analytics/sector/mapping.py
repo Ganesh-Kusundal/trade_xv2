@@ -24,6 +24,40 @@ from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
+# Preferred on-disk mapping (NSE NIFTY500 industry → short sector tags).
+_SECTOR_CSV_CANDIDATES = (
+    Path("data/sectors/nifty_sector_mapping.csv"),
+    Path("data/sectors/ind_nifty500list.csv"),
+)
+
+# NSE ind_nifty500list "Industry" → short tags used by DiversifiedTopK / analytics.
+NSE_INDUSTRY_TO_SECTOR: dict[str, str] = {
+    "Automobile and Auto Components": "Auto",
+    "Capital Goods": "CapitalGoods",
+    "Chemicals": "Chemicals",
+    "Construction": "Infrastructure",
+    "Construction Materials": "Cement",
+    "Consumer Durables": "ConsumerDur",
+    "Consumer Services": "ConsumerServices",
+    "Diversified": "Diversified",
+    "Fast Moving Consumer Goods": "FMCG",
+    "Financial Services": "Finance",
+    "Healthcare": "Pharma",
+    "Information Technology": "IT",
+    "Media Entertainment & Publication": "Media",
+    "Metals & Mining": "Metals",
+    "Oil Gas & Consumable Fuels": "OilGas",
+    "Power": "Power",
+    "Realty": "Realty",
+    "Services": "Services",
+    "Telecommunication": "Telecom",
+    "Textiles": "Textiles",
+}
+
+
+def _nse_industry_to_sector(industry: str) -> str:
+    return NSE_INDUSTRY_TO_SECTOR.get(industry, industry)
+
 # Default NIFTY sector mapping (embedded for offline use)
 DEFAULT_SECTOR_MAP: dict[str, str] = {
     # IT
@@ -215,14 +249,33 @@ class SectorMapper:
 
     @classmethod
     def load_csv(cls, path: str | Path) -> SectorMapper:
-        """Load sector mapping from a CSV with 'symbol' and 'sector' columns."""
+        """Load sector mapping from a CSV with symbol/sector columns."""
+        return cls.from_dict(cls._mapping_from_csv(path))
+
+    @staticmethod
+    def _mapping_from_csv(path: str | Path) -> dict[str, str]:
+        """Read ``symbol,sector`` or NSE ``Symbol,Industry`` CSV into a mapping."""
         df = pd.read_csv(path)
-        if "symbol" not in df.columns or "sector" not in df.columns:
+        cols = {c.lower(): c for c in df.columns}
+        if "symbol" in cols and "sector" in cols:
+            sym_col, sec_col = cols["symbol"], cols["sector"]
+        elif "symbol" in cols and "industry" in cols:
+            # NSE ind_nifty500list.csv shape
+            sym_col, ind_col = cols["symbol"], cols["industry"]
+            return {
+                str(s).upper(): _nse_industry_to_sector(str(i))
+                for s, i in zip(df[sym_col], df[ind_col], strict=False)
+                if pd.notna(s) and pd.notna(i)
+            }
+        else:
             raise ValueError(
-                f"CSV must have 'symbol' and 'sector' columns, got: {list(df.columns)}"
+                f"CSV must have symbol+sector or Symbol+Industry columns, got: {list(df.columns)}"
             )
-        mapping = dict(zip(df["symbol"].str.upper(), df["sector"], strict=False))
-        return cls.from_dict(mapping)
+        return {
+            str(s).upper(): str(sec)
+            for s, sec in zip(df[sym_col], df[sec_col], strict=False)
+            if pd.notna(s) and pd.notna(sec)
+        }
 
     @classmethod
     def from_dict(cls, mapping: dict[str, str]) -> SectorMapper:
@@ -235,8 +288,21 @@ class SectorMapper:
 
     @classmethod
     def default(cls) -> SectorMapper:
-        """Return the built-in NIFTY sector mapping."""
-        return cls.from_dict(DEFAULT_SECTOR_MAP)
+        """Load on-disk NIFTY500 sector CSV when present; else embedded defaults.
+
+        CSV fills coverage for the full NIFTY500 universe; embedded
+        ``DEFAULT_SECTOR_MAP`` remains a bootstrap fallback and fills gaps.
+        """
+        mapping = dict(DEFAULT_SECTOR_MAP)
+        for path in _SECTOR_CSV_CANDIDATES:
+            if path.exists():
+                try:
+                    mapping.update(cls._mapping_from_csv(path))
+                    logger.info("SectorMapper loaded %d symbols from %s", len(mapping), path)
+                    break
+                except (OSError, ValueError) as exc:
+                    logger.warning("Failed to load sector CSV %s: %s", path, exc)
+        return cls.from_dict(mapping)
 
     def get_sector(self, symbol: str) -> str | None:
         """Return the sector for a symbol, or None if unmapped."""

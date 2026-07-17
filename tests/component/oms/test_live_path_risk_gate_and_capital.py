@@ -13,6 +13,7 @@ from application.oms import (
     RiskConfig,
     RiskManager,
 )
+from tests.support.assertion_helpers import assert_order_allowed, assert_order_rejected
 
 # ── Helper: enable fail-open for tests that expect the legacy
 # placeholder semantics. Per the M-7 / Phase 1.1 contract, the default is
@@ -90,13 +91,11 @@ def test_oms_risk_manager_kill_switch_blocks_orders() -> None:
     )
 
     # Order is allowed by default
-    assert rm.check_order(order).allowed is True
+    assert_order_allowed(rm, order)
 
     # Kill switch flipped → order blocked
     rm.set_kill_switch(True)
-    result = rm.check_order(order)
-    assert result.allowed is False
-    assert "Kill switch is active" in result.reason
+    assert_order_rejected(rm, order, reason_fragment="Kill switch")
 
 
 # ── BrokerFactory accepts and threads risk_manager to the connection ───
@@ -346,9 +345,7 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
         product_type=ProductType.INTRADAY,
         status=OrderStatus.OPEN,
     )
-    result = rm.check_order(order)
-    assert result.allowed is False
-    assert "Exceeds max position pct" in result.reason
+    assert_order_rejected(rm, order, reason_fragment="Exceeds max position pct")
 
 
 # ── M-7: production readiness gate ───────────────────────────────────────
@@ -372,7 +369,7 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
         event_log=None,
     )
     svc = MagicMock()
-    svc._trading_context = ctx
+    svc.trading_context = ctx
     svc.lifecycle = MagicMock()
     svc.lifecycle.service_names.return_value = []
     report = ProductionReadinessChecker(svc).run()

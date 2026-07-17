@@ -11,6 +11,9 @@ from typing import Any
 import pandas as pd
 
 from domain import Balance, MarketDepth, OrderResponse, Quote
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
+from domain.entities.options import FutureChain
+from brokers.common.streaming import DepthStreamHandle
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import (
     Holding,
@@ -107,7 +110,7 @@ class DhanWireAdapter:
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),
@@ -220,19 +223,19 @@ class DhanWireAdapter:
 
     # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         return self._conn.market_data.get_ltp(symbol, exchange)
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         return self._conn.market_data.get_quote(symbol, exchange)
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         return self._conn.market_data.get_depth(symbol, exchange)
 
     def depth_20(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         on_depth: Any | None = None,
     ) -> MarketDepth:
         """Subscribe to 20-level market depth for *symbol* via WebSocket.
@@ -245,7 +248,7 @@ class DhanWireAdapter:
     def depth_200(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         on_depth: Any | None = None,
     ) -> MarketDepth:
         """Subscribe to 200-level market depth for *symbol* via WebSocket.
@@ -258,7 +261,7 @@ class DhanWireAdapter:
     def stream_depth(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         levels: int = 5,
         on_depth: Any | None = None,
     ) -> "DepthStreamHandle":
@@ -347,7 +350,7 @@ class DhanWireAdapter:
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
@@ -373,7 +376,7 @@ class DhanWireAdapter:
     def option_chain(
         self,
         underlying: str,
-        exchange: str = "NFO",
+        exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
         expiry: str | None = None,
     ) -> dict:
         """Get option chain. Delegates MCX-specific expiry lookup to extended."""
@@ -382,7 +385,7 @@ class DhanWireAdapter:
     def future_chain(
         self,
         underlying: str,
-        exchange: str = "NFO",
+        exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
     ) -> FutureChain:
         from domain.entities.options import FutureChain, FutureContract
 
@@ -452,7 +455,7 @@ class DhanWireAdapter:
     def stream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
@@ -468,7 +471,7 @@ class DhanWireAdapter:
     def unstream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         on_tick: Any | None = None,
     ) -> None:
         """Unsubscribe from a live tick stream for *symbol* on *exchange*."""
@@ -476,18 +479,18 @@ class DhanWireAdapter:
 
     # ── Parallel Data Fetching ──────────────────────────────────────
 
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def ltp_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Decimal]:
         """Fetch LTP for multiple symbols using native batch API (up to 1000)."""
         return self._conn.market_data.get_batch_ltp(symbols, exchange)
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
+    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Quote]:
         """Fetch quotes for multiple symbols using native batch API (up to 1000)."""
         return self._conn.market_data.get_batch_quote(symbols, exchange)
 
     def history_batch(
         self,
         symbols: list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:

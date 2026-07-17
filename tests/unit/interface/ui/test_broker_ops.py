@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,5 +25,9 @@ def test_fetch_quote_delegates_to_get_quote() -> None:
 
 @pytest.mark.unit
 def test_verify_broker_paper_passes() -> None:
-    report = verify_broker(None, default="paper")
+    mock_report = MagicMock()
+    mock_report.passed = True
+    mock_report.to_dict.return_value = {"broker_id": "paper", "passed": True}
+    with patch("interface.ui.services.broker_ops.run_verify", return_value=mock_report):
+        report = verify_broker(None, default="paper")
     assert report.passed, report.to_dict()

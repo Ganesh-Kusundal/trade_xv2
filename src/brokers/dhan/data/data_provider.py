@@ -256,7 +256,10 @@ class DhanDataProvider(DataProvider):
         Gateway signature: ``stream(symbol, exchange, mode=..., on_tick=...)``.
         Instrument layer only applies QuoteSnapshot / MarketDepth to state.
         """
-        mode = "DEPTH" if depth else "QUOTE"
+        # "DEPTH" is not a valid Dhan feed mode (only LTP/QUOTE/FULL) — using
+        # it silently produced plain quotes with bid=None/ask=None. "FULL"
+        # is the mode that actually carries bid/ask.
+        mode = "FULL" if depth else "QUOTE"
 
         def _on_tick(payload: Any) -> None:
             try:
@@ -273,8 +276,10 @@ class DhanDataProvider(DataProvider):
                 pass
 
         try:
+            from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+
             handle = self._gw.stream(
-                instrument_id.underlying,
+                to_dhan_symbol(instrument_id),
                 instrument_id.exchange,
                 mode=mode,
                 on_tick=_on_tick,

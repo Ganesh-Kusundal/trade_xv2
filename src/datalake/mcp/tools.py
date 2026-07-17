@@ -75,6 +75,10 @@ class DatalakeTools:
         # would violate this server's read-only-only scope decision and
         # crash anyway against a read_only=True catalog.
         self._quality = DataQualityEngine(root=root)
+        import importlib
+
+        float_mod = importlib.import_module("analytics.fundamentals.float_data")
+        self._float_data = float_mod.FloatDataProvider.default()
 
     def _candles_glob(self) -> str:
         return _CANDLES_GLOB.format(root=self._root)
@@ -115,6 +119,13 @@ class DatalakeTools:
     def catalog_summary(self) -> dict[str, Any]:
         """Datalake-wide summary: symbol count, total rows, quality records."""
         return self._catalog.summary()
+
+    def float_data(self, symbol: str) -> dict[str, Any] | None:
+        """Float shares, shares outstanding, market cap, and insider/institutional
+        holding percentages for a symbol (sourced from yfinance via
+        scripts/sync_float_data.py). None if not yet synced for this symbol.
+        """
+        return self._float_data.get(symbol)
 
     # -- quality / gaps -------------------------------------------------
 
@@ -162,6 +173,10 @@ class DatalakeTools:
             """,
             "negative_volume": "SELECT symbol, timestamp, volume FROM candles WHERE volume < 0",
             "future_timestamps": "SELECT symbol, timestamp FROM candles WHERE timestamp > now()",
+            "outside_session_hours": """
+                SELECT symbol, timestamp FROM candles
+                WHERE timestamp::TIME < TIME '09:15:00' OR timestamp::TIME > TIME '15:30:00'
+            """,
         }
         results: dict[str, Any] = {}
         # `sql` comes only from the hardcoded `checks` dict above (never

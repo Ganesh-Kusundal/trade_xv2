@@ -183,7 +183,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
     )
     monkeypatch.setattr(
         "interface.ui.services.broker_service.BrokerService._build_oms_risk_manager",
-        lambda self: MagicMock(name="oms_risk"),
+        lambda self: (MagicMock(name="oms_risk"), MagicMock(name="oms_capital")),
     )
     monkeypatch.setattr(
         "interface.ui.services.broker_service.BrokerService._start_websocket_services",

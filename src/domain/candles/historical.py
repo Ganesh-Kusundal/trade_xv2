@@ -68,6 +68,19 @@ class HistoricalBar:
     tick_count: int = 0
     extras: tuple[tuple[str, Any], ...] = ()
 
+    def __post_init__(self) -> None:
+        # A naive event_time is exactly the bug that let Dhan/Upstox
+        # candles land 5.5h off the true IST session for ~11 months
+        # (silently "assumed IST" by ensure_timestamp_dtype() further
+        # downstream instead of being converted). Every construction
+        # path must explicitly tag a timezone -- fail fast here instead
+        # of writing mislabeled candles to the datalake.
+        if self.event_time.tzinfo is None:
+            raise ValueError(
+                f"HistoricalBar.event_time must be timezone-aware, got naive "
+                f"{self.event_time!r} for {self.instrument}"
+            )
+
     @property
     def symbol(self) -> str:
         return self.instrument.symbol
@@ -252,10 +265,23 @@ class HistoricalSeries:
                 "exchange": bar.instrument.exchange,
                 "timeframe": bar.timeframe,
             })
-        return pd.DataFrame(records, columns=[
+        df = pd.DataFrame(records, columns=[
             "timestamp", "open", "high", "low", "close",
             "volume", "oi", "symbol", "exchange", "timeframe",
         ])
+        if not df.empty:
+            # Federated series mix bars from multiple brokers (see
+            # HistoricalDataCoordinator) whose event_time tzinfo objects
+            # aren't guaranteed identical (e.g. datetime.timezone.utc vs a
+            # fixed +05:30 offset). pd.DataFrame() on a list of dicts with
+            # heterogeneous tzinfo silently falls back to `object` dtype
+            # instead of a real tz-aware datetime64 column, which defeats
+            # downstream `.dt.tz` checks (datalake.ingestion.normalize
+            # .ensure_timestamp_dtype) without raising. Forcing utc=True
+            # here guarantees one consistent, genuinely tz-aware column
+            # leaves this boundary.
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        return df
 
     @property
     def df(self):

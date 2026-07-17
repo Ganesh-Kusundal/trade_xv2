@@ -10,9 +10,11 @@ Tests verify:
 import threading
 import time
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+
+from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class
 
 
 class TestDhanMarketFeedMaxReconnectAttempts:
@@ -24,11 +26,9 @@ class TestDhanMarketFeedMaxReconnectAttempts:
         from brokers.dhan.websocket import DhanMarketFeed
 
         # Create feed with mocked SDK
-        with patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as mock_sdk, \
-             patch("brokers.dhan.websocket.connection._sdk_market_feed_class") as mock_sdk_conn:
+        with mock_market_feed_class() as mock_sdk:
             mock_sdk_instance = MagicMock()
             mock_sdk.return_value = mock_sdk_instance
-            mock_sdk_conn.return_value = mock_sdk_instance
 
             mock_admission = MagicMock()
             mock_admission.try_acquire.return_value = True
@@ -223,7 +223,7 @@ class TestDhanMarketFeedChaosScenarios:
         # Use small max for faster test
         monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "3")
 
-        with patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as mock_sdk:
+        with mock_market_feed_class() as mock_sdk:
             mock_sdk_instance = MagicMock()
             mock_sdk_instance.run.side_effect = ConnectionError("Immediate fail")
             mock_sdk.return_value = mock_sdk_instance
@@ -260,7 +260,7 @@ class TestDhanMarketFeedChaosScenarios:
         # Use larger max to allow multiple cycles
         monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "20")
 
-        with patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as mock_sdk:
+        with mock_market_feed_class() as mock_sdk:
             mock_sdk_instance = MagicMock()
 
             call_count = 0

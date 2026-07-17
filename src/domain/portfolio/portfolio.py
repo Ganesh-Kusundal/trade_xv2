@@ -8,8 +8,8 @@ and provides the ``pnl()`` method the refactoring directive demands on
 
     portfolio = Portfolio()
     portfolio.add_position(Position(symbol="RELIANCE", quantity=10, avg_price=Decimal("2500")))
-    portfolio.total_pnl      # Decimal
-    portfolio.gross_exposure  # Decimal
+    portfolio.total_pnl      # Money
+    portfolio.gross_exposure  # Money
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from domain.entities.position import Position
+from domain.primitives import Money
 
 
 @dataclass
@@ -62,25 +63,26 @@ class Portfolio:
         return len(self._positions)
 
     @property
-    def unrealized_pnl(self) -> Decimal:
-        return sum((p.unrealized_pnl for p in self._positions.values()), Decimal("0"))
+    def unrealized_pnl(self) -> Money:
+        return sum((p.unrealized_pnl for p in self._positions.values()), Money(0))
 
     @property
-    def realized_pnl(self) -> Decimal:
-        return sum((p.realized_pnl for p in self._positions.values()), Decimal("0"))
+    def realized_pnl(self) -> Money:
+        return sum((p.realized_pnl for p in self._positions.values()), Money(0))
 
     @property
-    def total_pnl(self) -> Decimal:
+    def total_pnl(self) -> Money:
         return self.unrealized_pnl + self.realized_pnl
 
     @property
-    def gross_exposure(self) -> Decimal:
+    def gross_exposure(self) -> Money:
         """Sum of absolute notional across all positions."""
         return sum(
-            abs(p.avg_price * Decimal(str(p.quantity))) for p in self._positions.values()
+            (abs(p.avg_price * Decimal(str(p.quantity))) for p in self._positions.values()),
+            Money(0),
         )
 
-    def symbol_exposure(self, symbol: str, exchange: str) -> Decimal:
+    def symbol_exposure(self, symbol: str, exchange: str) -> Money:
         """Absolute notional for one symbol."""
         pos = self._positions.get(f"{symbol}:{exchange}")
         if pos is None:
@@ -94,7 +96,7 @@ class Portfolio:
             return Decimal("0")
         return self.symbol_exposure(symbol, exchange) / gross
 
-    def pnl(self) -> Decimal:
+    def pnl(self) -> Money:
         """Total portfolio PnL (unrealized + realized)."""
         return self.total_pnl
 

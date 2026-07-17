@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-# ponytail: lazy import — domain purity forbids top-level pandas
-# import pandas as pd  (imported inside each method)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class MarketStructureAnalyzer:

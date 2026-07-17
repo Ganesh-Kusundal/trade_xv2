@@ -71,6 +71,30 @@ def to_instrument_id(
     )
 
 
+def to_upstox_symbol(iid: InstrumentId) -> str:
+    """Build the exact Upstox trading-symbol string for *iid*.
+
+    Verified live against Upstox's own instrument search — Upstox's
+    contract trading_symbol format is "UNDERLYING FUT DD MON YY" for
+    futures and "UNDERLYING STRIKE CE|PE DD MON YY" for options (strike
+    and right *before* the date). Equity/index/spot instruments have no
+    expiry/right and pass through as their bare underlying.
+
+    Examples::
+
+        to_upstox_symbol(InstrumentId.future("MCX", "CRUDEOIL", date(2026, 7, 20)))
+            -> "CRUDEOIL FUT 20 JUL 26"
+        to_upstox_symbol(InstrumentId.option("MCX", "CRUDEOIL", date(2026, 7, 16), 7800, "PE"))
+            -> "CRUDEOIL 7800 PE 16 JUL 26"
+    """
+    if not iid.expiry or not iid.right:
+        return iid.underlying
+    expiry_str = iid.expiry.strftime("%d %b %y").upper()
+    if iid.right == "FUT":
+        return f"{iid.underlying} FUT {expiry_str}"
+    return f"{iid.underlying} {int(iid.strike)} {iid.right} {expiry_str}"
+
+
 def from_instrument_id(iid: InstrumentId) -> dict:
     """Convert canonical InstrumentId to Upstox API parameters.
 

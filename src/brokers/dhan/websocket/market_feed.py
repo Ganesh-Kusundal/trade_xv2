@@ -555,7 +555,10 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
     def health(self) -> HealthStatus:
         """ManagedService protocol: return a point-in-time health snapshot."""
-        import os
+        from config.ws_settings import (
+            DHAN_MAX_RECONNECT_ATTEMPTS,
+            DHAN_STALENESS_THRESHOLD_SECONDS,
+        )
 
         if getattr(self, "_conn", None) is not None:
             snap = self._conn.health_snapshot()
@@ -571,9 +574,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 "last_message_age": None,
                 "admission_blocked": False,
                 "is_stale": False,
-                "staleness_threshold": float(
-                    os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0")
-                ),
+                "staleness_threshold": DHAN_STALENESS_THRESHOLD_SECONDS,
                 "admission_status": {},
             }
 
@@ -609,7 +610,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 "connected": snap["is_connected"],
                 "thread_alive": snap["thread_alive"],
                 "reconnect_count": snap["reconnect_count"],
-                "max_reconnect_attempts": int(os.getenv("DHAN_MAX_RECONNECT_ATTEMPTS", "50")),
+                "max_reconnect_attempts": DHAN_MAX_RECONNECT_ATTEMPTS,
                 "published_ticks": self._published_ticks,
                 "dropped_ticks": self._dropped_ticks,
                 "published_depths": self._published_depths,

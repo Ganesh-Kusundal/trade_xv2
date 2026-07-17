@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 def _session_bounds():
     """Return (open, close) from the active trading calendar."""
-    from plugins.exchanges.nse import CALENDAR
-    return CALENDAR.session_bounds(None)  # NSE: always (09:15, 15:30)
+    from datalake.exchange_registry import _get_calendar
+    return _get_calendar().session_bounds(None)
 
 
 class WriteResult(NamedTuple):
@@ -69,6 +69,7 @@ class HistoricalDataLoader:
         *,
         gateways: dict[str, Any] | None = None,
         fetch_fn: Callable[[str, str, str, int], pd.DataFrame] | None = None,
+        lookback_days: int | None = None,
     ) -> dict:
         """Download historical data for a single symbol.
 
@@ -103,22 +104,27 @@ class HistoricalDataLoader:
         symbol = normalize_symbol_for_storage(symbol)
         if exchange is None:
             exchange = get_active_exchange_code()
-        try:
-            if fetch_fn is not None:
-                df = fetch_fn(symbol, exchange, timeframe, years * 365)
-            else:
-                df = self._fetch_history_chunked(
-                    gateway, symbol, exchange, timeframe, lookback_days=years * 365
-                )
-        except Exception as exc:
-            logger.error("Failed to download %s: %s", symbol, exc)
-            return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
+        # Let fetch failures (rate limits, network errors, ...) propagate.
+        # Every caller (sync_datalake.py, IncrementalUpdater, download_universe)
+        # already wraps its per-symbol call in batch_execute(), which
+        # isolates the exception per-item and reports it via on_error --
+        # swallowing it here instead made real failures indistinguishable
+        # from "genuinely nothing new" (both returned rows=0), which
+        # silently misreported a batch's rate-limited failures as
+        # "already up to date" in run summaries.
+        lookback_days = lookback_days if lookback_days is not None else years * 365
+        if fetch_fn is not None:
+            df = fetch_fn(symbol, exchange, timeframe, lookback_days)
+        else:
+            df = self._fetch_history_chunked(
+                gateway, symbol, exchange, timeframe, lookback_days=lookback_days
+            )
 
         if df is None or df.empty:
             logger.warning("No data returned for %s", symbol)
             return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
 
-        df = self._normalize(df, symbol, exchange)
+        df = self._normalize(df, symbol, exchange, timeframe)
         if df.empty:
             return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
 
@@ -279,14 +285,22 @@ class HistoricalDataLoader:
 
         ts = pd.to_datetime(existing["timestamp"])
         last_date = ts.max()
-        days_missing = (datetime.now() - last_date).days
+        today = datetime.now().date()
+        # Calendar-date diff, not raw elapsed hours: a plain
+        # `(datetime.now() - last_date).days` floors, so e.g. a 40h gap
+        # (last close Mon 15:30 -> Wed 07:40) reads as "1 day old" and
+        # silently skips a fully-missed trading day in between.
+        days_missing = (today - last_date.date()).days
 
-        # Check for incomplete last day
+        # Check for incomplete last day (also covers "today, market still
+        # open, so far only a partial day is on disk" -- re-syncing here
+        # is what lets a mid-day run catch up to the latest candle).
         incomplete_day = False
         if timeframe in ("1m", "5m", "15m", "30m"):
+            from datalake.core.nse_calendar import expected_candles_per_day
+
             last_day_candles = (ts.dt.date == last_date.date()).sum()
-            candles_per_hour = 60 // int(timeframe.replace("m", "").replace("h", "60"))
-            expected_last_day = int(candles_per_hour * 6.25)
+            expected_last_day = expected_candles_per_day(timeframe)
             if last_day_candles < expected_last_day * 0.90:  # Less than 90%
                 incomplete_day = True
                 logger.warning(
@@ -296,15 +310,28 @@ class HistoricalDataLoader:
                     expected_last_day,
                 )
 
-        if days_missing <= 1 and not incomplete_day:
+        if days_missing <= 0 and not incomplete_day:
             logger.info("%s: no gaps detected", symbol)
             return 0
 
-        logger.info("%s: downloading %d missing days", symbol, days_missing)
-        return self.download_symbol(
-            symbol, gateway, years=1, timeframe=timeframe, exchange=exchange,
-            gateways=gateways, fetch_fn=fetch_fn
+        # +2 days buffer for weekends/holidays sitting inside the gap.
+        lookback_days = max(days_missing, 1) + 2
+        logger.info("%s: downloading %d missing days", symbol, max(days_missing, 1))
+        rows = self.download_symbol(
+            symbol, gateway, timeframe=timeframe, exchange=exchange,
+            gateways=gateways, fetch_fn=fetch_fn, lookback_days=lookback_days,
         )["rows"]
+        if rows == 0:
+            # A gap was detected (we're past the days_missing<=0 check above),
+            # so an empty fetch means every broker failed or rejected this
+            # symbol -- not "nothing new". Raising surfaces it through the
+            # caller's existing batch_execute(on_error=...) channel instead of
+            # silently folding it into "already up to date" (which is how
+            # GSPL/JBCHEPHARM's total fetch failures went unnoticed).
+            raise RuntimeError(
+                f"{symbol}: gap of {max(days_missing, 1)}d detected but no broker returned data"
+            )
+        return rows
 
     def _fetch_history_chunked(
         self,
@@ -365,7 +392,7 @@ class HistoricalDataLoader:
                 return window.max_chunk_days
         return default
 
-    def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
+    def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str, timeframe: str = "1m") -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""
         from datalake.ingestion.normalize import (
             normalize_to_canonical,
@@ -382,7 +409,7 @@ class HistoricalDataLoader:
         df = normalize_to_canonical(df, symbol, exchange)
 
         # Validate (drops invalid rows, logs)
-        df = validate_candles(df, symbol=symbol, drop_invalid=True)
+        df = validate_candles(df, symbol=symbol, drop_invalid=True, timeframe=timeframe)
 
         return df
 
@@ -400,7 +427,7 @@ class HistoricalDataLoader:
 
         invalid_count = 0
         before = len(df)
-        df = validate_candles(df, symbol=symbol, drop_invalid=True)
+        df = validate_candles(df, symbol=symbol, drop_invalid=True, timeframe=timeframe)
         invalid_count = before - len(df)
         fetched_rows = len(df)
 
@@ -447,10 +474,10 @@ class HistoricalDataLoader:
         if df.empty or "timestamp" not in df.columns:
             return 0.0
 
-        # Calculate expected candles per day based on timeframe
-        candles_per_hour = 60 // int(timeframe.replace("m", "").replace("h", "60"))
-        trading_hours = 6.25  # 9:15 to 15:30 = 6.25 hours
-        expected_per_day = int(candles_per_hour * trading_hours)
+        # Expected candles per day — shared calendar formula (single source).
+        from datalake.core.nse_calendar import expected_candles_per_day
+
+        expected_per_day = expected_candles_per_day(timeframe)
 
         # Group by date and count candles
         ts = pd.to_datetime(df["timestamp"])

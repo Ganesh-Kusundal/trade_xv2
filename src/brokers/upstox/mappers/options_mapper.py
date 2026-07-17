@@ -7,9 +7,12 @@ option-chain payload format.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from domain import OptionContract
+
+if TYPE_CHECKING:
+    from domain.options.greeks import Greeks
 
 from ._base import instrument_type_from_wire, to_int
 from .price_parser import UpstoxPriceParser

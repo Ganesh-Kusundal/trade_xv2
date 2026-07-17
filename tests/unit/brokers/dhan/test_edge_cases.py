@@ -8,57 +8,7 @@ from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.wire import DhanBrokerGateway
 from domain import OrderStatus
-
-SAMPLE_ROWS = [
-    {
-        "SEM_TRADING_SYMBOL": "RELIANCE",
-        "SEM_SMST_SECURITY_ID": "2885",
-        "SEM_EXM_EXCH_ID": "NSE_EQ",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-        "SEM_LOT_UNITS": "1",
-        "SEM_TICK_SIZE": "0.05",
-        "SEM_CUSTOM_SYMBOL": "Reliance Industries",
-    },
-    {
-        "SEM_TRADING_SYMBOL": "TCS",
-        "SEM_SMST_SECURITY_ID": "11536",
-        "SEM_EXM_EXCH_ID": "NSE_EQ",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-        "SEM_LOT_UNITS": "1",
-        "SEM_TICK_SIZE": "10",
-        "SEM_CUSTOM_SYMBOL": "Tata Consultancy Services",
-    },
-    {
-        "SEM_TRADING_SYMBOL": "NIFTY 26 JUN FUT",
-        "SEM_SMST_SECURITY_ID": "99999",
-        "SEM_EXM_EXCH_ID": "NSE_FNO",
-        "SEM_INSTRUMENT_NAME": "FUTIDX",
-        "SEM_LOT_UNITS": "75",
-        "SEM_TICK_SIZE": "0.05",
-        "SEM_EXPIRY_DATE": "2026-06-26",
-        "SEM_OPTION_TYPE": "",
-        "SEM_STRIKE_PRICE": None,
-        "SEM_CUSTOM_SYMBOL": "NIFTY 26 JUN FUT",
-    },
-]
-
-
-class FakeHttpClient:
-    def __init__(self):
-        self.client_id = "test"
-        self.access_token = "test"
-
-    def get(self, endpoint, **kw):
-        return {"data": []}
-
-    def post(self, endpoint, json=None):
-        return {"data": []}
-
-    def put(self, endpoint, json=None):
-        return {"data": {}}
-
-    def delete(self, endpoint):
-        return {"data": {}}
+from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
 
 
 @pytest.fixture()

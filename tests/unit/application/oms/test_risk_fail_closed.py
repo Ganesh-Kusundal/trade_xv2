@@ -7,6 +7,7 @@ from domain.enums import OrderStatus
 from domain.types import Side, OrderType, ProductType, Validity
 from application.oms._internal.risk_manager import RiskManager
 from application.oms._internal.risk_types import RiskConfig, RiskResult
+from application.oms.capital_provider import FixedCapitalProvider
 from application.oms.position_manager import PositionManager
 from datetime import datetime, timezone
 
@@ -21,14 +22,14 @@ def _make_order(symbol: str = "RELIANCE") -> Order:
     )
 
 
-def test_instrument_lookup_failure_denies_order():
-    """When instrument provider raises, risk must deny the order (fail-closed)."""
+def test_instrument_lookup_failure_skips_check():
+    """When instrument provider raises, risk must skip the tick check (not
+    deny/crash). A transient lookup error must not reject every order."""
     provider = MagicMock()
     provider.resolve.side_effect = ValueError("Instrument not found")
 
-    position_manager = MagicMock(spec=PositionManager)
-    position_manager.get_position.return_value = None
-    position_manager.get_positions.return_value = []
+    position_manager = PositionManager()
+    capital = FixedCapitalProvider(Decimal("1000000"))
 
     config = RiskConfig(
         max_daily_loss_pct=Decimal("5"),
@@ -40,12 +41,12 @@ def test_instrument_lookup_failure_denies_order():
     risk = RiskManager(
         position_manager=position_manager,
         config=config,
+        capital_provider=capital,
         instrument_provider=provider,
     )
 
     result = risk.check_order(_make_order())
-    assert not result.allowed
-    assert "instrument" in (result.reason or "").lower() or "lookup" in (result.reason or "").lower() or "resolve" in (result.reason or "").lower()
+    assert result.allowed is True
 
 
 def test_instrument_lookup_success_continues_to_tick_check():

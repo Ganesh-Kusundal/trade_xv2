@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "datalake": {
+      "command": "/Users/apple/Downloads/Trade_XV2/.venv/bin/datalake-mcp"
+    }
+  }
+}

@@ -33,8 +33,8 @@ from datalake.core.paths import (
 )
 
 
-def test_default_root_is_market_data():
-    assert DEFAULT_DATA_ROOT == "market_data"
+def test_default_root_is_data_lake():
+    assert DEFAULT_DATA_ROOT == "data/lake"
 
 
 def test_default_timeframe_is_one_minute():
@@ -121,7 +121,7 @@ def test_partition_keys_are_canonical():
 
 
 def test_curated_root_default():
-    assert CURATED_ROOT == "market_data/curated"
+    assert CURATED_ROOT == "data/lake/curated"
 
 
 def test_curated_equity_candles_default():
@@ -129,18 +129,18 @@ def test_curated_equity_candles_default():
 
 
 def test_curated_equity_path_no_args():
-    assert curated_equity_path() == Path("market_data/curated/equities/candles")
+    assert curated_equity_path() == Path("data/lake/curated/equities/candles")
 
 
 def test_curated_equity_path_with_year():
     assert curated_equity_path(year=2024) == Path(
-        "market_data/curated/equities/candles/year=2024"
+        "data/lake/curated/equities/candles/year=2024"
     )
 
 
 def test_curated_equity_path_with_year_month():
     path = curated_equity_path(year=2024, month=6)
-    assert path == Path("market_data/curated/equities/candles/year=2024/month=06")
+    assert path == Path("data/lake/curated/equities/candles/year=2024/month=06")
 
 
 def test_curated_equity_path_custom_root():
@@ -150,13 +150,13 @@ def test_curated_equity_path_custom_root():
 
 def test_curated_equity_glob_default():
     assert curated_equity_glob() == (
-        "market_data/curated/equities/candles/year=*/month=*/data_*.parquet"
+        "data/lake/curated/equities/candles/year=*/month=*/data_*.parquet"
     )
 
 
 def test_curated_equity_glob_same_year():
     assert curated_equity_glob(from_year=2024, to_year=2024) == (
-        "market_data/curated/equities/candles/year=2024/month=*/data_*.parquet"
+        "data/lake/curated/equities/candles/year=2024/month=*/data_*.parquet"
     )
 
 

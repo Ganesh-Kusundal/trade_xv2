@@ -166,10 +166,20 @@ class CommonBrokerGatewayContractSuite:
         gateway.close()
 
 
-class _MockCommonBrokerGateway:
-    """Minimal stand-in for protocol conformance testing."""
+class _MockCommonBrokerGateway(CommonBrokerGateway):
+    """Minimal stand-in for protocol conformance testing.
+
+    Subclasses the runtime-checkable ``CommonBrokerGateway`` (alias of
+    ``BrokerAdapter``) and implements every protocol member so
+    ``isinstance(..., CommonBrokerGateway)`` holds.
+    """
 
     broker_id = "mock"
+    is_connected = True
+    name = "mock"
+
+    def authenticate(self) -> bool:
+        return True
 
     def list_capabilities(self) -> CapabilityDescriptor:
         from brokers.common.broker_capabilities import BrokerCapabilities
@@ -270,6 +280,72 @@ class _MockCommonBrokerGateway:
 
     def health(self) -> BrokerHealthSnapshot:
         return BrokerHealthSnapshot(broker_id="mock", alive=True)
+
+    # ── DataProvider members (BrokerAdapter contract) ────────────────────
+
+    def get_quote(self, instrument_id: Any) -> None:
+        return None
+
+    def get_history(
+        self,
+        instrument_id: Any,
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> list:
+        return []
+
+    def get_history_series(self, instrument_id: Any, **kwargs: Any) -> None:
+        return None
+
+    def get_depth(self, instrument_id: Any) -> None:
+        return None
+
+    def get_option_chain(self, underlying: Any, *, expiry: Any = None) -> None:
+        return None
+
+    def get_future_chain(self, underlying: Any) -> None:
+        return None
+
+    def subscribe(
+        self, instrument_id: Any, callback: Any, *, depth: bool = False
+    ) -> None:
+        return None
+
+    def unsubscribe(self, subscription: Any) -> None:
+        return None
+
+    def history_batch(
+        self, instrument_ids: list, *, timeframe: str = "1D", lookback_days: int = 120
+    ) -> None:
+        return None
+
+    def list_instruments(self, exchange: str | None = None) -> list:
+        return []
+
+    def get_quotes_batch(self, instrument_ids: list) -> list:
+        return []
+
+    # ── ExecutionProvider members (BrokerAdapter contract) ───────────────
+
+    def get_order_book(self) -> list[Order]:
+        return []
+
+    def get_holdings(self) -> list:
+        return []
+
+    def get_funds(self) -> Balance:
+        return Balance(
+            available_balance=0,
+            used_margin=0,
+            total_margin=0,
+            sod_limit=0,
+            collateral_amount=0,
+            utilized_amount=0,
+            withdrawable_balance=0,
+        )
 
     def close(self) -> None:
         pass

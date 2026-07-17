@@ -28,6 +28,7 @@ from domain.candles.historical import (
     HistoricalSeries,
     InstrumentRef,
 )
+from domain.constants import DEFAULT_EXCHANGE
 
 
 def _chunked(items: list[str], size: int) -> list[list[str]]:
@@ -52,13 +53,13 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         self._historical = historical
         self._max_keys = max(1, int(max_keys_per_request))
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         """Fetch full quote with OHLCV (+ depth when API returns it)."""
         instrument_key = _as_instrument_key(symbol, exchange)
         body = self._v2.get_quote([instrument_key])
         return UpstoxDomainMapper.to_quote(body)
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         """Fetch last traded price — prefer V3 LTP, fall back to full quote."""
         instrument_key = _as_instrument_key(symbol, exchange)
         try:
@@ -71,7 +72,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         body = self._v2.get_quote([instrument_key])
         return UpstoxDomainMapper.to_quote(body).ltp
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         """Fetch order book depth (best five via full quote endpoint)."""
         instrument_key = _as_instrument_key(symbol, exchange)
         body = self._v2.get_order_book(instrument_key)
@@ -117,7 +118,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
     def get_history_series(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
@@ -151,7 +152,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,

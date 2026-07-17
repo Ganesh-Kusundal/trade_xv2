@@ -13,6 +13,7 @@ from typing import Any
 import domain.entities.instrument_record
 
 # Canonical types — import from domain, not redefined here
+from domain.enums import OrderStatus  # noqa: F401
 from domain.market_enums import Exchange, InstrumentType, OptionType  # noqa: F401
 
 _CANONICAL = frozenset(

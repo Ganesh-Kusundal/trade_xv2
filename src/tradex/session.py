@@ -313,6 +313,13 @@ def open_session(
                     trace_id=trace_id,
                 ) from exc
 
+            # Wire the OMS order_manager back to the PaperGateway so it can
+            # route orders through the OMS (gateway was created before OMS).
+            if gw is not None and hasattr(gw, "_orders") and oms is not None:
+                om = getattr(oms, "order_manager", None) or getattr(oms, "_oms", None)
+                if om is not None:
+                    gw._orders._order_manager = om
+
     orders_enabled = oms is not None and orders_wanted
     phase = PHASE_READY_TRADE if orders_enabled else PHASE_READY_MARKET
     status = SessionStatus(

@@ -10,6 +10,7 @@ Verifies:
 from __future__ import annotations
 
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 
@@ -33,10 +34,15 @@ def _reset_registry():
     attribute), not a module-level exchange_registry._active_adapter --
     that name doesn't exist on the module, so assigning to it silently
     created an unused attribute and never actually reset anything.
+
+    Also patches entry_points so discover() finds nothing — the NSE
+    plugin is installed and discoverable, which would defeat the
+    "no adapter" tests.
     """
     exchange_registry._ExchangeState._active_adapter = None
     exchange_registry._ExchangeState._discovered = False
-    yield
+    with patch("datalake.exchange_registry.entry_points", return_value=[]):
+        yield
     exchange_registry._ExchangeState._active_adapter = None
     exchange_registry._ExchangeState._discovered = False
 

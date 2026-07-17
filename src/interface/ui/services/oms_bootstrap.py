@@ -161,9 +161,19 @@ class OmsBootstrap:
             return
 
         # B-1 (Phase 1.4): attach broker-specific reconciliation once OMS exists.
+        # A failure to attach on a LIVE broker must NOT be swallowed to a log line
+        # (that was the prior silent-failure: OMS never healed against broker truth).
+        # Only paper/diagnostic brokers may degrade gracefully to a warning.
         try:
             self._attach_broker_reconciliation(svc)
         except Exception as exc:
+            if getattr(svc, "_live_actionable", False):
+                logger.error(
+                    "broker_reconciliation_attach_failed (LIVE): %s — OMS will not heal "
+                    "against broker truth; orders remain gated until recon ready",
+                    exc,
+                )
+                raise
             logger.error("broker_reconciliation_attach_failed: %s", exc)
 
     def _attach_broker_reconciliation(self, svc: "BrokerService") -> None:
@@ -174,7 +184,6 @@ class OmsBootstrap:
         if tc is None:
             return
 
-        tc.order_manager.position_manager = tc.position_manager
         auto_repair = should_auto_repair()
         oms = tc.order_manager
 

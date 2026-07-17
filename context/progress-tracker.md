@@ -7,8 +7,128 @@
 ## Current Phase
 
 - **Phase A + B + D-Phase1 (E2E spec gap closure) complete** — clock injection (I2), PaperOrders legacy bypass retired (I1), ExecutionEngine promoted to production (I1 structural), DataPaths config spine (D-Phase1).
+- **F7 (single composition root) fixed** — `TradingRuntimeFactory` consolidated into `runtime.factory`; deprecated re-export retained.
+- **G3 exchange plugin bypasses closed** — 5 datalake call sites migrated from hardcoded NSE/IST to `exchange_registry`.
+- **Application→runtime violations fixed** — `application.ports` module created; `run_coro_sync` and session opener injected at composition root.
 - Next: **Phase D-Phase2** — physical split (create `data/lake` + `data/state`, move files).
 - Parallel: remaining `ExecutionService`/`SimulatedOMSAdapter` can be deleted once backtest path is migrated to `ExecutionEngine`.
+
+### Analytics Platform Roadmap — Phase 0 (baseline guardrail) — 2026-07-17
+
+Architecture-first foundation for the analytics-platform roadmap. **No behavior
+change** — a source-observing ratchet test only.
+
+- **P0 (DuckDB single-connection-source guardrail)**:
+  `tests/architecture/test_duckdb_single_connection_source.py` encodes Section-4
+  invariant "one data-access boundary" as a ratchet. The only sanctioned owner of
+  raw `duckdb.connect(` is `datalake/core/duckdb_utils.py` (the pools:
+  `get_pool`/`get_read_pool`/`get_memory_pool`/`duckdb_connection`). The 8 current
+  drift sites (`adapters/analytics_provider.py`, `scanner/scanner_queries.py`,
+  `intraday/afternoon_expansion.py`, `mcp/tools.py`, `normalize.py`,
+  `ingestion/sync_options.py`, `quality/health_check.py`, `quality/monitor.py`) are
+  listed in `EXEMPTIONS` (owner=team-analytics, phase=P1). The test **blocks any new
+  `duckdb.connect(` site** (the point) and **fails on stale exemptions** (forcing
+  Phases 1-2 to delete entries as they route sites through the pool). Green; lint-imports
+  still 16/16 kept.
+- **Deferred (require per-phase review, per charter §"review before every phase")**:
+  the import-linter contracts "analytics→datalake only via adapters/ports" and "one
+  scanner path" cannot be turned on yet — they are currently violated
+  (`analytics/views` imports `datalake.core.duckdb_utils` directly; 4 scanner paths
+  exist). They land at the END of Phase 1 / Phase 2 respectively, once the refactor makes
+  them pass. Turning them on now would break the suite without fixing anything.
+- **Phases 1-4 status**: NOT started. Each is a behavioral milestone touching shared,
+  order-state-isolated analytics infra and must begin with its own current-state review +
+  golden-dataset/parity integration tests before code changes (charter + real-money rule).
+  Gated intentionally rather than batched.
+
+### Foundational Vocabulary + Correctness Refactor (REF-4/2/7) — 2026-07-17
+
+Closed the still-open foundational/correctness findings from the architectural audit.
+`REF-1` (`attach_reconciliation_service`) and `REF-3` (`order_mapper` delegation) were
+already landed by a concurrent process; verified, not re-done.
+
+- **REF-4 (wire-price correctness)**: `brokers/dhan/execution/order_placement.py`
+  `_build_order_payload` now emits **numeric float** `price`/`triggerPrice` via
+  `domain.value_objects.price.to_wire_float` instead of `str(request.price)`. This matches
+  Dhan's own super/forever/margin path AND the official dhanhq SDK (`_order.py`:
+  `"price": float(price)`) — the old string form was non-conformant with the broker's own
+  contract. Market orders now send `0.0` (numeric). Optional `conventions.py`/`price_parser.py`
+  delegation deferred (touches shared money-math on other paths; above the "low-risk" bar).
+  Test: `tests/unit/brokers/dhan/test_order_payload_wire_price.py` — drives the REAL
+  `OrdersAdapter.place_order` path end-to-end (identity resolution, enum canonicalisation,
+  tick-size validation, `assert_dhan_payload`, HTTP `POST /orders`) and asserts the payload
+  captured by `FakeHttpClient` (LIMIT/STOP_LOSS/MARKET at tick-aligned fractional prices).
+  Rewritten from an isolated private-builder test after review — the end-to-end version also
+  proves the validator's tick-alignment gate is honoured, which the isolated form silently skipped.
+- **REF-2a (collapse competing canonicals)**:
+  - One IST exchange→TZ map: `domain/ports/time_service_impls.py:EXCHANGE_TZ` is canonical;
+    `infrastructure/time_service.py:EXCHANGE_CALENDARS` now derives from it (`_EXCHANGE_TZ` alias kept).
+  - One market-hours source: `domain/constants/market.py` NSE int hours now DERIVE from the
+    `time` objects in `domain/market/hours.py` (single edit point).
+  - One expected-candles formula: `datalake/core/nse_calendar.py` gained
+    `REGULAR/EARLY_CLOSE_SESSION_MINUTES`, `TIMEFRAME_MINUTES`, and
+    `expected_candles_per_day()`; `quality/monitor.py` + `ingestion/loader.py` (2 sites) now
+    call it instead of the hardcoded `candles_per_hour * 6.25` (behavior-identical for
+    1m/5m/15m/30m; also fixes a latent 1h=0 bug in loader).
+- **REF-2b (literal sweep)**: verified `"NSE"/"NFO"/"NSE_EQ"/"BUY"/"SELL"/"INTRADAY"/"MIS"`
+  are already **0** in `src/` (swept by concurrent agent). Remaining `"Asia/Kolkata"` sites
+  are legitimate canonical declarations (`MARKET_TZ`, the `IST` def, NSE-plugin tz).
+- **REF-2c (guardrail)**: `scripts/check_scattered_constants.py` now actually enforces
+  `SEGMENT_PATTERNS` (was defined but never iterated), plus new `TIMEZONE_PATTERNS`
+  (inline `ZoneInfo("Asia/Kolkata")` → use `IST`) and `MARKET_HOURS_PATTERNS`
+  (`time(9,15)`/`time(15,30)`/`"09:15:00"` → use `domain.market.hours`). Fixed 2 false
+  positives by making docstring detection span-aware (multi-line triple-quote blocks).
+  Already wired in `.pre-commit-config.yaml`. Self-check confirms catch + docstring/comment skip.
+- **REF-7 (timezone pipeline)** — scoped down after analysis: the three cited sites are
+  **distinct concerns, not duplicated logic**. `normalize.py` is the vectorized write-path to
+  naive-IST parquet; `converter.py:_detect_source_timezone` is a *necessary heuristic* for
+  legacy Trade_J data of unknown tz (a scalar domain parser can't replace it without risking a
+  silent 5.5h flip); `historical_data.find_gaps` is IST-date bucketing. The domain read path
+  (`domain/candles/_constructors.py`) already funnels through `_helpers.py` parsers. Only genuine
+  duplication removed: `normalize.py` local `_IST` → canonical `domain.constants.market.IST_OFFSET`.
+  Test: added cross-representation IST-index parity test in `tests/unit/domain/test_parsing.py`
+  (Dhan UTC-epoch vs datalake naive-IST converge to identical UTC `event_time`).
+- **Verification**: `lint-imports` 16/16 kept; affected suites green
+  (order-payload 3, parsing 4, validation, dhan historical — 32 combined); guardrail exit 0;
+  `graphify update .` run.
+- **Deferred/remaining**: `_IST` dupes still in `brokers/certification/market_hours.py` and
+  `infrastructure/logging_config.py` (out of REF-7's cited scope; distinct concerns).
+  10 pre-existing Dhan test failures are unrelated to this work (concurrent process changed
+  `FakeHttpClient` default `client_id` "TEST_CLIENT"→"test", and removed
+  `datalake.gateway.get_last_candle_fast`) — none touch price/candle-formula logic.
+
+### Federated Historical Data — converged onto HistoricalDataCoordinator (2026-07-17)
+
+- **Zero-parity fix**: `BrokerSession.history()` / `history_batch()` now route through the
+  SAME engine as the live API — `HistoricalDataCoordinator.fetch_sync()` — instead of the
+  divergent single-broker `HistoryPipeline`. Both paths now share identical chunk planning,
+  conflict resolution, gap detection and provenance.
+- **Deleted divergent pipeline**: `src/brokers/services/history.py` reduced to a deprecation
+  stub (classes removed); `src/brokers/services/__init__.py` no longer re-exports it.
+- **`fetch_sync` added** to `HistoricalDataCoordinator` (sync wrapper over `asyncio.run`,
+  fails fast if called inside a running loop).
+- **Inline coordinator construction** in `BrokerSession._build_historical_coordinator()`:
+  wraps `provider._gw` in `MarketDataGatewayAdapter`, registers it with a fresh `BrokerRegistry`
+  + `BrokerRouter(auto_dual_broker_policy)` + `QuotaScheduler`. No new module (per review).
+- **Silent-truncation bug (F-1) fixed by convergence**: the old `HistoryAssembler` counted
+  failed chunks but never emitted a `Gap`; `coverage_from_bars` derived coverage from returned
+  bars only. The coordinator's `GapDetector` + `merge_manifest.degraded` now make partial
+  failures explicit.
+- **F-3 (claimed date-window bug) verified NON-EXISTENT**: `DhanWireAdapter.history`
+  (`wire.py:359-362`) already prefers `from_date`/`to_date`; no wire change made. Kept only as
+  a permanent regression guard (see tests).
+- **CompositeDataProvider → FallbackDataProvider**: renamed (alias retained) + docstring
+  clarifies it is a first-wins fallback chain, NOT a merge.
+- **Tests**: deleted obsolete `test_history_pipeline.py`, `test_history_batch.py`,
+  `test_history_chunking.py`, `test_history_assembly.py`, `test_history_chunking_e2e.py`
+  (all tested the removed module). Repurposed `test_pipeline_wiring.py` to assert
+  `BrokerSession.history()` routes through the coordinator and returns correct coverage.
+  Added F-3 regression guard + middle-chunk-gap coverage in coordinator tests.
+- Files: `application/data/historical_coordinator.py`, `brokers/session/broker_session.py`,
+  `brokers/services/history.py`, `brokers/services/__init__.py`,
+  `infrastructure/providers/composite/composite_data_provider.py`,
+  `infrastructure/providers/__init__.py`, `domain/ports/protocols.py`,
+  `tests/unit/brokers/services/test_pipeline_wiring.py`.
 
 ## Current Goal
 
@@ -16,6 +136,195 @@
   the Expected Behavior Contract before large structural refactors.
 
 ## Completed
+
+### F7: Single Composition Root — TradingRuntimeFactory Consolidated (2026-07-16)
+
+- `TradingRuntimeFactory` class absorbed into `runtime.factory` — all wiring logic
+  (orchestrator, broker infrastructure, parity gate, risk fail-open) now lives in
+  `factory.py` as module-level functions
+- `runtime/trading_runtime_factory.py` reduced to deprecated re-export (30 lines)
+- `Runtime` dataclass moved to `runtime.factory` — canonical import path
+- 4 production imports updated (`compose.py`, `bootstrap.py`, `api_compose.py`, `__init__.py`)
+- 3 test files updated to use `BuildOptions` + `build_from_broker_service` instead of
+  direct `TradingRuntimeFactory` instantiation
+- Architecture test updated to verify deprecated re-export pattern
+- Zero production code directly instantiates `TradingRuntimeFactory`
+
+### G3: Exchange Plugin Bypasses Closed (2026-07-16)
+
+- `datalake/quality/validation.py` — replaced hardcoded `"Asia/Kolkata"` and direct
+  `from plugins.exchanges.nse import CALENDAR` with `exchange_registry._get_calendar()`
+  and `get_active_adapter().timezone`
+- `datalake/ingestion/loader.py` — replaced direct NSE CALENDAR import with
+  `exchange_registry._get_calendar()`
+- `datalake/ingestion/converter.py` — same migration
+- `datalake/core/option_format.py` — replaced hardcoded `_IST` timezone and `"NSE"`
+  exchange literal with `_get_exchange_tz()` and `_get_exchange_code()` via adapter
+- `plugins/exchanges/nse/adapter.py` — added `calendar` property (lazy) so
+  `exchange_registry._get_calendar()` works through the adapter
+
+### Application→Runtime Violations Fixed (2026-07-16)
+
+- New `application/ports.py` — defines `set_async_runner()` / `run_coro_sync()` port
+- `application/oms/context.py` and `application/composer/factory.py` — replaced
+  `from runtime.event_loop import run_coro_sync` with `from application.ports import run_coro_sync`
+- `application/portfolio/active_session.py` — replaced direct `runtime.session_opener`
+  import with module-level `_session_opener` callable injected by composition root
+- `runtime/composition.py` — wires `application.ports.set_async_runner` at startup
+- `interface/ui/services/compose.py` — wires `application.portfolio.active_session.set_session_opener`
+
+### Broker History Batch Pipeline — Parallel + Multi-Broker + CLI (2026-07-16)
+
+- **Parallel batch execution**: `HistoryBatchPipeline.execute()` now uses `ThreadPoolExecutor` instead of serial iteration — multiple symbols fetched concurrently
+- **Per-symbol exchange**: `execute()`, `execute_combined()`, and `fetch_history_batch()` accept `per_symbol_exchange` dict so each instrument can target its own exchange (NSE/BSE/NFO etc.)
+- **Multi-broker batch in BrokerSession**: `history_batch()` resolves per-instrument exchange from each instrument's `.exchange` attribute instead of using a shared default
+- **`get_history_batch()` service**: New service function in `services/market_data.py` that creates instruments and delegates to `BrokerSession.history_batch()` — same pattern as `get_history()`
+- **CLI `history-batch` command**: `broker history-batch SYMBOL [SYMBOL ...]` accepts multiple symbols with `--tf`, `--days`, `--exchange` options
+- **Re-exports**: `get_history_batch` added to `services/core.py`, `services/__init__.py`, and `__all__` everywhere
+- **Tests**: 13 new tests (10 batch pipeline + 3 CLI) — all 78 history tests passing
+- **Files modified**:
+  - `src/brokers/services/history.py` — parallel batch + per_symbol_exchange
+  - `src/brokers/services/market_data.py` — `get_history_batch()`
+  - `src/brokers/services/core.py` — re-export
+  - `src/brokers/services/__init__.py` — re-export
+  - `src/brokers/session/broker_session.py` — per-instrument exchange in `history_batch()`
+  - `src/brokers/cli/broker.py` — `history-batch` command
+- **Files created**:
+  - `tests/unit/brokers/services/test_history_batch.py` (10 tests)
+  - `tests/unit/brokers/cli/test_cli_history_batch.py` (3 tests)
+
+### Broker History Chunking Pipeline — Wired into BrokerSession (2026-07-15)
+
+- **Wired** `BrokerSession.history()` through `HistoryPipeline` via `_history_via_pipeline()`
+- **SOLID compliance**: Individual broker wire adapters (DhanWireAdapter, UpstoxWireAdapter) never import or depend on the pipeline. The pipeline is a session-level orchestration concern only.
+- **Lazy initialization**: Pipeline is created on first `history()` call, not in `__init__`
+- **Fallback**: If pipeline fails (missing capabilities, import error), falls back to existing single-request path
+- **DataFrame → HistoricalSeries**: Uses `HistoricalSeries.from_broker_df()` for conversion
+- **Multi-broker ready**: Pipeline already supports multiple gateways; single-broker is the default for now
+- **Rate limiting**: Uses `create_rate_limiter(broker_id, caps)` from existing infrastructure
+- **Tests**: 46 new tests + 55 existing tests all pass (101 total)
+- **Files modified**:
+  - `src/brokers/session/broker_session.py` — `history()` routes through pipeline
+  - `src/brokers/services/__init__.py` — re-exports pipeline classes
+
+### Broker History Chunking Pipeline (2026-07-15)
+
+- **Goal:** Move intelligent historical data chunking from `application/` into `brokers/services/` so `BrokerSession.history()` automatically splits large date ranges into broker-compatible chunks, uses both Dhan and Upstox in parallel, respects rate limits, and returns full requested data.
+- **Created:** `src/brokers/services/history.py` — 3-stage pipeline (Plan → Fetch → Assemble)
+  - `HistoryChunkPlanner` — splits dates into per-broker chunks using `BrokerCapabilities.historical_window_for()`
+  - `HistoryFetcher` — parallel execution via `ThreadPoolExecutor` + `TokenBucketRateLimiter` + exponential backoff retry
+  - `HistoryAssembler` — merge, dedup, sort results
+  - `HistoryPipeline` — orchestrator with single `execute()` method
+  - `fetch_history()` — convenience function for BrokerSession integration
+- **Multi-broker partitioning:** Upstox (max_chunk_days=30 for 1m) takes most recent window; Dhan (max_chunk_days=90) handles remaining older data
+- **Rate limiting:** Uses existing `TokenBucketRateLimiter` from `infrastructure/resilience/rate_limiter.py` — acquires token per chunk before API call
+- **Backward compatible:** Small requests bypass chunking; wire adapters unchanged
+- **Tests:** 46 tests passing (36 unit + 10 E2E integration)
+- **Files created:**
+  - `src/brokers/services/history.py`
+  - `tests/unit/brokers/services/test_history_chunking.py` (16 tests)
+  - `tests/unit/brokers/services/test_history_assembly.py` (9 tests)
+  - `tests/unit/brokers/services/test_history_pipeline.py` (11 tests)
+  - `tests/integration/brokers/test_history_chunking_e2e.py` (10 tests)
+- **Modified:** `src/brokers/services/__init__.py` (re-exports new names)
+- **Key design decisions:**
+  - Pipeline pattern (Plan → Fetch → Assemble) for clean separation
+  - Wire adapters called directly (not DataProviders) — matches actual DhanWireAdapter/UpstoxWireAdapter interface
+  - Partitioning by `max_chunk_days` (not `max_lookback_days`) when both brokers have same lookback
+  - Paper gateway gets no chunking (synthetic data)
+
+### Datalake timezone corruption — root-caused, fully fixed, and repaired (2026-07-15)
+
+**Discovery path**: fixing a floored-elapsed-hours bug in
+`HistoricalDataLoader.repair_missing()` (`(datetime.now() - last_date).days`
+→ now calendar-date based, `<=0` short-circuit) re-enabled real gap-fill
+syncs for the first time in a while, which exposed two independent,
+pre-existing timezone bugs that had been silently corrupting every
+incremental sync since.
+
+**Root causes fixed**:
+- `brokers/dhan/data/historical.py`: `pd.to_datetime(ts, unit="s")` with
+  no `utc=True` — Dhan's epoch field is genuine UTC but this produced a
+  naive column.
+- `domain/candles/historical.py` (`HistoricalSeries.to_dataframe()`) +
+  `domain/parsing.py` (`parse_timestamp()`): federated Dhan+Upstox bars
+  can carry inconsistent/absent `tzinfo`, silently collapsing to
+  `object` dtype instead of raising.
+- Both funnel through `datalake/ingestion/normalize.py`'s
+  `ensure_timestamp_dtype()`, whose "naive → assume already IST"
+  fallback is the actual unsafe assumption; hardened as defense in depth.
+
+**New permanent guards**:
+- `datalake/quality/validation.py::validate_candles(..., timeframe=)` —
+  drops any intraday candle outside the NSE session (09:15–15:30 IST)
+  before it can reach the store. Caught live corruption mid-repair this
+  session (proof it works in production).
+- `domain/candles/historical.py::HistoricalBar.__post_init__` — rejects
+  construction with a naive `event_time`, so this class of bug fails
+  loudly at the source instead of silently writing bad candles.
+- `datalake/ingestion/loader.py::download_symbol()` no longer swallows
+  fetch exceptions into a `{rows:0}` return — failures now propagate to
+  `batch_execute()`'s `on_error`, so sync-run summaries report real
+  failures instead of misreporting them as "already up to date".
+- Regression tests: `tests/unit/brokers/dhan/test_historical.py`,
+  `tests/unit/domain/test_parsing.py`, `tests/unit/datalake
+  /test_validation.py::TestValidateSessionHours`.
+- `scripts/check_datalake_health.py` — CLI wrapper around the working
+  `DatalakeTools.health_check()` MCP tool (now includes an
+  `outside_session_hours` check), for running after any future sync.
+
+**Repair — full datalake, verified clean (0 corrupted rows, 0
+duplicates, 0 OHLC/volume violations across live queries)**:
+- Pilot window (15 Jun–14 Jul 2026): delete + `sync_datalake.py
+  --mode ad-hoc` refetch.
+- Track A (~500 equities/indices, Jul 2025–14 Jun 2026, ~44M rows):
+  new `scripts/correct_tz_window.py` — fetch-then-replace per day
+  (not delete-then-hope-dedupe-fixes-it) via the Dhan gateway directly,
+  pre-emptively rate-limited against Dhan's declared `historical`
+  capability profile (`brokers/dhan/config/capabilities.py`,
+  `infrastructure.resilience.rate_limiter.create_rate_limiter`).
+- Track B (20 index symbols — NIFTY family, SENSEX/BSE family,
+  INDIAVIX — Aug 2021–14 Jul 2026, same bug via the same shared
+  `HistoricalAdapter._parse()` path, just present since inception):
+  same script, `--start 2021-08-04`. Found and cleaned ~1,400
+  additional orphaned rows with irregular sub-minute timestamps from
+  original 2021 data seeding (confirmed correct data already existed
+  alongside them before deleting — a separate, older, now-resolved
+  artifact, not the same bug).
+- Today (15 Jul 2026) synced through to full EOD close (15:29) for
+  500/522 symbols via `sync_datalake.py --mode ad-hoc`.
+- `scripts/repair_tz_window.py` — the delete-only half of the repair,
+  kept as a standalone tool for future scoped cleanups.
+
+**Known residual, not fixed this pass**:
+- `GSPL`: Dhan instrument resolver returns "Instrument not found" —
+  broker-side security-ID mapping issue, unrelated to the tz bug. Last
+  good data 2026-05-11. Needs separate investigation.
+- Pre-existing (not tz-related) data-quality issues on `NIFTY`: 11 OHLC
+  inconsistencies and 114 negative-volume rows, 2022–2024, found via
+  `mcp__datalake__health_check`. Not touched.
+- `sync_datalake.py`'s ad-hoc mode has no pre-emptive rate limiting of
+  its own (`Errors:` count is now truthful thanks to the fail-loud fix,
+  but still hits real 429s under high parallelism — mitigated this
+  session with lower `--workers` on retries, not fixed structurally).
+  The codebase's proper answer for this is `application.scheduling
+  .quota_scheduler.QuotaScheduler` (has a purpose-built
+  `HISTORICAL_BACKFILL` priority class) via `--mode federated` — not
+  used for the repair itself since federated mode was implicated in the
+  original bug, but safe to use now that the underlying tz bugs are fixed.
+
+**Unrelated incident during this session**: another concurrent process
+was editing this same working directory and reverted every one of the
+above source-code changes partway through (git-tracked files only —
+new/untracked files and all Parquet data were unaffected). Also
+independently broke `brokers.dhan` (missing `DhanRateLimiterMetrics`
+re-export in `infrastructure/resilience/rate_limiter.py`, fixed with an
+additive one-line re-export) and reverted an unrelated prior fix —
+sector mapping (`analytics/sector/mapping.py::SectorMapper.default()`
+CSV-loading + `datalake/storage/catalog.py::DataCatalog.register_symbol()`
+sector/isin-preserving upsert + `backfill_sectors()`) — both restored
+verbatim. If work in this repo goes missing again, check `git status`
+for unexpected diffs before assuming a fix didn't land.
 
 ### Analytics-first CLI pivot (2026-07-14)
 
@@ -509,6 +818,24 @@ day, earlier — now marked superseded) and today's own
   so it applies even if `CLAUDE.md` is skipped.
 - M6 deferred: SettingsLoaderBase is a utility mixin for broker config; AppConfig handles
   app config. Removing it would duplicate parsing logic.
+
+### Session: Fixed 15 failing OMS order-state-transition component tests
+- Date: 2026-07-15
+- Root cause: `tests/component/oms/test_order_state_transitions.py` was written against an
+  older design where `Order.with_status()` was a pure setter and enforcement lived only in
+  `OrderManager.upsert_order()` → `OrderStateValidator`. The product now enforces in BOTH
+  places: `Order.with_status()` raises `IllegalTransitionError` for illegal transitions
+  (confirmed by `tests/unit/domain/test_order_fsm_enforcement.py`, which codifies this as
+  intended behavior and passes). Audit mode (`enforce_state_transitions=False`) is a property
+  of `OrderStateValidator`, NOT `with_status`, so `with_status` must enforce unconditionally.
+- Fix (TEST-ONLY, product is source of truth): invalid-transition tests now build the illegal
+  target order via `dataclasses.replace(order, status=BAD)` so the illegal status reaches
+  `upsert_order()`/validator (the path the tests actually assert on). Audit-mode tests use the
+  same `replace` so the validator's warning+accept path is exercised. One assertion in
+  `test_same_status_update_is_allowed` compared a `Money` field to a `Decimal` literal; fixed
+  to `.price.to_decimal() == Decimal(...)`. No product code changed.
+- Result: 31/31 in the file pass; full `tests/component/oms/` + fsm unit test = 398 passed,
+  no regressions.
 
 ## Session Notes
 

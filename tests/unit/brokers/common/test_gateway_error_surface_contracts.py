@@ -17,7 +17,12 @@ import pytest
 
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
-GATEWAY_DIR = Path(__file__).resolve().parents[2]
+GATEWAY_DIR = Path(__file__).resolve().parents[4] / "src" / "brokers"
+
+
+def _gw_source(broker: str) -> Path:
+    """Path to a broker's wire adapter source module (refactored from gateway.py)."""
+    return GATEWAY_DIR / broker / "wire.py"
 
 
 class TestGatewayImportHygiene:
@@ -27,7 +32,7 @@ class TestGatewayImportHygiene:
         """EXCHANGE_TO_SEGMENT must be imported at module level in dhan/gateway.py."""
         import ast
 
-        with open(GATEWAY_DIR / "dhan" / "gateway.py") as f:
+        with open(_gw_source("dhan")) as f:
             tree = ast.parse(f.read())
 
         # Top-level imports
@@ -52,12 +57,17 @@ class TestGatewayImportHygiene:
                 pytest.fail(f"Local import of {node.module} found inside function")
 
     def test_dhan_gateway_no_local_websocket_imports(self):
-        """DhanMarketFeed must be imported at module level in dhan/connection.py.
+        """The market-feed class must be wired at module level in the WS layer.
 
-        Note: The gateway delegates WebSocket creation to the connection layer,
-        so we check connection.py instead of gateway.py.
+        The gateway (``wire.py``) delegates WebSocket creation to the websocket
+        connection layer, so we check ``websocket/connection.py``. The feed
+        class is accessed via the module-level ``_sdk_market_feed_class`` helper
+        (a deliberate lazy SDK-boundary import so ``import brokers.dhan.wire``
+        does not require the ``dhanhq`` SDK at import time). ``connection.py``
+        holds a ``feed_ref`` backreference to its parent ``DhanMarketFeed`` and
+        must not import it directly (that would be circular).
         """
-        with open(GATEWAY_DIR / "dhan" / "connection.py") as f:
+        with open(GATEWAY_DIR / "dhan" / "websocket" / "connection.py") as f:
             tree = ast.parse(f.read())
 
         top_imports = set()
@@ -66,7 +76,10 @@ class TestGatewayImportHygiene:
                 for alias in node.names:
                     top_imports.add(alias.asname or alias.name)
 
-        assert "DhanMarketFeed" in top_imports, "DhanMarketFeed must be imported at module level in connection.py"
+        assert "_sdk_market_feed_class" in top_imports, (
+            "the market-feed class access point (_sdk_market_feed_class) must be "
+            "imported at module level in websocket/connection.py"
+        )
 
 
 class TestGatewaySegmentConstants:
@@ -78,7 +91,7 @@ class TestGatewaySegmentConstants:
         Allowed: exchange string membership checks (e.g. `if exchange in ('NSE', 'NSE_EQ', ...)`).
         Forbidden: using as fallback in `EXCHANGE_TO_SEGMENT.get(..., 'NSE_EQ')`.
         """
-        with open(GATEWAY_DIR / "dhan" / "gateway.py") as f:
+        with open(_gw_source("dhan")) as f:
             content = f.read()
         import re
 
@@ -105,47 +118,60 @@ class TestUpstoxNotImplementedErrors:
 
         from brokers.upstox.wire import UpstoxBrokerGateway
 
+        # Skip __init__ (heavy adapter construction) but set the init-set
+        # attributes the delegation methods rely on, so each test can override
+        # the specific sub-mock it exercises.
         gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
         gw._broker = MagicMock()
+        gw.options = MagicMock()
+        gw._portfolio = MagicMock()
+        gw._order_gw = MagicMock()
+        gw._data_gw = MagicMock()
         return gw
 
     def test_upstox_option_chain_delegates_to_broker(self, upstox_gateway):
-        """Upstox option_chain now delegates to the broker's options adapter."""
-        upstox_gateway._broker.options.get_expiries.return_value = ["2026-06-25"]
-        upstox_gateway._broker.options.get_option_chain.return_value = []
-        result = upstox_gateway.option_chain("NIFTY", exchange="NFO")
+        """Upstox option_chain delegates to the data gateway's option chain."""
         from domain import OptionChain
 
+        chain = OptionChain(underlying="NIFTY", exchange="NFO", expiry="2026-06-26")
+        upstox_gateway._data_gw.option_chain.return_value = chain
+        result = upstox_gateway.option_chain("NIFTY", exchange="NFO")
         assert isinstance(result, OptionChain)
         assert result.underlying == "NIFTY"
+        upstox_gateway._data_gw.option_chain.assert_called_once_with(
+            "NIFTY", "NFO", None
+        )
 
     def test_upstox_future_chain_returns_future_chain(self, upstox_gateway):
-        """Upstox future_chain delegates to broker futures adapter."""
-        upstox_gateway._broker.futures.get_contracts.return_value = [
-            {
-                "expiry": "2026-06-26",
-                "symbol": "NIFTY26JUNFUT",
-                "lot_size": 75,
-                "underlying": "NIFTY",
-            },
-        ]
-        upstox_gateway._broker.futures.get_expiries.return_value = ["2026-06-26"]
-        result = upstox_gateway.future_chain("NIFTY", exchange="NFO")
+        """Upstox future_chain delegates to the data gateway's future chain."""
         from domain import FutureChain
+        from domain.entities.options import FutureContract
 
+        chain = FutureChain(
+            underlying="NIFTY",
+            exchange="NFO",
+            contracts=(
+                FutureContract(
+                    symbol="NIFTY26JUNFUT",
+                    expiry="2026-06-26",
+                    lot_size=75,
+                    underlying="NIFTY",
+                ),
+            ),
+        )
+        upstox_gateway._data_gw.future_chain.return_value = chain
+        result = upstox_gateway.future_chain("NIFTY", exchange="NFO")
         assert isinstance(result, FutureChain)
         assert result.underlying == "NIFTY"
         assert len(result.contracts) == 1
+        upstox_gateway._data_gw.future_chain.assert_called_once_with("NIFTY", "NFO")
 
     def test_upstox_get_trade_book_delegates_to_order_query(self, upstox_gateway):
-        """Upstox get_trade_book delegates to PortfolioAdapter.get_trades()."""
-        from unittest.mock import MagicMock
-
-        upstox_gateway._portfolio = MagicMock()
-        upstox_gateway._portfolio.get_trades.return_value = []
+        """Upstox get_trade_book delegates to the order gateway's trade book."""
+        upstox_gateway._order_gw.get_trade_book.return_value = []
         result = upstox_gateway.get_trade_book()
         assert result == []
-        upstox_gateway._portfolio.get_trades.assert_called_once()
+        upstox_gateway._order_gw.get_trade_book.assert_called_once()
 
 
 class TestMarketDataGatewayContract:
@@ -217,7 +243,7 @@ class TestGatewayTypeSafety:
     def _get_method_return_annotation(self, gateway_class, method_name: str) -> str | None:
         import ast
 
-        with open(GATEWAY_DIR / f"{gateway_class.__module__.split('.')[1]}" / "gateway.py") as f:
+        with open(_gw_source(gateway_class.__module__.split('.')[1])) as f:
             tree = ast.parse(f.read())
 
         for node in ast.walk(tree):
@@ -293,7 +319,7 @@ class TestGatewayTypeSafety:
 
         critical_methods = ["quote", "depth", "funds", "positions", "holdings", "trades"]
         for gateway_name in ["dhan", "upstox"]:
-            gw_path = GATEWAY_DIR / gateway_name / "gateway.py"
+            gw_path = _gw_source(gateway_name)
             with open(gw_path) as f:
                 tree = ast.parse(f.read())
 
@@ -312,13 +338,13 @@ class TestGatewayLogging:
 
     def test_dhan_gateway_has_logger(self):
         """Dhan gateway must have a module-level logger."""
-        content = (GATEWAY_DIR / "dhan" / "gateway.py").read_text()
+        content = _gw_source("dhan").read_text()
         assert "import logging" in content
         assert "logger = logging.getLogger(__name__)" in content
 
     def test_upstox_gateway_has_logger(self):
         """Upstox gateway must have a module-level logger."""
-        content = (GATEWAY_DIR / "upstox" / "gateway.py").read_text()
+        content = _gw_source("upstox").read_text()
         assert "import logging" in content
         assert "logger = logging.getLogger(__name__)" in content
 

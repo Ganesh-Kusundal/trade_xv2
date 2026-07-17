@@ -20,6 +20,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
+# ── Test Constants ────────────────────────────────────────────────────────────
+DEFAULT_FAILURE_THRESHOLD = 3
+DEFAULT_OPEN_DURATION_MS = 100
+DEFAULT_RATE_PER_SECOND = 25.0
+DEFAULT_CAPACITY = 50
+
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -52,64 +58,7 @@ from brokers.dhan.resilience.retry_executor import (
     PORTFOLIO_POLICY,
     create_retry_executor,
 )
-
-SAMPLE_ROWS = [
-    {
-        "SEM_TRADING_SYMBOL": "RELIANCE",
-        "SEM_SMST_SECURITY_ID": "2885",
-        "SEM_EXM_EXCH_ID": "NSE_EQ",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-        "SEM_LOT_UNITS": "1",
-        "SEM_TICK_SIZE": "0.05",
-        "SEM_CUSTOM_SYMBOL": "Reliance Industries",
-    },
-]
-
-
-class FakeHttpClient:
-    """Fake HTTP client for chaos testing."""
-
-    def __init__(self):
-        self.client_id = "test"
-        self.access_token = "test"
-        self._fail = False
-        self._fail_count = 0
-        self._success_count = 0
-        self._rate_limit_count = 0
-
-    def get(self, endpoint, **kw):
-        if self._fail:
-            self._fail_count += 1
-            raise ConnectionError("Simulated network failure")
-        if "/marketfeed" in endpoint:
-            self._success_count += 1
-            return {"data": {"NSE_EQ": {"2885": {"last_price": 2500}}}}
-        self._success_count += 1
-        return {"data": []}
-
-    def post(self, endpoint, json=None):
-        if self._fail:
-            self._fail_count += 1
-            raise ConnectionError("Simulated network failure")
-        if "/marketfeed" in endpoint:
-            self._success_count += 1
-            return {"data": {"NSE_EQ": {"2885": {"last_price": 2500}}}}
-        self._success_count += 1
-        return {"data": []}
-
-    def put(self, endpoint, json=None):
-        if self._fail:
-            self._fail_count += 1
-            raise ConnectionError("Simulated network failure")
-        self._success_count += 1
-        return {"data": {}}
-
-    def delete(self, endpoint):
-        if self._fail:
-            self._fail_count += 1
-            raise ConnectionError("Simulated network failure")
-        self._success_count += 1
-        return {"data": {}}
+from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
 
 
 @pytest.fixture()
@@ -169,7 +118,7 @@ class TestCircuitBreakerBasic:
         assert cb.state == CircuitState.OPEN
 
     def test_circuit_half_open_after_timeout(self):
-        config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=100)
+        config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
         cb = CircuitBreaker("test", config)
 
         cb.on_failure()
@@ -182,7 +131,7 @@ class TestCircuitBreakerBasic:
 
     def test_circuit_closes_after_successes_in_half_open(self):
         config = CircuitBreakerConfig(
-            failure_threshold=2, success_threshold=2, open_duration_ms=100
+            failure_threshold=2, success_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS
         )
         cb = CircuitBreaker("test", config)
 
@@ -198,7 +147,7 @@ class TestCircuitBreakerBasic:
         assert cb.state == CircuitState.CLOSED
 
     def test_circuit_reopens_on_failure_in_half_open(self):
-        config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=100)
+        config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
         cb = CircuitBreaker("test", config)
 
         cb.on_failure()
@@ -302,7 +251,7 @@ class TestCircuitBreakerThreadSafety:
 
     def test_concurrent_state_reads(self):
         """Multiple threads reading state should not block or corrupt."""
-        config = CircuitBreakerConfig(failure_threshold=100, open_duration_ms=100)
+        config = CircuitBreakerConfig(failure_threshold=100, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
         cb = CircuitBreaker("test", config)
         states = []
 
@@ -463,13 +412,13 @@ class TestDhanRateLimiterFactory:
 
     def test_orders_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("orders")
-        assert config.rate_per_second == 25.0
-        assert config.capacity == 50
+        assert config.rate_per_second == 10.0
+        assert config.capacity == 20
 
     def test_market_data_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("historical")
-        assert config.rate_per_second == 10.0
-        assert config.capacity == 20
+        assert config.rate_per_second == 5.0
+        assert config.capacity == 10
 
     def test_portfolio_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("funds")
@@ -687,7 +636,7 @@ class TestConcurrentFailures:
 
     def test_thundering_herd_prevention(self):
         """Circuit breaker should prevent thundering herd after failure."""
-        config = CircuitBreakerConfig(failure_threshold=5, open_duration_ms=100)
+        config = CircuitBreakerConfig(failure_threshold=5, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
         cb = CircuitBreaker("test", config)
 
         # Simulate failures from multiple threads

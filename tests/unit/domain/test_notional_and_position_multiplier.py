@@ -47,7 +47,7 @@ def test_position_pnl_scales_with_multiplier() -> None:
     )
     assert pos.pnl == Decimal("500")  # 1 * 10 * 50
     pos2 = pos.with_ltp(Decimal("120"))
-    assert pos2.unrealized_pnl == Decimal("1000")  # 1 * 20 * 50
+    assert pos2.unrealized_pnl.to_decimal() == Decimal("1000")  # 1 * 20 * 50
 
 
 @pytest.mark.unit
@@ -62,5 +62,5 @@ def test_position_realized_pnl_uses_multiplier() -> None:
     )
     closed = pos.with_fill(-2, Decimal("110"))
     # closed 2 * 10 * 15 = 300
-    assert closed.realized_pnl == Decimal("300")
+    assert closed.realized_pnl.to_decimal() == Decimal("300")
     assert closed.quantity == 0

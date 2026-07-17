@@ -58,9 +58,9 @@ class TestOrderImmutable:
         o2 = o.with_fill(10, Decimal("2500"))
         assert o2 is not o
         assert o.filled_quantity == 0
-        assert o.avg_price == Decimal("0")
+        assert o.avg_price.to_decimal() == Decimal("0")
         assert o2.filled_quantity == 10
-        assert o2.avg_price == Decimal("2500")
+        assert o2.avg_price.to_decimal() == Decimal("2500")
 
 
 class TestPositionImmutable:
@@ -73,56 +73,56 @@ class TestPositionImmutable:
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("2500"))
         p2 = p.with_ltp(Decimal("2600"))
         assert p2 is not p
-        assert p2.ltp == Decimal("2600")
-        assert p2.unrealized_pnl == Decimal("1000")
-        assert p.unrealized_pnl == Decimal("0")
+        assert p2.ltp.to_decimal() == Decimal("2600")
+        assert p2.unrealized_pnl.to_decimal() == Decimal("1000")
+        assert p.unrealized_pnl.to_decimal() == Decimal("0")
 
     def test_with_fill_new_long_position(self):
         p = Position(symbol="RELIANCE", exchange="NSE")
         p2 = p.with_fill(10, Decimal("2500"))
         assert p2.quantity == 10
-        assert p2.avg_price == Decimal("2500")
-        assert p2.realized_pnl == Decimal("0")
+        assert p2.avg_price.to_decimal() == Decimal("2500")
+        assert p2.realized_pnl.to_decimal() == Decimal("0")
 
     def test_with_fill_same_side_weighted_average(self):
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("100"))
         p2 = p.with_fill(10, Decimal("120"))
         assert p2.quantity == 20
-        assert p2.avg_price == Decimal("110")
-        assert p2.realized_pnl == Decimal("0")
+        assert p2.avg_price.to_decimal() == Decimal("110")
+        assert p2.realized_pnl.to_decimal() == Decimal("0")
 
     def test_with_fill_partial_close_realizes_pnl(self):
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("100"))
         p2 = p.with_fill(-5, Decimal("120"))
         assert p2.quantity == 5
-        assert p2.avg_price == Decimal("100")
-        assert p2.realized_pnl == Decimal("100")
+        assert p2.avg_price.to_decimal() == Decimal("100")
+        assert p2.realized_pnl.to_decimal() == Decimal("100")
 
     def test_with_fill_full_close(self):
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("100"))
         p2 = p.with_fill(-10, Decimal("120"))
         assert p2.quantity == 0
-        assert p2.avg_price == Decimal("0")
-        assert p2.realized_pnl == Decimal("200")
+        assert p2.avg_price.to_decimal() == Decimal("0")
+        assert p2.realized_pnl.to_decimal() == Decimal("200")
 
     def test_with_fill_side_flip(self):
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("100"))
         p2 = p.with_fill(-25, Decimal("120"))
         assert p2.quantity == -15
-        assert p2.avg_price == Decimal("120")
-        assert p2.realized_pnl == Decimal("200")
+        assert p2.avg_price.to_decimal() == Decimal("120")
+        assert p2.realized_pnl.to_decimal() == Decimal("200")
 
     def test_with_fill_short_position(self):
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=-10, avg_price=Decimal("100"))
         p2 = p.with_fill(-10, Decimal("90"))
         assert p2.quantity == -20
-        assert p2.avg_price == Decimal("95")
+        assert p2.avg_price.to_decimal() == Decimal("95")
 
     def test_with_fill_short_close(self):
         p = Position(symbol="RELIANCE", exchange="NSE", quantity=-10, avg_price=Decimal("100"))
         p2 = p.with_fill(10, Decimal("90"))
         assert p2.quantity == 0
-        assert p2.realized_pnl == Decimal("100")
+        assert p2.realized_pnl.to_decimal() == Decimal("100")
 
 
 class TestTradeImmutable:

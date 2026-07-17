@@ -34,6 +34,7 @@ from domain import (
 from domain import Side as OrderSide
 from domain.field_mapping import DefaultFieldMapping
 from domain.symbols import normalize_exchange
+from domain.value_objects.price import to_wire_float
 from domain.events import DomainEvent
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
@@ -322,12 +323,15 @@ class OrderPlacer:
             "productType": pt,
             "validity": vl,
         }
+        # Dhan /orders expects numeric float for price/triggerPrice (matches the
+        # official dhanhq SDK, _order.py: `"price": float(price)`), and is the
+        # same canonical wire helper Dhan super/forever/margin orders already use.
         if request.price is not None and request.price > 0:
-            payload["price"] = str(request.price)
+            payload["price"] = to_wire_float(request.price)
         else:
-            payload["price"] = "0"
+            payload["price"] = 0.0
         if request.trigger_price is not None and request.trigger_price > 0:
-            payload["triggerPrice"] = str(request.trigger_price)
+            payload["triggerPrice"] = to_wire_float(request.trigger_price)
         if request.disclosed_quantity is not None and request.disclosed_quantity > 0:
             payload["disclosedQuantity"] = int(request.disclosed_quantity)
         return payload

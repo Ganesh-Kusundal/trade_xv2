@@ -122,15 +122,16 @@ class TestShowQuote:
     """Tests for show_quote command."""
 
     def test_show_quote_success(self, mock_broker_service, console, mock_quote):
-        mock_broker_service.active_broker.quote.return_value = mock_quote
+        from interface.ui.services import broker_ops
 
-        show_quote(mock_broker_service, "RELIANCE", console)
+        with patch.object(broker_ops, "get_quote", return_value=mock_quote) as mock_get:
+            show_quote(mock_broker_service, "RELIANCE", console)
+            output = console.export_text()
 
-        output = console.export_text()
         assert "RELIANCE" in output
         assert "Quote Terminal" in output
         assert "2,450.50" in output
-        mock_broker_service.active_broker.quote.assert_called_once()
+        mock_get.assert_called_once()
 
     def test_show_quote_no_data(self, mock_broker_service, console):
         mock_broker_service.active_broker.quote.return_value = None
@@ -141,15 +142,16 @@ class TestShowQuote:
         assert "No quote data" in output
 
     def test_show_quote_index_symbol(self, mock_broker_service, console, mock_quote):
-        mock_broker_service.active_broker.quote.return_value = mock_quote
+        from interface.ui.services import broker_ops
 
-        show_quote(mock_broker_service, "NIFTY", console)
+        with patch.object(broker_ops, "get_quote", return_value=mock_quote) as mock_get:
+            show_quote(mock_broker_service, "NIFTY", console)
+            output = console.export_text()
 
-        output = console.export_text()
         assert "INDEX" in output
-        # Should call with INDEX exchange
-        call_args = mock_broker_service.active_broker.quote.call_args
-        assert call_args[0][1] == "INDEX"
+        # Should resolve and pass INDEX exchange to the data layer
+        call_args = mock_get.call_args
+        assert call_args.kwargs["exchange"] == "INDEX"
 
 
 # ---------------------------------------------------------------------------
@@ -161,15 +163,16 @@ class TestShowDepth:
     """Tests for show_depth command."""
 
     def test_show_depth_success(self, mock_broker_service, console, mock_depth):
-        mock_broker_service.active_broker.depth.return_value = mock_depth
+        from interface.ui.services import broker_ops
 
-        show_depth(mock_broker_service, "RELIANCE", console)
+        with patch.object(broker_ops, "get_depth", return_value=mock_depth) as mock_get:
+            show_depth(mock_broker_service, "RELIANCE", console)
+            output = console.export_text()
 
-        output = console.export_text()
         assert "Market Depth" in output
         assert "2,450.00" in output
         assert "2,451.00" in output
-        mock_broker_service.active_broker.depth.assert_called_once()
+        mock_get.assert_called_once()
 
     def test_show_depth_no_data(self, mock_broker_service, console):
         mock_broker_service.active_broker.depth.return_value = None
@@ -245,8 +248,8 @@ class TestShowOptionChain:
             ],
         }
 
-        mock_broker_service.active_broker.options.get_expiries.return_value = ["2026-06-25"]
-        mock_broker_service.active_broker.options.get_option_chain.return_value = chain_data
+        mock_broker_service.active_broker.extended.get_option_expiries.return_value = ["2026-06-25"]
+        mock_broker_service.active_broker.option_chain.return_value = chain_data
 
         show_option_chain(mock_broker_service, "NIFTY", console)
 
@@ -258,8 +261,8 @@ class TestShowOptionChain:
     def test_show_option_chain_no_strikes(self, mock_broker_service, console):
         chain_data = {"spot": 24600.00, "strikes": []}
 
-        mock_broker_service.active_broker.options.get_expiries.return_value = ["2026-06-25"]
-        mock_broker_service.active_broker.options.get_option_chain.return_value = chain_data
+        mock_broker_service.active_broker.extended.get_option_expiries.return_value = ["2026-06-25"]
+        mock_broker_service.active_broker.option_chain.return_value = chain_data
 
         show_option_chain(mock_broker_service, "NIFTY", console)
 
@@ -346,69 +349,52 @@ class TestShowHistorical:
 
     def test_show_historical_success(self, mock_broker_service, console):
         from datetime import datetime
+        from interface.ui.services import broker_ops
 
-        with patch("interface.ui.composer_helpers.get_market_data_composer") as mock_get_composer:
-            mock_composer = MagicMock()
-            mock_get_composer.return_value = mock_composer
+        mock_bar = MagicMock()
+        mock_bar.timestamp = datetime(2026, 1, 1)
+        mock_bar.open = 100.0
+        mock_bar.high = 105.0
+        mock_bar.low = 99.0
+        mock_bar.close = 102.0
+        mock_bar.volume = 1000000
 
-            mock_bar = MagicMock()
-            mock_bar.timestamp = datetime(2026, 1, 1)
-            mock_bar.open = 100.0
-            mock_bar.high = 105.0
-            mock_bar.low = 99.0
-            mock_bar.close = 102.0
-            mock_bar.volume = 1000000
+        mock_series = MagicMock()
+        mock_series.to_dataframe.return_value = None  # force the bars -> DataFrame path
+        mock_series.bars = [mock_bar] * 10
+        mock_series.bar_count = 10
+        mock_series.is_degraded = False
 
-            mock_series = MagicMock()
-            mock_series.bars = [mock_bar] * 10
-            mock_series.bar_count = 10
-            mock_series.is_degraded = False
-
-            mock_ledger = MagicMock()
-            mock_ledger.conflicts = []
-
-            mock_composer.fetch_historical = MagicMock(return_value=(mock_series, mock_ledger))
-
-            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
-                show_historical(mock_broker_service, "RELIANCE", console)
-
+        with patch.object(broker_ops, "get_history", return_value=mock_series) as mock_get:
+            show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
-            assert "Historical" in output
-            assert "RELIANCE" in output
+
+        assert "Historical" in output
+        assert "RELIANCE" in output
 
     def test_show_historical_no_data(self, mock_broker_service, console):
-        with patch("interface.ui.composer_helpers.get_market_data_composer") as mock_get_composer:
-            mock_composer = MagicMock()
-            mock_get_composer.return_value = mock_composer
+        from interface.ui.services import broker_ops
 
-            mock_series = MagicMock()
-            mock_series.bars = []
+        mock_series = MagicMock()
+        mock_series.bars = []
 
-            mock_ledger = MagicMock()
-            mock_ledger.conflicts = []
-
-            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
-                show_historical(mock_broker_service, "RELIANCE", console)
-
+        with patch.object(broker_ops, "get_history", return_value=mock_series) as mock_get:
+            show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
-            assert "no historical data" in output.lower()
+
+        assert "no historical data" in output.lower()
 
     def test_show_historical_none_data(self, mock_broker_service, console):
-        with patch("interface.ui.composer_helpers.get_market_data_composer") as mock_get_composer:
-            mock_composer = MagicMock()
-            mock_get_composer.return_value = mock_composer
+        from interface.ui.services import broker_ops
 
-            mock_series = MagicMock()
-            mock_series.bars = None
+        mock_series = MagicMock()
+        mock_series.bars = None
 
-            mock_ledger = MagicMock()
-            mock_ledger.conflicts = []
-
-            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
-                show_historical(mock_broker_service, "RELIANCE", console)
-
+        with patch.object(broker_ops, "get_history", return_value=mock_series) as mock_get:
+            show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
-            assert "no historical data" in output.lower()
+
+        assert "no historical data" in output.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -447,8 +433,8 @@ class TestMarketRouter:
 
     def test_market_option_chain_subcommand(self, mock_broker_service, console):
         chain_data = {"spot": 24600.00, "strikes": []}
-        mock_broker_service.active_broker.options.get_expiries.return_value = ["2026-06-25"]
-        mock_broker_service.active_broker.options.get_option_chain.return_value = chain_data
+        mock_broker_service.active_broker.extended.get_option_expiries.return_value = ["2026-06-25"]
+        mock_broker_service.active_broker.option_chain.return_value = chain_data
 
         cmd_market.run(["option-chain", "NIFTY"], mock_broker_service, console)
 

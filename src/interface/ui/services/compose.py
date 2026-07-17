@@ -11,7 +11,7 @@ from pathlib import Path
 
 from runtime.api_compose import build_for_api, register_broker_service_factory
 from runtime.factory import build
-from runtime.trading_runtime_factory import Runtime
+from runtime.factory import Runtime
 
 
 def build_runtime(
@@ -48,11 +48,17 @@ def build_runtime(
 # runtime importing interface (import-linter).
 def _register() -> None:
     from interface.ui.services.broker_service import BrokerService
-    from runtime.session_opener import set_session_opener
+    from runtime.session_opener import set_session_opener as _set_runtime_opener
     from tradex.session import open_session
 
     register_broker_service_factory(BrokerService)
-    set_session_opener(open_session)
+    _set_runtime_opener(open_session)
+
+    # Wire the application-layer port so application.portfolio.active_session
+    # does not import runtime.session_opener directly.
+    from application.portfolio.active_session import set_session_opener as _set_app_opener
+
+    _set_app_opener(open_session)
 
 
 _register()

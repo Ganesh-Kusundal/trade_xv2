@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta, timezone
 
 import pandas as pd
 
 from datalake.core.schema import CANONICAL_COLUMNS
 from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.exchange_registry import get_active_adapter
+from domain.constants.market import IST_OFFSET
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,6 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns={k: v for k, v in COLUMN_MAP.items() if k in df.columns})
 
 
-_IST = timezone(timedelta(hours=5, minutes=30))
-
-
 def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure timestamp column is naive datetime in IST (Asia/Kolkata).
 
@@ -57,8 +54,18 @@ def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
         adapter = get_active_adapter()
         tz = adapter.timezone
     except Exception:
-        tz = _IST  # Fallback to IST if no adapter configured
+        tz = IST_OFFSET  # Fallback to canonical IST if no adapter configured
     ts = pd.to_datetime(df["timestamp"], errors="coerce")
+
+    if ts.dtype == object:
+        # A column of Python datetimes with inconsistent tzinfo objects
+        # (e.g. bars federated from brokers that tag UTC vs a fixed
+        # +05:30 offset) parses to `object` dtype, not a real
+        # datetime64[tz] column -- `.dt.tz` below would silently read as
+        # unavailable rather than raising, letting unconverted timestamps
+        # straight through. Force a single tz-aware dtype first so the
+        # aware/naive branch below is reliable.
+        ts = pd.to_datetime(ts, utc=True, errors="coerce")
 
     if ts.dt.tz is not None:
         # Timezone-aware: convert to exchange tz, then strip tz

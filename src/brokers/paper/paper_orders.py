@@ -15,6 +15,7 @@ from domain import (
     Trade,
     Validity,
 )
+from domain.constants import DEFAULT_EXCHANGE
 from domain.orders.intent import OrderIntent
 from domain.ports.time_service import get_current_clock
 from domain.symbols import normalize_exchange, normalize_symbol
@@ -59,7 +60,7 @@ class PaperOrders:
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str | Side = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),

@@ -22,6 +22,7 @@ from brokers.common.api import MarginCalculationError, MarginProvider, MarginRes
 from brokers.common.oms.margin_provider import BrokerMarginProvider  # residual real module
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from domain.exchange_segments import is_derivative_segment
+from tests.support.assertion_helpers import assert_order_rejected
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -125,9 +126,7 @@ class TestNoMarginProvider:
         )
         order = _make_order(exchange=exchange)
 
-        result = rm.check_order(order)
-        assert result.allowed is False
-        assert "no margin provider configured" in result.reason.lower()
+        assert_order_rejected(rm, order, reason_fragment="no margin provider configured")
 
     def test_nse_equity_still_allowed_without_margin_provider(
         self, position_manager, capital_provider, default_config
@@ -160,9 +159,7 @@ class TestInsufficientMargin:
         rm = _create_risk_manager(position_manager, capital_provider, default_config, mock_provider)
         order = _make_order()
 
-        result = rm.check_order(order)
-        assert result.allowed is False
-        assert "insufficient margin" in result.reason.lower()
+        assert_order_rejected(rm, order, reason_fragment="insufficient margin")
 
 
 # ── Test: F&O orders accepted when margin sufficient ───────────────────────
@@ -278,9 +275,7 @@ class TestFailClosed:
         rm = _create_risk_manager(position_manager, capital_provider, default_config, mock_provider)
         order = _make_order()
 
-        result = rm.check_order(order)
-        assert result.allowed is False
-        assert "margin check error" in result.reason.lower()
+        assert_order_rejected(rm, order, reason_fragment="margin check error")
 
     def test_generic_exception_rejects_order(
         self, position_manager, capital_provider, default_config
@@ -291,9 +286,7 @@ class TestFailClosed:
         rm = _create_risk_manager(position_manager, capital_provider, default_config, mock_provider)
         order = _make_order()
 
-        result = rm.check_order(order)
-        assert result.allowed is False
-        assert "margin check error" in result.reason.lower()
+        assert_order_rejected(rm, order, reason_fragment="margin check error")
 
 
 # ── Test: Margin check can be disabled ────────────────────────────────────

@@ -7,12 +7,14 @@ from typing import Any
 
 def wire_domain_port_sinks() -> None:
     """Register infrastructure adapters on domain ports (idempotent)."""
+    from application.ports import set_async_runner
     from domain.ports.audit import AuditSink, set_audit_sink
     from domain.ports.io import set_parquet_writer
     from domain.ports.security import set_secure_session_asserter
     from infrastructure.io.parquet import atomic_parquet_write
     from infrastructure.observability import audit as infra_audit
     from infrastructure.security.ssl_hardening import assert_secure_session
+    from runtime.event_loop import run_coro_sync
 
     set_audit_sink(
         AuditSink(
@@ -25,6 +27,7 @@ def wire_domain_port_sinks() -> None:
     )
     set_parquet_writer(atomic_parquet_write)
     set_secure_session_asserter(assert_secure_session)
+    set_async_runner(run_coro_sync)
 
 
 def create_api_event_bus(*, maxsize: int = 2000) -> tuple[Any, Any]:

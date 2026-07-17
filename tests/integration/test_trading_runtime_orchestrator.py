@@ -1,4 +1,4 @@
-"""Integration test: TradingRuntimeFactory orchestrator handles CANDIDATE_GENERATED.
+"""Integration test: Runtime factory orchestrator handles CANDIDATE_GENERATED.
 
 REF: Task 6.3 — Converted from MagicMock to FakeTradingOrchestrator and protocol-compliant fakes
 """
@@ -15,7 +15,7 @@ from application.oms.factory import create_trading_context
 from domain.models.features import FeatureSet
 from infrastructure.event_bus import DomainEvent, EventType
 from infrastructure.lifecycle import LifecycleManager
-from runtime.trading_runtime_factory import TradingRuntimeFactory
+from runtime.factory import BuildOptions, build_from_broker_service
 
 
 class _StaticFeatureFetcher:
@@ -59,12 +59,12 @@ def mock_broker_service():
 
 
 def test_candidate_generated_increments_orchestrator_counter(mock_broker_service) -> None:
-    factory = TradingRuntimeFactory(
+    opts = BuildOptions(
         wire_orchestrator=True,
         orchestrator_dry_run=True,
         skip_parity_gate=True,
     )
-    runtime = factory.build_from_broker_service(mock_broker_service)
+    runtime = build_from_broker_service(mock_broker_service, options=opts)
     orch = runtime.trading_orchestrator
     assert orch is not None
 

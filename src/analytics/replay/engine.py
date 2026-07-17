@@ -66,7 +66,7 @@ from domain.trading_costs import (
     compute_commission,
     compute_slippage_pct,
 )
-from runtime.replay_factory import get_oms_backtest_factory
+from domain.runtime_hooks import create_oms_backtest_adapter as get_oms_backtest_factory
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ class ReplayEngine:
         self._signal_processor = SignalProcessor(
             self._fill_recorder,
             self._oms_adapter,
-            on_cash=self._position_closer.apply_cash_delta,
+            on_sync=self._position_closer.sync_from_tracker,
         )
     # ------------------------------------------------------------------
     # Delegation wrappers (backward-compatible private methods)

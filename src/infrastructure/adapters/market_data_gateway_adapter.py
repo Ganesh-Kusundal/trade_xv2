@@ -193,6 +193,29 @@ class MarketDataGatewayAdapter:
     async def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
         return await asyncio.to_thread(self._gateway.quote, instrument.symbol, instrument.exchange)
 
+    async def get_quotes_batch(
+        self, instruments: Sequence[InstrumentRef], *, quota: QuotaToken
+    ) -> list[Quote | None]:
+        """Batch quotes via the wire facade's native multi-key API.
+
+        Groups by exchange (the wire ``quote_batch`` call is per-exchange),
+        fans out concurrently, and maps results back to ``instruments`` order.
+        """
+        by_exchange: dict[str, list[tuple[int, InstrumentRef]]] = {}
+        for idx, instrument in enumerate(instruments):
+            by_exchange.setdefault(instrument.exchange, []).append((idx, instrument))
+
+        results: list[Quote | None] = [None] * len(instruments)
+
+        async def _fetch_exchange(exchange: str, items: list[tuple[int, InstrumentRef]]) -> None:
+            symbols = [instrument.symbol for _, instrument in items]
+            raw_map = await asyncio.to_thread(self._gateway.quote_batch, symbols, exchange)
+            for idx, instrument in items:
+                results[idx] = raw_map.get(instrument.symbol)
+
+        await asyncio.gather(*[_fetch_exchange(ex, items) for ex, items in by_exchange.items()])
+        return results
+
     async def get_depth_snapshot(
         self, instrument: InstrumentRef, *, quota: QuotaToken
     ) -> MarketDepth:

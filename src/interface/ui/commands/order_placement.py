@@ -110,42 +110,43 @@ def place_order(
             console.print(f"[red]Invalid product type: {product_val}[/red]")
             return CommandResult(success=False, error=f"Invalid product type: {product_val}")
 
-    import os
-
-    import tradex
-
-    broker = (parse_flag(args, "--broker") or os.getenv("TRADEX_BROKER") or "paper").lower()
-
     try:
         console.print(
-            f"[cyan]Placing order via OMS spine [{broker}]: "
+            f"[cyan]Placing order via OMS spine: "
             f"{side.value} {quantity} {symbol} @ {order_type.value}[/cyan]"
         )
 
-        session = tradex.connect(broker)
-        try:
-            instrument = session.universe.equity(symbol, exchange=exchange)
-            px = price if order_type != OrderType.MARKET else None
-            if side == Side.BUY:
-                result = session.buy(
-                    instrument, quantity, price=px, order_type=order_type, product_type=product_type
-                )
-            else:
-                result = session.sell(
-                    instrument, quantity, price=px, order_type=order_type, product_type=product_type
-                )
-        finally:
-            session.close()
+        composer = _get_execution_composer(broker_service)
 
-        if not result.success:
-            console.print(f"[red]❌ Order Failed: {result.error}[/red]")
-            return CommandResult(success=False, error=result.error or "rejected")
-
-        order = result.order
-        order_id = getattr(order, "order_id", None) or "N/A"
-        status_val = getattr(getattr(order, "status", None), "value", None) or str(
-            getattr(order, "status", "UNKNOWN")
+        request = OrderRequest(
+            symbol=symbol,
+            exchange=exchange,
+            transaction_type=side,
+            quantity=quantity,
+            price=price if order_type != OrderType.MARKET else Decimal("0"),
+            order_type=order_type,
+            product_type=product_type,
         )
+
+        response = _await_in_sync_context(composer.place_order(request))
+
+        if not response.success:
+            console.print(f"[red]❌ Order Failed: {response.error}[/red]")
+            return CommandResult(success=False, error=response.error or "rejected")
+
+        order = getattr(response, "order", None)
+        order_id = (
+            getattr(response, "order_id", None)
+            or (getattr(order, "order_id", None) if order else None)
+            or "N/A"
+        )
+        status_val = (
+            getattr(response, "status", None)
+            or (getattr(order, "status", None) if order else None)
+            or "UNKNOWN"
+        )
+        if hasattr(status_val, "value"):
+            status_val = status_val.value
 
         table = Table(title="✅ Order Placed (OMS)", header_style="bold green")
         table.add_column("Field", style="bold white")
@@ -169,7 +170,6 @@ def place_order(
                 "side": side.value,
                 "quantity": quantity,
                 "status": status_val,
-                "broker": broker,
             },
         )
 

@@ -68,6 +68,10 @@ class OrderValidator:
         """
         self._placement_gate = gate_fn
 
+    def clear_placement_gate(self) -> None:
+        """Remove any active placement gate (orders allowed unless risk blocks)."""
+        self._placement_gate = None
+
     def check_placement_gate(self) -> str | None:
         """Check if order placement is allowed. Returns rejection reason or None."""
         gate_fn = self._placement_gate

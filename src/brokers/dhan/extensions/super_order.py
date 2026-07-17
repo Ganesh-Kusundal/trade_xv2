@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from domain.constants.exchanges import NSE
 from domain.extensions.base import Extension
 from domain.value_objects.capability import Capability
 
@@ -17,7 +18,7 @@ class DhanSuperOrderExtension(Extension):
     def __init__(self, gateway: Any) -> None:
         self._gw = gateway
         self._symbol = ""
-        self._exchange = "NSE"
+        self._exchange = NSE
 
     @property
     def name(self) -> str:
@@ -38,7 +39,7 @@ class DhanSuperOrderExtension(Extension):
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True
 
-    def for_instrument(self, symbol: str, exchange: str = "NSE") -> "DhanSuperOrderExtension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> "DhanSuperOrderExtension":
         ext = DhanSuperOrderExtension(self._gw)
         ext._symbol = symbol
         ext._exchange = exchange

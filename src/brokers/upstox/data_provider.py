@@ -9,6 +9,7 @@ from typing import Any, Callable
 import pandas as pd
 
 from domain.candles.historical import DateRange, HistoricalBar, HistoricalSeries, InstrumentRef
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -192,31 +193,31 @@ class UpstoxDataProvider(DataProvider):
             exp_str = expiry.strftime("%Y-%m-%d") if expiry else None
             chain_fn = getattr(self._gw, "option_chain", None)
             if not callable(chain_fn):
-                return OptionChain(underlying=underlying.underlying, exchange="NFO", expiry="")
-            raw = chain_fn(underlying.underlying, "NFO", exp_str)
+                return OptionChain(underlying=underlying.underlying, exchange=DEFAULT_DERIVATIVES_EXCHANGE, expiry="")
+            raw = chain_fn(underlying.underlying, DEFAULT_DERIVATIVES_EXCHANGE, exp_str)
             if isinstance(raw, OptionChain):
                 return raw
             if isinstance(raw, dict):
                 data = dict(raw)
                 data.setdefault("underlying", underlying.underlying)
-                data.setdefault("exchange", "NFO")
+                data.setdefault("exchange", DEFAULT_DERIVATIVES_EXCHANGE)
                 return OptionChain.from_dict(data)
         except Exception:
             pass
-        return OptionChain(underlying=underlying.underlying, exchange="NFO", expiry="")
+        return OptionChain(underlying=underlying.underlying, exchange=DEFAULT_DERIVATIVES_EXCHANGE, expiry="")
 
     def get_future_chain(self, underlying: InstrumentId) -> FutureChain:
         try:
             fn = getattr(self._gw, "future_chain", None)
             if callable(fn):
-                raw = fn(underlying.underlying, "NFO")
+                raw = fn(underlying.underlying, DEFAULT_DERIVATIVES_EXCHANGE)
                 if isinstance(raw, FutureChain):
                     return raw
                 if isinstance(raw, dict):
                     return FutureChain.from_dict(raw)
         except Exception:
             pass
-        return FutureChain(underlying=underlying.underlying, exchange="NFO")
+        return FutureChain(underlying=underlying.underlying, exchange=DEFAULT_DERIVATIVES_EXCHANGE)
 
     def subscribe(
         self,
@@ -229,7 +230,8 @@ class UpstoxDataProvider(DataProvider):
 
         Maps the requested quote depth onto the gateway's actual ``stream``
         signature:
-          * ``instrument_id.underlying`` -> ``symbol``
+          * ``to_upstox_symbol(instrument_id)`` -> ``symbol`` (bare underlying
+            for equity/index/spot; full contract string for futures/options)
           * ``instrument_id.exchange``  -> ``exchange``
           * depth flag -> ``mode`` (``"ltpc"`` for LTP-only, ``"full"`` for depth)
           * user ``callback`` -> ``on_tick``
@@ -246,12 +248,16 @@ class UpstoxDataProvider(DataProvider):
         def _on_tick(raw: Any) -> None:
             callback(instrument_id, raw)
 
+        from brokers.upstox.instrument_adapter import to_upstox_symbol
+
+        symbol = to_upstox_symbol(instrument_id)
+
         try:
             if depth:
                 stream_depth = getattr(self._gw, "stream_depth", None)
                 if callable(stream_depth):
                     handle = stream_depth(
-                        instrument_id.underlying,
+                        symbol,
                         instrument_id.exchange,
                         on_depth=_on_tick,
                     )
@@ -263,7 +269,7 @@ class UpstoxDataProvider(DataProvider):
                 # "LTP" is NOT a valid mode and would be rejected upstream.
                 mode = "full" if depth else "ltpc"
                 handle = stream(
-                    instrument_id.underlying,  # symbol
+                    symbol,                    # symbol
                     instrument_id.exchange,    # exchange
                     mode,                      # mode
                     _on_tick,                  # on_tick
@@ -272,7 +278,7 @@ class UpstoxDataProvider(DataProvider):
         except Exception:
             log.exception(
                 "upstox_subscribe_failed",
-                extra={"symbol": instrument_id.underlying, "exchange": instrument_id.exchange},
+                extra={"symbol": symbol, "exchange": instrument_id.exchange},
             )
             raise
 

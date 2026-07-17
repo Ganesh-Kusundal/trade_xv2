@@ -39,6 +39,7 @@ from domain import (
     Quote,
     Trade,
 )
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
 
 logger = logging.getLogger(__name__)
 
@@ -95,32 +96,32 @@ class UpstoxWireAdapter(BatchFetchMixin):
     def _stream_lock(self):
         return self._stream_manager._stream_lock
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         return self._data_gw.ltp(symbol, exchange)
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         return self._data_gw.quote(symbol, exchange)
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         return self._data_gw.depth(symbol, exchange)
 
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def ltp_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Decimal]:
         return self._data_gw.ltp_batch(symbols, exchange)
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
+    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Quote]:
         return self._data_gw.quote_batch(symbols, exchange)
 
     def history(
-        self, symbol: str, exchange: str = "NSE", timeframe: str = "1D",
+        self, symbol: str, exchange: str = DEFAULT_EXCHANGE, timeframe: str = "1D",
         lookback_days: int = 90, from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
         return self._data_gw.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
 
-    def option_chain(self, underlying: str, exchange: str = "NFO", expiry: str | None = None) -> OptionChain:
+    def option_chain(self, underlying: str, exchange: str = DEFAULT_DERIVATIVES_EXCHANGE, expiry: str | None = None) -> OptionChain:
         return self._data_gw.option_chain(underlying, exchange, expiry)
 
-    def future_chain(self, underlying: str, exchange: str = "NFO") -> FutureChain:
+    def future_chain(self, underlying: str, exchange: str = DEFAULT_DERIVATIVES_EXCHANGE) -> FutureChain:
         return self._data_gw.future_chain(underlying, exchange)
 
     def search(self, query: str) -> list[dict]:
@@ -136,7 +137,7 @@ class UpstoxWireAdapter(BatchFetchMixin):
         return self._data_gw.describe()
 
     def place_order(
-        self, symbol: str, exchange: str = "NSE", side: str = "BUY",
+        self, symbol: str, exchange: str = DEFAULT_EXCHANGE, side: str = "BUY",
         quantity: int = 1, price: Decimal = Decimal("0"),
         order_type: str = "MARKET", product_type: str = "INTRADAY",
         validity: str = "DAY", trigger_price: Decimal = Decimal("0"),
@@ -162,10 +163,10 @@ class UpstoxWireAdapter(BatchFetchMixin):
     def get_trade_book(self) -> list[Trade]:
         return self._order_gw.get_trade_book()
 
-    def stream(self, symbol: str, exchange: str = "NSE", mode: str = "LTP", on_tick: Any | None = None) -> Any:
+    def stream(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, mode: str = "LTP", on_tick: Any | None = None) -> Any:
         return self._stream_gw.stream(symbol, exchange, mode, on_tick)
 
-    def unstream(self, symbol: str, exchange: str = "NSE", on_tick: Any | None = None) -> None:
+    def unstream(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, on_tick: Any | None = None) -> None:
         self._stream_gw.unstream(symbol, exchange, on_tick)
 
     def stream_order(self, on_order: Any | None = None) -> Any:
@@ -174,7 +175,7 @@ class UpstoxWireAdapter(BatchFetchMixin):
     def stream_depth(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         depth_type: str | None = None,
         on_depth: Any | None = None,
         levels: int | None = None,

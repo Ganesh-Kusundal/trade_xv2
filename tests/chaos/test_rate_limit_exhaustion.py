@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from tests.support.wait_utils import wait_until
+
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -25,6 +27,10 @@ from infrastructure.resilience.rate_limiter import (
     TokenBucketRateLimiter,
 )
 from infrastructure.resilience.retry import RetryConfig, RetryExecutor
+
+from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
+from domain.capabilities.broker_capabilities import RateLimitProfile
+from domain.errors import QuotaExhaustedError
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -195,8 +201,11 @@ class TestRateLimitExhausted:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        # Wait for recovery
-        time.sleep(0.15)  # Wait longer than open_duration
+        # Wait for recovery (CB auto-transitions OPEN -> HALF_OPEN after open_duration)
+        wait_until(
+            lambda: cb.state in [CircuitState.HALF_OPEN, CircuitState.CLOSED],
+            timeout=2,
+        )
 
         # Should transition to HALF_OPEN
         assert cb.state in [CircuitState.HALF_OPEN, CircuitState.CLOSED]
@@ -304,3 +313,119 @@ class TestRateLimitExhausted:
         # Should have full capacity again
         result = limiter.acquire(5)
         assert result is True
+
+
+# ── Priority 2.3: Rolling-window / daily order caps (QuotaScheduler) ───────
+#
+# Upstox order placement is 10 rps but also caps at 2000 requests per 30
+# minutes; Dhan caps orders at 7000 per day. A per-second bucket alone can't
+# see these — QuotaScheduler layers extra_windows buckets on top and must
+# reject once *any* window is exhausted, even with rps headroom to spare.
+
+
+class TestOrderWindowCapExhausted:
+    """Exercise QuotaScheduler.extra_windows under fault-injection-style load."""
+
+    def _scheduler_with_window(
+        self, cap: int, window_s: float, sustained_rps: float = 100.0
+    ) -> QuotaScheduler:
+        scheduler = QuotaScheduler(reserved_headroom=0.0)
+        scheduler.register_profile(
+            "dhan",
+            RateLimitProfile(
+                endpoint_class="orders",
+                sustained_rps=sustained_rps,
+                burst_rps=sustained_rps,
+                extra_windows=((cap, window_s),),
+            ),
+        )
+        return scheduler
+
+    def test_window_cap_rejects_once_exhausted_despite_rps_headroom(self):
+        """A tight 30min-style window cap binds even when sustained_rps is generous."""
+        scheduler = self._scheduler_with_window(cap=5, window_s=1800.0)
+
+        for _ in range(5):
+            scheduler.acquire("dhan", "orders", PriorityClass.EXECUTION_CRITICAL)
+
+        with pytest.raises(QuotaExhaustedError):
+            scheduler.acquire("dhan", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+
+    def test_window_cap_applies_regardless_of_priority(self):
+        """A rolling/daily cap is a hard broker-side wall — EXECUTION_CRITICAL
+        does not get to bypass it the way it bypasses reserved rps headroom."""
+        scheduler = self._scheduler_with_window(cap=3, window_s=60.0)
+
+        for _ in range(3):
+            scheduler.acquire("dhan", "orders", PriorityClass.EXECUTION_CRITICAL)
+
+        with pytest.raises(QuotaExhaustedError):
+            scheduler.acquire("dhan", "orders", PriorityClass.EXECUTION_CRITICAL)
+
+    def test_window_rejection_refunds_primary_bucket_no_token_leak(self):
+        """Rejecting on the window bucket must refund the primary rps bucket,
+        or sustained throughput silently degrades even after the window resets."""
+        scheduler = self._scheduler_with_window(cap=1, window_s=60.0, sustained_rps=100.0)
+
+        scheduler.acquire("dhan", "orders", PriorityClass.EXECUTION_CRITICAL)
+        primary = scheduler._get_or_default_bucket("dhan", "orders")
+        before = primary.available_tokens(PriorityClass.EXECUTION_CRITICAL)
+
+        with pytest.raises(QuotaExhaustedError):
+            scheduler.acquire("dhan", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+
+        after = primary.available_tokens(PriorityClass.EXECUTION_CRITICAL)
+        assert after == pytest.approx(before, abs=0.05)
+
+    def test_concurrent_bursts_never_exceed_window_cap(self):
+        """Many threads hammering the scheduler at once must not blow past
+        the window cap — the composite acquire has to be race-free."""
+        scheduler = self._scheduler_with_window(cap=10, window_s=1800.0)
+        granted = []
+        lock = threading.Lock()
+
+        def try_order():
+            try:
+                token = scheduler.acquire("dhan", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+                with lock:
+                    granted.append(token)
+            except QuotaExhaustedError:
+                pass
+
+        with ThreadPoolExecutor(max_workers=25) as ex:
+            futures = [ex.submit(try_order) for _ in range(25)]
+            for f in futures:
+                f.result(timeout=10)
+
+        assert len(granted) == 10
+
+    def test_multiple_brokers_have_independent_window_caps(self):
+        """Dhan exhausting its window cap must not affect Upstox's separate cap."""
+        scheduler = QuotaScheduler(reserved_headroom=0.0)
+        scheduler.register_profile(
+            "dhan",
+            RateLimitProfile(
+                endpoint_class="orders",
+                sustained_rps=100.0,
+                burst_rps=100.0,
+                extra_windows=((2, 60.0),),
+            ),
+        )
+        scheduler.register_profile(
+            "upstox",
+            RateLimitProfile(
+                endpoint_class="orders",
+                sustained_rps=100.0,
+                burst_rps=100.0,
+                extra_windows=((2, 60.0),),
+            ),
+        )
+
+        for _ in range(2):
+            scheduler.acquire("dhan", "orders", PriorityClass.EXECUTION_CRITICAL)
+        with pytest.raises(QuotaExhaustedError):
+            scheduler.acquire("dhan", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+
+        # Upstox's independent window is untouched by Dhan's exhaustion.
+        token = scheduler.acquire("upstox", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+        assert token.broker_id == "upstox"

@@ -44,6 +44,31 @@ def get_history(
             s.close()
 
 
+def get_history_batch(
+    broker: str,
+    symbols: list[str],
+    *,
+    timeframe: str = "1D",
+    days: int = 5,
+    exchange: str = "NSE",
+    session: BrokerSession | None = None,
+    **kwargs: Any,
+) -> Any:
+    """Fetch history for multiple symbols via the chunking pipeline.
+
+    Returns a dict mapping each symbol to its ``HistoricalSeries``.
+    Uses :meth:`BrokerSession.history_batch` under the hood, which
+    handles chunking, rate limiting, and parallel execution.
+    """
+    s, close = _borrow_session(broker, session=session, **kwargs)
+    try:
+        instruments = [s.stock(sym, exchange=exchange) for sym in symbols]
+        return s.history_batch(instruments, timeframe=timeframe, days=days)
+    finally:
+        if close:
+            s.close()
+
+
 def run_subscribe_probe(
     broker: str,
     symbol: str,
@@ -168,6 +193,7 @@ def get_option_chain(
 __all__ = [
     "get_quote",
     "get_history",
+    "get_history_batch",
     "run_subscribe_probe",
     "get_depth",
     "get_depth30",

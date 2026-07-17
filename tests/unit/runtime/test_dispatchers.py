@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from domain.enums import OrderType, Side
 from domain.events.types import DomainEvent, EventType
+from application.oms.order_manager import OrderResult
 from runtime.commands import (
     CommandDispatcher,
     CommandResult,
@@ -44,9 +45,9 @@ class _FakeOrderManager:
 
     def place_order(self, request, submit_fn=None):
         self.calls.append((request, submit_fn))
-        return CommandResult(
+        return OrderResult(
             success=True,
-            data=_FakeOrder(order_id="O1", symbol=request.symbol),
+            order=_FakeOrder(order_id="O1", symbol=request.symbol),
         )
 
 

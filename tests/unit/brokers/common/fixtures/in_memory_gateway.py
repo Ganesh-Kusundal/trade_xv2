@@ -6,6 +6,7 @@ registry, router, coordinator, and stream orchestrator with real components.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -81,6 +82,7 @@ class InMemoryBrokerGateway:
         historical_fn: Callable[[HistoricalBarRequest, QuotaToken], Sequence[HistoricalBar]]
         | None = None,
         fail_historical: bool = False,
+        fail_quotes_batch: bool = False,
         alive: bool = True,
     ) -> None:
         self._broker_id = broker_id
@@ -88,8 +90,12 @@ class InMemoryBrokerGateway:
         self._extensions = extensions
         self._historical_fn = historical_fn
         self._fail_historical = fail_historical
+        self._fail_quotes_batch = fail_quotes_batch
         self._alive = alive
         self.historical_calls: list[HistoricalBarRequest] = []
+        self.quote_batch_calls: list[list[InstrumentRef]] = []
+        self.in_flight_quote_batches = 0
+        self.max_concurrent_quote_batches = 0
 
     @property
     def broker_id(self) -> str:
@@ -126,6 +132,22 @@ class InMemoryBrokerGateway:
 
     async def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
         return Quote(symbol=instrument.symbol, ltp=Decimal("100"))
+
+    async def get_quotes_batch(
+        self, instruments: list[InstrumentRef], *, quota: QuotaToken
+    ) -> list[Quote | None]:
+        self.quote_batch_calls.append(list(instruments))
+        self.in_flight_quote_batches += 1
+        self.max_concurrent_quote_batches = max(
+            self.max_concurrent_quote_batches, self.in_flight_quote_batches
+        )
+        try:
+            await asyncio.sleep(0)  # yield control so concurrency is observable
+            if self._fail_quotes_batch:
+                raise RuntimeError(f"quote batch fetch failed on {self._broker_id}")
+            return [Quote(symbol=i.symbol, ltp=Decimal("100")) for i in instruments]
+        finally:
+            self.in_flight_quote_batches -= 1
 
     async def get_depth_snapshot(
         self, instrument: InstrumentRef, *, quota: QuotaToken

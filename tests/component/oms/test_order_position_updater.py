@@ -61,7 +61,7 @@ class TestPartialFillHandling:
         updated = updater.apply_trade(sample_order, trade)
 
         assert updated.filled_quantity == 30
-        assert updated.avg_price == Decimal("100")
+        assert updated.avg_price.to_decimal() == Decimal("100")
         assert updated.status == OrderStatus.PARTIALLY_FILLED
 
     def test_multiple_partial_fills(
@@ -193,7 +193,7 @@ class TestAveragePriceComputation:
             price=Decimal("100"),
         )
         updated = updater.apply_trade(sample_order, trade)
-        assert updated.avg_price == Decimal("100")
+        assert updated.avg_price.to_decimal() == Decimal("100")
 
     def test_weighted_avg_price_two_trades(
         self, updater: OrderPositionUpdater, sample_order: Order
@@ -226,7 +226,7 @@ class TestAveragePriceComputation:
         order = updater.apply_trade(order, trade2)
 
         # Expected: (50*100 + 50*200) / 100 = 150
-        assert order.avg_price == Decimal("150")
+        assert order.avg_price.to_decimal() == Decimal("150")
 
     def test_weighted_avg_price_three_trades(
         self, updater: OrderPositionUpdater, sample_order: Order
@@ -271,7 +271,7 @@ class TestAveragePriceComputation:
         order = updater.apply_trade(order, trade3)
 
         # Expected: (30*100 + 30*200 + 40*150) / 100 = 150
-        assert order.avg_price == Decimal("150")
+        assert order.avg_price.to_decimal() == Decimal("150")
 
     def test_avg_price_with_existing_fill(self, updater: OrderPositionUpdater) -> None:
         """Applying trade to order with existing fill should compute correctly."""
@@ -299,7 +299,7 @@ class TestAveragePriceComputation:
         updated = updater.apply_trade(order, trade)
 
         # Expected: (50*100 + 50*200) / 100 = 150
-        assert updated.avg_price == Decimal("150")
+        assert updated.avg_price.to_decimal() == Decimal("150")
 
 
 # ── Edge Cases ─────────────────────────────────────────────────────────────
@@ -322,7 +322,7 @@ class TestEdgeCases:
         updated = updater.apply_trade(sample_order, trade)
 
         assert updated.filled_quantity == 0
-        assert updated.avg_price == Decimal("0")
+        assert updated.avg_price.to_decimal() == Decimal("0")
 
     def test_returns_new_order_instance(
         self, updater: OrderPositionUpdater, sample_order: Order
@@ -371,4 +371,4 @@ class TestEdgeCases:
         )
         updated = updater.apply_trade(sample_order, trade)
 
-        assert updated.avg_price == Decimal("100.123")
+        assert updated.avg_price.to_decimal() == Decimal("100.123")

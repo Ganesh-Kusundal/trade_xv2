@@ -22,10 +22,10 @@ def test_order_price_money_and_quantity_vo():
     )
     assert isinstance(o.price, Money)
     assert isinstance(o.quantity, Quantity)
-    assert o.price == Decimal("100.5")
+    assert o.price.to_decimal() == Decimal("100.5")
     assert o.quantity == 10
     assert o.price_money is o.price
-    assert o.avg_price == Decimal("99.0")
+    assert o.avg_price.to_decimal() == Decimal("99.0")
     assert o.remaining_quantity == 10
 
 
@@ -34,6 +34,6 @@ def test_position_helpers():
     assert isinstance(p.quantity, Quantity)
     assert isinstance(p.avg_price, Money)
     assert p.quantity == 5
-    assert p.avg_price == Decimal("10")
+    assert p.avg_price.to_decimal() == Decimal("10")
     p2 = p.with_fill(5, Decimal("12"))
     assert int(p2.quantity) == 10

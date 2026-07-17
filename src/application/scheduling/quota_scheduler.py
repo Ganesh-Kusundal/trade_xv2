@@ -130,6 +130,12 @@ class _TokenBucket:
                 return max(0.0, self._tokens)
             return max(0.0, self._tokens - self._reserved_tokens)
 
+    def refund(self) -> None:
+        """Return one token, used to roll back a composite acquire that failed
+        on a later (e.g. window) bucket after this one already succeeded."""
+        with self._lock:
+            self._tokens = min(self._capacity, self._tokens + 1.0)
+
     def utilization_ratio(self) -> float:
         """Return fraction of capacity that is consumed (0.0 = full, 1.0 = empty)."""
         with self._lock:
@@ -195,6 +201,11 @@ class QuotaScheduler:
     def __init__(self, reserved_headroom: float = 0.20) -> None:
         self._reserved_headroom = reserved_headroom
         self._buckets: dict[tuple[str, str], _TokenBucket] = {}
+        # Extra hard caps (e.g. Upstox's 2000/30min order cap, Dhan's 7000/day
+        # cap) that a per-second bucket alone can't express. All priorities
+        # draw from the same pool here — a rolling/daily cap is a broker-side
+        # hard wall regardless of priority.
+        self._window_buckets: dict[tuple[str, str], list[_TokenBucket]] = {}
         self._lock = threading.Lock()
         self._metrics_callbacks: list[Callable[[QuotaBucketMetrics], None]] = []
 
@@ -212,14 +223,48 @@ class QuotaScheduler:
                 burst_capacity=burst,
                 reserved_headroom=self._reserved_headroom,
             )
+            self._window_buckets[key] = [
+                _TokenBucket(
+                    sustained_rate=max_requests / window_seconds,
+                    burst_capacity=max_requests,
+                    reserved_headroom=0.0,
+                )
+                for max_requests, window_seconds in profile.extra_windows
+            ]
         logger.debug(
             "quota.profile.registered",
             extra={
                 "broker_id": broker_id,
                 "endpoint_class": profile.endpoint_class,
                 "sustained_rps": profile.sustained_rps,
+                "extra_windows": profile.extra_windows,
             },
         )
+
+    def _try_acquire_composite(
+        self,
+        broker_id: str,
+        endpoint_class: str,
+        priority: PriorityClass,
+    ) -> bool:
+        """Acquire from the primary bucket and every window bucket, atomically.
+
+        If any bucket in the chain is exhausted, refund whatever was already
+        consumed so a caller retrying on the next poll tick sees a consistent
+        state rather than a slow token leak.
+        """
+        bucket = self._get_or_default_bucket(broker_id, endpoint_class)
+        if not bucket.try_acquire(priority):
+            return False
+        consumed = [bucket]
+        for window_bucket in self._window_buckets.get((broker_id, endpoint_class), []):
+            if window_bucket.try_acquire(priority):
+                consumed.append(window_bucket)
+            else:
+                for b in consumed:
+                    b.refund()
+                return False
+        return True
 
     def acquire(
         self,
@@ -244,7 +289,7 @@ class QuotaScheduler:
         bucket = self._get_or_default_bucket(broker_id, endpoint_class)
 
         while True:
-            if bucket.try_acquire(priority):
+            if self._try_acquire_composite(broker_id, endpoint_class, priority):
                 token_id = str(uuid.uuid4())
                 logger.debug(
                     "quota.acquire",
@@ -322,7 +367,7 @@ class QuotaScheduler:
         bucket = self._get_or_default_bucket(broker_id, endpoint_class)
 
         while True:
-            if bucket.try_acquire(priority):
+            if self._try_acquire_composite(broker_id, endpoint_class, priority):
                 token_id = str(uuid.uuid4())
                 return QuotaToken(
                     broker_id=broker_id,

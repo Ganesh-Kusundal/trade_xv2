@@ -22,16 +22,22 @@ if TYPE_CHECKING:
 # Timeframe to V3 API interval mapping: (unit, interval)
 _INTERVAL_MAP: dict[str, tuple[str, str]] = {
     "1": ("minutes", "1"),
+    "1M": ("minutes", "1"),  # datalake canonical "1m".upper()
     "1MIN": ("minutes", "1"),
     "3": ("minutes", "3"),
+    "3M": ("minutes", "3"),
     "3MIN": ("minutes", "3"),
     "5": ("minutes", "5"),
+    "5M": ("minutes", "5"),
     "5MIN": ("minutes", "5"),
     "15": ("minutes", "15"),
+    "15M": ("minutes", "15"),
     "15MIN": ("minutes", "15"),
     "30": ("minutes", "30"),
+    "30M": ("minutes", "30"),
     "30MIN": ("minutes", "30"),
     "60": ("hours", "1"),
+    "60M": ("hours", "1"),
     "60MIN": ("hours", "1"),
     "1H": ("hours", "1"),
     "4H": ("hours", "4"),

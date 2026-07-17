@@ -11,9 +11,16 @@ import logging
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from application.data.batch_quote_coordinator import (
+        BatchQuoteCoordinator,
+        BatchQuoteQuery,
+        QuoteProvenanceLedger,
+    )
     from application.data.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
     from application.data.provenance import ProvenanceLedger
     from application.streaming.orchestrator import StreamOrchestrator, SubscriptionRequest
+    from domain.candles.historical import InstrumentRef
+    from domain.entities import Quote
 
 from domain.candles.historical import HistoricalSeries
 
@@ -27,11 +34,15 @@ class MarketDataComposer:
 
         composer = MarketDataComposer(
             historical_coordinator=coordinator,
+            batch_quote_coordinator=batch_quote_coordinator,
             stream_orchestrator=orchestrator,
         )
 
         # Fetch historical data with federation
         series, ledger = await composer.fetch_historical(query)
+
+        # Fetch batch quotes with federation
+        quotes, ledger = await composer.fetch_quotes_batch(query)
 
         # Subscribe to market stream
         sub_id = await composer.subscribe_market_stream(request)
@@ -40,9 +51,11 @@ class MarketDataComposer:
     def __init__(
         self,
         historical_coordinator: HistoricalDataCoordinator,
+        batch_quote_coordinator: BatchQuoteCoordinator,
         stream_orchestrator: StreamOrchestrator,
     ) -> None:
         self._historical_coordinator = historical_coordinator
+        self._batch_quote_coordinator = batch_quote_coordinator
         self._stream_orchestrator = stream_orchestrator
 
     async def fetch_historical(
@@ -97,6 +110,53 @@ class MarketDataComposer:
         )
 
         return series, ledger
+
+    async def fetch_quotes_batch(
+        self,
+        query: BatchQuoteQuery,
+    ) -> tuple[dict[InstrumentRef, Quote | None], QuoteProvenanceLedger]:
+        """Fetch batch quotes with multi-broker federation.
+
+        Delegates to BatchQuoteCoordinator which handles:
+        - Chunk planning across brokers (respecting each broker's max_batch_size)
+        - Concurrent fetch with quota gating
+        - Union merge (no conflict resolution — chunks are disjoint)
+        - Provenance ledger construction
+
+        Parameters
+        ----------
+        query
+            Batch quote query specifying the instruments to fetch.
+
+        Returns
+        -------
+        tuple[dict[InstrumentRef, Quote | None], QuoteProvenanceLedger]
+            Quotes keyed by instrument (None where unresolved) and the
+            provenance audit trail.
+
+        Notes
+        -----
+        Always returns a result — uses degraded mode rather than raising
+        when a source is partially unavailable. Check ``ledger.degraded``
+        to detect incomplete data.
+        """
+        logger.info(
+            "market_data.fetch_quotes_batch",
+            extra={"instrument_count": len(query.instruments)},
+        )
+
+        quotes, ledger = await self._batch_quote_coordinator.fetch(query)
+
+        logger.info(
+            "market_data.fetch_quotes_batch.complete",
+            extra={
+                "instrument_count": len(query.instruments),
+                "degraded": ledger.degraded,
+                "brokers_used": list(ledger.brokers_used()),
+            },
+        )
+
+        return quotes, ledger
 
     async def subscribe_market_stream(
         self,

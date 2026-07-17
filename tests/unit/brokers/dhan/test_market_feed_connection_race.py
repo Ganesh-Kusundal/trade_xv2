@@ -59,10 +59,8 @@ def _make_connection(fake_feed: _FakeSDKFeed) -> MarketFeedConnection:
 def test_stop_immediately_after_start_never_closes_before_run_claims_loop():
     fake_feed = _FakeSDKFeed()
 
-    with mock.patch(
-        "brokers.dhan.websocket.connection._sdk_market_feed_class",
-        return_value=lambda **kwargs: fake_feed,
-    ):
+    with mock_market_feed_class() as mock_cls:
+        mock_cls.return_value = lambda **kwargs: fake_feed
         conn = _make_connection(fake_feed)
         started = conn.start()
         assert started is True
@@ -82,10 +80,8 @@ def test_stop_immediately_after_start_never_closes_before_run_claims_loop():
 
 def test_stop_without_start_does_not_hang():
     fake_feed = _FakeSDKFeed()
-    with mock.patch(
-        "brokers.dhan.websocket.connection._sdk_market_feed_class",
-        return_value=lambda **kwargs: fake_feed,
-    ):
+    with mock_market_feed_class() as mock_cls:
+        mock_cls.return_value = lambda **kwargs: fake_feed
         conn = _make_connection(fake_feed)
         started = time.monotonic()
         conn.stop(timeout_seconds=2.0)

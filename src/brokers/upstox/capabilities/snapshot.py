@@ -48,6 +48,8 @@ def upstox_capabilities() -> BrokerCapabilities:
                 burst_rps=20.0,
                 min_interval_ms=100,
                 cooldown_on_429_s=60,
+                # 500/min and 2000/30min rolling caps (regular, non-SEBI-algo tier).
+                extra_windows=((500, 60.0), (2000, 1800.0)),
             ),
             RateLimitProfile(
                 # Official "Other Standard APIs" (quotes) ≈ 50/s; stay under with headroom.

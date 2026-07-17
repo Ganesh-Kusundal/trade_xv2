@@ -40,6 +40,7 @@ from brokers.common.transport_policy import ResiliencePolicy
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 from domain.events import DomainEvent
+from config.ws_settings import DHAN_STALENESS_THRESHOLD_SECONDS
 from domain.ports.time_service import get_current_clock
 from infrastructure.event_bus.event_bus import EventBus
 from domain.lifecycle_health import HealthStatus
@@ -329,7 +330,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         A connected-but-silent socket older than this is treated as dead
         and force-reconnected (see :meth:`_websocket_handler`).
         """
-        return float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
+        return DHAN_STALENESS_THRESHOLD_SECONDS
 
     def health(self) -> HealthStatus:
         """ManagedService protocol: return a point-in-time health snapshot."""

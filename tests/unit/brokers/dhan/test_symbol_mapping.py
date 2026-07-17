@@ -475,3 +475,56 @@ class TestEdgeCases:
         assert inst is not None
         assert inst.sm_symbol_name is None
         assert inst.symbol == "TESTSTOCK"
+
+
+class TestContractSymbolBuilder:
+    """to_dhan_symbol(InstrumentId) must produce the exact string
+    SymbolResolver.resolve() can look up — there is no underlying-only
+    fallback for futures/options (see resolver._find), so this builder is
+    the only bridge between the canonical InstrumentId and a resolvable
+    Dhan symbol."""
+
+    def test_equity_passthrough(self):
+        from datetime import date
+
+        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.equity("NSE", "RELIANCE")
+        assert to_dhan_symbol(iid) == "RELIANCE"
+
+    def test_mcx_future(self):
+        from datetime import date
+
+        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.future("MCX", "CRUDEOIL", date(2026, 7, 20))
+        assert to_dhan_symbol(iid) == "CRUDEOIL-20Jul2026-FUT"
+
+    def test_mcx_option(self):
+        from datetime import date
+
+        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.option("MCX", "CRUDEOIL", date(2026, 7, 16), 7650, "CE")
+        assert to_dhan_symbol(iid) == "CRUDEOIL-16Jul2026-7650-CE"
+
+    def test_nfo_future(self):
+        from datetime import date
+
+        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.future("NFO", "NIFTY", date(2026, 7, 30))
+        assert to_dhan_symbol(iid) == "NIFTY-30Jul2026-FUT"
+
+    def test_nfo_option_put(self):
+        from datetime import date
+
+        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.option("NFO", "NIFTY", date(2026, 6, 26), 25000, "PE")
+        assert to_dhan_symbol(iid) == "NIFTY-26Jun2026-25000-PE"

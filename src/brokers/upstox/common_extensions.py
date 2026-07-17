@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.ports.broker_gateway import QuotaToken
 from domain.extensions.broker_bundle import ExtensionBundle
 from domain.extensions.extended_order import ExtendedOrderExecutor
@@ -208,7 +209,7 @@ class UpstoxExtendedOrderExecutor(ExtendedOrderExecutor):
 
         req = OrderRequest(
             symbol=payload.get("symbol", ""),
-            exchange=payload.get("exchange", "NSE"),
+            exchange=payload.get("exchange", DEFAULT_EXCHANGE),
             transaction_type=Side(payload.get("side", "BUY")),
             quantity=int(payload.get("quantity", 0)),
             order_type=OrderType(payload.get("order_type", "MARKET")),

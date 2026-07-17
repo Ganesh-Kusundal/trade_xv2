@@ -88,3 +88,42 @@ class TestQuotaScheduler:
 
         assert not errors
         assert len(acquired) == 20
+
+    def test_extra_window_cap_blocks_once_exhausted_even_with_rps_headroom(self):
+        # sustained_rps is generous, but the 3-per-window cap should still bind.
+        scheduler = QuotaScheduler(reserved_headroom=0.0)
+        scheduler.register_profile(
+            "upstox",
+            RateLimitProfile(
+                endpoint_class="orders",
+                sustained_rps=100.0,
+                burst_rps=100.0,
+                extra_windows=((3, 30.0),),
+            ),
+        )
+        for _ in range(3):
+            scheduler.acquire("upstox", "orders", PriorityClass.EXECUTION_CRITICAL)
+        with pytest.raises(QuotaExhaustedError):
+            scheduler.acquire("upstox", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+
+    def test_extra_window_rejection_refunds_primary_bucket(self):
+        # A window-cap rejection must not silently burn the primary bucket's
+        # token — otherwise sustained-rps throughput degrades over time even
+        # though the window resets.
+        scheduler = QuotaScheduler(reserved_headroom=0.0)
+        scheduler.register_profile(
+            "dhan",
+            RateLimitProfile(
+                endpoint_class="orders",
+                sustained_rps=100.0,
+                burst_rps=5.0,
+                extra_windows=((1, 30.0),),
+            ),
+        )
+        scheduler.acquire("dhan", "orders", PriorityClass.EXECUTION_CRITICAL)
+        primary = scheduler._get_or_default_bucket("dhan", "orders")
+        before = primary.available_tokens(PriorityClass.EXECUTION_CRITICAL)
+        with pytest.raises(QuotaExhaustedError):
+            scheduler.acquire("dhan", "orders", PriorityClass.LIVE_STREAM_CONTROL)
+        after = primary.available_tokens(PriorityClass.EXECUTION_CRITICAL)
+        assert after == pytest.approx(before, abs=0.05)

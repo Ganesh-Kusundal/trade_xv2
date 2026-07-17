@@ -53,6 +53,10 @@ def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
 
 
 def test_subscribe_depth_mode() -> None:
+    # "DEPTH" is not a real Dhan feed mode (only LTP/QUOTE/FULL — see
+    # brokers.dhan.websocket._helpers._mode_map) and silently produced plain
+    # quotes with bid=None/ask=None. "FULL" is the mode that actually carries
+    # bid/ask, verified live.
     gw = MagicMock()
     gw.stream.return_value = MagicMock()
     provider = DhanDataProvider(gw)
@@ -61,7 +65,7 @@ def test_subscribe_depth_mode() -> None:
         lambda *a: None,
         depth=True,
     )
-    assert gw.stream.call_args.kwargs.get("mode") == "DEPTH"
+    assert gw.stream.call_args.kwargs.get("mode") == "FULL"
 
 
 def test_subscribe_normalizes_dict_tick() -> None:

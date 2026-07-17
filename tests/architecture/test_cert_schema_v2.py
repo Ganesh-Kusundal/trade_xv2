@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from brokers.certification.report import CertificationReport
@@ -28,11 +30,15 @@ def test_verify_report_schema_v2_paper() -> None:
 
 @pytest.mark.architecture
 def test_certification_report_schema_v2_paper() -> None:
-    session = BrokerSession("paper")
-    try:
-        report = BrokerCertifier(session).certify()
-    finally:
-        session.close()
+    def _mock_opener(_broker_id: str, **_kwargs):
+        return MagicMock()
+
+    with patch("runtime.session_opener._session_opener", _mock_opener):
+        session = BrokerSession("paper")
+        try:
+            report = BrokerCertifier(session).certify()
+        finally:
+            session.close()
     data = report.to_dict()
     assert data["schema_version"] == SCHEMA_VERSION
     assert data["tier"] == "L1"

@@ -134,28 +134,13 @@ class TradeRecorder:
                 trade.price,
             )
 
-            # Mark the trade as processed BEFORE validating/applying it. The
-            # repository's mark is the durable idempotency marker; if it raises
-            # (simulated crash) the fill is left unmarked and recovery can
-            # re-apply it exactly once (R6 / Defect R6). The result also gates
-            # the rest of this method: a duplicate (mark returns False) must be
-            # skipped without re-applying the fill.
-            marked = True
-            if self._processed_trades is not None:
-                marked = self._processed_trades.mark_processed(key)
-
-            if not marked:
-                self._trades_duplicated += 1
-                if self._metrics is not None:
-                    self._metrics.inc(EventType.TRADE.value, "trade_duplicated")
-                logger.info(
-                    "OrderManager: trade %s for order %s is a duplicate; skipping",
-                    trade.trade_id,
-                    trade.order_id,
-                )
-                return False
-
-            fill_result = self._fill_reducer.apply(
+            # R6 (P0): validate the fill, then apply it to order/position state
+            # BEFORE marking the ledger. A crash after apply but before mark means
+            # the durable ledger is NOT marked, so recovery replays the trade and
+            # re-applies it exactly once (no silent lost fill). The reducer's fill
+            # id is committed only AFTER the durable mark succeeds, so a crashed
+            # attempt never poisons the process-wide FillReducer for a later replay.
+            fill_result = self._fill_reducer.validate(
                 fill,
                 order_quantity=order.quantity,
                 prior_cumulative=order.filled_quantity,
@@ -171,6 +156,8 @@ class TradeRecorder:
 
             self._persist_fill_to_ledger(fill, order, trade)
 
+            # R6 (P0): apply the fill to order/position state BEFORE marking the
+            # ledger. Marking last is the fix for Defect R6.
             updated = self._position_updater.apply_trade(order, trade)
 
             orders[order.order_id] = updated
@@ -193,16 +180,31 @@ class TradeRecorder:
             )
 
             self._publish_callback(EventType.ORDER_UPDATED.value, updated)
-            # R6 (P0): apply to the position book (via TRADE_APPLIED) as the
-            # last durable step. The trade is already marked processed above, so
-            # a crash after apply but before this publish is recovered by replay
-            # (mark is set → replay skips the duplicate rather than losing it).
+            # Drive the position book (via TRADE_APPLIED) — must fire before the
+            # ledger is marked processed (see test_trade_applied_event_published_before_mark).
             self._publish_trade_applied(trade)
 
-            # Fast-path guard: record the fill_id only after a successful mark
-            # AND apply, so a crashed attempt never poisons the process-wide
-            # FillReducer for a later replay.
-            self._fill_reducer._seen_fill_ids.add(fill.fill_id)
+            # Durable idempotency marker is the LAST step. Under the OMS lock
+            # this is serialized, so a concurrent duplicate sees is_processed()
+            # True and is skipped. If mark raises (simulated crash) the fill is
+            # left unmarked and recovery replays it exactly once; the reducer is
+            # committed only after a successful mark.
+            marked = True
+            if self._processed_trades is not None:
+                marked = self._processed_trades.mark_processed(key)
+            if not marked:
+                # Mark rejected (already processed) yet we passed is_processed()
+                # under the lock — unreachable in practice. The fill was already
+                # applied above; treat as applied rather than dropping it.
+                logger.warning(
+                    "OrderManager: trade %s for order %s mark returned False "
+                    "after apply; treating as processed",
+                    trade.trade_id,
+                    trade.order_id,
+                )
+                return True
+            # Commit the reducer only after a successful durable mark.
+            self._fill_reducer.commit(fill)
             return True
 
     def _persist_fill_to_ledger(self, fill, order: Order, trade: Trade) -> None:
@@ -269,14 +271,6 @@ class TradeRecorder:
                 order.filled_quantity,
                 trade.price,
             )
-            # Mark before apply (see record_trade): the repository mark is the
-            # durable idempotency marker; a crash leaves the reducer clean for
-            # replay. Skip if the mark rejects (already processed).
-            marked = True
-            if self._processed_trades is not None:
-                marked = self._processed_trades.mark_processed(key)
-            if not marked:
-                continue
             fill_result = self._fill_reducer.apply(
                 fill,
                 order_quantity=order.quantity,
@@ -291,13 +285,16 @@ class TradeRecorder:
                 )
                 continue
             self._persist_fill_to_ledger(fill, order, trade)
+            # R6 (P0): apply to state BEFORE marking the ledger (see record_trade).
             updated = self._position_updater.apply_trade(order, trade)
             orders[order.order_id] = updated
             if order.correlation_id:
                 orders_by_correlation[order.correlation_id] = updated
             self._trades_processed += 1
             self._publish_callback(EventType.ORDER_UPDATED.value, updated)
-            # R6 (P0): apply to the position book (via TRADE_APPLIED) as the
-            # last durable step; the mark above already gates duplicates.
+            # R6 (P0): drive the position book (via TRADE_APPLIED) before marking.
             self._publish_trade_applied(trade)
+            # Durable idempotency marker is the LAST step.
+            if self._processed_trades is not None:
+                self._processed_trades.mark_processed(key)
             self._fill_reducer._seen_fill_ids.add(fill.fill_id)

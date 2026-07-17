@@ -200,11 +200,13 @@ def register_oms_services(
     order_store = _build_order_store()
     execution_ledger = _build_execution_ledger()
 
-    # Build TradingContext with shared risk_manager, reconciliation, and event_log
+    # Build TradingContext with shared risk_manager, event_log (reconciliation
+    # attached post-construction via the public API so the broker reconciler —
+    # which needs the OMS that create_trading_context builds — is wired without
+    # reaching into private attributes).
     try:
         service._trading_context = create_trading_context(
             risk_manager=risk_manager,
-            reconciliation_service=dhan_reconciliation,
             reconciliation_interval_seconds=RECONCILIATION_INTERVAL_SECONDS,
             event_log=event_log,
             event_bus=service._event_bus,
@@ -220,13 +222,10 @@ def register_oms_services(
         # Attach lifecycle (registers reconciliation service, etc.)
         service._trading_context.attach_lifecycle(service._lifecycle)
 
-        # Point reconciliation at OrderManager so heal mode can upsert when
-        # TRADEX_RECONCILIATION_AUTO_REPAIR=1 (default remains report-only).
+        # Wire broker reconciliation via the public method (no private _oms mutation).
         if dhan_reconciliation is not None:
-            dhan_reconciliation._oms = service._trading_context.order_manager
-            # Prefer position_manager for upsert_position during heal
-            dhan_reconciliation._oms.position_manager = (
-                service._trading_context.position_manager
+            service._trading_context.attach_reconciliation_service(
+                dhan_reconciliation, lifecycle=service._lifecycle
             )
 
         # ENG-011: single process OMS book (CLI / API / tradex.connect).

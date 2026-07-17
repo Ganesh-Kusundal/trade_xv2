@@ -84,8 +84,9 @@ class OverallReport:
 def _expected_candles_per_day(timeframe: str) -> int | None:
     """Return expected candles per trading day for *timeframe*, or None."""
     if timeframe in ("1m", "5m", "15m", "30m"):
-        candles_per_hour = 60 // int(timeframe.replace("m", ""))
-        return int(candles_per_hour * 6.25)  # 6.25 trading hours
+        from datalake.core.nse_calendar import expected_candles_per_day
+
+        return expected_candles_per_day(timeframe)
     return None
 
 

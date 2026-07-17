@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from config.endpoints import _UpstoxUrls
+from domain.constants import DEFAULT_EXCHANGE
 
 
 class UpstoxApiUrlResolver:
@@ -85,7 +86,7 @@ class UpstoxApiUrlResolver:
     ) -> str:
         return self._delegate.historical_candle_url(instrument_key, interval, to_date, from_date)
 
-    def market_status_url(self, exchange: str = "NSE") -> str:
+    def market_status_url(self, exchange: str = DEFAULT_EXCHANGE) -> str:
         return self._delegate.market_status_url(exchange)
 
     def market_holidays_url(self) -> str:

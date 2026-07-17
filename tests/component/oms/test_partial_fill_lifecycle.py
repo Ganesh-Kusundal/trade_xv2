@@ -10,8 +10,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from application.oms.order_manager import OrderManager
-from infrastructure.event_bus import ProcessedTradeRepository
 from domain import Order, OrderStatus, OrderType, Side, Trade
+from tests.support.assertion_helpers import assert_order_state
 
 
 def _make_order(
@@ -32,8 +32,8 @@ def _make_order(
 
 
 class TestPartialFillLifecycle:
-    def test_single_partial_fill_sets_partially_filled(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_single_partial_fill_sets_partially_filled(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -52,8 +52,8 @@ class TestPartialFillLifecycle:
         assert updated.status == OrderStatus.PARTIALLY_FILLED
         assert updated.filled_quantity == 40
 
-    def test_two_partial_fills_complete_order(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_two_partial_fills_complete_order(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -79,12 +79,10 @@ class TestPartialFillLifecycle:
             price=Decimal("2501"),
         )
         om.record_trade(t2)
-        final = om._orders[order.order_id]
-        assert final.status == OrderStatus.FILLED
-        assert final.filled_quantity == 100
+        assert_order_state(om, order.order_id, filled_qty=100, status="FILLED")
 
-    def test_three_tranche_partial_fills(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_three_tranche_partial_fills(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=300)
         om._orders[order.order_id] = order
 
@@ -100,12 +98,10 @@ class TestPartialFillLifecycle:
             )
             om.record_trade(trade)
 
-        final = om._orders[order.order_id]
-        assert final.status == OrderStatus.FILLED
-        assert final.filled_quantity == 300
+        assert_order_state(om, order.order_id, filled_qty=300, status="FILLED")
 
-    def test_duplicate_partial_fill_is_idempotent(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_duplicate_partial_fill_is_idempotent(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -121,12 +117,10 @@ class TestPartialFillLifecycle:
         om.record_trade(trade)
         om.record_trade(trade)
 
-        updated = om._orders[order.order_id]
-        assert updated.filled_quantity == 40
-        assert updated.status == OrderStatus.PARTIALLY_FILLED
+        assert_order_state(om, order.order_id, filled_qty=40, status="PARTIALLY_FILLED")
 
-    def test_partial_fill_records_filled_quantity(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_partial_fill_records_filled_quantity(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -141,12 +135,10 @@ class TestPartialFillLifecycle:
         )
         om.record_trade(trade)
 
-        updated = om._orders[order.order_id]
-        assert updated.filled_quantity == 50
-        assert updated.status == OrderStatus.PARTIALLY_FILLED
+        assert_order_state(om, order.order_id, filled_qty=50, status="PARTIALLY_FILLED")
 
-    def test_partial_fill_then_cancel(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_partial_fill_then_cancel(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -165,8 +157,8 @@ class TestPartialFillLifecycle:
         om.cancel_order(order.order_id)
         assert om._orders[order.order_id].status == OrderStatus.CANCELLED
 
-    def test_partial_fill_remaining_quantity(self):
-        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
+    def test_partial_fill_remaining_quantity(self, processed_trade_repository):
+        om = OrderManager(processed_trade_repository=processed_trade_repository)
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 

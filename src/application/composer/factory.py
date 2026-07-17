@@ -66,7 +66,7 @@ def _run_async(coro: Any) -> Any:
     context), but ``HistoricalDataCoordinator.fetch`` is async.
     """
     try:
-        from runtime.event_loop import run_coro_sync
+        from application.ports import run_coro_sync
 
         return run_coro_sync(coro)
     except Exception as exc:  # pragma: no cover - defensive
@@ -361,6 +361,7 @@ def create_composers_from_infra(
 
     market_data = MarketDataComposer(
         historical_coordinator=infra.historical,
+        batch_quote_coordinator=infra.batch_quotes,
         stream_orchestrator=infra.streams,
     )
     execution = ExecutionComposer(
@@ -415,6 +416,7 @@ def create_composers(
     """
     from application.composer.registry import BrokerRegistry
     from application.composer.router import BrokerRouter
+    from application.data.batch_quote_coordinator import BatchQuoteCoordinator
     from application.data.historical_coordinator import HistoricalDataCoordinator
     from application.scheduling.quota_scheduler import QuotaScheduler as QuotaSchedulerCls
     from application.streaming.orchestrator import StreamOrchestrator
@@ -451,6 +453,13 @@ def create_composers(
         quota_fn=quota_scheduler.acquire,
     )
 
+    # 5b. Create batch-quote coordinator
+    batch_quote_coordinator = BatchQuoteCoordinator(
+        registry=registry,
+        router=router,
+        quota_fn=quota_scheduler.acquire,
+    )
+
     # 6. Create stream orchestrator
     stream_orchestrator = StreamOrchestrator(
         registry=registry,
@@ -470,6 +479,7 @@ def create_composers(
     # 7. Create composers
     market_data_composer = MarketDataComposer(
         historical_coordinator=historical_coordinator,
+        batch_quote_coordinator=batch_quote_coordinator,
         stream_orchestrator=stream_orchestrator,
     )
 

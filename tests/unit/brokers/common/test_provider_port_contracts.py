@@ -80,7 +80,9 @@ class _FakeGateway:
 
 @pytest.fixture
 def paper_gw():
-    return PaperGateway()
+    from tests.unit.brokers.paper.test_paper import _MockOrderManager
+
+    return PaperGateway(order_manager=_MockOrderManager())
 
 
 @pytest.fixture

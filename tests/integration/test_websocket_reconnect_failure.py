@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from urllib.parse import parse_qs, urlparse
+
+from tests.support.wait_utils import wait_until as _shared_wait_until
 
 import pytest
 
@@ -21,12 +22,16 @@ pytestmark = [
 
 
 def _wait_until(predicate, *, timeout: float = 8.0, interval: float = 0.05) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if predicate():
-            return True
-        time.sleep(interval)
-    return False
+    """Poll *predicate* until truthy, returning True, or False on timeout.
+
+    Thin wrapper over the shared wait_until utility that preserves the
+    bool-on-timeout semantics the assertions below rely on.
+    """
+    try:
+        _shared_wait_until(predicate, timeout=timeout, interval=interval)
+        return True
+    except TimeoutError:
+        return False
 
 
 class _FlakyWebSocketServer:
@@ -115,7 +120,7 @@ def flaky_ws_server():
 
 class TestDepthFeedNetworkReconnect:
     def test_reconnects_after_server_drops_connection(self, flaky_ws_server):
-        from brokers.dhan.depth_20 import DhanDepth20Feed
+        from brokers.dhan.data.depth_20 import DhanDepth20Feed
 
         feed = DhanDepth20Feed("TEST_CLIENT", "TOKEN_A")
         feed.ENDPOINT = flaky_ws_server.base_url
@@ -130,7 +135,7 @@ class TestDepthFeedNetworkReconnect:
             feed.stop()
 
     def test_token_refresh_reconnects_with_new_credentials(self, flaky_ws_server):
-        from brokers.dhan.depth_20 import DhanDepth20Feed
+        from brokers.dhan.data.depth_20 import DhanDepth20Feed
 
         feed = DhanDepth20Feed("TEST_CLIENT", "TOKEN_A")
         feed.ENDPOINT = flaky_ws_server.base_url

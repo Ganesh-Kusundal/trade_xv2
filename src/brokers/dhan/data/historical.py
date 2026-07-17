@@ -135,7 +135,13 @@ class HistoricalAdapter:
             raw = raw["data"]
         df = pd.DataFrame(raw)
         if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+            # Dhan's epoch field is genuine UTC. unit="s" alone produces a
+            # naive datetime64 (no tz tag), which datalake.ingestion
+            # .normalize.ensure_timestamp_dtype()'s "naive -> assume
+            # already IST" fallback then leaves unconverted -- candles
+            # land 5.5h off (e.g. a 09:15 IST open stored as "03:45").
+            # utc=True tags it properly so that conversion actually fires.
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
         elif "date" in df.columns:
             df["timestamp"] = pd.to_datetime(df["date"])
             df = df.drop(columns=["date"])

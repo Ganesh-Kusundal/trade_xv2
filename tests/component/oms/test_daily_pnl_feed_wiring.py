@@ -48,8 +48,7 @@ def _publish_trade_applied(bus: EventBus, trade: Trade) -> None:
     )
 
 
-def _build_context(capital: Decimal, loss_threshold_pct: Decimal) -> TradingContext:
-    bus = EventBus()
+def _build_context(capital: Decimal, loss_threshold_pct: Decimal, bus: EventBus, processed_trade_repository: ProcessedTradeRepository) -> TradingContext:
     risk_config = RiskConfig(max_daily_loss_pct=loss_threshold_pct)
     loss_cb_config = LossCircuitBreakerConfig(
         loss_threshold_pct=loss_threshold_pct,
@@ -67,14 +66,14 @@ def _build_context(capital: Decimal, loss_threshold_pct: Decimal) -> TradingCont
         risk_manager=risk_manager,
         risk_config=risk_config,
         capital_fn=lambda: capital,
-        processed_trade_repository=ProcessedTradeRepository(),
+        processed_trade_repository=processed_trade_repository,
     )
 
 
-def test_daily_pnl_observes_live_fills():
+def test_daily_pnl_observes_live_fills(event_bus, processed_trade_repository):
     """A realized loss from live fills must reach the risk engine."""
     capital = Decimal("1_000_000")
-    ctx = _build_context(capital, Decimal("5.0"))
+    ctx = _build_context(capital, Decimal("5.0"), event_bus, processed_trade_repository)
 
     # Opening BUY at 2500, then closing SELL at 2400 -> 100 * 10 = 1000 loss.
     _publish_trade_applied(ctx.event_bus, _make_trade("T1", Side.BUY, Decimal("2500")))
@@ -84,11 +83,11 @@ def test_daily_pnl_observes_live_fills():
     assert ctx.risk_manager.daily_pnl == Decimal("-1000"), ctx.risk_manager.daily_pnl
 
 
-def test_loss_circuit_breaker_trips_on_live_loss():
+def test_loss_circuit_breaker_trips_on_live_loss(event_bus, processed_trade_repository):
     """Once the daily loss exceeds the threshold, orders are blocked (P0)."""
     capital = Decimal("1_000_000")
     # 0.2% threshold -> a 1000 INR loss (0.1%) is below; use a tighter one.
-    ctx = _build_context(capital, Decimal("0.05"))
+    ctx = _build_context(capital, Decimal("0.05"), event_bus, processed_trade_repository)
 
     # A single 1000 INR loss is 0.1% of capital -> exceeds 0.05% threshold.
     _publish_trade_applied(ctx.event_bus, _make_trade("T1", Side.BUY, Decimal("2500")))

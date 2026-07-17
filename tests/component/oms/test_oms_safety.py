@@ -16,7 +16,6 @@ from domain.events.types import DomainEvent, EventType
 from domain.execution_contracts import OrderIntent, SubmissionOutcome
 from domain.types import OrderStatus
 from infrastructure.event_bus.event_bus import EventBus
-from infrastructure.event_bus.processed_trade_repository import ProcessedTradeRepository
 from infrastructure.persistence.sqlite_execution_ledger import SqliteExecutionLedger
 from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 
@@ -43,11 +42,10 @@ def _publish_trade_applied(bus: EventBus, trade: Trade) -> None:
     )
 
 
-def test_daily_pnl_is_session_equity_delta_not_absolute_mtm():
+def test_daily_pnl_is_session_equity_delta_not_absolute_mtm(event_bus, processed_trade_repository):
     """F5: overnight underwater book must not trip daily-loss at session open."""
     capital = Decimal("1_000_000")
-    bus = EventBus()
-    pm = PositionManager(event_bus=bus)
+    pm = PositionManager(event_bus=event_bus)
     # Seed overnight underwater position before context start.
     pm.upsert_position(
         {
@@ -60,11 +58,11 @@ def test_daily_pnl_is_session_equity_delta_not_absolute_mtm():
     )
     rm = RiskManager(pm, RiskConfig(max_daily_loss_pct=Decimal("0.1")), capital_fn=lambda: capital)
     ctx = TradingContext(
-        event_bus=bus,
+        event_bus=event_bus,
         position_manager=pm,
         risk_manager=rm,
         capital_fn=lambda: capital,
-        processed_trade_repository=ProcessedTradeRepository(),
+        processed_trade_repository=processed_trade_repository,
         replay_events=False,
     )
     # Session-open equity includes overnight MTM; daily delta starts at 0.
@@ -83,19 +81,18 @@ def test_daily_pnl_is_session_equity_delta_not_absolute_mtm():
     assert ctx.risk_manager.check_order(order).allowed is True
 
 
-def test_daily_pnl_observes_realized_session_loss():
+def test_daily_pnl_observes_realized_session_loss(event_bus, processed_trade_repository):
     """F5: realized session loss still reaches the risk engine as equity delta."""
     capital = Decimal("1_000_000")
-    bus = EventBus()
     ctx = TradingContext(
-        event_bus=bus,
+        event_bus=event_bus,
         risk_manager=RiskManager(
-            PositionManager(event_bus=bus),
+            PositionManager(event_bus=event_bus),
             RiskConfig(max_daily_loss_pct=Decimal("5.0")),
             capital_fn=lambda: capital,
         ),
         capital_fn=lambda: capital,
-        processed_trade_repository=ProcessedTradeRepository(),
+        processed_trade_repository=processed_trade_repository,
         replay_events=False,
     )
     _publish_trade_applied(ctx.event_bus, _make_trade("T1", Side.BUY, Decimal("2500")))
@@ -188,12 +185,11 @@ class _NullFillSource:
         return None
 
 
-def test_apply_mass_status_heals_missing_local_order():
+def test_apply_mass_status_heals_missing_local_order(event_bus, processed_trade_repository):
     """F4: apply_mass_status upserts broker orders into the OMS."""
-    bus = EventBus()
     ctx = TradingContext(
-        event_bus=bus,
-        processed_trade_repository=ProcessedTradeRepository(),
+        event_bus=event_bus,
+        processed_trade_repository=processed_trade_repository,
         replay_events=False,
     )
     engine = ExecutionEngine(_NullFillSource(), ctx)

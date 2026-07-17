@@ -7,6 +7,7 @@ import re
 from datetime import date, datetime
 from typing import Any
 
+from domain.constants import BFO, BSE, CDS, MCX, NFO, NSE
 from brokers.dhan.domain import Exchange, InstrumentType, OptionType
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.resolver import SymbolResolver
@@ -153,7 +154,7 @@ class DhanSymbolValidator:
         exchanges_to_check = (
             [exchange_filter]
             if exchange_filter
-            else ["NSE", "BSE", "INDEX", "MCX", "CDS", "NFO", "BFO"]
+            else [NSE, BSE, "INDEX", MCX, CDS, NFO, BFO]
         )
 
         for exch_str in exchanges_to_check:
@@ -365,7 +366,7 @@ class DhanSymbolValidator:
                 "strike": strike,
                 "optionType": opt_type,
                 "securityId": None,
-                "exchange": "NFO" if underlying in ("NIFTY", "BANKNIFTY", "FINNIFTY") else "MCX",
+                "exchange": NFO if underlying in ("NIFTY", "BANKNIFTY", "FINNIFTY") else MCX,
                 "segment": "D" if underlying in ("NIFTY", "BANKNIFTY", "FINNIFTY") else "M",
                 "lotSize": None,
                 "status": status,

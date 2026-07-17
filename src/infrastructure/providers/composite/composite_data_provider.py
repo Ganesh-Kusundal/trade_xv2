@@ -1,7 +1,12 @@
-"""CompositeDataProvider — delegates to multiple providers with fallback.
+"""FallbackDataProvider (formerly CompositeDataProvider) — first-wins fallback.
 
-Tries each provider in order until one succeeds.  Useful for composing
-broker data with CSV/cache fallback.
+Tries each provider in order until one returns a non-empty result. This is a
+FALLBACK chain, NOT a federation/merge: only the first successful provider's
+data is returned, overlapping sources are not merged, and no provenance union
+is performed. Use ``HistoricalDataCoordinator`` when multi-source merge with
+conflict resolution and gap reporting is required.
+
+``CompositeDataProvider`` is kept as a deprecated alias.
 """
 
 from __future__ import annotations
@@ -32,19 +37,19 @@ class _NullSubscription:
         pass
 
 
-class CompositeDataProvider:
-    """DataProvider that delegates to multiple providers with fallback.
+class FallbackDataProvider:
+    """DataProvider that delegates to multiple providers with first-wins fallback.
 
     Parameters
     ----------
     providers:
         Ordered list of DataProvider instances.  The first provider that
-        returns a non-None/non-empty result wins.
+        returns a non-None/non-empty result wins.  NOT a merge.
     """
 
     def __init__(self, providers: list[Any]) -> None:
         if not providers:
-            raise ValueError("CompositeDataProvider requires at least one provider")
+            raise ValueError("FallbackDataProvider requires at least one provider")
         self._providers = list(providers)
 
     @property
@@ -174,3 +179,7 @@ class CompositeDataProvider:
             except Exception as exc:
                 logger.debug("Provider %s failed for list_instruments: %s", provider.name, exc)
         return all_instruments
+
+
+# Deprecated alias — this is a fallback chain, not a federation.
+CompositeDataProvider = FallbackDataProvider

@@ -9,7 +9,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-_EXCHANGE_TZ: dict[str, str] = {
+#: Canonical exchange -> IANA timezone map. Single source of truth for
+#: exchange-local time. Infrastructure calendars derive from this (see
+#: ``infrastructure.time_service.EXCHANGE_CALENDARS``) rather than repeating
+#: the per-exchange timezone literals.
+EXCHANGE_TZ: dict[str, str] = {
     "NSE": "Asia/Kolkata",
     "BSE": "Asia/Kolkata",
     "MCX": "Asia/Kolkata",
@@ -17,6 +21,9 @@ _EXCHANGE_TZ: dict[str, str] = {
     "NASDAQ": "America/New_York",
     "LSE": "Europe/London",
 }
+
+#: Backward-compatible private alias (pre-existing internal name).
+_EXCHANGE_TZ = EXCHANGE_TZ
 
 
 class RealClock:

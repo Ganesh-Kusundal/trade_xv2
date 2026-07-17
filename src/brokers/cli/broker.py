@@ -32,6 +32,7 @@ from brokers.services import (
     get_depth,
     get_depth30,
     get_history,
+    get_history_batch,
     get_news,
     get_option_chain,
     get_quote,
@@ -367,6 +368,30 @@ def history(ctx: click.Context, symbol: str, tf: str, days: int) -> None:
     """Fetch history for SYMBOL."""
     series = get_history(_bid(ctx), symbol, timeframe=tf, days=days, **_svc_kw(ctx))
     present(ctx, series, title=f"History — {symbol} ({tf})")
+
+
+@broker.command()
+@click.argument("symbols", nargs=-1, required=True)
+@click.option("--tf", default="1D", help="Timeframe (1m/5m/15m/1D/...).")
+@click.option("--days", default=5, type=int)
+@click.option("--exchange", default="NSE", help="Exchange for all symbols.")
+@click.pass_context
+@handle_cli_errors
+def history_batch(ctx: click.Context, symbols: tuple[str, ...], tf: str, days: int, exchange: str) -> None:
+    """Fetch history for multiple SYMBOLS in parallel.
+
+    SYMBOLS is one or more space-separated trading symbols.
+    Uses the chunking pipeline with rate limiting for large date ranges.
+    """
+    result = get_history_batch(
+        _bid(ctx),
+        list(symbols),
+        timeframe=tf,
+        days=days,
+        exchange=exchange,
+        **_svc_kw(ctx),
+    )
+    present(ctx, result, title=f"History Batch — {len(symbols)} symbols ({tf})")
 
 
 @broker.command()

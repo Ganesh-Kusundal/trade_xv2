@@ -27,6 +27,9 @@ def test_place_order_routes_through_gateway_with_oms_context() -> None:
     svc._gateway = gw
     svc._live_actionable = False  # place_order must refuse when not live-actionable
     svc._initialized = True
+    svc._active_name = "dhan"
+    svc._manager = MagicMock()
+    svc._manager.get_active_broker_name.return_value = "dhan"
     svc._facade = CliBrokerFacade(svc)
     try:
         svc.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))

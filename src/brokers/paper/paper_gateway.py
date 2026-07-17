@@ -26,6 +26,9 @@ from domain import (
     Validity,
 )
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
+from domain.constants import DEFAULT_EXCHANGE
+
+from brokers.common.broker_capabilities import BrokerCapabilities
 
 from .paper_market_data import PaperMarketData
 from .paper_orders import PaperOrders
@@ -83,7 +86,7 @@ class PaperGateway:
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),
@@ -167,7 +170,7 @@ class PaperGateway:
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
@@ -213,7 +216,7 @@ class PaperGateway:
 
         return pd.DataFrame(rows)
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         q = self._market_data.get_quote(symbol, exchange)
         return Quote(
             symbol=symbol,
@@ -229,10 +232,10 @@ class PaperGateway:
             timestamp=q.timestamp,
         )
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         return self._market_data.get_ltp(symbol, exchange)
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         d = self._market_data.get_depth(symbol, exchange)
         return MarketDepth(
             symbol=symbol,
@@ -345,7 +348,7 @@ class PaperGateway:
     def stream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
@@ -365,7 +368,7 @@ class PaperGateway:
     def stream_depth(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         depth_type: str = "DEPTH_5",
         on_depth: Callable[[MarketDepth], None] | None = None,
     ) -> Any:

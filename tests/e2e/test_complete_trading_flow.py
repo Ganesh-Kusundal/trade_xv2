@@ -22,6 +22,12 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
+# ── Test Constants ────────────────────────────────────────────────────────────
+DEFAULT_FILL_PRICE = Decimal("100.0")
+DEFAULT_SELL_PRICE = Decimal("110.0")
+DEFAULT_SYMBOL = "RELIANCE"
+DEFAULT_QUANTITY = 10
+
 from application.oms.order_manager import OmsOrderCommand
 from application.oms.risk_manager import RiskConfig
 from domain import (
@@ -68,7 +74,7 @@ def event_capturer(trading_context):
     return capturer
 
 
-def _make_submit_fn(fill_price: Decimal = Decimal("100.0")):
+def _make_submit_fn(fill_price: Decimal = DEFAULT_FILL_PRICE):
     """Create a mock submit function that returns an OPEN order (not auto-filled)."""
     import uuid
 
@@ -118,11 +124,11 @@ class TestSignalToOrderFlow:
     def test_buy_signal_creates_order(self, trading_context):
         """A BUY signal should create an OPEN order in the OMS."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             order_type=OrderType.MARKET,
             product_type=ProductType.INTRADAY,
             correlation_id="test-signal-001",
@@ -132,7 +138,7 @@ class TestSignalToOrderFlow:
 
         assert result.success is True
         assert result.order is not None
-        assert result.order.symbol == "RELIANCE"
+        assert result.order.symbol == DEFAULT_SYMBOL
         assert result.order.side == Side.BUY
         assert result.order.quantity == 10
         assert result.order.status == OrderStatus.OPEN
@@ -158,11 +164,11 @@ class TestSignalToOrderFlow:
     def test_duplicate_signal_is_idempotent(self, trading_context):
         """Same correlation_id should return existing order, not create new one."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             order_type=OrderType.MARKET,
             correlation_id="dup-signal-001",
         )
@@ -176,11 +182,11 @@ class TestSignalToOrderFlow:
     def test_order_emits_events(self, trading_context, event_capturer):
         """Placing an order should publish ORDER_PLACED event."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="evt-test-001",
         )
         trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -190,11 +196,11 @@ class TestSignalToOrderFlow:
     def test_risk_approved_event_published(self, trading_context, event_capturer):
         """Passing risk check should publish RISK_APPROVED."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="risk-approval-001",
         )
         trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -211,35 +217,35 @@ class TestOrderToPositionFlow:
     def test_fill_creates_position(self, trading_context):
         """Recording a trade should create a position."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="fill-test-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trade = _make_trade(result.order, Decimal("100.0"))
+        trade = _make_trade(result.order, DEFAULT_FILL_PRICE)
         trading_context.order_manager.record_trade(trade)
 
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 1
-        assert positions[0].symbol == "RELIANCE"
+        assert positions[0].symbol == DEFAULT_SYMBOL
         assert positions[0].quantity == 10
-        assert positions[0].avg_price == Decimal("100.0")
+        assert positions[0].avg_price == DEFAULT_FILL_PRICE
 
     def test_fill_updates_order_status(self, trading_context):
         """Recording a trade should update the order's filled_quantity."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="fill-test-002",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trade = _make_trade(result.order, Decimal("100.0"))
+        trade = _make_trade(result.order, DEFAULT_FILL_PRICE)
         trading_context.order_manager.record_trade(trade)
 
         order = trading_context.order_manager.get_order(result.order.order_id)
@@ -248,15 +254,15 @@ class TestOrderToPositionFlow:
     def test_fill_publishes_events(self, trading_context, event_capturer):
         """Recording a trade should publish TRADE_APPLIED and POSITION_UPDATED."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="fill-test-003",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         event_capturer.assert_event_published("TRADE_APPLIED", min_count=1)
         event_capturer.assert_event_published("POSITION_UPDATED", min_count=1)
@@ -264,26 +270,26 @@ class TestOrderToPositionFlow:
     def test_position_opened_event_on_first_fill(self, trading_context, event_capturer):
         """First fill to a flat position should publish POSITION_OPENED."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="fill-test-004",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         event_capturer.assert_event_published("POSITION_OPENED", min_count=1)
 
     def test_partial_fill(self, trading_context):
         """Partial fill should update order with partial filled_quantity."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=100,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="partial-fill-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -292,11 +298,11 @@ class TestOrderToPositionFlow:
         trade = Trade(
             trade_id="PARTIAL-001",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=30,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
         trading_context.order_manager.record_trade(trade)
 
@@ -310,62 +316,62 @@ class TestOrderToPositionFlow:
         """SELL trade should reduce an existing long position."""
         # Open long
         cmd_buy = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="sell-reduce-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
         # Sell half
         cmd_sell = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
             quantity=5,
-            price=Decimal("110.0"),
+            price=DEFAULT_SELL_PRICE,
             correlation_id="sell-reduce-sell",
         )
         sell_result = trading_context.order_manager.place_order(
-            cmd_sell, submit_fn=_make_submit_fn(Decimal("110.0"))
+            cmd_sell, submit_fn=_make_submit_fn(DEFAULT_SELL_PRICE)
         )
         sell_trade = Trade(
             trade_id="SELL-001",
             order_id=sell_result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
             quantity=5,
-            price=Decimal("110.0"),
+            price=DEFAULT_SELL_PRICE,
         )
         trading_context.order_manager.record_trade(sell_trade)
 
-        pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert pos.quantity == 5
 
     def test_full_close_flattens_position(self, trading_context, event_capturer):
         """Closing entire position should flatten it and publish POSITION_CLOSED."""
         # Open long
         cmd_buy = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="full-close-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
         # Close all
         cmd_sell = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
+            quantity=DEFAULT_QUANTITY,
             price=Decimal("105.0"),
             correlation_id="full-close-sell",
         )
@@ -375,15 +381,15 @@ class TestOrderToPositionFlow:
         sell_trade = Trade(
             trade_id="SELL-002",
             order_id=sell_result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
+            quantity=DEFAULT_QUANTITY,
             price=Decimal("105.0"),
         )
         trading_context.order_manager.record_trade(sell_trade)
 
-        pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert pos.quantity == 0
         event_capturer.assert_event_published("POSITION_CLOSED", min_count=1)
 
@@ -397,82 +403,82 @@ class TestPnLCalculations:
     def test_unrealized_pnl_on_long_position(self, trading_context):
         """Unrealized PnL = (LTP - avg_price) * quantity for longs."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="pnl-long-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         # Update LTP to 110
-        trading_context.position_manager.update_ltp("RELIANCE", "NSE", Decimal("110.0"))
+        trading_context.position_manager.update_ltp(DEFAULT_SYMBOL, "NSE", DEFAULT_SELL_PRICE)
 
-        pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
-        expected_pnl = (Decimal("110.0") - Decimal("100.0")) * 10
+        pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
+        expected_pnl = (DEFAULT_SELL_PRICE - DEFAULT_FILL_PRICE) * DEFAULT_QUANTITY
         assert pos.unrealized_pnl == expected_pnl
 
     def test_unrealized_pnl_on_short_position(self, trading_context):
         """Unrealized PnL = (entry_price - LTP) * quantity for shorts."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="pnl-short-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         # Update LTP to 90 (profit for short)
-        trading_context.position_manager.update_ltp("RELIANCE", "NSE", Decimal("90.0"))
+        trading_context.position_manager.update_ltp(DEFAULT_SYMBOL, "NSE", Decimal("90.0"))
 
-        pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
-        expected_pnl = (Decimal("100.0") - Decimal("90.0")) * 10
+        pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
+        expected_pnl = (DEFAULT_FILL_PRICE - Decimal("90.0")) * DEFAULT_QUANTITY
         assert pos.unrealized_pnl == expected_pnl
 
     def test_realized_pnl_on_close(self, trading_context):
         """Realized PnL = (exit_price - entry_price) * quantity."""
         # Buy at 100
         cmd_buy = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="pnl-realized-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
         # Sell at 110
         cmd_sell = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
-            price=Decimal("110.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_SELL_PRICE,
             correlation_id="pnl-realized-sell",
         )
         sell_result = trading_context.order_manager.place_order(
-            cmd_sell, submit_fn=_make_submit_fn(Decimal("110.0"))
+            cmd_sell, submit_fn=_make_submit_fn(DEFAULT_SELL_PRICE)
         )
         sell_trade = Trade(
             trade_id="PNL-SELL-001",
             order_id=sell_result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
-            price=Decimal("110.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_SELL_PRICE,
         )
         trading_context.order_manager.record_trade(sell_trade)
 
         # Position should be flat
-        pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert pos.quantity == 0
         assert pos.realized_pnl == Decimal("100.0")  # (110 - 100) * 10
 
@@ -488,11 +494,11 @@ class TestRiskLimits:
         trading_context.risk_manager.set_kill_switch(True)
 
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="kill-switch-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -510,11 +516,11 @@ class TestRiskLimits:
         # 10% of 10000 = 1000 max notional
         # 20 shares * 100 = 2000 > 1000, should be rejected
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=20,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="concentration-001",
         )
         result = ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -531,23 +537,23 @@ class TestRiskLimits:
 
         # First order: 15% of capital
         cmd1 = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=15,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="gross-001",
         )
         r1 = ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
-        ctx.order_manager.record_trade(_make_trade(r1.order, Decimal("100.0")))
+        ctx.order_manager.record_trade(_make_trade(r1.order, DEFAULT_FILL_PRICE))
 
         # Second order: another 10% would exceed 20% limit
         cmd2 = OmsOrderCommand(
             symbol="TCS",
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="gross-002",
         )
         r2 = ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
@@ -560,11 +566,11 @@ class TestRiskLimits:
         trading_context.risk_manager.set_kill_switch(True)
 
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="risk-rejected-001",
         )
         trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -592,7 +598,7 @@ class TestConcurrentOperations:
                     exchange="NSE",
                     side=Side.BUY,
                     quantity=1,
-                    price=Decimal("100.0"),
+                    price=DEFAULT_FILL_PRICE,
                     correlation_id=unique_id,
                 )
                 result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -616,11 +622,11 @@ class TestConcurrentOperations:
     def test_concurrent_fill_and_query(self, trading_context):
         """Filling orders while querying should not race."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=100,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="concurrent-fill",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -633,11 +639,11 @@ class TestConcurrentOperations:
                 trade = Trade(
                     trade_id="CONCURRENT-FILL",
                     order_id=result.order.order_id,
-                    symbol="RELIANCE",
+                    symbol=DEFAULT_SYMBOL,
                     exchange="NSE",
                     side=Side.BUY,
                     quantity=50,
-                    price=Decimal("100.0"),
+                    price=DEFAULT_FILL_PRICE,
                 )
                 trading_context.order_manager.record_trade(trade)
             except Exception as e:
@@ -672,15 +678,15 @@ class TestStateConsistency:
     def test_order_position_trade_consistency(self, trading_context):
         """Order, position, and trade state should be consistent after full flow."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="consistency-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trade = _make_trade(result.order, Decimal("100.0"))
+        trade = _make_trade(result.order, DEFAULT_FILL_PRICE)
         trading_context.order_manager.record_trade(trade)
 
         # Verify order state
@@ -688,9 +694,9 @@ class TestStateConsistency:
         assert order.filled_quantity == 10
 
         # Verify position state
-        pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert pos.quantity == 10
-        assert pos.avg_price == Decimal("100.0")
+        assert pos.avg_price == DEFAULT_FILL_PRICE
 
         # Verify trade was recorded (idempotency ledger)
         from infrastructure.event_bus import TradeIdKey
@@ -709,18 +715,18 @@ class TestStateConsistency:
                 exchange="NSE",
                 side=Side.BUY,
                 quantity=10 * (i + 1),
-                price=Decimal("100.0"),
+                price=DEFAULT_FILL_PRICE,
                 correlation_id=unique_id,
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+            trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 3
 
         # Each position should have correct quantity
         pos_map = {p.symbol: p for p in positions}
-        assert pos_map["RELIANCE"].quantity == 10
+        assert pos_map[DEFAULT_SYMBOL].quantity == DEFAULT_QUANTITY
         assert pos_map["TCS"].quantity == 20
         assert pos_map["HDFCBANK"].quantity == 30
 
@@ -728,15 +734,15 @@ class TestStateConsistency:
         """Cancelling an open order should not affect already-filled orders."""
         # Place and fill first order
         cmd1 = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="cancel-test-1",
         )
         r1 = trading_context.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(r1.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(r1.order, DEFAULT_FILL_PRICE))
 
         # Place but don't fill second order
         cmd2 = OmsOrderCommand(
@@ -761,7 +767,7 @@ class TestStateConsistency:
         # Position should still exist for RELIANCE
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 1
-        assert positions[0].symbol == "RELIANCE"
+        assert positions[0].symbol == DEFAULT_SYMBOL
         assert positions[0].quantity == 10
 
 
@@ -778,62 +784,62 @@ class TestFundBalanceVerification:
         Decimal(initial_snapshot.get("max_daily_loss_pct", "1000000"))
 
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="balance-buy-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-        trade = _make_trade(result.order, Decimal("100.0"))
+        trade = _make_trade(result.order, DEFAULT_FILL_PRICE)
         trading_context.order_manager.record_trade(trade)
 
         # Verify trade was recorded (balance tracking depends on implementation)
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 1
-        assert positions[0].symbol == "RELIANCE"
+        assert positions[0].symbol == DEFAULT_SYMBOL
         assert positions[0].quantity == 10
 
     def test_balance_after_buy_and_sell(self, trading_context):
         """Buy then sell should reflect realized PnL in balance."""
         # Buy at 100
         cmd_buy = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="balance-bs-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
         # Sell at 110 (profit of 100)
         cmd_sell = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
-            price=Decimal("110.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_SELL_PRICE,
             correlation_id="balance-bs-sell",
         )
         sell_result = trading_context.order_manager.place_order(
-            cmd_sell, submit_fn=_make_submit_fn(Decimal("110.0"))
+            cmd_sell, submit_fn=_make_submit_fn(DEFAULT_SELL_PRICE)
         )
         sell_trade = Trade(
             trade_id="SELL-BAL-001",
             order_id=sell_result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
-            price=Decimal("110.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_SELL_PRICE,
         )
         trading_context.order_manager.record_trade(sell_trade)
 
         # Verify position is closed
-        position = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        position = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert position.quantity == 0
         # Realized PnL should be positive (110 - 100) * 10 = 100
         assert position.realized_pnl > 0
@@ -841,11 +847,11 @@ class TestFundBalanceVerification:
     def test_balance_after_partial_fill(self, trading_context):
         """Partial fill should only deduct filled portion from balance."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=100,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="balance-partial-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -854,18 +860,18 @@ class TestFundBalanceVerification:
         partial_trade = Trade(
             trade_id="PARTIAL-BAL-001",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=30,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
         trading_context.order_manager.record_trade(partial_trade)
 
         # Verify partial position
-        position = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        position = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert position.quantity == 30
-        assert position.avg_price == Decimal("100.0")
+        assert position.avg_price == DEFAULT_FILL_PRICE
 
     def test_balance_isolation_across_symbols(self, trading_context):
         """Trading multiple symbols should correctly track aggregate balance."""
@@ -879,11 +885,11 @@ class TestFundBalanceVerification:
                 exchange="NSE",
                 side=Side.BUY,
                 quantity=qty,
-                price=Decimal("100.0"),
+                price=DEFAULT_FILL_PRICE,
                 correlation_id=unique_id,
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+            trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         # Verify all positions exist
         positions = trading_context.position_manager.get_positions()
@@ -900,15 +906,15 @@ class TestKillSwitchWithActivePositions:
         """Kill switch should block new orders even with open positions."""
         # Open a position
         cmd_buy = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="kill-active-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
         # Activate kill switch
         trading_context.risk_manager.set_kill_switch(True)
@@ -930,31 +936,31 @@ class TestKillSwitchWithActivePositions:
         # Original position should still exist
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 1
-        assert positions[0].symbol == "RELIANCE"
+        assert positions[0].symbol == DEFAULT_SYMBOL
 
     def test_kill_switch_allows_position_closure(self, trading_context):
         """Kill switch should allow closing existing positions."""
         # Open a position
         cmd_buy = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="kill-close-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
         # Activate kill switch
         trading_context.risk_manager.set_kill_switch(True)
 
         # Try to close position (SELL against existing long)
         cmd_sell = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
+            quantity=DEFAULT_QUANTITY,
             price=Decimal("105.0"),
             correlation_id="kill-close-sell",
         )
@@ -965,7 +971,7 @@ class TestKillSwitchWithActivePositions:
         # This test documents current behavior - kill switch may block all orders
         # In production, you may want to allow position closures
         # For now, we document the actual behavior
-        trading_context.position_manager.get_position("RELIANCE", "NSE")
+        trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         # Position should still be open if kill switch blocks closure
         # Or flattened if kill switch allows closure
         # This test ensures the behavior is documented and tested
@@ -977,11 +983,11 @@ class TestKillSwitchWithActivePositions:
 
         # Try to place order (should fail)
         cmd_blocked = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="kill-deact-blocked",
         )
         result_blocked = trading_context.order_manager.place_order(
@@ -994,11 +1000,11 @@ class TestKillSwitchWithActivePositions:
 
         # Try again (should succeed)
         cmd_allowed = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="kill-deact-allowed",
         )
         result_allowed = trading_context.order_manager.place_order(
@@ -1026,12 +1032,12 @@ class TestMultiSymbolPortfolioTrading:
                 symbol=sym,
                 exchange="NSE",
                 side=Side.BUY,
-                quantity=10,
-                price=Decimal("100.0"),
+                quantity=DEFAULT_QUANTITY,
+                price=DEFAULT_FILL_PRICE,
                 correlation_id=unique_id,
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            trading_context.order_manager.record_trade(_make_trade(result.order, Decimal("100.0")))
+            trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
 
         # Verify all positions exist
         positions = trading_context.position_manager.get_positions()
@@ -1049,7 +1055,7 @@ class TestMultiSymbolPortfolioTrading:
 
         # Create positions with different prices
         prices = {
-            "RELIANCE": Decimal("100.0"),
+            "RELIANCE": DEFAULT_FILL_PRICE,
             "TCS": Decimal("150.0"),
             "HDFCBANK": Decimal("200.0"),
         }
@@ -1060,7 +1066,7 @@ class TestMultiSymbolPortfolioTrading:
                 symbol=sym,
                 exchange="NSE",
                 side=Side.BUY,
-                quantity=10,
+                quantity=DEFAULT_QUANTITY,
                 price=price,
                 correlation_id=unique_id,
             )
@@ -1069,7 +1075,7 @@ class TestMultiSymbolPortfolioTrading:
 
         # Update LTPs to create PnL
         ltps = {
-            "RELIANCE": Decimal("110.0"),  # +100 profit
+            "RELIANCE": DEFAULT_SELL_PRICE,  # +100 profit
             "TCS": Decimal("140.0"),  # -100 loss
             "HDFCBANK": Decimal("220.0"),  # +200 profit
         }
@@ -1090,17 +1096,17 @@ class TestMultiSymbolPortfolioTrading:
         # Open long position
         long_id = f"mixed-long-{uuid.uuid4().hex}"
         cmd_long = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id=long_id,
         )
         long_result = trading_context.order_manager.place_order(
             cmd_long, submit_fn=_make_submit_fn()
         )
-        trading_context.order_manager.record_trade(_make_trade(long_result.order, Decimal("100.0")))
+        trading_context.order_manager.record_trade(_make_trade(long_result.order, DEFAULT_FILL_PRICE))
 
         # Open short position
         short_id = f"mixed-short-{uuid.uuid4().hex}"
@@ -1108,7 +1114,7 @@ class TestMultiSymbolPortfolioTrading:
             symbol="TCS",
             exchange="NSE",
             side=Side.SELL,
-            quantity=10,
+            quantity=DEFAULT_QUANTITY,
             price=Decimal("200.0"),
             correlation_id=short_id,
         )
@@ -1123,7 +1129,7 @@ class TestMultiSymbolPortfolioTrading:
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 2
 
-        long_pos = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        long_pos = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         short_pos = trading_context.position_manager.get_position("TCS", "NSE")
 
         assert long_pos.quantity == 10
@@ -1139,11 +1145,11 @@ class TestPartialFillReconciliation:
     def test_multiple_partial_fills_single_order(self, trading_context):
         """Multiple partial fills should accumulate correctly."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=100,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="multi-partial-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -1152,11 +1158,11 @@ class TestPartialFillReconciliation:
         trade1 = Trade(
             trade_id="MULTI-PARTIAL-1",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=30,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
         trading_context.order_manager.record_trade(trade1)
 
@@ -1164,11 +1170,11 @@ class TestPartialFillReconciliation:
         trade2 = Trade(
             trade_id="MULTI-PARTIAL-2",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=40,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
         trading_context.order_manager.record_trade(trade2)
 
@@ -1176,11 +1182,11 @@ class TestPartialFillReconciliation:
         trade3 = Trade(
             trade_id="MULTI-PARTIAL-3",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=20,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
         trading_context.order_manager.record_trade(trade3)
 
@@ -1188,17 +1194,17 @@ class TestPartialFillReconciliation:
         order = trading_context.order_manager.get_order(result.order.order_id)
         assert order.filled_quantity == 90
 
-        position = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        position = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert position.quantity == 90
 
     def test_partial_fill_with_different_prices(self, trading_context):
         """Partial fills at different prices should calculate correct avg price."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=100,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
             correlation_id="avg-price-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -1207,11 +1213,11 @@ class TestPartialFillReconciliation:
         trade1 = Trade(
             trade_id="AVG-PRICE-1",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=50,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
         trading_context.order_manager.record_trade(trade1)
 
@@ -1219,26 +1225,26 @@ class TestPartialFillReconciliation:
         trade2 = Trade(
             trade_id="AVG-PRICE-2",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=50,
-            price=Decimal("110.0"),
+            price=DEFAULT_SELL_PRICE,
         )
         trading_context.order_manager.record_trade(trade2)
 
         # Average price should be (50*100 + 50*110) / 100 = 105
-        position = trading_context.position_manager.get_position("RELIANCE", "NSE")
+        position = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
         assert position.avg_price == Decimal("105.0")
 
     def test_partial_fill_exceeds_order_quantity_rejected(self, trading_context):
         """Fill exceeding order quantity should be rejected or capped."""
         cmd = OmsOrderCommand(
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="overfill-001",
         )
         result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
@@ -1247,11 +1253,11 @@ class TestPartialFillReconciliation:
         overfill_trade = Trade(
             trade_id="OVERFILL-001",
             order_id=result.order.order_id,
-            symbol="RELIANCE",
+            symbol=DEFAULT_SYMBOL,
             exchange="NSE",
             side=Side.BUY,
             quantity=15,
-            price=Decimal("100.0"),
+            price=DEFAULT_FILL_PRICE,
         )
 
         # This should either raise an exception or cap at 10
@@ -1259,7 +1265,7 @@ class TestPartialFillReconciliation:
         try:
             trading_context.order_manager.record_trade(overfill_trade)
             # If no exception, verify position is capped or allowed
-            position = trading_context.position_manager.get_position("RELIANCE", "NSE")
+            position = trading_context.position_manager.get_position(DEFAULT_SYMBOL, "NSE")
             # Position should either be 10 (capped) or 15 (allowed)
             assert position.quantity in (10, 15)
         except Exception:
@@ -1284,22 +1290,22 @@ class TestRiskMidFlowEnforcement:
         # Create losing trades to approach limit
         for i in range(10):
             cmd = OmsOrderCommand(
-                symbol="RELIANCE",
+                symbol=DEFAULT_SYMBOL,
                 exchange="NSE",
                 side=Side.BUY,
-                quantity=10,
-                price=Decimal("100.0"),
+                quantity=DEFAULT_QUANTITY,
+                price=DEFAULT_FILL_PRICE,
                 correlation_id=f"daily-loss-buy-{i}",
             )
             buy_result = ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            ctx.order_manager.record_trade(_make_trade(buy_result.order, Decimal("100.0")))
+            ctx.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
 
             # Sell at loss
             cmd_sell = OmsOrderCommand(
-                symbol="RELIANCE",
+                symbol=DEFAULT_SYMBOL,
                 exchange="NSE",
                 side=Side.SELL,
-                quantity=10,
+                quantity=DEFAULT_QUANTITY,
                 price=Decimal("95.0"),
                 correlation_id=f"daily-loss-sell-{i}",
             )
@@ -1309,10 +1315,10 @@ class TestRiskMidFlowEnforcement:
             sell_trade = Trade(
                 trade_id=f"DAILY-LOSS-{i}",
                 order_id=sell_result.order.order_id,
-                symbol="RELIANCE",
+                symbol=DEFAULT_SYMBOL,
                 exchange="NSE",
                 side=Side.SELL,
-                quantity=10,
+                quantity=DEFAULT_QUANTITY,
                 price=Decimal("95.0"),
             )
             ctx.order_manager.record_trade(sell_trade)
@@ -1322,8 +1328,8 @@ class TestRiskMidFlowEnforcement:
             symbol="TCS",
             exchange="NSE",
             side=Side.BUY,
-            quantity=10,
-            price=Decimal("100.0"),
+            quantity=DEFAULT_QUANTITY,
+            price=DEFAULT_FILL_PRICE,
             correlation_id="daily-loss-blocked",
         )
         ctx.order_manager.place_order(cmd_new, submit_fn=_make_submit_fn())
@@ -1346,14 +1352,14 @@ class TestRiskMidFlowEnforcement:
                 symbol=sym,
                 exchange="NSE",
                 side=Side.BUY,
-                quantity=10,
-                price=Decimal("100.0"),
+                quantity=DEFAULT_QUANTITY,
+                price=DEFAULT_FILL_PRICE,
                 correlation_id=f"pos-limit-{sym}",
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
             if result.success:
                 trading_context.order_manager.record_trade(
-                    _make_trade(result.order, Decimal("100.0"))
+                    _make_trade(result.order, DEFAULT_FILL_PRICE)
                 )
                 opened.append(sym)
 
@@ -1380,7 +1386,7 @@ class TestRiskMidFlowEnforcement:
                     exchange="NSE",
                     side=Side.BUY,
                     quantity=100,  # Large quantity to trigger limit
-                    price=Decimal("100.0"),
+                    price=DEFAULT_FILL_PRICE,
                     correlation_id=unique_id,
                 )
                 result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())

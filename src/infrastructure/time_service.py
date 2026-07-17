@@ -30,6 +30,8 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+from domain.ports.time_service_impls import EXCHANGE_TZ
+
 
 class ExchangeCalendar:
     """Exchange-specific time handling."""
@@ -42,13 +44,10 @@ class ExchangeCalendar:
         return datetime.now(self.tz)
 
 
+#: Derived from the canonical ``domain.ports.time_service_impls.EXCHANGE_TZ``
+#: map so the per-exchange timezone is defined in exactly one place.
 EXCHANGE_CALENDARS: dict[str, ExchangeCalendar] = {
-    "NSE": ExchangeCalendar("Asia/Kolkata", "NSE"),
-    "BSE": ExchangeCalendar("Asia/Kolkata", "BSE"),
-    "MCX": ExchangeCalendar("Asia/Kolkata", "MCX"),
-    "NYSE": ExchangeCalendar("America/New_York", "NYSE"),
-    "NASDAQ": ExchangeCalendar("America/New_York", "NASDAQ"),
-    "LSE": ExchangeCalendar("Europe/London", "LSE"),
+    exchange: ExchangeCalendar(tz_name, exchange) for exchange, tz_name in EXCHANGE_TZ.items()
 }
 
 

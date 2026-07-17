@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from domain.constants.market import IST as _IST
+
+if TYPE_CHECKING:
+    from domain.candles.historical import DateRange
 
 _TIMESTAMP_COLUMNS = ("timestamp", "date", "datetime", "time")
 

@@ -78,10 +78,7 @@ def _ensure_hydrated() -> None:
 
 
 def _cache_result(resp: BacktestResultResponse) -> None:
-    _ensure_hydrated()
-    with _backtest_cache_lock:
-        _backtest_cache[resp.run_id] = resp
-    _cache_store.save(resp)
+    _BacktestCache.cache_result(resp)
 
 
 @router.post("/run", response_model=BacktestResultResponse)

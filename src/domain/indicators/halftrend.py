@@ -23,10 +23,12 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
-# ponytail: lazy import — domain purity forbids top-level pandas
-# import pandas as pd  (imported inside each method)
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @dataclass(frozen=True)

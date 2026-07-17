@@ -42,11 +42,15 @@ class ValidationAudit:
         return self.dropped_rows == 0
 
 
+_INTRADAY_TIMEFRAMES = ("1m", "5m", "15m", "30m")
+
+
 def validate_candles(
     df: pd.DataFrame,
     symbol: str = "",
     drop_invalid: bool = True,
     return_audit: bool = False,
+    timeframe: str = "",
 ) -> pd.DataFrame | tuple[pd.DataFrame, ValidationAudit]:
     """Validate candle data and optionally drop invalid rows.
 
@@ -60,6 +64,13 @@ def validate_candles(
         If True, drop invalid rows. If False, raise on first invalid row.
     return_audit : bool
         If True, return (df, ValidationAudit) tuple instead of just df.
+    timeframe : str
+        When one of ``_INTRADAY_TIMEFRAMES``, rows whose time-of-day falls
+        outside the NSE session (09:15-15:30 IST) are flagged/dropped. This
+        is the backstop for timestamp-timezone bugs upstream (broker/
+        composer normalization) landing candles at the wrong wall-clock
+        hour -- e.g. UTC-vs-IST mislabeling shows up as an entire day's
+        bars sitting 5.5h outside the session window.
 
     Returns
     -------
@@ -128,13 +139,32 @@ def validate_candles(
 
     # Check future timestamps
     if pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-        now = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
+        from datalake.exchange_registry import get_active_adapter
+
+        tz_name = get_active_adapter().timezone
+        now = pd.Timestamp.now(tz=tz_name).tz_localize(None)
         future = df["timestamp"] > now
         if future.any():
             n = future.sum()
             issues.append(f"{n} future timestamps")
             if drop_invalid:
                 df = df[~future].copy()
+
+    # Check session hours (intraday timeframes only)
+    if timeframe in _INTRADAY_TIMEFRAMES and pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+        from datalake.exchange_registry import _get_calendar
+
+        session_open, session_close = _get_calendar().session_bounds(None)
+        t = df["timestamp"].dt.time
+        outside_session = (t < session_open) | (t > session_close)
+        if outside_session.any():
+            n = outside_session.sum()
+            issues.append(
+                f"{n} candles outside NSE session {session_open}-{session_close} "
+                "(likely a timezone mislabel upstream)"
+            )
+            if drop_invalid:
+                df = df[~outside_session].copy()
 
     # Check ingested_at not null (if column exists)
     if "ingested_at" in df.columns:

@@ -1,13 +1,55 @@
-"""Concurrency tests for the shared MockBroker (brokers.paper.mock_broker)."""
+"""Concurrency tests for the shared MockBroker (brokers.paper.PaperGateway).
 
+``MockBroker`` is the product's paper gateway (see
+``runtime.broker_accessors.get_mock_broker_class``), which requires an
+``OrderManager`` to route fills through the OMS spine.  A minimal
+``_MockOrderManager`` (mirroring ``tests/unit/brokers/paper/test_paper.py``)
+delegates to the submit function so orders fill and ``PaperOrders`` keeps its
+positions in sync.
+"""
+
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from brokers.paper.paper_gateway import PaperGateway
+from domain import Order, Trade
+
+
+@dataclass
+class _MockOrderResult:
+    success: bool
+    order: Order | None = None
+    error: str | None = None
+
+
+class _MockOrderManager:
+    """Minimal OrderManager that delegates to submit_fn (like the real OMS)."""
+
+    def __init__(self) -> None:
+        self._orders: list[Order] = []
+        self._trades: list[Trade] = []
+        self.risk_manager = None
+
+    def place_order(self, *, request, submit_fn) -> _MockOrderResult:
+        order = submit_fn(request)
+        self._orders.append(order)
+        return _MockOrderResult(success=True, order=order)
+
+    def upsert_order(self, order: Order) -> None:
+        self._orders.append(order)
+
+    def record_trade(self, trade: Trade) -> None:
+        self._trades.append(trade)
+
+
+def _make_broker() -> PaperGateway:
+    """Create a paper gateway with a mock OrderManager for concurrency tests."""
+    return PaperGateway(order_manager=_MockOrderManager())
 
 
 class TestMockBrokerConcurrency:
     def test_concurrent_place_order_generates_unique_ids(self):
-        broker = PaperGateway()
+        broker = _make_broker()
 
         def place():
             return broker.place_order("RELIANCE", "NSE", "BUY", 1)
@@ -21,7 +63,7 @@ class TestMockBrokerConcurrency:
         assert all(o.order_id for o in results), "All order IDs must be non-empty"
 
     def test_concurrent_place_order_updates_positions(self):
-        broker = MockBroker()
+        broker = _make_broker()
 
         def place():
             return broker.place_order("RELIANCE", "NSE", "BUY", 1)
@@ -38,7 +80,7 @@ class TestMockBrokerConcurrency:
         assert total_qty == 20, f"Expected 20 total quantity, got {total_qty}"
 
     def test_positions_reflect_fills(self):
-        broker = MockBroker()
+        broker = _make_broker()
         broker.place_order("RELIANCE", "NSE", "BUY", 10)
         positions_after_first = broker.positions()
         reliance_1 = [p for p in positions_after_first if p.symbol == "RELIANCE"]

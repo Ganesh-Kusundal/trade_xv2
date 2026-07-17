@@ -34,6 +34,10 @@ class RateLimitProfile:
                         no per-request floor.
     cooldown_on_429_s — mandatory back-off after a 429 response (seconds); None
                         if broker does not enforce a cooldown window.
+    extra_windows     — additional hard caps the per-second rate alone can't
+                        express, e.g. Upstox's 2000-orders-per-30-minutes
+                        rolling cap or Dhan's 7000-orders-per-day cap. Each
+                        entry is ``(max_requests, window_seconds)``.
     """
 
     endpoint_class: str
@@ -41,6 +45,7 @@ class RateLimitProfile:
     burst_rps: float | None = None
     min_interval_ms: int | None = None
     cooldown_on_429_s: int | None = None
+    extra_windows: tuple[tuple[int, float], ...] = ()
 
 
 @dataclass(frozen=True)

@@ -12,7 +12,7 @@ from application.oms.factory import create_trading_context
 from domain.models.features import FeatureSet
 from infrastructure.event_bus import DomainEvent, EventType
 from infrastructure.lifecycle import LifecycleManager
-from runtime.trading_runtime_factory import TradingRuntimeFactory
+from runtime.factory import BuildOptions, build_from_broker_service
 
 
 class _StaticFeatureFetcher:
@@ -52,12 +52,12 @@ def mock_broker_service():
 
 
 def test_runtime_factory_bootstrap_and_orchestrator_event_flow(mock_broker_service) -> None:
-    factory = TradingRuntimeFactory(
+    opts = BuildOptions(
         wire_orchestrator=True,
         orchestrator_dry_run=True,
         skip_parity_gate=True,
     )
-    runtime = factory.build_from_broker_service(mock_broker_service)
+    runtime = build_from_broker_service(mock_broker_service, options=opts)
 
     assert runtime.trading_context is not None
     assert runtime.event_bus is runtime.trading_context.event_bus
@@ -83,5 +83,5 @@ def test_runtime_factory_bootstrap_and_orchestrator_event_flow(mock_broker_servi
 
 
 def test_runtime_factory_exposes_real_oms_components(mock_broker_service) -> None:
-    factory = TradingRuntimeFactory(skip_parity_gate=True)
-    factory.build_from_broker_service(mock_broker_service)
+    opts = BuildOptions(skip_parity_gate=True)
+    build_from_broker_service(mock_broker_service, options=opts)

@@ -29,6 +29,7 @@ dependencies = [
     "curl_cffi>=0.14.0",
     "cachetools>=7.1.4",
     "pyarrow>=25.0.0",
+    "yfinance>=0.2",
 ]
 
 [project.scripts]
@@ -164,15 +165,15 @@ markers = [
     "slow: tests that take longer than 1 second to execute",
     "live_orders: guarded real order placement (requires TRADEX_LIVE_ORDERS=1)",
     "property: property-based tests (hypothesis)",
-    "component: component tests with mocked/doubled collaborators",
     "mutation: mutation testing (tests verify behavior, not implementation)",
     "real_broker: e2e tests that place/cancel on a real broker (never in default run)",
 ]
 asyncio_mode = "auto"
+# Loop scope per-function for async fixtures; needed because tests/** has async tests.
 asyncio_default_fixture_loop_scope = "function"
-# Default run is offline-safe: exclude tests that require a live broker / network /
-# credentials. Live suites stay runnable on demand with explicit -m markers.
-addopts = "-ra --strict-markers --tb=short --durations=10 -m 'not live_readonly and not upstox_live_readonly and not off_market_safe and not market_hours and not auth_integration and not cli_endpoint_live and not live_backtest_parity and not live_orders and not sandbox and not upstox_sandbox and not cli_endpoint_sandbox and not dhan and not oms_integration and not integration and not upstox_integration and not real_broker'"
+# Core pytest flags. Live/integration tests are excluded via markers (not here),
+# so a plain `pytest` run stays offline-safe.
+addopts = "-ra --strict-markers --tb=short --durations=10"
 
 # Parity enforcement - register custom pytest plugin
 python_files = ["test_*.py", "*_test.py"]

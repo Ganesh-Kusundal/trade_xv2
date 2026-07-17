@@ -305,7 +305,7 @@ class TestDhanGatewayReturnTypes:
         assert all(isinstance(v, Decimal) for v in result.values())
 
     def test_search_returns_list(self, dhan_gw):
-        dhan_gw._conn.instruments.all_instruments.return_value = []
+        dhan_gw._conn.instruments.search.return_value = []
         result = dhan_gw.search("RELIANCE")
         assert isinstance(result, list)
 
@@ -436,7 +436,7 @@ class TestUpstoxGatewayReturnTypes:
         assert "broker" in result
 
     def test_search_returns_list(self, upstox_gw):
-        upstox_gw._broker.instrument_resolver.search.return_value = []
+        upstox_gw._broker.instruments.search.return_value = []
         result = upstox_gw.search("RELIANCE")
         assert isinstance(result, list)
 
@@ -454,8 +454,9 @@ class TestPaperGatewayContract:
     @pytest.fixture()
     def paper_gw(self):
         from brokers.paper.paper_gateway import PaperGateway
+        from tests.unit.brokers.paper.test_paper import _MockOrderManager
 
-        return PaperGateway()
+        return PaperGateway(order_manager=_MockOrderManager())
 
     def test_ltp_returns_decimal(self, paper_gw):
         result = paper_gw.ltp("RELIANCE", "NSE")
@@ -607,9 +608,11 @@ class TestUpstoxObservabilityProvider:
         from brokers.upstox.wire import UpstoxBrokerGateway
 
         broker = MagicMock()
-        broker.context.http_client._read_circuit_breaker = None
-        broker.context.http_client._write_circuit_breaker = None
-        broker.context.http_client._admin_circuit_breaker = None
+        broker.context.http_client.circuit_breaker_states.return_value = {
+            "read": 0,
+            "write": 0,
+            "admin": 0,
+        }
         gw = UpstoxBrokerGateway(broker)
 
         result = gw.get_circuit_breaker_states()

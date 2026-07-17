@@ -18,6 +18,7 @@ REF: Task 6.3 — Converted EventBus MagicMock to proper test fixture.
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -25,7 +26,6 @@ import pytest
 
 from application.oms.order_manager import OmsOrderCommand, OrderManager
 from domain import Order, OrderStatus, OrderType, ProductType, Side
-from infrastructure.event_bus import EventBus
 from domain.state_machine import IllegalTransitionError
 
 
@@ -48,12 +48,6 @@ def _make_order(
         timestamp=datetime.now(timezone.utc),
         correlation_id=correlation_id,
     )
-
-
-@pytest.fixture
-def event_bus():
-    """Provide a real EventBus for testing."""
-    return EventBus()
 
 
 class TestOrderStateTransitionsEnforcedByDefault:
@@ -146,8 +140,6 @@ class TestValidTransitionsWithEnforcement:
 
     def test_same_status_update_is_allowed(self, order_manager: OrderManager) -> None:
         """Updating an order with the same status should not raise."""
-        from dataclasses import replace
-
         order = _make_order(status=OrderStatus.OPEN)
         order_manager.upsert_order(order)
 
@@ -155,7 +147,7 @@ class TestValidTransitionsWithEnforcement:
         updated = replace(order, price=Decimal("2600"))
         order_manager.upsert_order(updated)
 
-        assert order_manager.get_order(order.order_id).price == Decimal("2600")
+        assert order_manager.get_order(order.order_id).price.to_decimal() == Decimal("2600")
 
 
 class TestInvalidTransitionsWithEnforcement:
@@ -170,7 +162,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.FILLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.OPEN)
+        updated = replace(order, status=OrderStatus.OPEN)
         with pytest.raises(IllegalTransitionError) as exc_info:
             order_manager.upsert_order(updated)
 
@@ -182,7 +174,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.CANCELLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.OPEN)
+        updated = replace(order, status=OrderStatus.OPEN)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -191,7 +183,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.REJECTED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.OPEN)
+        updated = replace(order, status=OrderStatus.OPEN)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -200,7 +192,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.EXPIRED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.OPEN)
+        updated = replace(order, status=OrderStatus.OPEN)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -209,7 +201,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.PARTIALLY_FILLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.OPEN)
+        updated = replace(order, status=OrderStatus.OPEN)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -218,7 +210,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.FILLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.PARTIALLY_FILLED)
+        updated = replace(order, status=OrderStatus.PARTIALLY_FILLED)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -227,7 +219,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.CANCELLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.FILLED)
+        updated = replace(order, status=OrderStatus.FILLED)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -236,7 +228,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.FILLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.CANCELLED)
+        updated = replace(order, status=OrderStatus.CANCELLED)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -245,7 +237,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.REJECTED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.CANCELLED)
+        updated = replace(order, status=OrderStatus.CANCELLED)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -254,7 +246,7 @@ class TestInvalidTransitionsWithEnforcement:
         order = _make_order(status=OrderStatus.EXPIRED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.REJECTED)
+        updated = replace(order, status=OrderStatus.REJECTED)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -273,7 +265,7 @@ class TestInvalidTransitionsAuditMode:
         order = _make_order(status=OrderStatus.PARTIALLY_FILLED)
         order_manager_audit.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.EXPIRED)
+        updated = replace(order, status=OrderStatus.EXPIRED)
         # Should NOT raise in audit mode
         order_manager_audit.upsert_order(updated)
 
@@ -288,7 +280,7 @@ class TestInvalidTransitionsAuditMode:
         order = _make_order(status=OrderStatus.CANCELLED)
         order_manager_audit.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.OPEN)
+        updated = replace(order, status=OrderStatus.OPEN)
         order_manager_audit.upsert_order(updated)
 
         assert order_manager_audit.get_order(order.order_id).status == OrderStatus.OPEN
@@ -301,7 +293,7 @@ class TestInvalidTransitionsAuditMode:
         order = _make_order(status=OrderStatus.FILLED)
         order_manager_audit.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.CANCELLED)
+        updated = replace(order, status=OrderStatus.CANCELLED)
         order_manager_audit.upsert_order(updated)
 
         assert order_manager_audit.get_order(order.order_id).status == OrderStatus.CANCELLED
@@ -372,7 +364,7 @@ class TestStateTransitionsWithPlaceOrder:
         om.upsert_order(partially)
 
         # Invalid transition: PARTIALLY_FILLED → EXPIRED
-        updated = partially.with_status(OrderStatus.EXPIRED)
+        updated = replace(partially, status=OrderStatus.EXPIRED)
         with pytest.raises(IllegalTransitionError):
             om.upsert_order(updated)
 

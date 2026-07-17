@@ -54,8 +54,9 @@ def test_oms_service_cancel_order_via_context() -> None:
 
 
 def test_oms_service_gateway_fallback() -> None:
-    broker = MockBroker()
-    service = _make_service(gateway=broker)
+    ctx = build_test_trading_context()
+    broker = MockBroker(trading_context=ctx)
+    service = _make_service(gateway=broker, trading_context=ctx)
 
     broker.place_order("RELIANCE", "NSE", "BUY", 5, price=Decimal("2500"))
     assert len(service.get_orders()) == 1

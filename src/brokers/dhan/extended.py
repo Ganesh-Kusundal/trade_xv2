@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from domain import OrderResponse
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
 
 from brokers.dhan.extended_account import DhanAccountCapabilities
 from brokers.dhan.extended_data import DhanDataCapabilities
@@ -180,7 +181,7 @@ class DhanExtendedCapabilities:
         self,
         symbol: str,
         *,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         quantity: int,
         from_product_type: str,
         to_product_type: str,
@@ -220,10 +221,10 @@ class DhanExtendedCapabilities:
 
     # ── Data capabilities (delegated) ────────────────────────────────
 
-    def get_expiries(self, underlying: str, exchange: str = "NFO") -> list[str]:
+    def get_expiries(self, underlying: str, exchange: str = DEFAULT_DERIVATIVES_EXCHANGE) -> list[str]:
         return self.data.get_expiries(underlying, exchange)
 
-    def get_option_expiries(self, underlying: str, exchange: str = "NFO") -> list[str]:
+    def get_option_expiries(self, underlying: str, exchange: str = DEFAULT_DERIVATIVES_EXCHANGE) -> list[str]:
         return self.data.get_option_expiries(underlying, exchange)
 
     def get_expired_options_data(

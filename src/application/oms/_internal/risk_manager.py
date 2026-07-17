@@ -62,6 +62,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from domain.portfolio.risk_profile import RiskProfile
+    from domain.ports.margin_provider import MarginProviderPort
     from domain.risk.policy import KillSwitch as DomainKillSwitch
 
 from application.oms._internal.daily_pnl_tracker import (
@@ -249,9 +250,13 @@ class RiskManager:
                                 f"Price {order.price} not aligned to tick size {tick}",
                             )
                 except Exception as exc:
-                    return RiskResult(
-                        allowed=False,
-                        reason=f"Instrument lookup failed for {order.symbol}: {exc}",
+                    # Lookup failure means we cannot determine tick alignment,
+                    # so skip the tick-size check (fail open) rather than
+                    # rejecting every order on a transient provider error.
+                    logger.warning(
+                        "RiskManager: instrument lookup failed for %s: %s",
+                        order.symbol,
+                        exc,
                     )
 
             capital = self._capital_provider.get_available_balance()
@@ -264,8 +269,22 @@ class RiskManager:
                 if not margin_result.allowed:
                     return margin_result
 
+            # Open position: used both as the LTP ref-price fallback for
+            # MARKET / zero-price sizing and for the concentration check.
+            current = self._position_manager.get_position(order.symbol, order.exchange)
+
             # Effective notional: never treat bare quantity as rupee notional.
             ref_price, mult, instrument = self._margin_checker.resolve_market_context(order)
+            # For MARKET / zero-price orders, fall back to the open position's
+            # LTP so the order can still be sized against live mark-to-market.
+            if ref_price is None and current is not None:
+                pos_ltp = (
+                    current.ltp.to_decimal()
+                    if hasattr(current.ltp, "to_decimal")
+                    else Decimal(str(current.ltp))
+                )
+                if pos_ltp and pos_ltp > 0:
+                    ref_price = pos_ltp
             price_for_notional = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
             notional = effective_notional(
                 order.quantity,
@@ -282,7 +301,6 @@ class RiskManager:
                 )
 
             # Per-symbol concentration (includes in-flight pending — R4)
-            current = self._position_manager.get_position(order.symbol, order.exchange)
             current_notional = (
                 Decimal(str(abs(int(current.quantity))))
                 * (current.avg_price.to_decimal() if hasattr(current.avg_price, "to_decimal") else Decimal(str(current.avg_price)))
@@ -311,7 +329,13 @@ class RiskManager:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
             # Daily loss
-            if self._daily_pnl_tracker.is_stale():
+            # Self-heal only when a prior reset has genuinely gone stale
+            # (e.g. the scheduler didn't fire across the IST midnight
+            # boundary). The ``_last_reset_at == 0.0`` sentinel means no
+            # reset has happened this session, so the running PnL is still
+            # valid for the current day and must NOT be wiped — doing so
+            # would erase a legitimate loss and silently unblock orders.
+            if self._daily_pnl_tracker.is_stale() and self._daily_pnl_tracker.last_reset_at != 0.0:
                 self._daily_pnl_tracker.reset()
             if (
                 self._daily_pnl_tracker.value < 0

@@ -28,7 +28,11 @@ def paper_adapter():
         supports_historical_data=True,
         supports_live_market_data=True,
     )
-    return wrap_market_gateway(PaperGateway(), "paper", capabilities=caps)
+    from tests.unit.brokers.paper.test_paper import _MockOrderManager
+
+    return wrap_market_gateway(
+        PaperGateway(order_manager=_MockOrderManager()), "paper", capabilities=caps
+    )
 
 
 class TestMarketDataGatewayAdapter:

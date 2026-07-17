@@ -57,7 +57,7 @@ from domain import Side
 from domain.candles.historical import HistoricalBar
 from domain.entities import Trade
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from runtime.replay_factory import get_oms_backtest_factory
+from domain.runtime_hooks import create_oms_backtest_adapter as get_oms_backtest_factory
 
 logger = logging.getLogger(__name__)
 

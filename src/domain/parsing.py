@@ -14,7 +14,7 @@ Usage::
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -89,7 +89,11 @@ def parse_timestamp(value: Any) -> datetime | None:
 
     if isinstance(value, int | float):
         try:
-            return datetime.fromtimestamp(float(value))
+            # Explicit UTC: fromtimestamp() without tz= uses the system's
+            # local timezone, so the same epoch parses to a different wall
+            # clock depending on where this process runs (silently wrong
+            # on any host whose local tz isn't IST).
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
         except (ValueError, OSError, OverflowError):
             return None
 

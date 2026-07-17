@@ -27,6 +27,7 @@ from domain.options.strike_selection import StrikeSelection
 from domain.options.surfaces import GreeksSurface, IVSurface, VolatilitySurface
 
 if TYPE_CHECKING:
+    from domain.instruments.instrument import Option
     from domain.ports.order_service import OrderServicePort
     from domain.ports.protocols import DataProvider
 

@@ -30,6 +30,7 @@ from dataclasses import dataclass
 
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
+from application.data.batch_quote_coordinator import BatchQuoteCoordinator
 from application.data.historical_coordinator import HistoricalDataCoordinator
 from application.scheduling.quota_scheduler import QuotaScheduler
 from application.streaming.orchestrator import StreamOrchestrator
@@ -51,6 +52,7 @@ class BrokerInfrastructure:
     policy      — source selection configuration (injected, not hardcoded).
     quota       — global API budget coordinator.
     historical  — federated historical data coordinator.
+    batch_quotes — federated batch-quote coordinator.
     streams     — stream lifecycle manager.
     extensions  — typed extension interface registry.
     """
@@ -60,6 +62,7 @@ class BrokerInfrastructure:
     policy: SourceSelectionPolicy
     quota: QuotaScheduler
     historical: HistoricalDataCoordinator
+    batch_quotes: BatchQuoteCoordinator
     streams: StreamOrchestrator
     extensions: ExtensionRegistry
 
@@ -124,6 +127,12 @@ def build_infrastructure(
         quota_fn=quota.acquire,
     )
 
+    batch_quotes = BatchQuoteCoordinator(
+        registry=registry,
+        router=router,
+        quota_fn=quota.acquire,
+    )
+
     streams = StreamOrchestrator(registry=registry, router=router)
     # ponytail: streams.start() deferred to Runtime.start() — avoids asyncio.run
     # in the composition root when FastAPI/CLI already own a loop.
@@ -134,6 +143,7 @@ def build_infrastructure(
         policy=policy,
         quota=quota,
         historical=historical,
+        batch_quotes=batch_quotes,
         streams=streams,
         extensions=registry.get_extensions(),
     )

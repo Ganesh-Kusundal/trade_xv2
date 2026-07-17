@@ -6,7 +6,7 @@ import pytest
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from interface.ui.services.oms_setup import register_oms_services
-from infrastructure.event_bus import ProcessedTradeRepository
+from infrastructure.event_bus import EventBus, ProcessedTradeRepository
 
 
 @pytest.fixture(autouse=True)
@@ -23,7 +23,7 @@ def test_register_oms_services_wires_persisted_trade_ledger(tmp_path, monkeypatc
 
     service = MagicMock()
     service._gateway = None
-    service._event_bus = None
+    service._event_bus = EventBus()
     service._lifecycle = MagicMock()
     risk_manager = RiskManager(PositionManager(), RiskConfig())
 

@@ -23,8 +23,9 @@ def create_server(root: str = DEFAULT_ROOT) -> FastMCP:
         instructions=(
             "Read-only analysis tools over the local NSE candle datalake "
             f"at {root!r}: historical OHLCV, sync/catalog status, gap and "
-            "corruption checks, and a guarded freeform SQL query tool. "
-            "No tool can write to the datalake or place/query live orders."
+            "corruption checks, float/shares-outstanding fundamentals, and "
+            "a guarded freeform SQL query tool. No tool can write to the "
+            "datalake or place/query live orders."
         ),
     )
     tools = DatalakeTools(root=root)
@@ -37,6 +38,7 @@ def create_server(root: str = DEFAULT_ROOT) -> FastMCP:
         tools.quality_check,
         tools.health_check,
         tools.query,
+        tools.float_data,
     ):
         mcp.add_tool(fn, name=fn.__name__)
     return mcp

@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from brokers.dhan.websocket._helpers import _to_sdk_instruments
+from domain.constants.ws import DHAN_MAX_INSTRUMENTS_PER_FEED
 from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class MarketFeedSubscriptionManager:
     invariants that span multiple components remain atomic.
     """
 
-    MAX_INSTRUMENTS = 1000  # Dhan WebSocket limit per connection
+    MAX_INSTRUMENTS = DHAN_MAX_INSTRUMENTS_PER_FEED
 
     def __init__(
         self,
@@ -107,8 +108,8 @@ class MarketFeedSubscriptionManager:
                 try:
                     feed.subscribe_symbols(new_instruments)
                 except Exception as exc:
-                    self._feed_ref._conn._is_connected = False
-                    self._feed_ref._conn._disconnect_time = get_current_clock().now()
+                    # Use public method instead of direct private attribute mutation
+                    self._feed_ref._conn.record_connection_failure()
                     logger.error("subscribe: SDK subscribe_symbols failed: %s", exc)
                     with contextlib.suppress(Exception):
                         feed.close_connection()

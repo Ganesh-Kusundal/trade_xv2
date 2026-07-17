@@ -41,6 +41,11 @@ from domain.constants.exchanges import (
     WIRE_NSE_EQ,
     WIRE_NSE_FNO,
 )
+from domain.constants.segments import (
+    NSE_ELIGIBLE_SEGMENTS,
+    is_nse_eligible,
+    nse_eligible_segments,
+)
 from domain.constants.market import (
     ATR_PERIOD_DEFAULT,
     DEFAULT_DERIVATIVES_EXCHANGE,
@@ -207,8 +212,11 @@ __all__ = [
     "NSE",
     "NSE_CLOSE_HOUR_IST",
     "NSE_CLOSE_MINUTE_IST",
+    "NSE_ELIGIBLE_SEGMENTS",
     "NSE_OPEN_HOUR_IST",
     "NSE_OPEN_MINUTE_IST",
+    "is_nse_eligible",
+    "nse_eligible_segments",
     # observability
     "OBSERVABILITY_DEFAULT_HOST",
     "OBSERVABILITY_DEFAULT_PORT",

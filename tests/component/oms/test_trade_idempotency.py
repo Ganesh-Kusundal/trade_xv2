@@ -67,15 +67,10 @@ def bus() -> EventBus:
 
 
 @pytest.fixture
-def repo() -> ProcessedTradeRepository:
-    return ProcessedTradeRepository()
-
-
-@pytest.fixture
-def order_manager(bus: EventBus, repo: ProcessedTradeRepository) -> OrderManager:
+def order_manager(bus: EventBus, processed_trade_repository: ProcessedTradeRepository) -> OrderManager:
     return OrderManager(
         event_bus=bus,
-        processed_trade_repository=repo,
+        processed_trade_repository=processed_trade_repository,
         metrics=bus._metrics,  # type: ignore[attr-defined]
     )
 
@@ -103,9 +98,8 @@ def test_duplicate_trade_returns_false_and_does_not_double_fill(
     assert order.filled_quantity == 5  # NOT 10
 
 
-def test_trade_with_empty_id_is_rejected() -> None:
-    repo = ProcessedTradeRepository()
-    om = OrderManager(processed_trade_repository=repo)
+def test_trade_with_empty_id_is_rejected(processed_trade_repository: ProcessedTradeRepository) -> None:
+    om = OrderManager(processed_trade_repository=processed_trade_repository)
     order_manager = om
     with pytest.raises(ValueError):
         order_manager.record_trade(
@@ -123,7 +117,7 @@ def test_trade_with_empty_id_is_rejected() -> None:
 
 def test_trade_for_unknown_order_does_not_mark_ledger(
     order_manager: OrderManager,
-    repo: ProcessedTradeRepository,
+    processed_trade_repository: ProcessedTradeRepository,
 ) -> None:
     """A trade for an order we haven't seen yet must NOT be marked.
 
@@ -135,7 +129,7 @@ def test_trade_for_unknown_order_does_not_mark_ledger(
     assert result is False
     from infrastructure.event_bus import TradeIdKey
 
-    assert not repo.is_processed(TradeIdKey.from_trade(trade))
+    assert not processed_trade_repository.is_processed(TradeIdKey.from_trade(trade))
 
 
 def test_metrics_record_trade_outcomes(
@@ -154,10 +148,10 @@ def test_metrics_record_trade_outcomes(
     assert metrics.get("TRADE", "trade_duplicated") == 1
 
 
-def test_on_trade_event_is_idempotent(bus: EventBus, repo: ProcessedTradeRepository) -> None:
+def test_on_trade_event_is_idempotent(bus: EventBus, processed_trade_repository: ProcessedTradeRepository) -> None:
     om = OrderManager(
         event_bus=bus,
-        processed_trade_repository=repo,
+        processed_trade_repository=processed_trade_repository,
         metrics=bus._metrics,  # type: ignore[attr-defined]
     )
     om.upsert_order(_make_order())

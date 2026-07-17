@@ -241,6 +241,10 @@ class OrderManager:
         """Set a callable that gates order placement."""
         self._order_validator.set_placement_gate(gate_fn)
 
+    def clear_placement_gate(self) -> None:
+        """Remove any active placement gate (see OrderValidator.clear_placement_gate)."""
+        self._order_validator.clear_placement_gate()
+
     def _release_pending(self, correlation_id: str | None) -> None:
         """Release idempotency + risk pending reservations."""
         self._idempotency_guard.release_pending(self._lock, correlation_id)

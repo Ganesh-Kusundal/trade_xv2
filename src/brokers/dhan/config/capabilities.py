@@ -51,10 +51,12 @@ def dhan_capabilities() -> BrokerCapabilities:
         rate_limit_profiles=(
             RateLimitProfile(
                 endpoint_class="orders",
-                sustained_rps=25.0,
-                burst_rps=50.0,
-                min_interval_ms=40,
+                sustained_rps=10.0,
+                burst_rps=20.0,
+                min_interval_ms=100,
                 cooldown_on_429_s=130,
+                # 250/min and 7000/day (placed+modified+cancelled combined).
+                extra_windows=((250, 60.0), (7000, 86400.0)),
             ),
             RateLimitProfile(
                 endpoint_class="quotes",
@@ -65,9 +67,9 @@ def dhan_capabilities() -> BrokerCapabilities:
             ),
             RateLimitProfile(
                 endpoint_class="historical",
-                sustained_rps=10.0,
-                burst_rps=20.0,
-                min_interval_ms=100,
+                sustained_rps=5.0,
+                burst_rps=10.0,
+                min_interval_ms=200,
                 cooldown_on_429_s=130,
             ),
             RateLimitProfile(

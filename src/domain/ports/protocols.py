@@ -78,7 +78,7 @@ class DataProvider(Protocol):
         - ``CsvDataProvider`` — CSV files for notebooks
         - ``ReplayDataProvider`` — historical replay
         - ``CacheDataProvider`` — adds TTL caching
-        - ``CompositeDataProvider`` — fallback chain
+        - ``FallbackDataProvider`` (CompositeDataProvider) — first-wins fallback chain (not a merge)
         - ``DataFrameDataProvider`` — in-memory (tests)
     """
 

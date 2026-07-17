@@ -7,6 +7,6 @@ in ``domain.providers``.
 Submodules:
     broker/      — BrokerDataProvider (wraps MarketDataGateway)
     csv/         — CsvDataProvider (CSV files for notebooks)
-    composite/   — CompositeDataProvider (fallback chain)
+    composite/   — FallbackDataProvider (first-wins fallback chain, not a merge)
     dataframe/   — DataFrameDataProvider (in-memory for tests)
 """

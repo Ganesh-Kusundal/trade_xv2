@@ -1,14 +1,20 @@
 """Shared Dhan test fixtures (single source of truth).
 
-Previously ``SAMPLE_ROWS`` / ``FakeHttpClient`` were duplicated in
-``test_edge_cases.py`` and ``test_chaos.py`` while other tests imported them from
-a ghost ``brokers.dhan.tests.conftest`` package that no longer exists. They now
-live here; every test imports from ``tests.support.brokers.dhan.fixtures``.
+Consolidates all ``FakeHttpClient`` implementations and ``SAMPLE_ROWS``
+data into one canonical location. Every Dhan test imports from here.
+
+Methods consolidated from:
+  - conftest.py: ``set_response()``, ``set_side_effect()``, ``calls_for()``,
+    ``call_count``, ``update_token()``, ``close()``
+  - test_chaos.py: ``_fail``, ``_fail_count``, ``_success_count``,
+    ``_rate_limit_count``, failure simulation via ``ConnectionError``
+  - test_edge_cases.py: ``SAMPLE_ROWS`` (absorbed into canonical dataset)
 """
 
 from __future__ import annotations
 
 from typing import Any
+
 
 SAMPLE_ROWS = [
     # ── Index ──
@@ -238,7 +244,6 @@ SAMPLE_ROWS = [
 ]
 
 
-
 def _quote_entry(sid: str) -> dict[str, Any]:
     return {
         "last_price": 2500.0,
@@ -253,52 +258,161 @@ def _quote_entry(sid: str) -> dict[str, Any]:
 
 
 class FakeHttpClient:
-    """Offline stand-in for the Dhan HTTP client with marketfeed shapes."""
+    """Unified offline stand-in for the Dhan HTTP client.
 
-    def __init__(self):
-        self.client_id = "test"
-        self.access_token = "test"
+    Consolidates call tracking (conftest), failure simulation (chaos),
+    and rich endpoint-based auto-responses (fixtures) into one class.
 
-    def get(self, endpoint, **kw):
-        if "fundlimit" in endpoint or "fund" in endpoint:
-            return {
-                "data": {
-                    "availabelBalance": 100000.0,
-                    "utilizedAmount": 0.0,
-                    "sodLimit": 100000.0,
+    Precedence for each request:
+      1. ``set_side_effect()`` overrides — raise immediately
+      2. Global ``_fail`` flag — raise ``ConnectionError``
+      3. ``set_response()`` overrides — return verbatim
+      4. Endpoint-pattern auto-responses (marketfeed, charts, fund limits)
+      5. Fallback empty ``{"data": []}``
+    """
+
+    def __init__(self, client_id: str = "test", access_token: str = "test"):
+        self.client_id = client_id
+        self.access_token = access_token
+
+        # ── Call tracking (from conftest.py) ──
+        self._responses: dict[tuple[str, str], Any] = {}
+        self._side_effects: dict[tuple[str, str], Exception] = {}
+        self.calls: list[tuple[str, str, Any]] = []
+
+        # ── Failure simulation (from test_chaos.py) ──
+        self._fail = False
+        self._fail_count = 0
+        self._success_count = 0
+        self._rate_limit_count = 0
+
+    # ── Configuration (conftest.py) ──────────────────────────────────────
+
+    def set_response(self, method: str, path: str, response: Any) -> None:
+        """Override the default response for a specific method+path."""
+        self._responses[(method, path)] = response
+
+    def set_side_effect(self, method: str, path: str, exc: Exception) -> None:
+        """Make a specific method+path raise *exc*."""
+        self._side_effects[(method, path)] = exc
+
+    def set_fail(self, enabled: bool = True) -> None:
+        """Enable/disable global failure simulation (all requests raise)."""
+        self._fail = enabled
+
+    def set_fail_after(self, count: int) -> None:
+        """Succeed for *count* requests, then fail all subsequent ones."""
+        self._success_count = 0
+        self._fail_after_count: int | None = count
+
+    # ── Query (conftest.py) ──────────────────────────────────────────────
+
+    @property
+    def call_count(self) -> int:
+        return len(self.calls)
+
+    def calls_for(self, method: str, path: str) -> list[Any]:
+        """Return all JSON bodies for requests matching *method* + *path*."""
+        return [j for m, p, j in self.calls if m == method and p == path]
+
+    # ── Lifecycle (conftest.py) ──────────────────────────────────────────
+
+    def update_token(self, token: str) -> None:
+        self.access_token = token
+
+    def close(self) -> None:
+        pass
+
+    # ── Internal helpers ─────────────────────────────────────────────────
+
+    def _check_fail_after(self) -> None:
+        """If ``set_fail_after(N)`` was used, trip after N successes."""
+        limit = getattr(self, "_fail_after_count", None)
+        if limit is not None and self._success_count >= limit:
+            self._fail = True
+
+    def _dispatch(self, method: str, endpoint: str, body: Any = None) -> Any:
+        """Common request dispatch: side-effects → global fail → overrides → auto."""
+        self.calls.append((method, endpoint, body))
+        key = (method, endpoint)
+
+        # 1. Explicit side-effect override
+        if key in self._side_effects:
+            raise self._side_effects[key]
+
+        # 2. Global failure simulation (chaos)
+        if self._fail:
+            self._fail_count += 1
+            raise ConnectionError("Simulated network failure")
+
+        # 3. Explicit response override
+        if key in self._responses:
+            self._success_count += 1
+            self._check_fail_after()
+            return self._responses[key]
+
+        # 4. Endpoint-pattern auto-responses
+        result = self._auto_response(method, endpoint, body)
+        self._success_count += 1
+        self._check_fail_after()
+        return result
+
+    def _auto_response(self, method: str, endpoint: str, body: Any = None) -> Any:
+        """Return a canned response based on endpoint heuristics."""
+        if method == "GET":
+            if "fundlimit" in endpoint or "fund" in endpoint:
+                return {
+                    "data": {
+                        "availabelBalance": 100000.0,
+                        "utilizedAmount": 0.0,
+                        "sodLimit": 100000.0,
+                    }
                 }
-            }
-        if "orders" in endpoint or "trades" in endpoint:
+            if "orders" in endpoint or "trades" in endpoint:
+                return {"data": []}
             return {"data": []}
-        return {"data": []}
 
-    def post(self, endpoint, json=None):
-        body = json or {}
-        if endpoint.startswith("/marketfeed/"):
-            # body is {segment: [security_id, ...]}
-            data: dict[str, Any] = {}
-            for segment, sids in body.items():
-                data[segment] = {str(sid): _quote_entry(str(sid)) for sid in sids}
-            return {"data": data}
-        if "charts" in endpoint or "historical" in endpoint:
-            return {
-                "data": {
-                    "open": [100.0],
-                    "high": [110.0],
-                    "low": [95.0],
-                    "close": [105.0],
-                    "volume": [1000],
-                    "timestamp": [1718601600],
-                    "open_interest": [0],
+        if method == "POST":
+            if endpoint.startswith("/marketfeed/"):
+                data: dict[str, Any] = {}
+                for segment, sids in (body or {}).items():
+                    data[segment] = {str(sid): _quote_entry(str(sid)) for sid in sids}
+                return {"data": data}
+            if "charts" in endpoint or "historical" in endpoint:
+                return {
+                    "data": {
+                        "open": [100.0],
+                        "high": [110.0],
+                        "low": [95.0],
+                        "close": [105.0],
+                        "volume": [1000],
+                        "timestamp": [1718601600],
+                        "open_interest": [0],
+                    }
                 }
-            }
+            return {"data": []}
+
+        if method == "PUT":
+            return {"data": {}}
+
+        if method == "DELETE":
+            return {"data": {}}
+
         return {"data": []}
 
-    def put(self, endpoint, json=None):
-        return {"data": {}}
+    # ── HTTP verbs ───────────────────────────────────────────────────────
 
-    def delete(self, endpoint):
-        return {"data": []}
+    def get(self, endpoint: str, **kw: Any) -> Any:
+        return self._dispatch("GET", endpoint)
+
+    def post(self, endpoint: str, json: Any = None) -> Any:
+        return self._dispatch("POST", endpoint, json)
+
+    def put(self, endpoint: str, json: Any = None) -> Any:
+        return self._dispatch("PUT", endpoint, json)
+
+    def delete(self, endpoint: str) -> Any:
+        return self._dispatch("DELETE", endpoint)
 
 
 __all__ = ["FakeHttpClient", "SAMPLE_ROWS"]

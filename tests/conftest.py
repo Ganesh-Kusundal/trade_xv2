@@ -18,17 +18,17 @@ from tests.market_hours import is_market_open, now_ist
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=False)
 def _register_domain_runtime_hooks() -> None:
     """Wire broker factories into domain hooks for analytics engines in tests."""
     from application.execution.factory import create_oms_backtest_adapter
     from application.oms.factory import create_trading_context
     from domain.runtime_hooks import (
+        create_domain_event,
         register_domain_event_factory,
         register_oms_backtest_factory,
         register_trading_context_factory,
     )
-    from infrastructure.event_bus.factory import create_domain_event
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
@@ -109,6 +109,15 @@ def live_credentials():
 
     Returns tuple of (client_id, access_token).
     Skips if .env.local is missing, credentials are invalid, or token is expired.
+
+    .. warning::
+
+       ``load_dotenv(override=True)`` is **process-global**.  Under
+       ``pytest-xdist`` or any parallel runner the env-vars leak across workers,
+       which may cause one worker to see another's credentials.  This is
+       acceptable for the single-process session today but would need
+       per-worker isolation (e.g. ``monkeypatch.setenv``) if parallel execution
+       is ever enabled.
     """
     env_path = Path(".env.local")
     if not env_path.exists():
@@ -136,6 +145,15 @@ def upstox_credentials():
 
     Returns tuple of (api_key, access_token).
     Skips if .env.upstox is missing, credentials are invalid, or token is expired.
+
+    .. warning::
+
+       ``load_dotenv(override=True)`` is **process-global**.  Under
+       ``pytest-xdist`` or any parallel runner the env-vars leak across workers,
+       which may cause one worker to see another's credentials.  This is
+       acceptable for the single-process session today but would need
+       per-worker isolation (e.g. ``monkeypatch.setenv``) if parallel execution
+       is ever enabled.
     """
     env_path = Path(".env.upstox")
     if not env_path.exists():
@@ -177,7 +195,7 @@ def pytest_configure(config):
     )
 
 
-def build_test_trading_context(**kwargs: Any) -> "TradingContext":
+def build_test_trading_context(*, events_dir: Path | None = None, **kwargs: Any) -> "TradingContext":
     """Build a TradingContext with default event infrastructure for tests.
 
     The OMS no longer constructs infrastructure objects itself (see D4 port
@@ -188,6 +206,12 @@ def build_test_trading_context(**kwargs: Any) -> "TradingContext":
     keyword argument to :func:`create_trading_context`.  Use it anywhere a test
     previously relied on ``TradingContext(...)`` / ``create_trading_context(...)``
     building its own defaults.
+
+    Args:
+        events_dir: Directory for BufferedEventLog. Pass ``tmp_path`` from a
+            pytest fixture for automatic cleanup; if *None*, creates a
+            temporary directory that will NOT be cleaned up (legacy behavior).
+        **kwargs: Forwarded to :func:`create_trading_context`.
     """
     from application.oms.factory import create_trading_context
     from infrastructure.event_bus import (
@@ -209,9 +233,9 @@ def build_test_trading_context(**kwargs: Any) -> "TradingContext":
     import tempfile
 
     if "event_log" not in kwargs:
-        kwargs["event_log"] = BufferedEventLog(
-            events_dir=Path(tempfile.mkdtemp(prefix="tradex-test-events-"))
-        )
+        if events_dir is None:
+            events_dir = Path(tempfile.mkdtemp(prefix="tradex-test-events-"))
+        kwargs["event_log"] = BufferedEventLog(events_dir=events_dir)
     if "metrics" not in kwargs:
         from infrastructure.observability.event_metrics import EventMetrics
 
@@ -221,3 +245,19 @@ def build_test_trading_context(**kwargs: Any) -> "TradingContext":
 
         kwargs["metrics_registry"] = metrics_registry
     return create_trading_context(**kwargs)
+
+
+@pytest.fixture
+def event_bus():
+    """Create a fresh EventBus for a single test."""
+    from infrastructure.event_bus import EventBus
+
+    return EventBus()
+
+
+@pytest.fixture
+def processed_trade_repository():
+    """Create a fresh ProcessedTradeRepository for a single test."""
+    from infrastructure.event_bus import ProcessedTradeRepository
+
+    return ProcessedTradeRepository()

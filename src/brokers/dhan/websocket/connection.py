@@ -22,6 +22,12 @@ from typing import Any, Callable
 
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.websocket._helpers import _DhanContext, _sdk_market_feed_class
+from domain.constants.ws import DHAN_MAX_INSTRUMENTS_PER_FEED
+from config.ws_settings import (
+    DHAN_MAX_RECONNECT_ATTEMPTS,
+    DHAN_RECONNECT_COOLDOWN_SECONDS,
+    DHAN_STALENESS_THRESHOLD_SECONDS,
+)
 from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
@@ -233,8 +239,8 @@ class MarketFeedConnection:
         """
         backoff = 1.0
         max_backoff = 30.0
-        max_reconnect_attempts = int(os.getenv("DHAN_MAX_RECONNECT_ATTEMPTS", "50"))
-        staleness_threshold = self._staleness_threshold_seconds()
+        max_reconnect_attempts = DHAN_MAX_RECONNECT_ATTEMPTS
+        staleness_threshold = DHAN_STALENESS_THRESHOLD_SECONDS
 
         while not self._stop_event.is_set():
             # ── Admission: only one process per account may own the WS slot ──
@@ -271,9 +277,8 @@ class MarketFeedConnection:
                     extra={"attempts": current_reconnects, "max_attempts": max_reconnect_attempts},
                 )
                 self._emit_reconnect_metric()
-                cooldown = float(os.getenv("DHAN_RECONNECT_COOLDOWN_SECONDS", "300"))
-                logger.warning("market_feed_reconnect_cooldown", extra={"cooldown_seconds": cooldown})
-                if self._stop_event.wait(timeout=cooldown):
+                logger.warning("market_feed_reconnect_cooldown", extra={"cooldown_seconds": DHAN_RECONNECT_COOLDOWN_SECONDS})
+                if self._stop_event.wait(timeout=DHAN_RECONNECT_COOLDOWN_SECONDS):
                     break
                 with self._lock:
                     self._reconnect_count = 0
@@ -471,7 +476,8 @@ class MarketFeedConnection:
 
     @staticmethod
     def _staleness_threshold_seconds() -> float:
-        return float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
+        """Return the staleness threshold for this connection."""
+        return DHAN_STALENESS_THRESHOLD_SECONDS
 
     def _last_activity_age_seconds_locked(self) -> float | None:
         last_msg = getattr(self, "_last_message_at", None)
@@ -486,6 +492,23 @@ class MarketFeedConnection:
         """Mark that a message was consumed (called from parent's _on_message)."""
         self._last_message_at = get_current_clock().now()
         self._message_count += 1
+
+    # ------------------------------------------------------------------
+    # Connection failure recording (encapsulation for subscription manager)
+    # ------------------------------------------------------------------
+
+    def record_connection_failure(self) -> None:
+        """Record a connection failure from subscription manager.
+
+        This method encapsulates state mutations that were previously done
+        by directly accessing private attributes. Use this instead of
+        ``self._is_connected = False``.
+        """
+        with self._lock:
+            self._is_connected = False
+            self._connected_at = None
+            self._disconnect_time = get_current_clock().now()
+            self._reconnect_count += 1
 
     def _emit_reconnect_metric(self) -> None:
         try:

@@ -46,6 +46,7 @@ from interface.ui.services.broker_observability import (
 )
 from interface.ui.services.broker_registry import bootstrap_gateway, resolve_env_path
 from interface.ui.services.cli_broker_facade import CliBrokerFacade
+from interface.ui.services.market_data_bootstrap import MarketDataBootstrap
 
 # ── Extracted focused classes ────────────────────────────────────────────
 from interface.ui.services.oms_bootstrap import OmsBootstrap
@@ -148,10 +149,11 @@ class BrokerService:
             event_bus = build_production_event_bus(resilience=ResilienceConfig.from_env())
         self._event_bus = event_bus
 
-        # ── Compose the three focused modules ──────────────────────────
+        # ── Compose the focused modules ──────────────────────────────────
         self._oms = OmsBootstrap(self)
         self._facade = CliBrokerFacade(self)
         self._manager = BrokerManager(self)
+        self._market_data = MarketDataBootstrap(self)
 
     # ==================================================================
     # Properties — thin delegation to BrokerManager
@@ -257,6 +259,15 @@ class BrokerService:
         Safe to call multiple times.
         """
         self._ensure_initialized()
+
+    def market_gateway(self, name: str) -> MarketDataGateway:
+        """Bootstrap *name* for read-only market data only — no OMS/risk
+        manager/reconciliation wiring and no ``ProductionReadinessChecker``
+        gate. Independent of :meth:`_ensure_initialized`/the live-trade
+        bootstrap, so it never discards a working gateway over an unrelated
+        trade-readiness failure, and never requires one to run.
+        """
+        return self._market_data.market_gateway(name)
 
     def _ensure_initialized(self) -> None:
         if self._initialized:

@@ -45,8 +45,8 @@ def _detect_source_timezone(bar_time_ms: pd.Series) -> str:
         return "UTC"  # default assumption
 
     adapter = get_active_adapter()
-    from plugins.exchanges.nse import CALENDAR
-    open_t, close_t = CALENDAR.session_bounds(None)
+    from datalake.exchange_registry import _get_calendar
+    open_t, close_t = _get_calendar().session_bounds(None)
 
     as_utc = pd.to_datetime(sample, unit="ms", utc=True)
     hours = as_utc.dt.hour

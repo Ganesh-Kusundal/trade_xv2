@@ -88,11 +88,9 @@ class OrderPositionUpdater:
         if order.filled_quantity == 0:
             return trade.price
 
-        total_value = order.avg_price * Decimal(order.filled_quantity) + trade.price * Decimal(
-            trade.quantity
-        )
+        total_value = order.avg_price * order.filled_quantity.to_decimal() + trade.price * trade.quantity.to_decimal()
         total_qty = order.filled_quantity + trade.quantity
-        return total_value / Decimal(total_qty) if total_qty else Decimal("0")
+        return total_value / Decimal(total_qty.to_decimal()) if total_qty else Decimal("0")
 
     def _derive_status(self, order: Order, new_filled: int) -> OrderStatus:
         """Derive order status from fill state.

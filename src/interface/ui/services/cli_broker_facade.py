@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from domain.enums import Side
     from interface.ui.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, Callable
 
-from runtime.trading_runtime_factory import Runtime
+from runtime.factory import Runtime
 
 logger = logging.getLogger(__name__)
 

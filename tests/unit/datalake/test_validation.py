@@ -95,6 +95,36 @@ class TestValidateTimestamp:
         assert len(result) == 4
 
 
+class TestValidateSessionHours:
+    """Guards against the Dhan/Upstox timezone bug: candles landing 5.5h
+    off IST (e.g. a true 09:15 open stored as "03:45") must be dropped
+    for intraday timeframes before they can reach the datalake."""
+
+    def test_drops_candle_outside_session_for_intraday_timeframe(self) -> None:
+        df = _valid_df(3)
+        df.loc[0, "timestamp"] = pd.Timestamp("2026-07-13 03:45:00")  # -5:30 shift
+        result = validate_candles(df, symbol="TEST", drop_invalid=True, timeframe="1m")
+        assert len(result) == 2
+        assert (result["timestamp"].dt.time >= pd.Timestamp("09:15").time()).all()
+
+    def test_keeps_in_session_candles(self) -> None:
+        df = _valid_df(3)  # all 09:15+ by construction
+        result = validate_candles(df, symbol="TEST", drop_invalid=True, timeframe="1m")
+        assert len(result) == 3
+
+    def test_ignores_session_hours_for_daily_timeframe(self) -> None:
+        df = _valid_df(3)
+        df.loc[0, "timestamp"] = pd.Timestamp("2026-07-13 00:00:00")
+        result = validate_candles(df, symbol="TEST", drop_invalid=True, timeframe="1D")
+        assert len(result) == 3
+
+    def test_ignores_session_hours_when_timeframe_not_given(self) -> None:
+        df = _valid_df(3)
+        df.loc[0, "timestamp"] = pd.Timestamp("2026-07-13 00:00:00")
+        result = validate_candles(df, symbol="TEST", drop_invalid=True)
+        assert len(result) == 3
+
+
 class TestValidateMissingColumns:
     def test_missing_required_column_raises(self) -> None:
         df = _valid_df(5)

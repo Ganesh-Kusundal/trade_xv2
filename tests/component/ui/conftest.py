@@ -198,14 +198,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 def _seed_empty_state(tmp_path: Path) -> None:
     """Pre-create empty state files that offline commands expect to open.
 
-    `journal list` opens ``market_data/journal.sqlite`` in read-only
+    `journal list` opens ``data/state/research/journal.sqlite`` in read-only
     mode; without a file that mode fails.  Seeding an empty schema
     file lets the read succeed and the command print "No trades
     found."  Similar for the DuckDB catalog — `views list` and
     `options-sync` need a writable catalog file.
     """
-    # Journal SQLite (empty, schema applied)
-    journal_dir = tmp_path / "market_data"
+    # Journal SQLite (empty, schema applied) — new path layout
+    journal_dir = tmp_path / "data" / "state" / "research"
     journal_dir.mkdir(parents=True, exist_ok=True)
     journal_db = journal_dir / "journal.sqlite"
     if not journal_db.exists():
@@ -224,7 +224,9 @@ def _seed_empty_state(tmp_path: Path) -> None:
         conn.close()
 
     # DuckDB catalog — must be a valid empty database (not a zero-byte file).
-    catalog = journal_dir / "catalog.duckdb"
+    catalog_dir = tmp_path / "data" / "lake"
+    catalog_dir.mkdir(parents=True, exist_ok=True)
+    catalog = catalog_dir / "catalog.duckdb"
     if not catalog.exists():
         import duckdb
 

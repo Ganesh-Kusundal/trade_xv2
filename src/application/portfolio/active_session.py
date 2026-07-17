@@ -10,11 +10,21 @@ from pathlib import Path
 from typing import Any
 
 from domain.universe import Session as DomainSession
-from runtime.session_opener import get_session_opener
 
 logger = logging.getLogger(__name__)
 
 _ENV_PATH = Path(__file__).resolve().parents[3] / ".env.local"
+
+# Injected by runtime composition root (see runtime/composition.py or
+# interface/ui/services/compose.py).  Application code must not import
+# runtime.session_opener directly.
+_session_opener: Any = None
+
+
+def set_session_opener(fn: Any) -> None:
+    """Register the session opener callable (called at composition root)."""
+    global _session_opener
+    _session_opener = fn
 
 
 def get_active_session(
@@ -29,11 +39,22 @@ def get_active_session(
     with ``tradex.open_session(gateway=...)``. Falls back to a fresh bootstrap
     when no live gateway is available.
     """
-    open_session = get_session_opener()
+    if _session_opener is None:
+        raise RuntimeError(
+            "Session opener not wired. Call application.portfolio.active_session"
+            ".set_session_opener() from the composition root."
+        )
+    open_session = _session_opener
 
-    broker_service._ensure_initialized()
-    gw = broker_service.active_broker
     name = broker_service.active_broker_name
+    if mode == "market":
+        # Read-only path: skip the full live-trade bootstrap (OMS,
+        # reconciliation, ProductionReadinessChecker) entirely — a market
+        # data session has no business depending on order-management wiring.
+        gw = broker_service.market_gateway(name)
+    else:
+        broker_service._ensure_initialized()
+        gw = broker_service.active_broker
 
     kwargs: dict[str, Any] = {
         "broker": name,

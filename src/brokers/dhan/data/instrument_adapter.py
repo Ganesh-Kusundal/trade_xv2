@@ -72,6 +72,29 @@ def to_instrument_id(
     )
 
 
+def to_dhan_symbol(iid: InstrumentId) -> str:
+    """Build the exact Dhan trading-symbol string for *iid*.
+
+    Dhan's resolver (see brokers.dhan.resolver.SymbolResolver) only matches
+    an exact contract string — there is no underlying-only fallback for
+    futures/options. Equity/index/spot instruments have no expiry/right and
+    pass through as their bare underlying, matching Dhan's own convention.
+
+    Examples::
+
+        to_dhan_symbol(InstrumentId.future("MCX", "CRUDEOIL", date(2026, 7, 20)))
+            -> "CRUDEOIL-20Jul2026-FUT"
+        to_dhan_symbol(InstrumentId.option("MCX", "CRUDEOIL", date(2026, 7, 16), 7650, "CE"))
+            -> "CRUDEOIL-16Jul2026-7650-CE"
+    """
+    if not iid.expiry or not iid.right:
+        return iid.underlying
+    expiry_str = iid.expiry.strftime("%d%b%Y")
+    if iid.right == "FUT":
+        return f"{iid.underlying}-{expiry_str}-FUT"
+    return f"{iid.underlying}-{expiry_str}-{int(iid.strike)}-{iid.right}"
+
+
 def from_instrument_id(iid: InstrumentId) -> dict:
     """Convert canonical InstrumentId to Dhan API parameters.
 

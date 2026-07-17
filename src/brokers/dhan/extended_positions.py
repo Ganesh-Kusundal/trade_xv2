@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from domain.constants import DEFAULT_EXCHANGE
+
 if TYPE_CHECKING:
     from brokers.dhan.streaming.connection import DhanConnection
 
@@ -44,7 +46,7 @@ class DhanPositionCapabilities:
         self,
         symbol: str,
         *,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         quantity: int,
         from_product_type: str,
         to_product_type: str,

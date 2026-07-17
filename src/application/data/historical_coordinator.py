@@ -68,7 +68,7 @@ from domain.candles.historical import (
     InstrumentRef,
     MergeManifest,
 )
-from domain.errors import MergeConflictError
+from domain.errors import MergeConflictError, RoutingError
 from domain.models.routing import OperationKind, RouteDecision, RoutingRequest
 from domain.ports.broker_gateway import (
     HistoricalBarRequest,
@@ -180,8 +180,10 @@ class HistoricalDataCoordinator:
         all_bars: list[HistoricalBar] = []
         chunk_bars: dict[str, list[HistoricalBar]] = {}
         for plan, bars in fetch_results:
-            if bars is None:
-                # Attempt fallback for this chunk
+            if not bars:
+                # Empty result (broker returned zero bars, no error) is
+                # indistinguishable from "not published yet" -- try the
+                # fallback broker rather than accepting it as a real gap.
                 bars = await self._try_fallback(plan, ledger)
             if bars is not None:
                 chunk_bars[plan.chunk_id] = list(bars)
@@ -191,51 +193,31 @@ class HistoricalDataCoordinator:
             ledger.mark_degraded("all_chunks_failed")
             return self._empty_series(query, ledger), ledger
 
-        # 4. Normalize: sort by event_time
-        all_bars.sort(key=lambda b: b.event_time)
-
-        # 5. Overlap validation and merge
-        merged, conflicts = self._merge(
-            all_bars,
-            chunk_bars=chunk_bars,
-            strategy=query.merge_strategy,
-            tolerance=query.conflict_tolerance_pct,
-            ledger=ledger,
+        # 4-7. Sort, merge, reindex, detect gaps
+        merged, gaps = self._merge_and_detect_gaps(
+            all_bars, chunk_bars, chunks, query, ledger, request_id
         )
-        for c in conflicts:
-            ledger.add_conflict(c)
-            with contextlib.suppress(Exception):
-                from domain.ports.audit import emit_merge_conflict
 
-                emit_merge_conflict(
-                    request_id=request_id,
-                    instrument=c.instrument,
-                    timeframe=c.timeframe,
-                    bar_event_time=c.bar_event_time.isoformat(),
-                    primary_broker=c.primary_broker,
-                    secondary_broker=c.secondary_broker,
-                    delta_pct=str(c.delta_pct),
-                    resolution=c.resolution,
+        # 7b. A chunk can "succeed" (non-empty) while still landing short of
+        # the requested range -- e.g. a broker silently drops today's
+        # in-progress session from an otherwise-valid multi-day response.
+        # GapDetector already catches this (missing_from_start/end/chunk);
+        # previously nothing acted on it. Try one broker that hasn't
+        # contributed to this request yet, per gap, before finalizing.
+        if gaps:
+            tried_brokers = {c.broker_id for c in ledger.chunks}
+            gap_bars = await self._fill_gaps(gaps, query, request_id, tried_brokers, ledger)
+            if gap_bars:
+                all_bars.extend(gap_bars)
+                merged, gaps = self._merge_and_detect_gaps(
+                    all_bars, chunk_bars, chunks, query, ledger, request_id
                 )
-
-        if query.merge_strategy == "fail_on_conflict" and conflicts:
-            raise MergeConflictError(
-                conflict_count=len(conflicts),
-                chunk_ids=list(chunk_bars.keys()),
-            )
-
-        # 6. Re-index and build bar range provenance
-        merged = [replace(bar, bar_index=idx) for idx, bar in enumerate(merged)]
-        self._populate_bar_ranges(merged, ledger)
-
-        # 7. Detect gaps in coverage
-        gaps = self._detect_gaps(merged, query)
 
         # 8. Build merge manifest
         all_failed = ledger.failed_chunks()
         manifest = MergeManifest(
             chunk_assignments={p.chunk_id: p.broker_id for p in chunks},
-            conflict_count=len(conflicts),
+            conflict_count=len(ledger.conflicts),
             conflict_resolution=query.merge_strategy,
             degraded=len(all_failed) > 0,
             degraded_reason="; ".join(f.error or "" for f in all_failed if f.error),
@@ -260,6 +242,23 @@ class HistoricalDataCoordinator:
             },
         )
         return series, ledger
+
+    def fetch_sync(
+        self, query: HistoricalQuery
+    ) -> tuple[HistoricalSeries, ProvenanceLedger]:
+        """Synchronous wrapper around :meth:`fetch` for non-async callers.
+
+        Used by the ``brokers`` layer (``BrokerSession.history``) which is
+        sync-only. Wraps ``asyncio.run``; fails fast if called from inside a
+        running event loop rather than silently misbehaving.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None and loop.is_running():
+            raise RuntimeError("fetch_sync must be called from a non-async context")
+        return asyncio.run(self.fetch(query))
 
     # ------------------------------------------------------------------
     # Planning (delegated to ChunkPlanner)
@@ -345,7 +344,14 @@ class HistoricalDataCoordinator:
         except RoutingError:
             return None
 
-        fallbacks = [b for b in decision.fallback_brokers if b != failed_plan.broker_id]
+        # Quota-aware scoring is dynamic -- a second route() call here can
+        # re-rank brokers and swap primary/fallback vs. the original plan.
+        # Filtering decision.fallback_brokers alone can then wipe out the
+        # only real alternative (e.g. it re-ranks the failed broker back
+        # into "fallback_brokers"). Use the full eligible set instead so
+        # any broker other than the one that just failed still gets tried.
+        eligible = decision.parallel_brokers or (decision.primary_broker, *decision.fallback_brokers)
+        fallbacks = [b for b in eligible if b != failed_plan.broker_id]
         for fallback_id in fallbacks:
             fallback_plan = ChunkPlan(
                 chunk_id=str(uuid.uuid4()),
@@ -381,9 +387,105 @@ class HistoricalDataCoordinator:
                 return fallback_bars
         return None
 
+    async def _fill_gaps(
+        self,
+        gaps: list,
+        query: HistoricalQuery,
+        request_id: str,
+        tried_brokers: set[str],
+        ledger: ProvenanceLedger,
+    ) -> list[HistoricalBar]:
+        """Try one not-yet-tried broker per gap range before giving up on it.
+
+        Only called when :class:`GapDetector` found a hole in coverage after
+        merge -- i.e. every chunk "succeeded" (non-empty) but the result is
+        still short of the requested range. Uses ``parallel_brokers`` (the
+        full eligible set) rather than ``fallback_brokers``: quota-aware
+        scoring is time-varying (see ``_try_fallback``), so re-deriving
+        "the other broker(s)" from a fresh route() call and filtering out
+        already-tried ones is safer than trusting that call's own
+        primary/fallback split.
+        """
+        route_request = RoutingRequest(
+            operation=OperationKind.GET_HISTORICAL_BARS, trace_id=request_id
+        )
+        try:
+            decision = self._router.route(route_request)
+        except RoutingError:
+            return []
+
+        eligible = decision.parallel_brokers or (decision.primary_broker, *decision.fallback_brokers)
+        candidates = [b for b in eligible if b not in tried_brokers]
+        if not candidates:
+            return []
+
+        filled: list[HistoricalBar] = []
+        for gap in gaps:
+            for broker_id in candidates:
+                plan = ChunkPlan(
+                    chunk_id=str(uuid.uuid4()),
+                    broker_id=broker_id,
+                    instrument=query.instrument,
+                    from_date=gap.start,
+                    to_date=gap.end,
+                    timeframe=query.timeframe,
+                    request_id=request_id,
+                    is_fallback=True,
+                )
+                _, bars = await self._fetch_chunk(plan, ledger)
+                if bars:
+                    filled.extend(bars)
+                    break
+        return filled
+
     # ------------------------------------------------------------------
     # Merge (delegated to ChunkMerger)
     # ------------------------------------------------------------------
+
+    def _merge_and_detect_gaps(
+        self,
+        all_bars: list[HistoricalBar],
+        chunk_bars: dict[str, list[HistoricalBar]],
+        chunks: list[ChunkPlan],
+        query: HistoricalQuery,
+        ledger: ProvenanceLedger,
+        request_id: str,
+    ) -> tuple[list[HistoricalBar], list]:
+        all_bars = sorted(all_bars, key=lambda b: b.event_time)
+
+        merged, conflicts = self._merge(
+            all_bars,
+            chunk_bars=chunk_bars,
+            strategy=query.merge_strategy,
+            tolerance=query.conflict_tolerance_pct,
+            ledger=ledger,
+        )
+        for c in conflicts:
+            ledger.add_conflict(c)
+            with contextlib.suppress(Exception):
+                from domain.ports.audit import emit_merge_conflict
+
+                emit_merge_conflict(
+                    request_id=request_id,
+                    instrument=c.instrument,
+                    timeframe=c.timeframe,
+                    bar_event_time=c.bar_event_time.isoformat(),
+                    primary_broker=c.primary_broker,
+                    secondary_broker=c.secondary_broker,
+                    delta_pct=str(c.delta_pct),
+                    resolution=c.resolution,
+                )
+
+        if query.merge_strategy == "fail_on_conflict" and conflicts:
+            raise MergeConflictError(
+                conflict_count=len(conflicts),
+                chunk_ids=list(chunk_bars.keys()),
+            )
+
+        merged = [replace(bar, bar_index=idx) for idx, bar in enumerate(merged)]
+        self._populate_bar_ranges(merged, ledger)
+        gaps = self._detect_gaps(merged, query, planned_chunks=chunks)
+        return merged, gaps
 
     def _merge(
         self,
@@ -414,8 +516,9 @@ class HistoricalDataCoordinator:
         self,
         bars: list[HistoricalBar],
         query: HistoricalQuery,
+        planned_chunks: list | None = None,
     ) -> list:
-        return self._gap_detector.detect(bars, query)
+        return self._gap_detector.detect(bars, query, planned_chunks=planned_chunks)
 
     # ------------------------------------------------------------------
     # Helpers

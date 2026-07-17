@@ -37,6 +37,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from application.execution.execution_engine import ExecutionEngine
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
@@ -55,6 +56,9 @@ from domain.ports import EventBusPort
 from domain.ports.risk_manager import RiskManagerPort
 from domain.ports.strategy_evaluator import StrategyEvaluator
 from domain.ports.time_service import ClockPort, get_current_clock
+
+if TYPE_CHECKING:
+    from domain.lifecycle_health import HealthStatus
 
 logger = logging.getLogger(__name__)
 

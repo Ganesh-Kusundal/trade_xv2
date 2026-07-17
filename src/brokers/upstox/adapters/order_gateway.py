@@ -22,6 +22,7 @@ from domain import (
     Trade,
     Validity,
 )
+from domain.constants import DEFAULT_EXCHANGE
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class OrderGateway:
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),

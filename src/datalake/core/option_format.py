@@ -48,7 +48,22 @@ CANONICAL_COLUMNS: list[str] = [
     "expiry_date",
 ]
 
-_IST = timezone(timedelta(hours=5, minutes=30))
+
+def _get_exchange_tz() -> timezone:
+    """Return the active exchange's timezone as a stdlib timezone."""
+    from zoneinfo import ZoneInfo
+
+    from datalake.exchange_registry import get_active_adapter
+
+    tz_name = get_active_adapter().timezone
+    return ZoneInfo(tz_name)
+
+
+def _get_exchange_code() -> str:
+    """Return the active exchange's canonical code (e.g. 'NSE')."""
+    from datalake.exchange_registry import get_active_exchange_code
+
+    return get_active_exchange_code()
 
 
 def make_option_symbol(
@@ -83,7 +98,7 @@ def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
     out = raw.copy()
     out["timestamp"] = (
         pd.to_datetime(out["bar_time_ms"], unit="ms", utc=True)
-        .dt.tz_convert("Asia/Kolkata")
+        .dt.tz_convert(_get_exchange_tz())
         .dt.tz_localize(None)
     )
     for src, dst in [
@@ -106,7 +121,7 @@ def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
             strict=False,
         )
     ]
-    out["exchange"] = "NSE"
+    out["exchange"] = _get_exchange_code()
 
     # Add canonical instrument_id column
     from datalake.core.symbols import instrument_id_from_option
@@ -137,7 +152,7 @@ def map_expiry_code_to_date(
     For WEEK code=2: next Thursday after that
     For MONTH code=1: last Thursday of the month containing reference
     """
-    ref = datetime.fromtimestamp(reference_ts_ms / 1000, tz=timezone.utc).astimezone(_IST)
+    ref = datetime.fromtimestamp(reference_ts_ms / 1000, tz=timezone.utc).astimezone(_get_exchange_tz())
 
     if underlying not in ("NIFTY", "BANKNIFTY"):
         return ref.strftime("%Y-%m-%d")

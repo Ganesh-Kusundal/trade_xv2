@@ -13,7 +13,9 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
+
+from infrastructure.resilience._metrics import DhanRateLimiterMetrics
 
 logger = logging.getLogger(__name__)
 

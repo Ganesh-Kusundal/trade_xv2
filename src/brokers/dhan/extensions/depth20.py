@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from domain import MarketDepth
-from domain.constants.exchanges import NFO, NSE, WIRE_IDX, WIRE_NSE_EQ, WIRE_NSE_FNO
+from domain.constants.exchanges import NSE
+from domain.constants.segments import nse_eligible_segments
 from domain.extensions.base import Extension
 from domain.value_objects.capability import Capability
 
@@ -27,7 +28,7 @@ class DhanDepth20Extension(Extension):
     ``depth_20`` — 20-level bid/ask ladder for NSE segments.
     """
 
-    _NSE_SEGMENTS = frozenset({NSE, WIRE_NSE_EQ, NFO, WIRE_NSE_FNO, WIRE_IDX})
+    _NSE_SEGMENTS = nse_eligible_segments()
 
     def __init__(self, gateway: Any) -> None:
         self._gw = gateway
@@ -66,11 +67,11 @@ class DhanDepth20Extension(Extension):
         """
         return self._gw.depth_20(
             symbol=getattr(self, "_symbol", ""),
-            exchange=getattr(self, "_exchange", "NSE"),
+            exchange=getattr(self, "_exchange", NSE),
             on_depth=on_depth,
         )
 
-    def for_instrument(self, symbol: str, exchange: str = "NSE") -> "DhanDepth20Extension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> "DhanDepth20Extension":
         """Bind the extension to a specific instrument for method calls."""
         ext = DhanDepth20Extension(self._gw)
         ext._symbol = symbol  # type: ignore[attr-defined]

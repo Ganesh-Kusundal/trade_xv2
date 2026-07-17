@@ -72,3 +72,11 @@ repos:
         files: \.py$
         pass_filenames: false
         description: Run architecture fitness tests (fast subset)
+
+      - id: check-scattered-constants
+        name: Scattered Constants Check
+        entry: python scripts/check_scattered_constants.py
+        language: system
+        files: \.py$
+        pass_filenames: false
+        description: Detect hardcoded exchange/segment constants outside constants module

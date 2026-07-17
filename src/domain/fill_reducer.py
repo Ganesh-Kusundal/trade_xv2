@@ -56,14 +56,20 @@ class FillReducer:
         self._seen_fill_ids: set[str] = set()
         self._cumulative_by_order: dict[str, int] = {}
 
-    def apply(
+    def validate(
         self,
         fill: FillEvent,
         *,
         order_quantity: int,
         prior_cumulative: int = 0,
     ) -> FillReduceResult:
-        """Validate and accept a fill, or reject with a reason."""
+        """Check a fill against reducer invariants WITHOUT mutating state.
+
+        Used by the OMS recorder, which must validate a fill *before* applying
+        it to order state yet only *commit* the fill id after the durable ledger
+        mark succeeds (so a crash during marking leaves the reducer clean for
+        replay — see Defect R6 / apply-before-mark).
+        """
         if fill.fill_id in self._seen_fill_ids:
             return FillReduceResult(False, f"duplicate fill_id {fill.fill_id}")
 
@@ -80,9 +86,33 @@ class FillReducer:
                 f"cumulative quantity {fill.cumulative_quantity} exceeds order quantity {order_quantity}",
             )
 
+        return FillReduceResult(True)
+
+    def commit(self, fill: FillEvent) -> None:
+        """Record a *validated* fill as seen (mutates reducer state).
+
+        Call this only after the fill has been durably marked processed, so a
+        crash before marking never poisons the reducer for a later replay.
+        """
         self._seen_fill_ids.add(fill.fill_id)
         self._cumulative_by_order[fill.order_id] = fill.cumulative_quantity
-        return FillReduceResult(True)
+
+    def apply(
+        self,
+        fill: FillEvent,
+        *,
+        order_quantity: int,
+        prior_cumulative: int = 0,
+    ) -> FillReduceResult:
+        """Validate and accept a fill, or reject with a reason."""
+        result = self.validate(
+            fill,
+            order_quantity=order_quantity,
+            prior_cumulative=prior_cumulative,
+        )
+        if result.accepted:
+            self.commit(fill)
+        return result
 
     @staticmethod
     def fill_from_trade(

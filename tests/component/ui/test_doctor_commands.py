@@ -229,6 +229,7 @@ class TestGatewayCreationCheck:
             patch("interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_bootstrap,
         ):
             from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+            from interface.ui.commands.doctor.strategies import GatewayCreationCheck
 
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
@@ -241,7 +242,7 @@ class TestGatewayCreationCheck:
                 authenticated=True,
                 probe_name="mock",
             )
-            results = cmd_doctor._check_gateway_creation()
+            results = GatewayCreationCheck().execute(None)
             assert any(r.status == "PASS" for r in results)
 
     def test_gateway_creation_failure(self):
@@ -254,10 +255,12 @@ class TestGatewayCreationCheck:
                 side_effect=Exception("Config error"),
             ),
         ):
+            from interface.ui.commands.doctor.strategies import GatewayCreationCheck
+
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
-            results = cmd_doctor._check_gateway_creation()
+            results = GatewayCreationCheck().execute(None)
             assert any(r.status in ("FAIL", "ERROR") for r in results)
 
 
@@ -265,21 +268,42 @@ class TestMarketDataChecks:
     """Tests for market data diagnostic checks."""
 
     def test_quote_check_success(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import MarketDataCheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_market_data(mock_broker_service)
+        mock_session = MagicMock()
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_quote") as mock_quote:
+                mock_quote.return_value = MagicMock(ltp=100.0, open=99.0, high=101.0, low=98.0, close=100.0, volume=1000)
+                results = MarketDataCheck(quick_mode=True).execute(mock_broker_service)
         assert any("quote" in r.name.lower() for r in results)
 
     def test_depth_check_success(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import MarketDataCheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_market_data(mock_broker_service)
+        mock_session = MagicMock()
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_quote"):
+                with patch("interface.ui.services.market_access.fetch_depth") as mock_depth:
+                    mock_depth.return_value = MagicMock(bids=[MagicMock()], asks=[MagicMock()])
+                    results = MarketDataCheck().execute(mock_broker_service)
         assert any("depth" in r.name.lower() for r in results)
 
     def test_historical_check_success(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import MarketDataCheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_market_data(mock_broker_service)
+        mock_session = MagicMock()
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_quote"):
+                with patch("interface.ui.services.market_access.fetch_depth"):
+                    with patch("interface.ui.services.market_access.fetch_history") as mock_hist:
+                        mock_hist.return_value = [1, 2, 3]
+                        results = MarketDataCheck().execute(mock_broker_service)
         assert any("historical" in r.name.lower() for r in results)
 
 
@@ -287,15 +311,24 @@ class TestOrderTradeChecks:
     """Tests for order & trade diagnostic checks."""
 
     def test_orderbook_check(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import OrderAPICheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_order_api(mock_broker_service)
+        # Ensure the mock has the methods OrderAPICheck expects
+        mock_gateway.get_orderbook.return_value = []
+        mock_gateway.get_trade_book.return_value = []
+        results = OrderAPICheck().execute(mock_broker_service)
         assert any("order" in r.name.lower() for r in results)
 
     def test_tradebook_check(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import OrderAPICheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_order_api(mock_broker_service)
+        mock_gateway.get_orderbook.return_value = []
+        mock_gateway.get_trade_book.return_value = []
+        results = OrderAPICheck().execute(mock_broker_service)
         assert any("trade" in r.name.lower() for r in results)
 
 
@@ -303,21 +336,48 @@ class TestPortfolioChecks:
     """Tests for portfolio diagnostic checks."""
 
     def test_holdings_check(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import PortfolioCheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_portfolio(mock_broker_service)
+        mock_session = MagicMock()
+        mock_acct = MagicMock()
+        mock_acct.positions = []
+        mock_acct.holdings = []
+        mock_acct.funds = MagicMock(available_balance=100000.0, sod_limit=None)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+                results = PortfolioCheck().execute(mock_broker_service)
         assert any("holding" in r.name.lower() for r in results)
 
     def test_positions_check(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import PortfolioCheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_portfolio(mock_broker_service)
+        mock_session = MagicMock()
+        mock_acct = MagicMock()
+        mock_acct.positions = []
+        mock_acct.holdings = []
+        mock_acct.funds = MagicMock(available_balance=100000.0, sod_limit=None)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+                results = PortfolioCheck().execute(mock_broker_service)
         assert any("position" in r.name.lower() for r in results)
 
     def test_balance_check(self, mock_gateway):
+        from interface.ui.commands.doctor.strategies import PortfolioCheck
+
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
-        results = cmd_doctor._check_portfolio(mock_broker_service)
+        mock_session = MagicMock()
+        mock_acct = MagicMock()
+        mock_acct.positions = []
+        mock_acct.holdings = []
+        mock_acct.funds = MagicMock(available_balance=100000.0, sod_limit=None)
+        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+                results = PortfolioCheck().execute(mock_broker_service)
         assert any("balance" in r.name.lower() or "fund" in r.name.lower() for r in results)
 
 

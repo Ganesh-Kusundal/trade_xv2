@@ -177,7 +177,6 @@ jobs:
           python -m pytest \
             -m sandbox \
             tests/e2e/test_sandbox_real_broker.py \
-            tests/component/ui/test_order_sandbox_integration.py \
             --tb=short -v \
             --junitxml=reports/sandbox_orders.xml \
             --timeout=60

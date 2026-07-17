@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from runtime.factory import build
-from runtime.trading_runtime_factory import Runtime
+from runtime.factory import Runtime
 
 _BrokerServiceFactory: Callable[..., Any] | None = None
 

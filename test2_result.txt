@@ -1,0 +1,102 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.14, pytest-9.1.1, pluggy-1.6.0 -- /Users/apple/Downloads/Trade_XV2/.venv/bin/python3
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /Users/apple/Downloads/Trade_XV2
+configfile: pyproject.toml
+plugins: cov-7.1.0, xdist-3.8.0, asyncio-1.4.0, anyio-4.14.2, hypothesis-6.156.6
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 78 items
+
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_empty_results PASSED [  1%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_single_result PASSED [  2%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_multiple_results_concat PASSED [  3%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_dedup_removes_duplicates PASSED [  5%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_sort_by_timestamp PASSED [  6%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_multi_broker_merge PASSED [  7%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_failed_chunks_counted PASSED [  8%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_retries_tracked PASSED [ 10%]
+tests/unit/brokers/services/test_history_assembly.py::TestHistoryAssembler::test_no_dedup_when_disabled PASSED [ 11%]
+tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_parallel_multi_symbol PASSED [ 12%]
+tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_execute_combined_parallel PASSED [ 14%]
+tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_batch_single_symbol PASSED [ 15%]
+tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_batch_failure_isolation PASSED [ 16%]
+tests/unit/brokers/services/test_history_batch.py::TestPerSymbolExchange::test_per_symbol_exchange_override PASSED [ 17%]
+tests/unit/brokers/services/test_history_batch.py::TestPerSymbolExchange::test_per_symbol_exchange_combined PASSED [ 19%]
+tests/unit/brokers/services/test_history_batch.py::TestPerSymbolExchange::test_fetch_history_batch_per_symbol_exchange PASSED [ 20%]
+tests/unit/brokers/services/test_history_batch.py::TestFetchHistoryBatch::test_fetch_history_batch_list PASSED [ 21%]
+tests/unit/brokers/services/test_history_batch.py::TestFetchHistoryBatch::test_fetch_history_batch_single_string PASSED [ 23%]
+tests/unit/brokers/services/test_history_batch.py::TestFetchHistoryBatch::test_fetch_history_batch_empty PASSED [ 24%]
+tests/unit/brokers/services/test_history_chunking.py::TestChunkPlan::test_chunk_plan_fields PASSED [ 25%]
+tests/unit/brokers/services/test_history_chunking.py::TestChunkPlan::test_chunk_plan_single_day PASSED [ 26%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_single_chunk_within_limit PASSED [ 28%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_daily_splits_at_365 PASSED [ 29%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_intraday_splits_at_90_for_dhan PASSED [ 30%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_intraday_splits_at_30_for_upstox PASSED [ 32%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_multi_broker_partition PASSED [ 33%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_single_broker_fallback PASSED [ 34%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_no_broker_serves_returns_empty PASSED [ 35%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_no_broker_supports_historical PASSED [ 37%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_chunk_dates_are_contiguous PASSED [ 38%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_chunk_dates_are_contiguous_multi_broker PASSED [ 39%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_exact_chunk_boundary PASSED [ 41%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_one_day_over_boundary PASSED [ 42%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_very_large_request PASSED [ 43%]
+tests/unit/brokers/services/test_history_chunking.py::TestHistoryChunkPlanner::test_multi_broker_no_overlap PASSED [ 44%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_single_broker_small_request PASSED [ 46%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_chunking_activates_for_large_request PASSED [ 47%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_multi_broker_partition PASSED [ 48%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_rate_limiter_called PASSED [ 50%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_gateway_failure_handled PASSED [ 51%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_no_broker_available PASSED [ 52%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_result_metadata PASSED [ 53%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipeline::test_fetch_history_convenience PASSED [ 55%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipelineEdgeCases::test_single_day_request PASSED [ 56%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipelineEdgeCases::test_exact_chunk_boundary PASSED [ 57%]
+tests/unit/brokers/services/test_history_pipeline.py::TestHistoryPipelineEdgeCases::test_mixed_success_and_failure PASSED [ 58%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_paper_always_allowed PASSED [ 60%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_mock_always_allowed PASSED [ 61%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_live_broker_blocked_when_no_gate[dhan] PASSED [ 62%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_live_broker_blocked_when_no_gate[upstox] PASSED [ 64%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_live_broker_blocked_when_gate_returns_false[dhan] PASSED [ 65%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_live_broker_blocked_when_gate_returns_false[upstox] PASSED [ 66%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_live_broker_allowed_when_gate_returns_true[dhan] PASSED [ 67%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_live_broker_allowed_when_gate_returns_true[upstox] PASSED [ 69%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_gate_exception_propagates PASSED [ 70%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_case_insensitive_broker PASSED [ 71%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestCheckLiveActionable::test_set_gate_to_none_restores_fail_closed PASSED [ 73%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestLiveBrokersConstant::test_contains_dhan_and_upstox PASSED [ 74%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestLiveBrokersConstant::test_does_not_contain_paper PASSED [ 75%]
+tests/unit/brokers/services/test_live_actionable_gate.py::TestLiveBrokersConstant::test_is_frozen PASSED [ 76%]
+tests/unit/brokers/services/test_pipeline_wiring.py::TestPipelineInvocation::test_pipeline_returns_dataframe PASSED [ 78%]
+tests/unit/brokers/services/test_pipeline_wiring.py::TestPipelineInvocation::test_pipeline_chunking_for_large_request PASSED [ 79%]
+tests/unit/brokers/services/test_pipeline_wiring.py::TestPipelineInvocation::test_dataframe_to_historical_series PASSED [ 80%]
+tests/unit/brokers/services/test_pipeline_wiring.py::TestPipelineInvocation::test_broker_session_history_method_signature PASSED [ 82%]
+tests/unit/brokers/services/test_pipeline_wiring.py::TestPipelineInvocation::test_broker_session_has_pipeline_method PASSED [ 83%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_single_broker_daily_120_days PASSED [ 84%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_single_broker_intraday_200_days PASSED [ 85%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_multi_broker_730_days_1m PASSED [ 87%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_rate_limiting_prevents_429 PASSED [ 88%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_retry_on_transient_failure PASSED [ 89%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_parallel_multi_symbol PASSED [ 91%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_large_daily_request_10_years PASSED [ 92%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_fetch_history_convenience_e2e PASSED [ 93%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_pipeline_result_success_rate PASSED [ 94%]
+tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_chunk_plan_instrument_preserved PASSED [ 96%]
+tests/unit/brokers/cli/test_cli_history_batch.py::TestCLIHistoryBatch::test_history_batch_command_exists PASSED [ 97%]
+tests/unit/brokers/cli/test_cli_history_batch.py::TestCLIHistoryBatch::test_history_batch_accepts_multiple_symbols PASSED [ 98%]
+tests/unit/brokers/cli/test_cli_history_batch.py::TestCLIHistoryBatch::test_history_batch_options PASSED [100%]
+
+============================= slowest 10 durations =============================
+16.12s call     tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_retry_on_transient_failure
+7.03s call     tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_batch_failure_isolation
+0.07s call     tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_parallel_multi_symbol
+0.01s call     tests/unit/brokers/services/test_history_batch.py::TestPerSymbolExchange::test_per_symbol_exchange_override
+0.01s call     tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_large_daily_request_10_years
+0.01s call     tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_parallel_multi_symbol
+0.01s call     tests/unit/brokers/services/test_history_batch.py::TestPerSymbolExchange::test_per_symbol_exchange_combined
+0.01s call     tests/integration/brokers/test_history_chunking_e2e.py::TestHistoryChunkingE2E::test_multi_broker_730_days_1m
+0.01s call     tests/unit/brokers/services/test_history_batch.py::TestHistoryBatchParallel::test_execute_combined_parallel
+0.01s call     tests/unit/brokers/services/test_history_batch.py::TestFetchHistoryBatch::test_fetch_history_batch_list
+============================= 78 passed in 23.57s ==============================
+TEST2_EXIT=0

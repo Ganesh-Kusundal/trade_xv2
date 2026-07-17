@@ -10,6 +10,7 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 import pytest
 
 from infrastructure.async_compat import connect_async_then, run_async_compat
+from tests.support.wait_utils import wait_until
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ class TestAsyncContext:
             result_box.append(r)
 
         self._run_on_loop(lambda: run_async_compat(_capture(), fire_and_forget=True))
-        time.sleep(0.2)
+        wait_until(lambda: result_box == [300], timeout=2)
         assert result_box == [300]
 
     def test_non_fire_and_forget_blocks(self, _loop_thread: None) -> None:
@@ -295,7 +296,7 @@ class TestWithSubscribe:
 
             future = asyncio.run_coroutine_threadsafe(_run(), loop)
             future.result(timeout=5)
-            time.sleep(0.2)
+            wait_until(lambda: order == ["connected", "subscribed"], timeout=2)
             assert order == ["connected", "subscribed"]
         finally:
             loop.call_soon_threadsafe(loop.stop)

@@ -62,9 +62,29 @@ def run(args: list[str], broker_service: Any, console: Console) -> None:
                 pass
     depth = "--depth" in rest
 
+    def _flag(name: str) -> str | None:
+        if name in rest:
+            i = rest.index(name)
+            if i + 1 < len(rest):
+                return rest[i + 1]
+        return None
+
+    expiry = _flag("--expiry")
+    strike = _flag("--strike")
+    right = _flag("--right")
+    exchange = _flag("--exchange")
+
     session = get_active_session(broker_service)
     try:
-        instrument = resolve_instrument(session, segment, symbol)
+        instrument = resolve_instrument(
+            session,
+            segment,
+            symbol,
+            expiry=expiry,
+            strike=strike,
+            right=right,
+            exchange=exchange,
+        )
     except Exception as exc:
         console.print(f"[red]Resolve failed: {exc}[/red]")
         return
@@ -106,6 +126,7 @@ def _render(result, console: Console) -> None:
 def _usage(console: Console) -> None:
     console.print(
         "[yellow]Usage: tradex feed test <segment> <symbol> "
-        "[--duration 10] [--depth][/yellow]"
+        "[--duration 10] [--depth] [--expiry YYYY-MM-DD] "
+        "[--strike N] [--right CE|PE] [--exchange XXX][/yellow]"
     )
     console.print(f"[dim]Segments: {', '.join(list_segments())}[/dim]")

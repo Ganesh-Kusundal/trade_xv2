@@ -27,12 +27,19 @@ class GapDetector:
         self,
         bars: list[HistoricalBar],
         query: HistoricalQuery,
+        planned_chunks: list | None = None,
     ) -> list[Gap]:
         """Detect gaps between the requested coverage and actual bars.
 
         Gap detection is calendar-day based for daily bars.  For intraday bars,
         gaps are detected by finding consecutive bars with timestamps more than
         2x the timeframe apart (approximate heuristic).
+
+        ``planned_chunks`` (optional) is the list of planned fetch chunks
+        (each with ``from_date``/``to_date``).  Any planned chunk that returned
+        NO bars is reported as an explicit ``Gap`` — this is what catches a
+        *middle* chunk failure that start/end coverage checks would otherwise
+        miss (silently leaving an internal hole in the series).
         """
         gaps: list[Gap] = []
         if not bars:
@@ -60,6 +67,17 @@ class GapDetector:
                     reason="missing_from_end",
                 )
             )
+
+        # Internal gaps: any planned chunk with no covering bar.
+        if planned_chunks:
+            for chunk in planned_chunks:
+                c_start = chunk.from_date
+                c_end = chunk.to_date
+                covered = any(
+                    c_start <= b.event_time.date() <= c_end for b in bars
+                )
+                if not covered:
+                    gaps.append(Gap(start=c_start, end=c_end, reason="missing_chunk"))
 
         return gaps
 

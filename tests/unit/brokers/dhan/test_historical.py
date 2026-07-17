@@ -5,6 +5,69 @@ import pandas as pd
 from brokers.dhan.data.historical import HistoricalAdapter
 
 
+def test_intraday_epoch_parses_as_utc_aware_not_naive(fake_client, resolver):
+    """Regression test: Dhan's epoch field is genuine UTC. Parsing it
+    without utc=True produced a naive datetime64 that
+    datalake.ingestion.normalize.ensure_timestamp_dtype()'s "naive ->
+    assume already IST" fallback then left unconverted -- candles landed
+    5.5h off the true IST session for ~11 months (e.g. a 09:15 IST open
+    stored as "03:45"). This pins the fix: the epoch must come out
+    tz-aware and equal to the exact UTC instant it represents."""
+    fake_client.set_response(
+        "POST",
+        "/charts/intraday",
+        {
+            "data": [
+                {
+                    "timestamp": 1735780500,  # 2025-01-02 01:15:00 UTC
+                    "open": 2440,
+                    "high": 2445,
+                    "low": 2438,
+                    "close": 2443,
+                    "volume": 5000,
+                },
+            ]
+        },
+    )
+    adapter = HistoricalAdapter(fake_client, resolver)
+    df = adapter.get_historical("RELIANCE", "NSE", "2026-01-02", "2026-01-02", timeframe="5")
+
+    ts = df["timestamp"].iloc[0]
+    assert ts.tzinfo is not None, "epoch must parse tz-aware, not naive"
+    assert ts == pd.Timestamp("2025-01-02 01:15:00", tz="UTC")
+
+
+def test_intraday_epoch_converts_to_correct_ist_through_full_pipeline(fake_client, resolver):
+    """End-to-end: the same epoch, run through the full normalize
+    pipeline (what actually writes to the datalake), must land on the
+    correct IST wall-clock instant, not a 5.5h-shifted one."""
+    from datalake.ingestion.normalize import normalize_to_canonical
+
+    fake_client.set_response(
+        "POST",
+        "/charts/intraday",
+        {
+            "data": [
+                {
+                    "timestamp": 1735780500,  # 2025-01-02 01:15:00 UTC == 06:45 IST
+                    "open": 2440,
+                    "high": 2445,
+                    "low": 2438,
+                    "close": 2443,
+                    "volume": 5000,
+                },
+            ]
+        },
+    )
+    adapter = HistoricalAdapter(fake_client, resolver)
+    df = adapter.get_historical("RELIANCE", "NSE", "2026-01-02", "2026-01-02", timeframe="5")
+    normalized = normalize_to_canonical(df, "RELIANCE", "NSE")
+
+    ts = normalized["timestamp"].iloc[0]
+    assert ts.tzinfo is None  # datalake schema: naive, already-IST-labeled
+    assert ts == pd.Timestamp("2025-01-02 06:45:00")
+
+
 def test_daily_uses_historical_endpoint(fake_client, resolver):
     fake_client.set_response(
         "POST",

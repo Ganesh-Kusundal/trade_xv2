@@ -165,5 +165,6 @@ class TestPaperGatewayContract(GatewayContractSuite):
     @pytest.fixture
     def gateway(self):
         from brokers.paper.paper_gateway import PaperGateway
+        from tests.unit.brokers.paper.test_paper import _MockOrderManager
 
-        return PaperGateway()
+        return PaperGateway(order_manager=_MockOrderManager())

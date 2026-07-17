@@ -196,19 +196,88 @@ class DataCatalog:
         total_rows: int = 0,
         timeframe: str = "1m",
         parquet_path: str = "",
+        sector: str | None = None,
+        isin: str | None = None,
         **kwargs,
     ) -> None:
         if self._read_only:
             raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         symbol = normalize_symbol_for_storage(symbol)
+        # Empty sector/isin means "leave existing value" on conflict (ingest rarely knows them).
+        sector = "" if sector is None else sector
+        isin = "" if isin is None else isin
         self.conn.execute(
             """
-            INSERT OR REPLACE INTO symbols
-            (symbol, exchange, first_date, last_date, total_rows, timeframe, parquet_path, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """,
-            [symbol, exchange, first_date, last_date, total_rows, timeframe, parquet_path],
+            INSERT INTO symbols AS s
+            (symbol, exchange, sector, isin, first_date, last_date, total_rows,
+             timeframe, parquet_path, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+            ON CONFLICT (symbol) DO UPDATE SET
+                exchange = excluded.exchange,
+                sector = CASE WHEN excluded.sector = '' THEN s.sector ELSE excluded.sector END,
+                isin = CASE WHEN excluded.isin = '' THEN s.isin ELSE excluded.isin END,
+                first_date = excluded.first_date,
+                last_date = excluded.last_date,
+                total_rows = excluded.total_rows,
+                timeframe = excluded.timeframe,
+                parquet_path = excluded.parquet_path,
+                updated_at = now()
+            """,
+            [
+                symbol,
+                exchange,
+                sector,
+                isin,
+                first_date,
+                last_date,
+                total_rows,
+                timeframe,
+                parquet_path,
+            ],
         )
+
+    def backfill_sectors(
+        self,
+        mapping: dict[str, str],
+        *,
+        isin_by_symbol: dict[str, str] | None = None,
+    ) -> int:
+        """Update ``symbols.sector`` (and optional ISIN) for known tickers.
+
+        Returns number of catalog rows that exist in *mapping* and were written.
+        """
+        if self._read_only:
+            raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
+        updated = 0
+        isin_by_symbol = isin_by_symbol or {}
+        for symbol, sector in mapping.items():
+            sym = normalize_symbol_for_storage(symbol)
+            exists = self.conn.execute(
+                "SELECT 1 FROM symbols WHERE symbol = ?", [sym]
+            ).fetchone()
+            if exists is None:
+                continue
+            isin = isin_by_symbol.get(sym) or isin_by_symbol.get(symbol) or ""
+            if isin:
+                self.conn.execute(
+                    """
+                    UPDATE symbols
+                    SET sector = ?, isin = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE symbol = ?
+                    """,
+                    [sector, isin, sym],
+                )
+            else:
+                self.conn.execute(
+                    """
+                    UPDATE symbols
+                    SET sector = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE symbol = ?
+                    """,
+                    [sector, sym],
+                )
+            updated += 1
+        return updated
 
     def get_symbol(self, symbol: str) -> dict | None:
         """Get symbol metadata."""

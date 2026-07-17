@@ -191,6 +191,13 @@ def main() -> None:
     # Commands that don't need a broker gateway
     _NO_GATEWAY_CMDS = {"help", "journal", "views", "validate"}
 
+    # Read-only market-data commands: build their own session via
+    # get_active_session(mode="market") -> BrokerService.market_gateway(),
+    # which deliberately skips OMS/reconciliation/ProductionReadinessChecker.
+    # Accessing trading_context here would force that full bootstrap anyway
+    # (its property always calls _ensure_initialized()), defeating the point.
+    _MARKET_ONLY_CMDS = {"feed"}
+
     # Commands that need instruments (historical, search, instruments)
     _NEEDS_INSTRUMENTS = {"historical", "history", "search", "instrument", "instruments", "option-chain", "futures"}
 
@@ -210,7 +217,7 @@ def main() -> None:
             _gw = _try_create_gateway(broker_name, load_instruments=load_inst)
         return _gw
 
-    if subcommand not in _NO_GATEWAY_CMDS:
+    if subcommand not in _NO_GATEWAY_CMDS and subcommand not in _MARKET_ONLY_CMDS:
         load_inst = subcommand in _NEEDS_INSTRUMENTS
         gateway = _try_create_gateway(
             broker_name,

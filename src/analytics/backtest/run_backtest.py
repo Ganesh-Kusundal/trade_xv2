@@ -78,14 +78,16 @@ def _build_parity_context(initial_capital: float):
     from decimal import Decimal
     from pathlib import Path
     import tempfile
+    import importlib
 
-    from application.oms.factory import create_trading_context
-    from infrastructure.event_bus import (
-        EventBus,
-        ProcessedTradeRepository,
-        create_default_dead_letter_queue,
-    )
-    from infrastructure.event_log import BufferedEventLog
+    oms_factory = importlib.import_module("application.oms.factory")
+    create_trading_context = oms_factory.create_trading_context
+    event_bus_mod = importlib.import_module("infrastructure.event_bus")
+    EventBus = event_bus_mod.EventBus
+    ProcessedTradeRepository = event_bus_mod.ProcessedTradeRepository
+    create_default_dead_letter_queue = event_bus_mod.create_default_dead_letter_queue
+    event_log_mod = importlib.import_module("infrastructure.event_log")
+    BufferedEventLog = event_log_mod.BufferedEventLog
 
     dlq = create_default_dead_letter_queue()
     return create_trading_context(

@@ -115,6 +115,25 @@ def count_trading_days(start: date, end: date) -> int:
     return len(trading_days_between(start, end))
 
 
+#: Regular NSE session length: 9:15 AM to 3:30 PM IST.
+REGULAR_SESSION_MINUTES: int = 375
+#: Early-close session length: 9:15 AM to 1:30 PM IST.
+EARLY_CLOSE_SESSION_MINUTES: int = 255
+#: Timeframe -> minutes-per-candle. Single source for candle-count math.
+TIMEFRAME_MINUTES: dict[str, int] = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60}
+
+
+def expected_candles_per_day(timeframe: str = "1m", *, early_close: bool = False) -> int:
+    """Expected candle count for a full (or early-close) session and timeframe.
+
+    Date-agnostic helper: the single formula behind both the calendar-aware
+    :func:`expected_candles` and the datalake completeness checks (previously
+    each hardcoded ``candles_per_hour * 6.25``, i.e. 375/60 in disguise).
+    """
+    minutes = EARLY_CLOSE_SESSION_MINUTES if early_close else REGULAR_SESSION_MINUTES
+    return minutes // TIMEFRAME_MINUTES.get(timeframe, 1)
+
+
 def expected_candles(d: date, timeframe: str = "1m") -> int:
     """Expected candle count for a given trading day and timeframe.
 
@@ -123,8 +142,4 @@ def expected_candles(d: date, timeframe: str = "1m") -> int:
     """
     if not is_trading_day(d):
         return 0
-
-    minutes = 255 if is_early_close(d) else 375
-    tf_map = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60}
-    tf_minutes = tf_map.get(timeframe, 1)
-    return minutes // tf_minutes
+    return expected_candles_per_day(timeframe, early_close=is_early_close(d))

@@ -75,6 +75,30 @@ class TestBrokerRouter:
         )
         assert set(decision.parallel_brokers) == {"upstox", "dhan"}
 
+    def test_quotes_batch_parallel_brokers_in_auto_mode(self, dual_registry):
+        """GET_QUOTES_BATCH federates like historical — max_parallel_sources=2."""
+        router = BrokerRouter(dual_registry, auto_dual_broker_policy())
+        decision = router.route(
+            RoutingRequest(
+                operation=OperationKind.GET_QUOTES_BATCH,
+                trace_id="trace-quotes-batch",
+            )
+        )
+        assert set(decision.parallel_brokers) == {"upstox", "dhan"}
+
+    def test_single_quote_stays_fallback_only_not_parallel(self, dual_registry):
+        """GET_QUOTE (single symbol) must NOT get parallel federation —
+        only the explicit batch path does."""
+        router = BrokerRouter(dual_registry, auto_dual_broker_policy())
+        decision = router.route(
+            RoutingRequest(
+                operation=OperationKind.GET_QUOTE,
+                trace_id="trace-quote-single",
+            )
+        )
+        assert decision.parallel_brokers == ()
+        assert "dhan" in decision.fallback_brokers
+
     def test_unhealthy_broker_skipped_with_fallback(self):
         registry = BrokerRegistry()
         registry.register(InMemoryBrokerGateway("dhan", dhan_capabilities()))

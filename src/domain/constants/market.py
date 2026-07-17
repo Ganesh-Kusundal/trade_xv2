@@ -11,6 +11,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from domain.conventions import DEFAULT_MARKET_SURFACE
+from domain.market.hours import NSE_EQUITY_CLOSE, NSE_EQUITY_OPEN
 
 # ── Market data defaults (sourced from the default MarketSurface) ──────────
 #
@@ -52,18 +53,23 @@ DEFAULT_EXCHANGE: str = DEFAULT_MARKET_SURFACE.exchange
 DEFAULT_DERIVATIVES_EXCHANGE: str = "NFO"
 
 # ── Market hours (NSE equity) ──────────────────────────────────────────────
+#
+# These int views are DERIVED from the canonical ``time`` objects in
+# ``domain.market.hours`` (the single source of truth). Do not hardcode the
+# hour/minute here — edit ``domain.market.hours`` and both representations move
+# together.
 
 #: NSE equity market open hour (24h IST).
-NSE_OPEN_HOUR_IST: int = 9
+NSE_OPEN_HOUR_IST: int = NSE_EQUITY_OPEN.hour
 
 #: NSE equity market open minute.
-NSE_OPEN_MINUTE_IST: int = 15
+NSE_OPEN_MINUTE_IST: int = NSE_EQUITY_OPEN.minute
 
 #: NSE equity market close hour.
-NSE_CLOSE_HOUR_IST: int = 15
+NSE_CLOSE_HOUR_IST: int = NSE_EQUITY_CLOSE.hour
 
 #: NSE equity market close minute.
-NSE_CLOSE_MINUTE_IST: int = 30
+NSE_CLOSE_MINUTE_IST: int = NSE_EQUITY_CLOSE.minute
 
 #: MCX commodity market open hour (24h IST).
 MCX_OPEN_HOUR_IST: int = 9

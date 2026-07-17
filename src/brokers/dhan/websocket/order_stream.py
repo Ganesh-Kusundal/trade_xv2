@@ -213,11 +213,14 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         helpers own the ``_reconnect_count`` increment and backoff
         reset so the behaviour is uniform across all Dhan WS services.
         """
-        import os
+        from config.ws_settings import (
+            DHAN_MAX_RECONNECT_ATTEMPTS,
+            DHAN_RECONNECT_COOLDOWN_SECONDS,
+        )
 
         backoff = self.INITIAL_BACKOFF
-        max_reconnect_attempts = int(os.getenv("DHAN_MAX_RECONNECT_ATTEMPTS", "50"))
-        cooldown_seconds = float(os.getenv("DHAN_RECONNECT_COOLDOWN_SECONDS", "300"))
+        max_reconnect_attempts = DHAN_MAX_RECONNECT_ATTEMPTS
+        cooldown_seconds = DHAN_RECONNECT_COOLDOWN_SECONDS
 
         while not self._stop_event.is_set():
             with self._lock:

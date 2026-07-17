@@ -39,6 +39,23 @@ def _make_coordinator(
     )
 
 
+def _make_single_broker_coordinator(gw: InMemoryBrokerGateway) -> HistoricalDataCoordinator:
+    """Coordinator with only one broker registered (mirrors BrokerSession)."""
+    registry = BrokerRegistry()
+    registry.register(gw)
+    scheduler = QuotaScheduler()
+    for profile in dhan_capabilities().rate_limit_profiles:
+        scheduler.register_profile("dhan", profile)
+    router = BrokerRouter(
+        registry, auto_dual_broker_policy(), quota_headroom_fn=scheduler.headroom_for
+    )
+    return HistoricalDataCoordinator(
+        registry=registry,
+        router=router,
+        quota_fn=lambda bid, ep, pri: scheduler.acquire(bid, ep, PriorityClass[pri]),
+    )
+
+
 @pytest.fixture
 def instrument():
     return InstrumentRef(symbol="RELIANCE", exchange="NSE")
@@ -196,3 +213,51 @@ class TestHistoricalDataCoordinator:
         if series.bar_count > 0:
             indices = [b.bar_index for b in series.bars]
             assert indices == list(range(len(series.bars)))
+
+    @pytest.mark.asyncio
+    async def test_middle_chunk_failure_produces_explicit_gap(self, instrument):
+        """A failed MIDDLE chunk must surface as a gap + degraded, not silent truncation."""
+        today = date.today()
+        # Single-broker (dhan only) to mirror BrokerSession's real construction:
+        # the router's dual-broker policy lists upstox, but it is not registered,
+        # so every chunk is assigned to dhan and a dhan failure is deterministic.
+        query = HistoricalQuery(
+            instrument=instrument,
+            timeframe="1m",
+            from_date=today - timedelta(days=200),
+            to_date=today,
+            request_id="hist-req-6",
+        )
+
+        # Build the single-broker coordinator first so we can read the ACTUAL
+        # planned middle chunk date from the same config used for the fetch.
+        dhan_fail = InMemoryBrokerGateway("dhan", dhan_capabilities())
+        coordinator_fail = _make_single_broker_coordinator(dhan_fail)
+        chunks = coordinator_fail._planner.plan(query, query.request_id)
+        assert len(chunks) >= 3, f"expected >=3 chunks for 200d 1m, got {len(chunks)}"
+        middle_from = chunks[1].from_date.isoformat()
+
+        def flaky(request, quota):
+            if request.from_date == middle_from:
+                raise RuntimeError("simulated mid-range outage")
+            from_d = date.fromisoformat(request.from_date)
+            return [
+                _bar(
+                    request.instrument,
+                    request.timeframe,
+                    datetime(from_d.year, from_d.month, from_d.day, 9, 15, tzinfo=timezone.utc),
+                    Decimal("100.00"),
+                    "dhan",
+                    request.request_id,
+                )
+            ]
+
+        dhan_fail._historical_fn = flaky
+
+        series, ledger = await coordinator_fail.fetch(query)
+
+        assert series.is_degraded is True
+        assert len(series.gaps) > 0
+        # The failed middle window appears as an explicit gap inside the range.
+        gap_starts = [g.start for g in series.gaps]
+        assert any(today - timedelta(days=200) <= s <= today for s in gap_starts)

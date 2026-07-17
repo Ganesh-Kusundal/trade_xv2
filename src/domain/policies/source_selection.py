@@ -107,6 +107,7 @@ class SourceSelectionPolicy:
         if kind in {
             OperationKind.OPEN_MARKET_STREAM,
             OperationKind.GET_QUOTE,
+            OperationKind.GET_QUOTES_BATCH,
             OperationKind.GET_DEPTH,
             OperationKind.FETCH_OPTION_CHAIN,
         }:
@@ -194,6 +195,9 @@ def auto_dual_broker_policy(
             candidates=("upstox", "dhan"),
             required_features=frozenset({"live_market_data"}),
             allow_fallback=True,
+            # Only GET_QUOTES_BATCH acts on this — _maybe_parallel gates by
+            # operation kind, so single-quote GET_QUOTE stays fallback-only.
+            max_parallel_sources=2,
         ),
         execution=RoutingPolicy(
             mode="fixed",

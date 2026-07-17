@@ -25,7 +25,7 @@ class TestDhanCapabilities:
         caps = dhan_capabilities()
         profile = caps.limit_for("orders")
         assert profile is not None
-        assert profile.sustained_rps == 25.0
+        assert profile.sustained_rps == 10.0
 
 
 class TestUpstoxCapabilities:

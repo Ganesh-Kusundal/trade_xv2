@@ -189,4 +189,5 @@ class TestServerWiring:
             "quality_check",
             "health_check",
             "query",
+            "float_data",
         }

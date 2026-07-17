@@ -411,3 +411,53 @@ class TestListOptionExpiries:
         resolver.reset()
         with __import__("pytest").raises(RuntimeError):
             resolver.list_option_expiries("NIFTY")
+
+
+class TestContractSymbolBuilder:
+    """to_upstox_symbol(InstrumentId) must produce the exact trading_symbol
+    string Upstox's own instrument search returns — verified live against
+    the real API (strike+right precede the date, unlike the untested
+    docstring example in to_instrument_id)."""
+
+    def test_equity_passthrough(self):
+        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.equity("NSE", "RELIANCE")
+        assert to_upstox_symbol(iid) == "RELIANCE"
+
+    def test_mcx_future(self):
+        from datetime import date
+
+        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.future("MCX", "CRUDEOIL", date(2026, 7, 20))
+        assert to_upstox_symbol(iid) == "CRUDEOIL FUT 20 JUL 26"
+
+    def test_mcx_option(self):
+        from datetime import date
+
+        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.option("MCX", "CRUDEOIL", date(2026, 7, 16), 7800, "PE")
+        assert to_upstox_symbol(iid) == "CRUDEOIL 7800 PE 16 JUL 26"
+
+    def test_nfo_future(self):
+        from datetime import date
+
+        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.future("NFO", "NIFTY", date(2026, 7, 30))
+        assert to_upstox_symbol(iid) == "NIFTY FUT 30 JUL 26"
+
+    def test_nfo_option_call(self):
+        from datetime import date
+
+        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from domain.instruments.instrument_id import InstrumentId
+
+        iid = InstrumentId.option("NFO", "NIFTY", date(2026, 6, 26), 25000, "CE")
+        assert to_upstox_symbol(iid) == "NIFTY 25000 CE 26 JUN 26"

@@ -190,15 +190,22 @@ class BrokerRouter:
         fallbacks = healthy[1:] if policy.allow_fallback else []
         return primary, fallbacks, []
 
+    # Operation kinds eligible for parallel multi-broker federation. Deliberately
+    # excludes GET_QUOTE — a single-symbol lookup keeps fallback-only semantics;
+    # only the explicit batch path splits work across brokers.
+    _FEDERATABLE_OPERATIONS = frozenset(
+        {OperationKind.GET_HISTORICAL_BARS, OperationKind.GET_QUOTES_BATCH}
+    )
+
     def _maybe_parallel(
         self,
         healthy: list[str],
         policy: RoutingPolicy,
         operation: OperationKind,
     ) -> list[str]:
-        """Return parallel brokers for federated historical fetches."""
+        """Return parallel brokers for federated historical/batch-quote fetches."""
         if (
-            operation == OperationKind.GET_HISTORICAL_BARS
+            operation in self._FEDERATABLE_OPERATIONS
             and policy.max_parallel_sources is not None
             and policy.max_parallel_sources > 1
         ):

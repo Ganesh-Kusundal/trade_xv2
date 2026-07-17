@@ -45,7 +45,9 @@ _DHAN_PUBLIC = frozenset(
         "quote_batch",
         "search",
         "stream",
+        "stream_depth",
         "trades",
+        "unstream",
     }
 )
 

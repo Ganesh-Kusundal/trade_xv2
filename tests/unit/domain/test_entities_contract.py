@@ -88,7 +88,7 @@ class TestOrderWithStatus:
         o = _make_order(quantity=50, price=Decimal("1234.56"))
         result = o.with_status(OrderStatus.REJECTED)
         assert result.quantity == 50
-        assert result.price == Decimal("1234.56")
+        assert result.price.to_decimal() == Decimal("1234.56")
 
     def test_preserves_timestamp(self):
         ts = datetime(2026, 6, 15, 10, 30, tzinfo=timezone.utc)
@@ -136,18 +136,18 @@ class TestOrderWithFill:
     def test_updates_avg_price(self):
         o = _make_order()
         result = o.with_fill(10, Decimal("2499.50"))
-        assert result.avg_price == Decimal("2499.50")
+        assert result.avg_price.to_decimal() == Decimal("2499.50")
 
     def test_preserves_price_and_status(self):
         o = _make_order(price=Decimal("2500"), status=OrderStatus.PARTIALLY_FILLED)
         result = o.with_fill(5, Decimal("2498"))
-        assert result.price == Decimal("2500")
+        assert result.price.to_decimal() == Decimal("2500")
         assert result.status == OrderStatus.PARTIALLY_FILLED
 
     def test_preserves_trigger_price(self):
         o = _make_order(trigger_price=Decimal("2400"))
         result = o.with_fill(5, Decimal("2500"))
-        assert result.trigger_price == Decimal("2400")
+        assert result.trigger_price.to_decimal() == Decimal("2400")
 
 
 # ---------------------------------------------------------------------------
@@ -167,29 +167,29 @@ class TestPositionWithLtp:
     def test_updates_ltp(self):
         p = _make_position()
         result = p.with_ltp(Decimal("2600"))
-        assert result.ltp == Decimal("2600")
+        assert result.ltp.to_decimal() == Decimal("2600")
 
     def test_computes_unrealized_pnl_long(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"))
         result = p.with_ltp(Decimal("2600"))
         # unrealized = quantity * (ltp - avg_price) = 10 * 100 = 1000
-        assert result.unrealized_pnl == Decimal("1000")
+        assert result.unrealized_pnl.to_decimal() == Decimal("1000")
 
     def test_computes_unrealized_pnl_short(self):
         p = _make_position(quantity=-10, avg_price=Decimal("2500"))
         result = p.with_ltp(Decimal("2400"))
         # For short: unrealized = |quantity| * (avg_price - ltp) = 10 * 100 = 1000
-        assert result.unrealized_pnl == Decimal("1000")
+        assert result.unrealized_pnl.to_decimal() == Decimal("1000")
 
     def test_zero_quantity_zero_unrealized(self):
         p = _make_position(quantity=0)
         result = p.with_ltp(Decimal("9999"))
-        assert result.unrealized_pnl == Decimal("0")
+        assert result.unrealized_pnl.to_decimal() == Decimal("0")
 
     def test_preserves_realized_pnl(self):
         p = _make_position(realized_pnl=Decimal("500"))
         result = p.with_ltp(Decimal("2600"))
-        assert result.realized_pnl == Decimal("500")
+        assert result.realized_pnl.to_decimal() == Decimal("500")
 
 
 class TestPositionWithFill:
@@ -199,49 +199,49 @@ class TestPositionWithFill:
         p = _make_position()
         result = p.with_fill(10, Decimal("2500"))
         assert result.quantity == 10
-        assert result.avg_price == Decimal("2500")
-        assert result.realized_pnl == Decimal("0")
+        assert result.avg_price.to_decimal() == Decimal("2500")
+        assert result.realized_pnl.to_decimal() == Decimal("0")
 
     def test_open_new_short(self):
         p = _make_position()
         result = p.with_fill(-10, Decimal("2500"))
         assert result.quantity == -10
-        assert result.avg_price == Decimal("2500")
-        assert result.realized_pnl == Decimal("0")
+        assert result.avg_price.to_decimal() == Decimal("2500")
+        assert result.realized_pnl.to_decimal() == Decimal("0")
 
     def test_add_to_long(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"))
         result = p.with_fill(5, Decimal("2600"))
         assert result.quantity == 15
         # avg = (10*2500 + 5*2600) / 15 = 38000/15 = 2533.33...
-        assert result.avg_price == (Decimal("25000") + Decimal("13000")) / Decimal("15")
+        assert result.avg_price.to_decimal() == (Decimal("25000") + Decimal("13000")) / Decimal("15")
 
     def test_close_long_partially(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"))
         result = p.with_fill(-5, Decimal("2600"))
         assert result.quantity == 5
         # realized = 5 * (2600 - 2500) = 500
-        assert result.realized_pnl == Decimal("500")
-        assert result.avg_price == Decimal("2500")
+        assert result.realized_pnl.to_decimal() == Decimal("500")
+        assert result.avg_price.to_decimal() == Decimal("2500")
 
     def test_close_long_fully(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"))
         result = p.with_fill(-10, Decimal("2600"))
         assert result.quantity == 0
-        assert result.realized_pnl == Decimal("1000")
-        assert result.avg_price == Decimal("0")
+        assert result.realized_pnl.to_decimal() == Decimal("1000")
+        assert result.avg_price.to_decimal() == Decimal("0")
 
     def test_realized_pnl_accumulates(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"), realized_pnl=Decimal("200"))
         result = p.with_fill(-5, Decimal("2600"))
-        assert result.realized_pnl == Decimal("700")  # 200 + 500
+        assert result.realized_pnl.to_decimal() == Decimal("700")  # 200 + 500
 
     def test_short_cover(self):
         p = _make_position(quantity=-10, avg_price=Decimal("2500"))
         result = p.with_fill(10, Decimal("2400"))
         assert result.quantity == 0
         # For short: realized = |closed| * (avg - exit) = 10 * 100 = 1000
-        assert result.realized_pnl == Decimal("1000")
+        assert result.realized_pnl.to_decimal() == Decimal("1000")
 
     def test_overclose_long(self):
         """Selling more than held — net becomes short."""
@@ -249,6 +249,6 @@ class TestPositionWithFill:
         result = p.with_fill(-10, Decimal("2600"))
         assert result.quantity == -5
         # closed = min(5, 10) = 5, realized = 5 * (2600-2500) = 500
-        assert result.realized_pnl == Decimal("500")
+        assert result.realized_pnl.to_decimal() == Decimal("500")
         # new avg = exit price since we flipped
-        assert result.avg_price == Decimal("2600")
+        assert result.avg_price.to_decimal() == Decimal("2600")

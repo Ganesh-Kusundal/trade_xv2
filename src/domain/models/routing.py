@@ -32,6 +32,7 @@ class OperationKind(str, Enum):
     GET_ORDERS = "get_orders"
     GET_TRADES = "get_trades"
     GET_QUOTE = "get_quote"
+    GET_QUOTES_BATCH = "get_quotes_batch"
     GET_DEPTH = "get_depth"
     GET_HISTORICAL_BARS = "get_historical_bars"
     OPEN_MARKET_STREAM = "open_market_stream"
@@ -57,6 +58,7 @@ class OperationKind(str, Enum):
     def is_market_data(self) -> bool:
         return self in {
             OperationKind.GET_QUOTE,
+            OperationKind.GET_QUOTES_BATCH,
             OperationKind.GET_DEPTH,
             OperationKind.GET_HISTORICAL_BARS,
             OperationKind.OPEN_MARKET_STREAM,
@@ -106,7 +108,7 @@ class RouteDecision:
 
     primary_broker  — the broker selected for this operation.
     fallback_brokers — ordered fallback chain if primary fails.
-    parallel_brokers — brokers to use in parallel (historical federation only).
+    parallel_brokers — brokers to use in parallel (historical/batch-quote federation only).
     policy_version  — identifier of the policy snapshot that produced this decision.
     reason_codes    — machine-readable list of reasons (e.g. ``["capability_match",
                       "best_quota_headroom"]``).

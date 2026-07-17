@@ -8,6 +8,7 @@ managed.
 from __future__ import annotations
 
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
+from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class, mock_order_update_class
 
 
 class TestDhanWebSocketReconnectRecovery:
@@ -57,7 +58,7 @@ class TestDhanWebSocketReconnectRecovery:
         feed._context = mock.MagicMock()
         ReconnectingServiceMixin._init_reconnect_state(feed)
 
-        with mock.patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as sdk_cls:
+        with mock_market_feed_class() as sdk_cls:
             sdk_cls.return_value = mock.MagicMock()
             with mock.patch.object(feed, "_run"):
                 feed.start()
@@ -79,7 +80,7 @@ class TestDhanWebSocketReconnectRecovery:
         stream._context = mock.MagicMock()
         ReconnectingServiceMixin._init_reconnect_state(stream)
 
-        with mock.patch("brokers.dhan.websocket.order_stream._sdk_order_update_class") as sdk_cls:
+        with mock_order_update_class() as sdk_cls:
             sdk_cls.return_value = mock.MagicMock()
             with mock.patch.object(stream, "_run"):
                 stream.start()

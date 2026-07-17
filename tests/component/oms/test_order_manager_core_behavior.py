@@ -18,22 +18,17 @@ from application.oms import (
 )
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from domain.events.types import DomainEvent, EventType
-from infrastructure.event_bus import EventBus, ProcessedTradeRepository
+from infrastructure.event_bus import EventBus
 
 
 @pytest.fixture
-def bus() -> EventBus:
-    return EventBus()
+def order_manager(event_bus: EventBus, processed_trade_repository) -> OrderManager:
+    return OrderManager(event_bus=event_bus, processed_trade_repository=processed_trade_repository)
 
 
 @pytest.fixture
-def order_manager(bus: EventBus) -> OrderManager:
-    return OrderManager(event_bus=bus, processed_trade_repository=ProcessedTradeRepository())
-
-
-@pytest.fixture
-def position_manager(bus: EventBus) -> PositionManager:
-    return PositionManager(event_bus=bus)
+def position_manager(event_bus: EventBus) -> PositionManager:
+    return PositionManager(event_bus=event_bus)
 
 
 # ── OrderManager ───────────────────────────────────────────────────────────
@@ -146,7 +141,7 @@ def test_apply_trade_creates_position(position_manager: PositionManager) -> None
     )
     pos = position_manager.apply_trade(trade)
     assert pos.quantity == 10
-    assert pos.avg_price == Decimal("100")
+    assert pos.avg_price.amount == Decimal("100")
 
 
 def test_apply_trade_sell_reduces_position(position_manager: PositionManager) -> None:
@@ -163,8 +158,8 @@ def test_apply_trade_side_flip(position_manager: PositionManager) -> None:
         Trade("T2", "O2", "RELIANCE", "NSE", Side.SELL, 15, Decimal("110"))
     )
     assert pos.quantity == -5
-    assert pos.avg_price == Decimal("110")
-    assert pos.realized_pnl == Decimal("100")
+    assert pos.avg_price.amount == Decimal("110")
+    assert pos.realized_pnl.amount == Decimal("100")
 
 
 def test_concurrent_trades_on_same_symbol(position_manager: PositionManager) -> None:
@@ -215,20 +210,20 @@ def test_risk_manager_blocks_insufficient_capital(position_manager: PositionMana
 
 
 def test_order_manager_risk_gate_blocks_order(
-    bus: EventBus, position_manager: PositionManager
+    event_bus: EventBus, processed_trade_repository, position_manager: PositionManager
 ) -> None:
     risk = RiskManager(
         position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000")
     )
-    om = OrderManager(event_bus=bus, risk_manager=risk, processed_trade_repository=ProcessedTradeRepository())
+    om = OrderManager(event_bus=event_bus, risk_manager=risk, processed_trade_repository=processed_trade_repository)
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1000, Decimal("100"))
     result = om.place_order(req)
     assert not result.success
     assert result.error is not None
 
 
-def test_order_manager_risk_gate_allows_order(bus: EventBus) -> None:
-    om = OrderManager(event_bus=bus, processed_trade_repository=ProcessedTradeRepository())
+def test_order_manager_risk_gate_allows_order(event_bus: EventBus, processed_trade_repository) -> None:
+    om = OrderManager(event_bus=event_bus, processed_trade_repository=processed_trade_repository)
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1, Decimal("100"))
     result = om.place_order(req)
     assert result.success
@@ -249,11 +244,11 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
         side=Side.BUY,
         order_type=OrderType.MARKET,
         quantity=10,
-        filled_quantity=10,
+        filled_quantity=0,
         price=Decimal("100"),
         avg_price=Decimal("100"),
         product_type=ProductType.INTRADAY,
-        status=OrderStatus.FILLED,
+        status=OrderStatus.OPEN,
     )
     trade = Trade(
         trade_id="T1",
@@ -334,7 +329,7 @@ def test_upsert_position_creates_new(position_manager: PositionManager) -> None:
     )
     assert pos.symbol == "RELIANCE"
     assert pos.quantity == 50
-    assert pos.avg_price == Decimal("2500")
+    assert pos.avg_price.amount == Decimal("2500")
 
 
 def test_upsert_position_updates_existing(position_manager: PositionManager) -> None:
@@ -430,11 +425,11 @@ def test_replay_does_not_double_count_positions(tmp_path) -> None:
         side=Side.BUY,
         order_type=OrderType.MARKET,
         quantity=10,
-        filled_quantity=10,
+        filled_quantity=0,
         price=Decimal("100"),
         avg_price=Decimal("100"),
         product_type=ProductType.INTRADAY,
-        status=OrderStatus.FILLED,
+        status=OrderStatus.OPEN,
     )
     trade = Trade(
         trade_id="T1",
@@ -457,7 +452,7 @@ def test_replay_does_not_double_count_positions(tmp_path) -> None:
     assert position.quantity == 10, (
         f"Expected quantity 10, got {position.quantity} (possible double-counting)"
     )
-    assert position.avg_price == Decimal("100")
+    assert position.avg_price.amount == Decimal("100")
 
 
 def test_position_manager_has_both_trade_handlers() -> None:

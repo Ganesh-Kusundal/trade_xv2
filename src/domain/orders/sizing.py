@@ -10,6 +10,19 @@ from decimal import Decimal
 from enum import Enum
 
 
+def _to_decimal(value: object) -> Decimal:
+    """Coerce a numeric scalar or Money value object to Decimal.
+
+    ``Money`` is now a first-class value object in the domain (TOS-P1-004);
+    sizing inputs such as ``existing_notional`` can arrive as ``Money``, so we
+    unwrap it via ``to_decimal()`` instead of ``str()`` (which yields an
+    unparseable ``"1234.56 INR"``).
+    """
+    if hasattr(value, "to_decimal"):
+        return value.to_decimal()
+    return Decimal(str(value))
+
+
 class SizingMethod(str, Enum):
     """How a position size was derived."""
 
@@ -24,9 +37,9 @@ def compute_order_quantity(
     price: Decimal | int | float,
     max_position_pct: Decimal | int | float,
 ) -> int:
-    equity_d = Decimal(str(equity))
-    price_d = Decimal(str(price))
-    pct_d = Decimal(str(max_position_pct))
+    equity_d = _to_decimal(equity)
+    price_d = _to_decimal(price)
+    pct_d = _to_decimal(max_position_pct)
     if price_d <= 0 or equity_d <= 0 or pct_d <= 0:
         return 0
     max_notional = equity_d * (pct_d / Decimal("100"))
@@ -46,10 +59,10 @@ def compute_remaining_quantity(
     Subtracting ``existing_notional`` is what stops a strategy from
     pyramiding past its limit when it re-signals a symbol it already holds.
     """
-    equity_d = Decimal(str(equity))
-    price_d = Decimal(str(price))
-    pct_d = Decimal(str(max_position_pct))
-    existing = Decimal(str(existing_notional))
+    equity_d = _to_decimal(equity)
+    price_d = _to_decimal(price)
+    pct_d = _to_decimal(max_position_pct)
+    existing = _to_decimal(existing_notional)
     if price_d <= 0 or equity_d <= 0 or pct_d <= 0:
         return 0
     max_notional = equity_d * (pct_d / Decimal("100"))
@@ -70,10 +83,10 @@ def compute_atr_quantity(
     ``atr * atr_multiplier`` (the adverse move we are willing to absorb). The
     resulting share count keeps the per-share risk inside the budget.
     """
-    equity_d = Decimal(str(equity))
-    atr_d = Decimal(str(atr))
-    risk_d = Decimal(str(risk_pct))
-    mult = Decimal(str(atr_multiplier))
+    equity_d = _to_decimal(equity)
+    atr_d = _to_decimal(atr)
+    risk_d = _to_decimal(risk_pct)
+    mult = _to_decimal(atr_multiplier)
     if atr_d <= 0 or equity_d <= 0 or risk_d <= 0:
         return 0
     risk_budget = equity_d * (risk_d / Decimal("100"))
