@@ -228,6 +228,21 @@ class PositionManager:
                 for p in self._positions.values()
             ]
 
+    def get_net_pnl(self) -> "Decimal":
+        """Sum of unrealized PnL across all open positions. Returns Decimal('0') if empty."""
+        from decimal import Decimal
+        total = Decimal("0")
+        for pos in self.get_positions():
+            # Try common field names in order
+            pnl = (
+                getattr(pos, "unrealized_pnl", None)
+                or getattr(pos, "pnl", None)
+                or getattr(pos, "net_pnl", None)
+            )
+            if pnl is not None:
+                total += Decimal(str(pnl))
+        return total
+
     def upsert_position(self, data: dict) -> Position:
         """Create or update a position from broker state (used by reconciliation).
 
