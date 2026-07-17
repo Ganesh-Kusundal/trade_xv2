@@ -375,7 +375,7 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 # application.trading → analytics is allowed (orchestrator).
 name = "Trading does not import Analytics (D2)"
 type = "forbidden"
-source_modules = ["application.oms", "application.execution"]
+source_modules = ["application.oms", "application.execution", "application.trading"]
 forbidden_modules = ["analytics"]
 
 [[tool.importlinter.contracts]]

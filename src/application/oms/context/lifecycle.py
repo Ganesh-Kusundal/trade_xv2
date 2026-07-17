@@ -13,16 +13,23 @@ from typing import Any  # Only for signal handler frame type
 
 from application.oms.context._types import CancellationResult
 from application.oms.protocols import IBrokerGateway
-from infrastructure.lifecycle.lifecycle import ManagedService
+from domain.lifecycle_health import HealthState, HealthStatus
+from domain.ports.lifecycle import ManagedServicePort
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
 
-class TradingContextLifecycleMixin(ManagedService):
+class TradingContextLifecycleMixin(ManagedServicePort):
     """Mixin providing lifecycle / shutdown methods for TradingContext.
 
-    Inherits ManagedService so TradingContext satisfies the protocol
-    without the main __init__.py needing to list it as a base class.
+    Implements the domain ``ManagedServicePort`` (structural Protocol) so the
+    application layer never imports the infrastructure ``ManagedService``
+    concrete class — preserving the Application↛Infrastructure layering
+    contract. No base class from ``infrastructure`` is used.
+
+    Note: ``ManagedServicePort`` is a Protocol; explicit subclassing is only a
+    typing aid and adds no runtime dependency.
     """
 
     # ManagedService protocol attributes
@@ -102,6 +109,25 @@ class TradingContextLifecycleMixin(ManagedService):
         )
 
     # ── ManagedService protocol implementation ──────────────────────────
+
+    def health(self) -> HealthStatus:
+        """Return a point-in-time health snapshot for the lifecycle manager.
+
+        Reports HEALTHY while the context is live; UNHEALTHY if a shutdown is
+        already in progress (no new orders should be placed).
+        """
+        if getattr(self, "_shutdown_in_progress", False):
+            state = HealthState.UNHEALTHY
+            detail = "shutdown in progress"
+        else:
+            state = HealthState.HEALTHY
+            detail = "live"
+        return HealthStatus(
+            state=state,
+            service=self.name,
+            last_check=get_current_clock().now(),
+            detail=detail,
+        )
 
     def start(self) -> None:
         """Start the trading context. Idempotent.

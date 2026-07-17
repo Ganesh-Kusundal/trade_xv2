@@ -9,7 +9,6 @@ from typing import Any
 
 import pandas as pd
 
-from analytics.pipeline.pipeline import FeaturePipeline
 from domain.candles.historical import HistoricalSeries
 from domain.models.features import FeatureSet
 from domain.ports import MarketDataPort
@@ -33,7 +32,7 @@ class PipelineFeatureFetcher:
 
     def __init__(
         self,
-        pipeline: FeaturePipeline,
+        pipeline: Any,
         market_data: MarketDataPort | None = None,
         gateway: object | None = None,
         lookback_bars: int = 200,

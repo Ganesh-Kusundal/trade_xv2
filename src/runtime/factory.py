@@ -107,7 +107,6 @@ def _wire_trading_orchestrator(
     from analytics.scanner.patterns import PatternEngine, PatternStrategy
     from analytics.strategy.pipeline import StrategyPipeline
     from application.trading.feature_fetcher import PipelineFeatureFetcher
-    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
     from application.trading.trading_orchestrator import (
         OrchestratorConfig,
         TradingOrchestrator,
@@ -123,8 +122,8 @@ def _wire_trading_orchestrator(
         .add(CandlestickPattern())
     )
 
-    multi = MultiStrategyRuntime()
-    strategy_instances = [*multi.pipeline.strategies, PatternStrategy()]
+    multi = build_multi_strategy_runtime()
+    strategy_instances = [*multi.strategies, PatternStrategy()]
     strategy_pipeline = StrategyPipeline(strategies=strategy_instances)
 
     pattern_engine = PatternEngine()
@@ -318,3 +317,33 @@ def build(
     runtime = build_from_broker_service(broker_service, options=opts)
     runtime.extra.setdefault("mode", mode)
     return runtime
+
+
+def build_multi_strategy_runtime(names: list[str] | None = None) -> Any:
+    """Build a :class:`MultiStrategyRuntime` with an injected strategy pipeline.
+
+    Lives in the composition root (``runtime``) so ``application.trading`` does
+    not import ``analytics`` — the pipeline is constructed here from the
+    analytics strategy registry and injected into the holder. ``runtime`` is
+    permitted to depend on analytics; ``application`` is not.
+    """
+    from analytics.strategy.pipeline import StrategyPipeline
+    from analytics.strategy.registry import StrategyRegistry
+    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
+
+    if not names:
+        StrategyRegistry.discover("analytics.strategy.builtins")
+        names = StrategyRegistry.list()
+
+    strategies = []
+    for name in names:
+        try:
+            strategies.append(StrategyRegistry.create(name))
+        except KeyError:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "build_multi_strategy_runtime: unknown strategy %s", name
+            )
+    pipeline = StrategyPipeline(strategies=strategies)
+    return MultiStrategyRuntime(pipeline=pipeline, strategy_names=list(names))
