@@ -188,6 +188,14 @@ def main() -> None:
     subcommand = args[0].lower()
     cmd_args = args[1:]
 
+    # Fail early for unknown commands to prevent hanging on gateway startup
+    if subcommand not in COMMAND_HANDLERS:
+        console.print(f"[red]Error: Unknown command '{subcommand}'[/red]")
+        console.print(
+            "[yellow]Available commands: broker, analytics, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
+        )
+        sys.exit(1)
+
     # Commands that don't need a broker gateway
     _NO_GATEWAY_CMDS = {"help", "journal", "views", "validate"}
 
