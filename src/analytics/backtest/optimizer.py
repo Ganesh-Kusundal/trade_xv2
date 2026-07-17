@@ -137,6 +137,13 @@ def optimize_grid(
 
     for combo in combinations:
         params = dict(zip(param_names, combo, strict=False))
+        for k, p in params.items():
+            params[k] = int(p.magnitude) if hasattr(p, "magnitude") else int(p)
+
+        # Temporary fix for engine `int / Quantity` bug (profit_factor)
+        import domain.entities.order
+        if not hasattr(domain.entities.order.Quantity, "__rtruediv__"):
+            domain.entities.order.Quantity.__rtruediv__ = lambda s, o: float(o) / float(s.magnitude)
 
         try:
             # Build pipeline with current parameters
