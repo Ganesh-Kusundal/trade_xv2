@@ -42,15 +42,13 @@ from typing import TYPE_CHECKING
 from application.execution.execution_engine import ExecutionEngine
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from application.trading.candidate_evaluator import CandidateEvaluator
-from application.trading.execution_planner import ExecutionPlanner, _safe_decimal
+from application.trading.execution_planner import ExecutionPlanner
 from application.trading.models import FeatureFetcher
 from application.trading.order_placer import OrderPlacer
 from domain import Order, OrderType, ProductType, Side
 from domain.events.types import DomainEvent, EventType
-from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, SlicingAlgo
-from domain.orders.placement import build_execution_plan, plan_to_intents
 from domain.orders.requests import OrderRequest
 from domain.ports import EventBusPort
 from domain.ports.risk_manager import RiskManagerPort
@@ -164,6 +162,13 @@ class TradingOrchestrator:
             strategy_evaluator=self._strategy_evaluator,
             feature_timeout_seconds=self._config.feature_timeout_seconds,
         )
+        self._order_placer = OrderPlacer(
+            order_manager=self._order_manager,
+            submit_fn=self._submit_fn,
+            execution_engine=self._execution_engine,
+            order_command_fn=self._order_command_fn,
+            on_error=self._inc_error,
+        )
         self._planner = ExecutionPlanner(
             min_confidence=self._config.min_confidence,
             dry_run=self._config.dry_run,
@@ -172,14 +177,7 @@ class TradingOrchestrator:
             default_exchange=self._config.default_exchange,
             max_position_size_pct=self._config.max_position_size_pct,
             kill_switch_check=self._is_kill_switch_active,
-            resolve_equity=self._resolve_equity,
-        )
-        self._order_placer = OrderPlacer(
-            order_manager=self._order_manager,
-            submit_fn=self._submit_fn,
-            execution_engine=self._execution_engine,
-            order_command_fn=self._order_command_fn,
-            on_error=self._inc_error,
+            resolve_equity=self._order_placer.resolve_equity,
         )
 
         self._executed_count: int = 0
@@ -278,14 +276,14 @@ class TradingOrchestrator:
             )
 
             # Fetch features
-            features = self._fetch_features(symbol)
+            features = self._evaluator.fetch_features(symbol)
             if features is None:
                 logger.warning("Feature fetch failed for %s, skipping execution", symbol)
                 self._inc_error()
                 return
 
             # Evaluate through strategy pipeline
-            signals = self._evaluate_candidate(candidate, features)
+            signals = self._evaluator.evaluate_candidate(candidate, features)
 
             # Execute actionable signals
             for signal in signals:
@@ -332,52 +330,6 @@ class TradingOrchestrator:
 
         # Publish execution events
         self._publish_execution_events(order_results, signal)
-
-    # ── thin delegators (backward-compat for tests) ──────────────────────
-
-    def _fetch_features(self, symbol: str) -> FeatureSet | None:
-        """Fetch feature data for a symbol. Delegates to CandidateEvaluator."""
-        return self._evaluator.fetch_features(symbol)
-
-    def _evaluate_candidate(
-        self,
-        candidate: CandidateDTO,
-        features: FeatureSet,
-    ) -> list[SignalDTO]:
-        """Evaluate candidate through strategy pipeline. Delegates to CandidateEvaluator."""
-        return self._evaluator.evaluate_candidate(candidate, features)
-
-    def _build_plan_context(self, signal: SignalDTO, correlation_id: str) -> object:
-        """Snapshot the runtime inputs the planner needs. Delegates to ExecutionPlanner."""
-        return self._planner.build_plan_context(signal, correlation_id)
-
-    def _signal_to_order_command(
-        self,
-        signal: SignalDTO,
-        correlation_id: str,
-    ) -> OmsOrderCommand:
-        """Convert a SignalDTO to an OmsOrderCommand. Delegates to ExecutionPlanner."""
-        return self._planner.signal_to_order_command(signal, correlation_id)
-
-    def _intent_to_command(self, intent: object, signal: SignalDTO) -> OmsOrderCommand:
-        """Bridge a domain OrderIntent into an OmsOrderCommand. Delegates to ExecutionPlanner."""
-        return self._planner.intent_to_command(intent, signal)
-
-    def _resolve_equity(self) -> float:
-        """Best-effort capital for sizing. Delegates to OrderPlacer."""
-        return self._order_placer.resolve_equity()
-
-    def _calculate_quantity(self, signal: SignalDTO) -> int:
-        """Resolve order quantity. Delegates to ExecutionPlanner."""
-        return self._planner.calculate_quantity(signal)
-
-    def _place_order(
-        self,
-        command: OmsOrderCommand,
-        signal: SignalDTO,
-    ) -> OrderResult:
-        """Place order through OMS. Delegates to OrderPlacer."""
-        return self._order_placer.place(command, signal)
 
     # ── event publishing ─────────────────────────────────────────────────
 

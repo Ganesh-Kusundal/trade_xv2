@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from analytics.strategy.registry import StrategyRegistry
-from application.trading.multi_strategy_runtime import MultiStrategyRuntime
+from runtime.factory import MultiStrategyRuntime, build_multi_strategy_runtime
 
 
-def test_multi_strategy_runtime_lists_builtin_strategies():
-    StrategyRegistry.discover("analytics.strategy.builtins")
+def test_multi_strategy_runtime_lists_strategy_names():
     runtime = MultiStrategyRuntime(strategy_names=["momentum"])
     assert runtime.list_strategies() == ["momentum"]
+
+
+def test_build_multi_strategy_runtime_factory():
+    runtime = build_multi_strategy_runtime(["momentum"])
     assert runtime.pipeline is not None
-
-
-def test_create_pipeline_factory():
-    StrategyRegistry.discover("analytics.strategy.builtins")
-    pipeline = MultiStrategyRuntime.create_pipeline(["momentum"])
-    assert pipeline is not None
+    assert runtime.strategies is not None

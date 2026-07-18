@@ -258,20 +258,18 @@ async def list_strategies():
 @router.post("/strategies/run")
 async def run_strategies(body: dict):
     """Build a multi-strategy pipeline for the given strategy names."""
-    from analytics.strategy.registry import StrategyRegistry
-    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
+    from runtime.factory import build_multi_strategy_runtime
 
     names = body.get("names") or body.get("strategies") or []
     if not names:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="names required")
-    StrategyRegistry.discover("analytics.strategy.builtins")
-    pipeline = MultiStrategyRuntime.create_pipeline(names)
-    if not pipeline.strategies:
+    runtime = build_multi_strategy_runtime(names)
+    if not runtime.strategies:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No valid strategies in {names}",
         )
     return {
-        "strategy_count": len(pipeline.strategies),
-        "strategies": [s.name for s in pipeline.strategies],
+        "strategy_count": len(runtime.strategies),
+        "strategies": [s.name for s in runtime.strategies],
     }

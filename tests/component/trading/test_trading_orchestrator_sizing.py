@@ -12,7 +12,7 @@ from domain.models.trading import SignalDTO
 
 def _make_orchestrator(equity: Decimal = Decimal("100000")) -> TradingOrchestrator:
     rm = MagicMock()
-    rm._capital_provider = FixedCapitalProvider(equity)
+    rm.capital_provider = FixedCapitalProvider(equity)
     om = MagicMock()
     om.risk_manager = rm
     return TradingOrchestrator(
@@ -41,14 +41,14 @@ def _sig(**kwargs) -> SignalDTO:
 def test_explicit_quantity_wins():
     orch = _make_orchestrator()
     signal = _sig(quantity=7, position_size_pct=Decimal("50"))
-    assert orch._calculate_quantity(signal) == 7
+    assert orch._planner.calculate_quantity(signal) == 7
 
 
 def test_position_size_pct_uses_equity_and_price():
     # equity 100_000, 10% → notional 10_000, price 100 → 100 shares
     orch = _make_orchestrator(Decimal("100000"))
     signal = _sig(position_size_pct=Decimal("10"), entry_price=Decimal("100"))
-    assert orch._calculate_quantity(signal) == 100
+    assert orch._planner.calculate_quantity(signal) == 100
 
 
 def test_int_pct_is_not_share_count():
@@ -56,10 +56,10 @@ def test_int_pct_is_not_share_count():
     orch = _make_orchestrator(Decimal("100000"))
     signal = _sig(position_size_pct=Decimal("2.5"), entry_price=Decimal("250"))
     # 2.5% of 100k = 2500 notional / 250 = 10 shares (not int(2.5)=2)
-    assert orch._calculate_quantity(signal) == 10
+    assert orch._planner.calculate_quantity(signal) == 10
 
 
 def test_missing_size_returns_zero():
     orch = _make_orchestrator()
     signal = _sig(position_size_pct=Decimal("0"))
-    assert orch._calculate_quantity(signal) == 0
+    assert orch._planner.calculate_quantity(signal) == 0
