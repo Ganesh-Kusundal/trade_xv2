@@ -225,12 +225,12 @@ class DhanSettingsLoader(SettingsLoaderBase):
         Returns:
             DhanResilienceConfig if any resilience env vars are set, else None.
         """
-        from brokers.dhan.config.config_loader import DhanConfigLoader, ENV_PREFIX
+        from brokers.dhan.config import DhanConfigLoader, ENV_PREFIX, load_from_env_file
 
         # Check if any resilience env vars are set
         resilience_prefix = ENV_PREFIX
         has_resilience_vars = any(
-            key.startswith(resilience_prefix) 
+            key.startswith(resilience_prefix)
             for key in os.environ.keys()
         )
 
@@ -240,9 +240,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
         # Check .env file for resilience config
         if env_path and env_path.exists():
             try:
-                from brokers.dhan.config.config_loader import load_from_env_file
                 config = load_from_env_file(env_path)
-                # Check if config has any non-default values
                 if config.to_dict() != DhanResilienceConfig().to_dict():
                     return config
             except Exception:

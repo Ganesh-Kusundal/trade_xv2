@@ -1,32 +1,33 @@
-"""Dhan broker runtime configuration dataclasses.
+"""Dhan broker runtime configuration — dataclasses + loading.
 
-Centralizes all configurable parameters for Dhan broker resilience patterns.
-All hardcoded values from http_client.py are moved here for runtime configuration.
+Centralizes all configurable parameters for Dhan broker resilience patterns
+and their loading from environment variables, .env files, and JSON files.
 
 Design Principles:
   - Dataclasses for type safety and immutability
-  - Environment variable overrides via config_loader.py
+  - Environment variable overrides with DHAN_RESILIENCE_ prefix
   - Backwards compatibility with existing defaults
   - Clean separation of concerns (rate limits, retries, circuit breakers)
 """
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from config.endpoints import Dhan
+
+logger = logging.getLogger(__name__)
 
 # ── Default base URL ─────────────────────────────────────────────────────────
 DEFAULT_BASE_URL = Dhan.REST_BASE
 
 
 # ── Rate Limit Defaults (from Dhan API documentation) ────────────────────────
-# Non-Trading APIs: Up to 20 requests per second
-# Order APIs: Up to 25 requests per second
-# Data APIs: Up to 10 requests per second
-# Quote APIs: 1 request per second
-
 DEFAULT_RATE_LIMITS: dict[str, float] = {
     "/marketfeed/quote": 1.0,  # Quote APIs: 1 req/s
     "/marketfeed/ltp": 0.1,  # Data APIs: 10 req/s (0.1s interval)
@@ -59,8 +60,6 @@ DEFAULT_WRITE_CB_PREFIXES: tuple[str, ...] = (
 )
 
 # Legacy CB-category → RL-bucket map (prefer path-based mapping in http_client).
-# Kept for config overrides / older tests. create_rate_limiter also aliases
-# market_data→quotes and ensures an admin catch-all exists.
 DEFAULT_RL_BUCKET_MAP: dict[str, str] = {
     "read": "quotes",
     "write": "orders",
@@ -79,17 +78,35 @@ DEFAULT_REFRESH_COOLDOWN_SECONDS = 60
 DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 130  # Dhan's 2-min rate limit + 10s buffer
 
 
+# ── Env var loading ──────────────────────────────────────────────────────────
+
+ENV_PREFIX = "DHAN_RESILIENCE_"
+
+ENV_KEY_MAPPING: dict[str, str] = {
+    "RATE_LIMIT_LIMITS": "rate_limit.limits",
+    "RATE_LIMIT_READ_PREFIXES": "rate_limit.read_prefixes",
+    "RATE_LIMIT_WRITE_PREFIXES": "rate_limit.write_prefixes",
+    "RATE_LIMIT_BUCKET_MAP": "rate_limit.bucket_map",
+    "RETRY_MAX_RETRIES": "retry.max_retries",
+    "RETRY_BASE_DELAY_MS": "retry.base_delay_ms",
+    "RETRY_MAX_DELAY_MS": "retry.max_delay_ms",
+    "CB_READ_PREFIXES": "circuit_breaker.read_prefixes",
+    "CB_WRITE_PREFIXES": "circuit_breaker.write_prefixes",
+    "CB_ORDERS_FAILURE_THRESHOLD": "circuit_breaker.orders_failure_threshold",
+    "CB_DEFAULT_FAILURE_THRESHOLD": "circuit_breaker.default_failure_threshold",
+    "CB_RECOVERY_TIMEOUT_MS": "circuit_breaker.recovery_timeout_ms",
+    "CB_SUCCESS_THRESHOLD": "circuit_breaker.success_threshold",
+    "TOKEN_REFRESH_COOLDOWN_SECONDS": "token.refresh_cooldown_seconds",
+    "TOKEN_RATE_LIMIT_BACKOFF_SECONDS": "token.rate_limit_backoff_seconds",
+    "BASE_URL": "base_url",
+}
+
+
+# ── Dataclasses ──────────────────────────────────────────────────────────────
+
 @dataclass(frozen=True)
 class DhanRateLimitConfig:
-    """Configuration for Dhan API rate limiting.
-
-    Attributes:
-        limits: Dictionary mapping endpoint prefixes to minimum intervals (seconds).
-            Used for throttling between requests to the same endpoint.
-        read_prefixes: Endpoint prefixes categorized as "read" operations.
-        write_prefixes: Endpoint prefixes categorized as "write" operations.
-        bucket_map: Mapping from circuit breaker categories to rate limiter buckets.
-    """
+    """Configuration for Dhan API rate limiting."""
 
     limits: dict[str, float] = field(default_factory=lambda: DEFAULT_RATE_LIMITS.copy())
     read_prefixes: tuple[str, ...] = DEFAULT_READ_CB_PREFIXES
@@ -97,7 +114,6 @@ class DhanRateLimitConfig:
     bucket_map: dict[str, str] = field(default_factory=lambda: DEFAULT_RL_BUCKET_MAP.copy())
 
     def get_endpoint_interval(self, endpoint: str) -> float:
-        """Get the rate limit interval for a specific endpoint."""
         if endpoint in self.limits:
             return self.limits[endpoint]
         for prefix, interval in self.limits.items():
@@ -108,13 +124,7 @@ class DhanRateLimitConfig:
 
 @dataclass(frozen=True)
 class DhanRetryConfig:
-    """Configuration for retry behavior.
-
-    Attributes:
-        max_retries: Maximum number of retry attempts for failed requests.
-        base_delay_ms: Base delay for exponential backoff (milliseconds).
-        max_delay_ms: Maximum delay for exponential backoff (milliseconds).
-    """
+    """Configuration for retry behavior."""
 
     max_retries: int = DEFAULT_MAX_RETRIES
     base_delay_ms: int = DEFAULT_BASE_DELAY_MS
@@ -123,33 +133,16 @@ class DhanRetryConfig:
 
 @dataclass(frozen=True)
 class DhanCircuitBreakerConfig:
-    """Configuration for circuit breaker behavior.
-
-    Attributes:
-        read_prefixes: Endpoint prefixes for read circuit breaker category.
-        write_prefixes: Endpoint prefixes for write circuit breaker category.
-        orders_failure_threshold: Failure threshold for orders circuit breaker.
-        default_failure_threshold: Failure threshold for other circuit breakers.
-        recovery_timeout_ms: Time in milliseconds before circuit breaker attempts recovery.
-        success_threshold: Number of consecutive successes to close half-open circuit.
-    """
+    """Configuration for circuit breaker behavior."""
 
     read_prefixes: tuple[str, ...] = DEFAULT_READ_CB_PREFIXES
     write_prefixes: tuple[str, ...] = DEFAULT_WRITE_CB_PREFIXES
     orders_failure_threshold: int = 3
     default_failure_threshold: int = 5
-    recovery_timeout_ms: int = 30_000  # 30 seconds
+    recovery_timeout_ms: int = 30_000
     success_threshold: int = 3
 
     def categorize_endpoint(self, endpoint: str) -> str:
-        """Categorize an endpoint for circuit breaker routing.
-
-        Args:
-            endpoint: The API endpoint path.
-
-        Returns:
-            One of 'read', 'write', or 'admin'.
-        """
         for prefix in self.write_prefixes:
             if endpoint.startswith(prefix):
                 return "write"
@@ -161,12 +154,7 @@ class DhanCircuitBreakerConfig:
 
 @dataclass(frozen=True)
 class DhanTokenConfig:
-    """Configuration for token refresh behavior.
-
-    Attributes:
-        refresh_cooldown_seconds: Minimum time between token refresh attempts.
-        rate_limit_backoff_seconds: Backoff time when Dhan rate limits token generation.
-    """
+    """Configuration for token refresh behavior."""
 
     refresh_cooldown_seconds: float = DEFAULT_REFRESH_COOLDOWN_SECONDS
     rate_limit_backoff_seconds: float = DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
@@ -174,18 +162,7 @@ class DhanTokenConfig:
 
 @dataclass(frozen=True)
 class DhanResilienceConfig:
-    """Aggregated configuration for all Dhan resilience patterns.
-
-    Combines rate limiting, retry, circuit breaker, and token configurations
-    into a single, injectable configuration object.
-
-    Attributes:
-        rate_limit: Rate limit configuration.
-        retry: Retry configuration.
-        circuit_breaker: Circuit breaker configuration.
-        token: Token refresh configuration.
-        base_url: Base URL for Dhan API.
-    """
+    """Aggregated configuration for all Dhan resilience patterns."""
 
     rate_limit: DhanRateLimitConfig = field(default_factory=DhanRateLimitConfig)
     retry: DhanRetryConfig = field(default_factory=DhanRetryConfig)
@@ -194,19 +171,10 @@ class DhanResilienceConfig:
     base_url: str = DEFAULT_BASE_URL
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None = None) -> "DhanResilienceConfig":
-        """Create configuration from a dictionary of values.
-
-        Args:
-            data: Dictionary with configuration values. Missing keys use defaults.
-
-        Returns:
-            DhanResilienceConfig instance with values from dict or defaults.
-        """
+    def from_dict(cls, data: dict[str, Any] | None = None) -> DhanResilienceConfig:
         if data is None:
             return cls()
 
-        # Extract nested configs
         rate_limit_data = data.get("rate_limit", {})
         retry_data = data.get("retry", {})
         circuit_breaker_data = data.get("circuit_breaker", {})
@@ -250,11 +218,6 @@ class DhanResilienceConfig:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert configuration to a dictionary.
-
-        Returns:
-            Dictionary representation of all configuration values.
-        """
         return {
             "rate_limit": {
                 "limits": self.rate_limit.limits,
@@ -283,8 +246,198 @@ class DhanResilienceConfig:
         }
 
 
-# Default configuration instance
+# ── Default instance ─────────────────────────────────────────────────────────
 DEFAULT_CONFIG = DhanResilienceConfig()
+
+
+# ── Loading helpers (merged from config_loader.py) ───────────────────────────
+
+def _parse_env_value(value: str, target_type: type) -> Any:
+    if target_type == bool:
+        return value.lower() in ("true", "1", "yes", "on")
+    if target_type == int:
+        return int(value)
+    if target_type == float:
+        return float(value)
+    if target_type == dict:
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    if target_type == list:
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return [v.strip() for v in value.split(",") if v.strip()]
+    if target_type == tuple:
+        try:
+            parsed = json.loads(value)
+            return tuple(parsed) if isinstance(parsed, list) else ()
+        except json.JSONDecodeError:
+            return tuple(v.strip() for v in value.split(",") if v.strip())
+    return value
+
+
+def _parse_json_list(value: str) -> list[str]:
+    try:
+        parsed = json.loads(value)
+        return list(parsed) if isinstance(parsed, list) else []
+    except json.JSONDecodeError:
+        return [v.strip() for v in value.split(",") if v.strip()]
+
+
+def _parse_json_dict(value: str) -> dict[str, float]:
+    try:
+        parsed = json.loads(value)
+        return {str(k): float(v) for k, v in parsed.items()}
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return {}
+
+
+def _flatten_env_vars(prefix: str = ENV_PREFIX) -> dict[str, str]:
+    result = {}
+    for key, value in os.environ.items():
+        if key.startswith(prefix):
+            result[key[len(prefix):]] = value
+    return result
+
+
+def _build_nested_dict(flat_data: dict[str, str]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+
+    for env_key, value in flat_data.items():
+        if env_key not in ENV_KEY_MAPPING:
+            continue
+
+        path = ENV_KEY_MAPPING[env_key]
+        keys = path.split(".")
+
+        current = result
+        for key in keys[:-1]:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+
+        final_key = keys[-1]
+
+        if final_key == "limits":
+            current[final_key] = _parse_json_dict(value)
+        elif final_key in ("read_prefixes", "write_prefixes"):
+            current[final_key] = _parse_json_list(value)
+        elif final_key == "bucket_map":
+            current[final_key] = _parse_json_dict(value)
+        elif final_key in (
+            "max_retries", "orders_failure_threshold",
+            "default_failure_threshold", "success_threshold",
+            "recovery_timeout_ms", "base_delay_ms", "max_delay_ms",
+        ):
+            current[final_key] = int(value)
+        elif final_key in ("refresh_cooldown_seconds", "rate_limit_backoff_seconds"):
+            current[final_key] = float(value)
+        elif final_key == "base_url":
+            current[final_key] = value
+        else:
+            current[final_key] = value
+
+    return result
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def _parse_env_file(env_path: Path) -> dict[str, str]:
+    result = {}
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, value = line.split("=", 1)
+                result[key.strip()] = value.strip().strip('"').strip("'")
+    return result
+
+
+# ── Public loading functions ─────────────────────────────────────────────────
+
+def load_from_environment(prefix: str = ENV_PREFIX) -> DhanResilienceConfig:
+    flat_vars = _flatten_env_vars(prefix)
+    nested_data = _build_nested_dict(flat_vars)
+    return DhanResilienceConfig.from_dict(nested_data)
+
+
+def load_from_file(file_path: Path) -> DhanResilienceConfig:
+    if not file_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {file_path}")
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return DhanResilienceConfig.from_dict(data)
+
+
+def load_from_env_file(env_path: Path | None = None) -> DhanResilienceConfig:
+    data: dict[str, Any] = {}
+
+    paths_to_try = []
+    if env_path:
+        paths_to_try.append(env_path)
+    paths_to_try.extend([Path(".env.local"), Path(".env")])
+
+    for path in paths_to_try:
+        if path.exists():
+            try:
+                data.update(_parse_env_file(path))
+            except Exception as e:
+                logger.warning(f"Failed to parse env file {path}: {e}")
+
+    env_data = _build_nested_dict(_flatten_env_vars(ENV_PREFIX))
+    data = _deep_merge(data, env_data)
+
+    return DhanResilienceConfig.from_dict(data)
+
+
+class DhanConfigLoader:
+    """Configuration loader with fallback chain: env vars > .env file > defaults."""
+
+    @staticmethod
+    def load(
+        env_path: Path | None = None,
+        env_prefix: str = ENV_PREFIX,
+    ) -> DhanResilienceConfig:
+        env_file_data: dict[str, Any] = {}
+        paths_to_try = [env_path] if env_path else [Path(".env.local"), Path(".env")]
+        for path in paths_to_try:
+            if path and path.exists():
+                try:
+                    env_file_data.update(_parse_env_file(path))
+                except Exception as e:
+                    logger.warning(f"Failed to parse env file {path}: {e}")
+
+        nested_env_data = _build_nested_dict(env_file_data)
+        env_var_data = _build_nested_dict(_flatten_env_vars(env_prefix))
+        merged_data = _deep_merge(nested_env_data, env_var_data)
+
+        return DhanResilienceConfig.from_dict(merged_data)
+
+    @staticmethod
+    def load_from_file(file_path: Path) -> DhanResilienceConfig:
+        return load_from_file(file_path)
+
+    @staticmethod
+    def load_from_dict(data: dict[str, Any]) -> DhanResilienceConfig:
+        return DhanResilienceConfig.from_dict(data)
+
+    @staticmethod
+    def load_from_environment(prefix: str = ENV_PREFIX) -> DhanResilienceConfig:
+        return load_from_environment(prefix)
 
 
 __all__ = [
@@ -303,4 +456,10 @@ __all__ = [
     "DEFAULT_MAX_DELAY_MS",
     "DEFAULT_REFRESH_COOLDOWN_SECONDS",
     "DEFAULT_RATE_LIMIT_BACKOFF_SECONDS",
+    "ENV_PREFIX",
+    "ENV_KEY_MAPPING",
+    "DhanConfigLoader",
+    "load_from_environment",
+    "load_from_file",
+    "load_from_env_file",
 ]

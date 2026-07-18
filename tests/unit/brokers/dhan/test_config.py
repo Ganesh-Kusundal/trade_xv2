@@ -31,7 +31,7 @@ from brokers.dhan.config import (
     DhanRetryConfig,
     DhanTokenConfig,
 )
-from brokers.dhan.config.config_loader import (
+from brokers.dhan.config import (
     ENV_PREFIX,
     DhanConfigLoader,
     load_from_environment,
