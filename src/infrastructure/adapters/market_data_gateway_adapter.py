@@ -18,7 +18,7 @@ from domain.ports.broker_gateway import (
     QuotaToken,
 )
 from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
-from infrastructure.gateway.base import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
 from domain.candles.historical import InstrumentRef

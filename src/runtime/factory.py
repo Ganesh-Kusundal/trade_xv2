@@ -17,7 +17,7 @@ from infrastructure.lifecycle import LifecycleManager
 
 if TYPE_CHECKING:
     from application.trading.trading_orchestrator import TradingOrchestrator
-    from infrastructure.broker_infrastructure import BrokerInfrastructure
+    from runtime.broker_infrastructure import BrokerInfrastructure
     from infrastructure.event_bus.event_bus import EventBus
     from runtime.resilience import ResilienceConfig
 

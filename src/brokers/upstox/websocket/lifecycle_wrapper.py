@@ -43,7 +43,7 @@ class UpstoxWebSocketService(ManagedService):
                 return
             self._started = True
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
 
             run_async_compat(self._mux.connect())
             logger.info("upstox_websocket_started", extra={"service": self.name})
@@ -59,7 +59,7 @@ class UpstoxWebSocketService(ManagedService):
                 return
             self._started = False
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
 
             run_async_compat(self._mux.disconnect())
             logger.info("upstox_websocket_stopped", extra={"service": self.name})
@@ -99,7 +99,7 @@ class UpstoxPortfolioStreamService(ManagedService):
                 return
             self._started = True
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
 
             run_async_compat(self._stream.connect())
             logger.info("upstox_portfolio_stream_started", extra={"service": self.name})
@@ -114,7 +114,7 @@ class UpstoxPortfolioStreamService(ManagedService):
                 return
             self._started = False
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
 
             run_async_compat(self._stream.disconnect())
             logger.info("upstox_portfolio_stream_stopped", extra={"service": self.name})

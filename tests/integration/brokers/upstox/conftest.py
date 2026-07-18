@@ -148,7 +148,7 @@ def ws_teardown(gateway):
     """Disconnect WS streams after each test using the session gateway."""
     yield
     broker = gateway._broker
-    from infrastructure.async_compat import run_async_compat
+    from infrastructure.io.async_compat import run_async_compat
 
     mux = getattr(broker, "market_data_websocket", None)
     portfolio = getattr(broker, "portfolio_stream", None)
