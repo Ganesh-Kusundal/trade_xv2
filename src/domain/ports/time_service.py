@@ -52,10 +52,6 @@ class ClockPort(Protocol):
         """Return the current time in ``exchange``'s local timezone."""
 
 
-# Backward-compatible alias for the previous (dead) port name.
-TimeServicePort = ClockPort
-
-
 _REAL_CLOCK = RealClock()
 
 _clock_var: contextvars.ContextVar[ClockPort | None] = contextvars.ContextVar(

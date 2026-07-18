@@ -24,7 +24,7 @@ from domain.ports.order_store import OrderStorePort
 from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult, SubscriptionHandle
 from domain.ports.risk_manager import RiskManagerPort
 from domain.ports.strategy_evaluator import StrategyEvaluator
-from domain.ports.time_service import ClockPort, TimeServicePort
+from domain.ports.time_service import ClockPort
 
 __all__ = [
     "AlertingEnginePort",
@@ -55,5 +55,4 @@ __all__ = [
     "RiskManagerPort",
     "StrategyEvaluator",
     "SubscriptionHandle",
-    "TimeServicePort",
 ]
