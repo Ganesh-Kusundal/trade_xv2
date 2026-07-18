@@ -317,7 +317,22 @@ def build(
     return runtime
 
 
-def build_multi_strategy_runtime(names: list[str] | None = None) -> Any:
+@dataclass
+class MultiStrategyRuntime:
+    """Hold a pre-built strategy pipeline and its strategy names."""
+
+    pipeline: Any = field(default=None)
+    strategy_names: list[str] = field(default_factory=list)
+
+    @property
+    def strategies(self) -> list[Any]:
+        return list(self.pipeline.strategies)
+
+    def list_strategies(self) -> list[str]:
+        return list(self.strategy_names)
+
+
+def build_multi_strategy_runtime(names: list[str] | None = None) -> MultiStrategyRuntime:
     """Build a :class:`MultiStrategyRuntime` with an injected strategy pipeline.
 
     Lives in the composition root (``runtime``) so ``application.trading`` does
@@ -327,7 +342,6 @@ def build_multi_strategy_runtime(names: list[str] | None = None) -> Any:
     """
     from analytics.strategy.pipeline import StrategyPipeline
     from analytics.strategy.registry import StrategyRegistry
-    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
 
     if not names:
         StrategyRegistry.discover("analytics.strategy.builtins")
@@ -338,8 +352,6 @@ def build_multi_strategy_runtime(names: list[str] | None = None) -> Any:
         try:
             strategies.append(StrategyRegistry.create(name))
         except KeyError:
-            import logging
-
             logging.getLogger(__name__).warning(
                 "build_multi_strategy_runtime: unknown strategy %s", name
             )
