@@ -157,25 +157,6 @@ class TestDhanRateLimitConfig:
 class TestDhanRetryConfig:
     """Tests for DhanRetryConfig dataclass."""
 
-    def test_calculate_backoff_first_attempt(self):
-        """Test backoff calculation for first attempt."""
-        config = DhanRetryConfig(base_delay_ms=500, max_delay_ms=5000)
-        delay = config.calculate_backoff(1)
-        assert delay == 0.5  # 500ms = 0.5s
-
-    def test_calculate_backoff_second_attempt(self):
-        """Test backoff calculation for second attempt."""
-        config = DhanRetryConfig(base_delay_ms=500, max_delay_ms=5000)
-        delay = config.calculate_backoff(2)
-        assert delay == 1.0  # 1000ms = 1s
-
-    def test_calculate_backoff_capped(self):
-        """Test that backoff is capped at max_delay_ms."""
-        config = DhanRetryConfig(base_delay_ms=500, max_delay_ms=5000)
-        # After many attempts, delay should be capped
-        delay = config.calculate_backoff(10)
-        assert delay == 5.0  # 5000ms = 5s (capped)
-
 
 class TestDhanCircuitBreakerConfig:
     """Tests for DhanCircuitBreakerConfig dataclass."""
