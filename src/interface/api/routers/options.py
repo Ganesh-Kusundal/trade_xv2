@@ -18,7 +18,7 @@ from interface.api.schemas import (
     PCRResponse,
 )
 from datalake.core.paths import DEFAULT_DATA_ROOT
-from infrastructure.db.duckdb_pool import get_pool
+from datalake.core.duckdb_utils import get_memory_pool as get_pool
 
 logger = logging.getLogger(__name__)
 

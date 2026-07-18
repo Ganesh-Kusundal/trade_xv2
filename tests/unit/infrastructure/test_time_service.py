@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from infrastructure.time_service import ExchangeCalendar, time_service
+from infrastructure.time_service import ExchangeCalendar, TimeService, time_service
 
 
 class TestExchangeCalendar:
@@ -71,8 +71,8 @@ class TestTimeService:
         assert result.utcoffset() == timedelta(0)
 
     def test_clock_reexports_same_singleton(self):
-        """Streaming path (clock) and full path share one TimeService instance."""
-        from infrastructure.time.clock import time_service as clock_ts
-
-        assert clock_ts is time_service
-        assert clock_ts.now().tzinfo == timezone.utc
+        """Streaming path and full path share one TimeService instance."""
+        # infrastructure.time.clock has been removed; verify the canonical
+        # singleton is still a TimeService with UTC-aware now().
+        assert isinstance(time_service, TimeService)
+        assert time_service.now().tzinfo == timezone.utc

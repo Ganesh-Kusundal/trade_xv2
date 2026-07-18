@@ -12,7 +12,7 @@ from infrastructure.connection.bootstrap_result import (
     classify_exception,
     structural_readiness_probe,
 )
-from infrastructure.connection.errors import BrokerNotReadyError
+from domain.errors import BrokerNotReadyError
 
 __all__ = [
     "AuthProbeResult",

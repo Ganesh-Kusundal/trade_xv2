@@ -27,12 +27,26 @@ from domain.ports.protocols import DataProvider
 from domain.ports.order_service import OrderServicePort
 from domain.ports.risk_manager import RiskManagerPort
 from application.oms.live_order_authority import RiskRejectedError, authorize_live_order
-from infrastructure.di import ServiceNotFoundError, container as di_container
+from domain.exceptions import ServiceNotFoundError
 
 logger = logging.getLogger(__name__)
 
 # Module-level typed wrapper — set once during startup, provides attribute access
 _container: SimpleNamespace | None = None
+
+
+def _resolve(name: str) -> Any:
+    """Resolve a service from the container by name.
+
+    Raises ServiceNotFoundError if the container is not initialized or the
+    service is not registered.
+    """
+    if _container is None:
+        raise ServiceNotFoundError(f"Service '{name}' is not registered (container not initialized).")
+    value = getattr(_container, name, None)
+    if value is None:
+        raise ServiceNotFoundError(f"Service '{name}' is not registered.")
+    return value
 
 
 def get_container() -> SimpleNamespace:
@@ -60,19 +74,6 @@ def set_container(services: SimpleNamespace | dict[str, Any]) -> None:
 
     _container = ns
 
-    # Register all services in the DI container (single source of truth)
-    # Even None services are registered so resolve() doesn't raise;
-    # get_* functions handle None values with 503 responses.
-    for name in vars(ns):
-        if name.startswith("_"):
-            continue
-        value = getattr(ns, name)
-        if isinstance(value, dict):
-            for k, v in value.items():
-                di_container.register_instance(k, v)
-        else:
-            di_container.register_instance(name, value)
-
     initialized = [k for k in vars(ns) if not k.startswith("_") and getattr(ns, k) is not None]
     logger.info("Service container initialized with: %s", initialized)
 
@@ -86,7 +87,6 @@ def reset_container() -> None:
     global _container, _trade_journal_instance  # intentional module singleton — test reset only
     _container = None
     _trade_journal_instance = None
-    di_container.reset()
 
 
 # ── FastAPI Dependencies ─────────────────────────────────────────────────────
@@ -94,27 +94,27 @@ def reset_container() -> None:
 
 def get_datalake_gateway() -> Any:
     """Get DataLakeGateway instance for historical data queries."""
-    return di_container.resolve("datalake_gateway")
+    return _resolve("datalake_gateway")
 
 
 def get_view_manager() -> Any:
     """Get ViewManager instance for DuckDB analytics queries."""
-    return di_container.resolve("view_manager")
+    return _resolve("view_manager")
 
 
 def get_data_catalog() -> Any:
     """Get DataCatalog instance for symbol metadata."""
-    return di_container.resolve("data_catalog")
+    return _resolve("data_catalog")
 
 
 def get_event_bus() -> EventBusPort:
     """Get EventBus instance for real-time events."""
-    return di_container.resolve("event_bus")  # type: ignore[no-any-return]
+    return _resolve("event_bus")  # type: ignore[no-any-return]
 
 
 def get_trading_context() -> Any:
     """Get the TradingContext. Raises 503 if not initialized."""
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -133,12 +133,12 @@ def get_order_manager() -> OrderServicePort:
     Raises 503 if TradingContext or OrderManager is not available.
     """
     # Check direct registration first (higher priority)
-    om = di_container.resolve("order_manager")
+    om = getattr(_container, "order_manager", None) if _container is not None else None
     if om is not None:
         return om  # type: ignore[no-any-return]
 
     # Fall back to TradingContext
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -158,12 +158,12 @@ def get_position_manager() -> Any:
     Raises 503 if TradingContext or PositionManager is not available.
     """
     # Check direct registration first (higher priority)
-    pm = di_container.resolve("position_manager")
+    pm = getattr(_container, "position_manager", None) if _container is not None else None
     if pm is not None:
         return pm
 
     # Fall back to TradingContext
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -183,12 +183,12 @@ def get_risk_manager() -> RiskManagerPort:
     Raises 503 if TradingContext or RiskManager is not available.
     """
     # Check direct registration first (higher priority)
-    rm = di_container.resolve("risk_manager")
+    rm = getattr(_container, "risk_manager", None) if _container is not None else None
     if rm is not None:
         return rm  # type: ignore[no-any-return]
 
     # Fall back to TradingContext
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -216,7 +216,7 @@ def get_position_repository() -> Any:
 
 def get_broker_service() -> Any:
     """Get BrokerService instance for live broker connections."""
-    return di_container.resolve("broker_service")
+    return _resolve("broker_service")
 
 
 def get_market_data_composer() -> DataProvider:
@@ -224,7 +224,7 @@ def get_market_data_composer() -> DataProvider:
 
     Raises 503 if not initialized.
     """
-    composer = di_container.resolve("market_data_composer")
+    composer = getattr(_container, "market_data_composer", None) if _container is not None else None
     if composer is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -241,7 +241,7 @@ def get_execution_composer() -> Any:
 
     Raises 503 if not initialized.
     """
-    composer = di_container.resolve("execution_composer")
+    composer = getattr(_container, "execution_composer", None) if _container is not None else None
     if composer is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

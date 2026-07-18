@@ -127,7 +127,7 @@ class StreamManagerAdapter:
                 def _on_connected() -> None:
                     ws.subscribe([inst_key], mode.lower())
 
-                from infrastructure.async_compat import connect_async_then
+                from infrastructure.io.async_compat import connect_async_then
 
                 connect_async_then(ws.connect(), _on_connected)
             else:

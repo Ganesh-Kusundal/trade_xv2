@@ -13,6 +13,10 @@ class TradeXV2Error(Exception):
     """Root exception for all TradeXV2 errors."""
 
 
+class ServiceNotFoundError(TradeXV2Error):
+    """Raised when resolving a service that is not registered."""
+
+
 class DataError(TradeXV2Error):
     """Base exception for datalake and data processing errors."""
 
@@ -54,6 +58,7 @@ __all__ = [
     "DataError",
     "ExchangeNotConfigured",
     "LiveBrokerBlockedError",
+    "ServiceNotFoundError",
     "TradeXV2Error",
     "ValidationError",
 ]

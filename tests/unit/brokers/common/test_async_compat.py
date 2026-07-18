@@ -9,7 +9,7 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 import pytest
 
-from infrastructure.async_compat import connect_async_then, run_async_compat
+from infrastructure.io.async_compat import connect_async_then, run_async_compat
 from tests.support.wait_utils import wait_until
 
 # ── Helpers ────────────────────────────────────────────────────────────

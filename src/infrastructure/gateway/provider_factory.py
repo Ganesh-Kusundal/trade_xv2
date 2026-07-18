@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from infrastructure.gateway.base import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 if TYPE_CHECKING:
     from typing import Any
