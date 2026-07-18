@@ -120,18 +120,6 @@ class DhanRetryConfig:
     base_delay_ms: int = DEFAULT_BASE_DELAY_MS
     max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 
-    def calculate_backoff(self, attempt: int) -> float:
-        """Calculate exponential backoff delay in seconds.
-
-        Args:
-            attempt: The current retry attempt number (1-indexed).
-
-        Returns:
-            Delay in seconds, capped at max_delay_ms.
-        """
-        delay_ms = min(self.base_delay_ms * (2 ** (attempt - 1)), self.max_delay_ms)
-        return delay_ms / 1000.0
-
 
 @dataclass(frozen=True)
 class DhanCircuitBreakerConfig:
