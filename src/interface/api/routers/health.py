@@ -137,16 +137,8 @@ async def get_metrics_prometheus():
 
     This endpoint is unauthenticated and returns ``text/plain``.
     Useful for Prometheus scrapers and Grafana data sources.
-    Combines HTTP request metrics with infrastructure metrics.
     """
     from interface.api.middleware import http_metrics
-    from infrastructure.metrics.prometheus import PrometheusExporter
 
     body = http_metrics.render_prometheus()
-    try:
-        exporter = PrometheusExporter()
-        infra_metrics = exporter.generate()
-        body += "\n" + infra_metrics
-    except Exception:
-        logger.debug("Infrastructure metrics unavailable")
     return PlainTextResponse(content=body, media_type="text/plain")
