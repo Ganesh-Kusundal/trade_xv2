@@ -6,24 +6,9 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import Enum
 
+from domain.entities._coercion import _as_money, _as_quantity
 from domain.enums import ProductType
 from domain.primitives import Money, Quantity
-
-
-def _as_money(value: Money | Decimal | int | float | str | None) -> Money:
-    if value is None:
-        return Money(0)
-    if isinstance(value, Money):
-        return value
-    return Money(value)
-
-
-def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quantity:
-    if value is None:
-        return Quantity(0)
-    if isinstance(value, Quantity):
-        return value
-    return Quantity(value)
 
 
 @dataclass(slots=True, frozen=True)

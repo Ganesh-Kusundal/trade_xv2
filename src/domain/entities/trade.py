@@ -6,20 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from domain.entities._coercion import _as_money, _as_quantity
 from domain.primitives import Money, Quantity
 from domain.types import ProductType, Side
-
-
-def _as_money(value: Money | Decimal | int | float | str | None) -> Money:
-    return Money.coerce(value)
-
-
-def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quantity:
-    if value is None:
-        return Quantity(0)
-    if isinstance(value, Quantity):
-        return value
-    return Quantity(value)
 
 
 def build_domain_trade(
