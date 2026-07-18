@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/services/production_readiness.py
+# hypothesis_version: 6.155.7
+
+[', ', '0', '1', 'API_KEY', 'DHAN_ACCESS_TOKEN', 'DHAN_CLIENT_ID', 'DHAN_PIN', 'DHAN_TOTP_SECRET', 'RISK_FAIL_OPEN', 'STATIC', 'TOTP', 'TRADEX_ENV', 'UPSTOX_ACCESS_TOKEN', 'UPSTOX_API_KEY', 'UPSTOX_AUTH_MODE', 'UPSTOX_CLIENT_ID', 'UPSTOX_MOBILE', 'UPSTOX_PIN', 'UPSTOX_PIN_FILE', 'UPSTOX_TOTP_SECRET', '_conn', 'development', 'dhan.market_feed', 'dhan.order_stream', 'dhan_gateway', 'dhan_token_present', 'eventlog_wired', 'http_observability', 'http_sessions', 'lifecycle_started', 'max_daily_loss_pct', 'production', 'reconciliation_wired', 'ssl_hardening', 'staging', 'trading_context', 'upstox.websocket', 'upstox_authenticated', 'upstox_token_present', 'utf-8']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/resilience/rate_limiter.py
+# hypothesis_version: 6.155.7
+
+[0.001, 1.0, 10.0, 300.0, 1000000000.0, '_default', '_reduced_at', 'admin', 'broker_id', 'data', 'default', 'defaulting_to', 'dhan', 'error', 'fallback', 'historical', 'market_data', 'quotes', 'rate_limit_profiles', 'requested', 'unknown']

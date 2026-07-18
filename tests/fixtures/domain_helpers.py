@@ -15,6 +15,7 @@ Usage::
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade, Validity
@@ -27,6 +28,7 @@ def make_order(
     exchange: str = "NSE",
     side: Side | str = Side.BUY,
     quantity: int = 10,
+    filled_quantity: int = 0,
     price: Decimal | float | str = Decimal("2500"),
     order_type: OrderType | str = OrderType.LIMIT,
     product_type: ProductType | str = ProductType.INTRADAY,
@@ -35,6 +37,8 @@ def make_order(
     trigger_price: Decimal | float | str = Decimal("0"),
     validity: Validity | str = Validity.DAY,
     correlation_id: str = "",
+    avg_price: Decimal | float | str = Decimal("0"),
+    timestamp: datetime | None = None,
 ) -> Order:
     """Create an Order with sensible defaults for testing.
 
@@ -58,12 +62,15 @@ def make_order(
         side=side,
         order_type=order_type,
         quantity=quantity,
+        filled_quantity=filled_quantity,
         price=Decimal(str(price)) if not isinstance(price, Decimal) else price,
         trigger_price=Decimal(str(trigger_price)) if not isinstance(trigger_price, Decimal) else trigger_price,
         product_type=product_type,
         status=status,
         validity=validity,
         correlation_id=correlation_id,
+        avg_price=Decimal(str(avg_price)) if not isinstance(avg_price, Decimal) else avg_price,
+        timestamp=timestamp or datetime.now(timezone.utc),
     )
 
 

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/views/scanner.py
+# hypothesis_version: 6.155.7
+
+[100, 'm_intraday', 'm_intraday_snapshot', 'm_recent_daily', 'm_symbol_snapshot']

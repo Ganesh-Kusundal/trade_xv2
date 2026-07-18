@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/session.py
+# hypothesis_version: 6.155.7
+
+['ATM', 'ITM', 'OTM', '_account_view', '_command_dispatcher', '_lifecycle', '_query_dispatcher', '_session_recorder', 'describe', 'get_orders', 'has_execution', 'list_orders', 'order_manager', 'orders_enabled', 'orders_map', 'stop', 'stop_all']

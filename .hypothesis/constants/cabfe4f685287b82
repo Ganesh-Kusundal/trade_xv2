@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/composer/registry.py
+# hypothesis_version: 6.155.7
+
+['broker.close.error', 'broker.deregistered', 'broker.registered', 'broker_id', 'extensions', 'not registered']

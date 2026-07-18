@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/sector/rotation.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.5, 50.0, 100, 'Improving', 'Lagging', 'Leading', 'Neutral', 'Risk-off', 'Risk-on', 'Rotational', 'Weakening', 'inflow', 'neutral', 'outflow']

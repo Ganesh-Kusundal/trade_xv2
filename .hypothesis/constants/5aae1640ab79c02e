@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/policies/source_selection.py
+# hypothesis_version: 6.155.7
+
+['1.0.0', 'capability_match', 'dhan', 'fixed', 'historical_data', 'latency_aware', 'live_market_data', 'news', 'priority_list', 'quota_aware', 'upstox']

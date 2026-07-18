@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/execution/order_cancellation.py
+# hypothesis_version: 6.155.7
+
+[500, '/killswitch', '/orders', 'ACTIVATE', 'Cancel failed', 'DEACTIVATE', 'Order cancelled', 'action', 'all_orders_cancelled', 'changes', 'count', 'data', 'error', 'errorCode', 'errorMessage', 'kill_switch', 'message', 'modify_order_failed', 'ok', 'orderId', 'order_id', 'order_modified', 'raw', 'status', 'success']

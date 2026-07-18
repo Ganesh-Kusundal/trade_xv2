@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/options/_greeks.py
+# hypothesis_version: 6.155.7
+
+[-0.5, 0.0, 0.01, 0.06, 0.2, 0.5, 1.0, 30.0, 100.0, 365.0, 'CALL', 'CE', 'delta', 'delta_exposure', 'gamma', 'gamma_exposure', 'greeks', 'iv', 'net_delta', 'net_gamma', 'oi', 'option_type', 'strike', 'theta', 'theta_exposure', 'vega', 'vega_exposure']

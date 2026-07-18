@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/replay/models.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.5, 100.0, 100000.0, 100, 252, '0', 'BUY', 'EQUITY', 'NSE', 'ReplayResult | None', 'SELL', 'bar_by_bar', 'bars_processed', 'bars_replayed', 'current_close', 'custom', 'events_replayed', 'final_equity', 'max_drawdown_pct', 'next_open', 'on_close', 'sharpe_ratio', 'signals_generated', 'state_matches', 'total_return_pct', 'total_trades', 'win_rate']

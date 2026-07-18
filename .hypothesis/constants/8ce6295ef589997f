@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/cli/_shell_types.py
+# hypothesis_version: 6.155.7
+
+['command', 'quit', 'retry', 'section']

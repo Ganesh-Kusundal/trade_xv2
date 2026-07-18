@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/services/api_readiness.py
+# hypothesis_version: 6.155.7
+
+['active_broker', 'blocked', 'broker_service', 'broker_session', 'check failed', 'checks', 'checks_bool', 'container', 'data_catalog', 'datalake_gateway', 'event_bus', 'failed', 'gateway wired', 'health', 'id', 'live_actionable', 'live_intent', 'message', 'no live gateway', 'not available', 'ok', 'oms_context', 'passed', 'placement gate open', 'production_readiness', 'ready', 'reconciliation_ready', 'status', 'trading_context', 'view_manager']

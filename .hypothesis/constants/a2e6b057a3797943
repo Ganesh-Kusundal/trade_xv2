@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/features/relative_strength.py
+# hypothesis_version: 6.155.7
+
+[0.0, 2.5, 40.0, 50.0, 60.0, 100.0, 100, 'NIFTY', 'Neutral', 'No price data', 'Strong', 'Weak', 'aligned_bars', 'asset_close', 'benchmark', 'benchmark_close', 'close', 'inner', 'period', 'period must be >= 2', 'ratio_return_pct', 'relative_strength', 'timestamp']

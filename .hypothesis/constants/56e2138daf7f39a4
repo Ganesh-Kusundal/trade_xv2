@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/websocket/v3_decoder.py
+# hypothesis_version: 6.155.7
+
+[100, '>H', 'FeedUnion', 'FullFeedUnion', 'askP', 'askQ', 'asks', 'atp', 'best_ask_price', 'best_bid_price', 'bidAskQuote', 'bidP', 'bidQ', 'bids', 'close', 'close_price', 'cp', 'delta', 'depth', 'exchange_timestamp', 'firstDepth', 'firstLevelWithGreeks', 'first_depth', 'fullFeed', 'full_feed', 'gamma', 'high', 'indexFF', 'indexFeed', 'index_feed', 'instrument_key', 'interval', 'iv', 'low', 'ltp', 'ltpc', 'ltq', 'ltt', 'marketFF', 'marketLevel', 'marketOHLC', 'ohlc', 'oi', 'open', 'optionGreeks', 'price', 'quantity', 'rho', 'tbq', 'theta', 'total_buy_quantity', 'total_sell_quantity', 'ts', 'tsq', 'vega', 'vol', 'volume', 'vtt']

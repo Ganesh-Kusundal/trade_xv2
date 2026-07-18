@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/portfolio/reconciliation.py
+# hypothesis_version: 6.155.7
+
+[1000, '0', 'Broker', 'HIGH', 'NSE', '_position_manager', 'auto_repair', 'available', 'available_balance', 'avg_price', 'avg_price_mismatch', 'broker_orders', 'broker_positions', 'details', 'drift_count', 'exchange', 'fetch_error', 'funds', 'get_balance', 'get_funds', 'high_severity', 'ltp', 'missing_local_order', 'order_id', 'orders_repaired', 'payload', 'position_manager', 'positions_repaired', 'quantity', 'symbol', 'upsert_order', 'upsert_position', 'withdrawable_balance']

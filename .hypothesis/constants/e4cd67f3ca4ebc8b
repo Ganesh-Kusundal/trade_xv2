@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/pipeline/__init__.py
+# hypothesis_version: 6.155.7
+
+['ATR', 'ATRPercent', 'BollingerBands', 'CandlestickPattern', 'EMA', 'Feature', 'FeaturePipeline', 'Gap', 'HistoricalVolatility', 'MACD', 'Momentum', 'PriceDistance', 'ROC', 'RSI', 'RelativeVolume', 'SMA', 'SwingHighLow', 'Trend', 'VWAP', 'VolumeSMA']

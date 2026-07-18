@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/paper/position_closer.py
+# hypothesis_version: 6.155.7
+
+[0.0, 100, 'BUY', 'NSE', 'SELL', 'Stop-loss hit', 'Take-profit hit', 'close']

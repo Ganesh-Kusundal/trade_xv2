@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/scanner/patterns.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.1, 0.5, 1.0, 100, ', ', '0.6', ';', 'BEAR', 'BULL', 'NEUTRAL', 'No data', 'Pattern', 'UNKNOWN', '__path__', 'bear', 'bull', 'candlestick', 'close', 'composite_score', 'direction', 'last', 'mergesort', 'pattern', 'pattern_signal', 'reasons', 'score_bear', 'score_bull', 'strength', 'symbol', 'timestamp']

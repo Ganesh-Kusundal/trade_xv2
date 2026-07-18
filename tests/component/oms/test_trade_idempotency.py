@@ -15,9 +15,7 @@ import pytest
 
 from application.oms.order_manager import OrderManager, OrderRequest
 from domain import (
-    Order,
     OrderStatus,
-    OrderType,
     Side,
     Trade,
 )
@@ -28,19 +26,11 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
 )
 from infrastructure.observability.event_metrics import EventMetrics
+from tests.fixtures.domain_helpers import make_order
 
 
-def _make_order(symbol: str = "RELIANCE", quantity: int = 10) -> Order:
-    return Order(
-        order_id="O1",
-        symbol=symbol,
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.MARKET,
-        quantity=quantity,
-        price="2500",
-        status=OrderStatus.OPEN,
-    )
+def _make_order(symbol: str = "RELIANCE", quantity: int = 10):
+    return make_order(order_id="O1", symbol=symbol, side="BUY", order_type="MARKET", quantity=quantity, price="2500", status=OrderStatus.OPEN)
 
 
 def _make_trade(

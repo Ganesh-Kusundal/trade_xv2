@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/_internal/risk_manager.py
+# hypothesis_version: 6.155.7
+
+[0.0, 100, '0', '1', 'Insufficient capital', 'RiskProfile', 'amount', 'daily_pnl', 'kill_switch', 'kill_switch_toggles', 'last_reset_at', 'loss_circuit_breaker', 'max_daily_loss_pct', 'max_position_pct', 'multiplier', 'reset_count', 'tick_size', 'to_decimal', 'trading_state']

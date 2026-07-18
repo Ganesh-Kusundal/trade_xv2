@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/scheduling/quota_scheduler.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.05, 0.2, 1.0, 2.0, 5.0, 10.0, 20.0, 60.0, 'acquire', 'broker_id', 'endpoint_class', 'extra_windows', 'max_wait_s', 'priority', 'quota.acquire', 'quota.reject', 'reject', 'sustained_rps', 'token_id']

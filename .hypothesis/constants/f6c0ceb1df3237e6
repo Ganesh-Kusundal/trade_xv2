@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/tradex/gateway_extensions.py
+# hypothesis_version: 6.155.7
+
+['all', 'depth20', 'depth200', 'depth30', 'depth_20', 'depth_200', 'depth_30', 'extension_registry', 'forever_order', 'get_extension', 'name', 'news', 'super_order']

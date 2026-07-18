@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/extensions/depth.py
+# hypothesis_version: 6.155.7
+
+['1.0', 'DEPTH_30', '_exchange', '_symbol', 'depth_30', 'upstox']

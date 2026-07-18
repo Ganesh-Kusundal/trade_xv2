@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/data/market_data.py
+# hypothesis_version: 6.155.7
+
+['/marketfeed/ltp', '/marketfeed/ohlc', '/marketfeed/quote', 'DEPTH_5', 'NSE', 'ask_levels', 'available_keys', 'bid_levels', 'buy', 'close', 'data', 'depth', 'depth_fetched', 'high', 'last_price', 'low', 'ltp', 'ltp_fetched', 'market_data.get_ltp', 'market_data.get_ohlc', 'net_change', 'ohlc', 'ohlc_fetched', 'oi', 'open', 'orders', 'price', 'quantity', 'quote_fetched', 'security_id', 'segment', 'sell', 'symbol', 'volume']

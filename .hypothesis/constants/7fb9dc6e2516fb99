@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/indicators/indicators.py
+# hypothesis_version: 6.155.7
+
+['close', 'high', 'low', 'open', 'volume']

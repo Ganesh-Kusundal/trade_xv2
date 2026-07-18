@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/composer/factory.py
+# hypothesis_version: 6.155.7
+
+['1m', ':', 'NSE', '_backfill_callback', '_conn', '_gateway', '_lifecycle_helper', 'backfill_callback', 'bar_count', 'bars', 'close', 'error', 'exchange', 'gap_reconcile.filled', 'high', 'instruments', 'key', 'low', 'ltp', 'open', 'symbol', 'target', 'timestamp', 'volume', '|']

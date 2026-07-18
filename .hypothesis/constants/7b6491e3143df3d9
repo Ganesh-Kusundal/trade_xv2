@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/composer/router.py
+# hypothesis_version: 6.155.7
+
+['capability_match', 'event', 'fallback_brokers', 'fixed', 'historical', 'latency_aware', 'no_eligible_broker', 'not_registered', 'operation', 'option_chain', 'orders', 'parallel_brokers', 'policy_version', 'primary_broker', 'priority_list', 'quota_aware', 'quotes', 'reason_codes', 'rejected', 'routing.decision', 'trace_id']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/execution/pnl_exit.py
+# hypothesis_version: 6.155.7
+
+['/pnlExit', 'INACTIVE', 'UNKNOWN', 'data', 'enableKillSwitch', 'enable_kill_switch', 'loss', 'lossValue', 'message', 'pnlExitStatus', 'pnl_exit_configured', 'pnl_exit_fetched', 'pnl_exit_stopped', 'productType', 'product_types', 'profit', 'profitValue', 'status']

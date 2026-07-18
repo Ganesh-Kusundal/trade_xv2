@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/pipeline/features.py
+# hypothesis_version: 6.155.7
+
+[0.1, 0.3, 0.4, 2.0, 50.0, 100, 252, 'atr', 'atr_pct', 'bb', 'benchmark', 'beta', 'candlestick_pattern', 'close', 'correlation', 'down', 'ema', 'gap_pct', 'high', 'hist_volatility', 'last_swing_high', 'last_swing_low', 'low', 'macd', 'momentum', 'nan', 'neutral', 'open', 'pct_rank', 'price_distance', 'relative_volume', 'roc', 'rsi', 'sma', 'swing_high', 'swing_low', 'trend', 'up', 'volume', 'volume_sma', 'vwap', 'z_score']

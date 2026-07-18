@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/composer/execution.py
+# hypothesis_version: 6.155.7
+
+['0', 'EXECUTION_CRITICAL', 'Kill switch active', 'NSE', 'OK', 'Order failed', 'PORTFOLIO_READ', 'broker_id', 'broker_order_id', 'cancel_order', 'exchange', 'modify_order', 'oms_rejected', 'order_id', 'orders', 'place_order', 'price', 'quantity', 'quotes', 'side', 'status', 'success', 'symbol', 'transaction_type']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/_internal/daily_pnl_tracker.py
+# hypothesis_version: 6.155.7
+
+[0.0, '0', '0.8', '100', 'amount', 'daily_pnl_reset', 'limit', 'max_daily_loss_pct', 'reset_count', 'rule', 'value']

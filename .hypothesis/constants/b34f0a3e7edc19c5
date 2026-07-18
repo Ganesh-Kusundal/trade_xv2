@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/quality/universe.py
+# hypothesis_version: 6.155.7
+
+[0.1, 1.0, 3.0, 10.0, 100, '\nIssues:', '1m', 'CRITICAL', 'EMPTY', 'NIFTY500', 'OK', 'WARNING', 'candles', 'close', 'data.parquet', 'direction', 'divergence_pct', 'equities', 'high', 'low', 'recent_avg_volume', 'sector', 'symbol', 'symbol_count', 'timestamp', 'volume', 'z_score']

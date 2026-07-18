@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/mappers/equity_mapper.py
+# hypothesis_version: 6.155.7
+
+[':', 'BUY', 'I', 'available_margin', 'available_to_trade', 'average_price', 'buy', 'buy_average_price', 'change', 'close', 'cp', 'data', 'depth', 'equity', 'exchange', 'high', 'instrument_token', 'last_price', 'last_trade_time', 'live_ohlc', 'low', 'ltp', 'margin_used', 'net_change', 'net_margin', 'net_quantity', 'ohlc', 'oi', 'open', 'order_id', 'pnl', 'price', 'product', 'quantity', 'realised', 'sell', 'symbol', 'timestamp', 'total', 'trade_id', 'trade_time', 'traded_quantity', 'trading_symbol', 'transaction_type', 'unrealised', 'used_margin', 'volume', '|']

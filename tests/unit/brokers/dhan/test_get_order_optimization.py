@@ -9,20 +9,12 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from brokers.dhan.wire import DhanBrokerGateway
-from domain import Order, OrderStatus, OrderType, Side
+from domain import OrderStatus
+from tests.fixtures.domain_helpers import make_order
 
 
-def _make_order(order_id: str = "ORD-123", status: OrderStatus = OrderStatus.OPEN) -> Order:
-    """Create a minimal Order for testing."""
-    return Order(
-        order_id=order_id,
-        symbol="RELIANCE",
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.MARKET,
-        quantity=1,
-        status=status,
-    )
+def _make_order(order_id: str = "ORD-123", status: OrderStatus = OrderStatus.OPEN):
+    return make_order(order_id=order_id, status=status, order_type="MARKET", quantity=1)
 
 
 class TestGetOrderDirectLookup:

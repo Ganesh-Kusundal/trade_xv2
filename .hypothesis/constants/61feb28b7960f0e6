@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/mappers/derivatives_mapper.py
+# hypothesis_version: 6.155.7
+
+['1D', 'BUY', 'DAY', 'I', 'MARKET', 'NSE', 'Order failed', 'average_price', 'buy', 'candles', 'close', 'data', 'depth', 'disclosed_quantity', 'error', 'errors', 'exchange', 'filled_quantity', 'high', 'instrument_token', 'low', 'market_protection', 'message', 'oi', 'open', 'open_interest', 'order_id', 'order_timestamp', 'order_type', 'orders', 'price', 'product', 'provider_metadata', 'quantity', 'raw_status', 'rejection_reason', 'remarks', 'sell', 'slice', 'status', 'status_message', 'symbol', 'tag', 'time', 'timestamp', 'trading_symbol', 'transaction_type', 'trigger_price', 'upstox', 'upstox.historical.v1', 'validity', 'volume']

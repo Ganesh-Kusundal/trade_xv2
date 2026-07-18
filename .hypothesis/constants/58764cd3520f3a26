@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/views/manager.py
+# hypothesis_version: 6.155.7
+
+[-1.0, 'DAILY_LOOKBACK_DAYS', 'MATERIALIZED_DIR', 'VERSION_KEEP_COUNT', 'ViewManager', 'base', 'features', 'materialize', 'materialize_options', 'materialize_quality', 'options', 'quality', 'scanner', 'strategy']

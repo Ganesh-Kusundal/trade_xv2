@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/certification/suite.py
+# hypothesis_version: 6.155.7
+
+[0.0, 1000, '1', '15m', '1D', '1m', '5m', 'D', 'DAY', 'INFY', 'INFY resolved', 'OK', 'RELIANCE', 'RELIANCE canonical', 'authenticated', 'bar_count', 'bars', 'burst ok', 'cancel failed', 'candles', 'depth present', 'funds', 'funds present', 'holdings', 'holdings present', 'limit order failed', 'limit order placed', 'ltp', 'market order failed', 'market order placed', 'modify failed', 'no depth', 'no funds', 'no holdings', 'no instrument id', 'no ltp', 'no ohlc', 'no orders to cancel', 'no orders to modify', 'no positions', 'no quote', 'no stream handle', 'not authenticated', 'not implemented', 'off-market (skipped)', 'ohlc present', 'open', 'open_', 'order cancelled', 'order modified', 'order_id', 'positions', 'positions present', 'refresh', 'stream active', 'success', 'sustained ok', 'symbol lookup failed', 'x']

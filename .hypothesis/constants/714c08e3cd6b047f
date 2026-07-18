@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/data/chunk_merger.py
+# hypothesis_version: 6.155.7
+
+['0', '1', 'bar_count', 'broker_id', 'chunk_id', 'complete', 'error', 'fail_on_conflict', 'failed', 'from_date', 'prefer_primary', 'request_id', 'to_date']

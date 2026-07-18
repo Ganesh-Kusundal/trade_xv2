@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/persistence/sqlite_execution_ledger.py
+# hypothesis_version: 6.155.7
+
+['broker_order_id', 'correlation_id', 'created_at', 'cumulative_quantity', 'event_time', 'exchange', 'fill_id', 'intent_id', 'observed_at', 'order_id', 'order_quantity', 'order_type', 'price', 'product_type', 'quantity', 'reason', 'schema_version', 'side', 'state', 'symbol']

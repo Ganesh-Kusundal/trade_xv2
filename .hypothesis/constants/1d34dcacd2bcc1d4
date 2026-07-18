@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/websocket/market_feed.py
+# hypothesis_version: 6.155.7
+
+[5.0, 100, 1000, 'Full Data', 'Market Depth', 'Market Status', 'OI Data', 'Previous Close', 'Quote Data', 'Ticker Data', '__feed_fallback', '__thread_fallback', '_conn', '_is_connected', '_publisher', '_reconnect_count', '_resolver', '_sequence_counters', '_sub', '_thread', 'admission_blocked', 'admission_status', 'connected', 'data_type', 'dhan.market_feed', 'dropped_depths', 'dropped_ticks', 'is_connected', 'is_stale', 'keys', 'last_message_age', 'name', 'not started', 'published_depths', 'published_ticks', 'reconnect_count', 'staleness_threshold', 'thread_alive', 'timestamp', 'type']

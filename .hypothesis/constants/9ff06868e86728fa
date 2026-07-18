@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/backtest/comparator.py
+# hypothesis_version: 6.155.7
+
+[100000, 'COMPARE', 'atr_period', 'avg_loss', 'avg_win', 'breakout', 'cagr', 'max_drawdown_pct', 'momentum', 'momentum_period', 'params', 'profit_factor', 'roc_period', 'rsi_period', 'sharpe_ratio', 'sma_period', 'sortino_ratio', 'strategy', 'total_return_pct', 'total_trades', 'trend_fast', 'trend_slow', 'win_rate']

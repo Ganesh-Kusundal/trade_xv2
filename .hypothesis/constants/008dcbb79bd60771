@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/extensions/facade.py
+# hypothesis_version: 6.155.7
+
+['-', 'BoundBrokerFacade', 'NSE', '_', '_broker_id', '_exts', '_resolve', 'capabilities', 'depth20', 'depth200', 'depth30', 'depth_20', 'depth_200', 'depth_30', 'exchange', 'fetch', 'for_instrument', 'forever', 'forever_order', 'full_depth', 'get', 'name', 'native_slice_order', 'news', 'place', 'slice_order', 'super_order', 'superorder', 'symbol', 'value']

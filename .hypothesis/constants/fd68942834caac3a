@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/analytics/relative_volume.py
+# hypothesis_version: 6.155.7
+
+[5.0, '%Y-%m-%d', '09:45', ':', 'FALSE', 'rel_volume']

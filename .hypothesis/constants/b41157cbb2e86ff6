@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/certification/report.py
+# hypothesis_version: 6.155.7
+
+['  [%s] %s: %s%s', 'Authentication', 'CERTIFIED', 'Capability Matrix', 'Depth', 'Disconnect', 'FAIL', 'Funds', 'Historical', 'Historical 15m', 'Historical 1m', 'Historical 5m', 'Historical Daily', 'Holdings', 'Instrument', 'Instrument Lookup', 'LTP', 'Live Stream', 'Market Data', 'NOT CERTIFIED', 'OHLC', 'Order Cancel', 'Order Latency', 'Order Limit', 'Order Market', 'Order Modify', 'Orders', 'PASS', 'Performance', 'Portfolio', 'Positions', 'Quote', 'Quote Latency', 'Rate Burst', 'Rate Limits', 'Rate Sustained', 'Reconnect', 'Recovery', 'Reverse Mapping', 'Security ID Mapping', 'Session Recovery', 'Subscription Latency', 'Symbol Lookup', 'Token Expiry', 'Token Refresh', 'area', 'broker_id', 'detail', 'is_certified', 'latency_ms', 'passed', 'results', 'schema_version', 'status', 'tier', 'total']

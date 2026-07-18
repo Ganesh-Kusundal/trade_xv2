@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/interface/api/schemas/_portfolio.py
+# hypothesis_version: 6.155.7
+
+[0.01, 1000000, 'BCD', 'BO', 'BSE', 'BUY', 'BUY or SELL', 'CDS', 'CO', 'DELIVERY', 'INTRADAY', 'LIMIT', 'MARGIN', 'MARKET', 'MCX', 'NFO', 'NSE', 'SELL', 'SL', 'SL-M', 'after', 'exchange', 'order_type', 'product_type', 'transaction_type']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/visualizations/charts.py
+# hypothesis_version: 6.155.7
+
+['close', 'data', 'high', 'low', 'name', 'ohlcv', 'open', 'records', 'score_bar', 'symbol', 'timestamp', 'type', 'value', 'volume']

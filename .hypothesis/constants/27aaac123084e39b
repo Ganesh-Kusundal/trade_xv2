@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/observability/_catalog.py
+# hypothesis_version: 6.155.7
+
+['BrokerHighErrorRate', 'MergeConflictsBurst', 'StreamStaleForBroker', 'broker_unavailable', 'condition', 'critical', 'description', 'detection', 'impact', 'name', 'observability', 'quota_exhausted', 'recovery', 'severity', 'stream_auth_failure', 'stream_stale', 'unsupported_feature', 'warning']
