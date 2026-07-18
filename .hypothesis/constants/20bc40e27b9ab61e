@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/futures/future_chain.py
-# hypothesis_version: 6.155.7
-
-['%Y%m%d', '%Y-%m-%d', 'DataProvider | None', 'Future', 'Future | None', 'NFO', 'offset must be >= 0']

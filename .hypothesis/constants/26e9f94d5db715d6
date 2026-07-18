@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/commands/views.py
-# hypothesis_version: 6.155.7
-
-['--iterations', '; ', 'Avg (ms)', 'Columns', 'Issues', 'Layer', 'Max (ms)', 'Min (ms)', 'N/A', 'None', 'Status', 'Time (ms)', 'View', 'View Name', '[dim]Commands:[/dim]', '[green]OK[/green]', '[green]PASS[/green]', '[red]FAILED[/red]', '[red]FAIL[/red]', 'benchmark', 'bold', 'bold cyan', 'bold green', 'bold magenta', 'bold yellow', 'count', 'create', 'drop', 'green', 'invalid', 'list', 'name', 'refresh', 'right', 'unknown', 'validate', 'view']

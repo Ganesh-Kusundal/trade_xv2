@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/identity/factory.py
-# hypothesis_version: 6.155.7
-
-[5.0, '.env.local', 'DHAN_ACCESS_TOKEN', '_store', 'depth_20', 'depth_200', 'dhan', 'dhan.market_feed', 'dhan.order_stream', 'dhan_token_refreshed', 'hint', 'market_feed', 'on_demand', 'order_stream', 'receivers', 'token_suffix', 'websocket_wired']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/providers/broker/broker_data_provider.py
-# hypothesis_version: 6.155.7
-
-[120, '%Y-%m-%d', '1D', 'NSE', 'QUOTE', 'ask', 'bid', 'broker', 'close', 'disconnect', 'exchange', 'high', 'low', 'ltp', 'open', 'symbol', 'volume']

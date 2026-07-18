@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/session/broker_session.py
-# hypothesis_version: 6.155.7
-
-[120, '1D', 'BrokerSession', 'CDS', 'HistoricalSeries', 'INTRADAY', 'LIMIT', 'MCX', 'NFO', 'NSE', 'RELIANCE', '_gw', 'capabilities', 'paper']

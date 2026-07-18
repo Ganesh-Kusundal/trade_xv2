@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/_internal/margin_checker.py
-# hypothesis_version: 6.155.7
-
-[600.0, '0', 'available_margin', 'error', 'exchange', 'last_price', 'last_traded_price', 'ltp', 'margin_check_error', 'margin_check_passed', 'multiplier', 'quantity', 'required_margin', 'required_with_buffer', 'symbol', 'value']

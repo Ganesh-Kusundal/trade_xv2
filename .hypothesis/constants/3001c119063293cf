@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/config/defaults.py
-# hypothesis_version: 6.155.7
-
-[60.0, 8080, 8765, '127.0.0.1', 'INFO', 'api_host', 'api_port', 'app_env', 'cors_origins', 'debug', 'dev', 'log_level', 'observability_port', 'redis_url']

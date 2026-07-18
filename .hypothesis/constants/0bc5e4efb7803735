@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/market_data/client_v3.py
-# hypothesis_version: 6.155.7
-
-[500, ',', '1d', 'data', 'instrument_key', 'interval']

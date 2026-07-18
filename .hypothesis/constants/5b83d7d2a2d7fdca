@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/ingestion/loader.py
-# hypothesis_version: 6.155.7
-
-[0.0, 1.0, 100, 365, '%s: no gaps detected', '15m', '1m', '30m', '5m', 'Downloading %s...', 'Unknown universe: %s', 'close', 'duplicates_dropped', 'high', 'invalid_dropped', 'last', 'low', 'open', 'rows', 'snappy', 'symbol', 'timestamp', 'volume']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/data/data_provider.py
-# hypothesis_version: 6.155.7
-
-[120, '%Y-%m-%d', '1D', 'BFO', 'FULL', 'MCX', 'NFO', 'QUOTE', 'ask', 'ask_price', 'best_ask', 'best_bid', 'bid', 'bid_price', 'close', 'dhan', 'dhan.history', 'disconnect', 'empty', 'exchange', 'expiry', 'high', 'is_connected', 'last_price', 'low', 'ltp', 'ltp_batch', 'oi', 'open', 'prev_close', 'quote_batch', 'stop', 'underlying', 'volume']

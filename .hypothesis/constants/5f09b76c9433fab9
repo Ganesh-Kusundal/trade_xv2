@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/resolver_refresher.py
-# hypothesis_version: 6.155.7
-
-[10.0, 3600, 'count', 'elapsed_s', 'error', 'error_count', 'hint', 'interval_seconds', 'last_refresh_at', 'not running', 'refresh_count', 'resolver-refresher', 'resolver_refreshed', 'total']

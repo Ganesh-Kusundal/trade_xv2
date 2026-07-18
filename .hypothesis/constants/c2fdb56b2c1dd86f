@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/adapters/market_data_gateway_adapter.py
-# hypothesis_version: 6.155.7
-
-[5.0, ':', 'LTP', 'NSE', '__dict__', 'capabilities', 'connected', 'correlation_id', 'disconnect', 'disconnected', 'exchange', 'health', 'is_connected', 'is_stale', 'ltp', 'market', 'metrics', 'order', 'order_id', 'order_type', 'price', 'product_type', 'quantity', 'side', 'stop', 'stream_order', 'symbol', 'trigger_price', 'unstream_order', 'validity', 'volume']

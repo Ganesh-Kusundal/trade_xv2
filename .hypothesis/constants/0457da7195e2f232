@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/execution/place_order_use_case.py
-# hypothesis_version: 6.155.7
-
-['ORDER_PLACED', 'PlaceOrderUseCase', 'order_id', 'place_order', 'quantity', 'side', 'symbol']

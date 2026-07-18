@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/analytics/support_resistance.py
-# hypothesis_version: 6.155.7
-
-[0.01, 100, 252, '*.parquet', 'Failed for %s: %s', '__main__', 'computed_at', 'current_price', 'date', 'elapsed_seconds', 'last_touch', 'level_type', 'levels.parquet', 'nearest_resistance', 'nearest_support', 'price', 'resistance', 'skipped', 'snappy', 'support', 'support_resistance', 'symbol', 'symbols_processed', 'symbols_with_errors', 'total_levels', 'touches']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/instruments/timeframes.py
-# hypothesis_version: 6.155.7
-
-['1', '15', '15m', '15min', '1D', '1H', '1MINUTE', '1W', '1d', '1h', '1m', '1min', '1w', '25', '25m', '3', '30', '30m', '3m', '5', '5m', '5min', '60', '60m', 'D', 'DAILY', 'DAY', 'Empty timeframe', 'HOUR', 'WEEK', 'd', 'mhdDwW']

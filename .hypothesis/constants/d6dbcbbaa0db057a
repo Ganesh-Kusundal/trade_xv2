@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/market_data/market_data_adapter.py
-# hypothesis_version: 6.155.7
-
-['15m', '15minute', '1D', '1d', '1h', '1hour', '1m', '1minute', '5m', '5minute', ':', 'EQUITY', 'data', 'day', 'full', 'ltp', '|']

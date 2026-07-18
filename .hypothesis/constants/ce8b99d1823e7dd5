@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/executions/execution.py
-# hypothesis_version: 6.155.7
-
-['0', 'EventBusPort | None', 'InstrumentId', 'Side', 'avg_price', 'filled_quantity', 'order_id', 'trade']

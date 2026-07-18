@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/context/__init__.py
-# hypothesis_version: 6.155.7
-
-['0', 'CancellationResult', 'TradingContext', '_command_dispatcher', '_query_dispatcher', 'amount', 'dead_letter', 'event_log_errors', 'magnitude', 'metrics', 'oms_writer_lock_held', 'order_store', 'realized_pnl', 'reconciliation_ready', 'set_event_log', 'trades', 'unrealized_pnl']

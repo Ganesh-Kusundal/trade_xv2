@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/strategy/evaluator_bridge.py
-# hypothesis_version: 6.155.7
-
-['HOLD', 'NSE', 'confidence', 'entry_price', 'exchange', 'metadata', 'position_size_pct', 'quantity', 'signal_type', 'strategy', 'symbol', 'value']

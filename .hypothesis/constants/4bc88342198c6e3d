@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/data/historical_coordinator.py
-# hypothesis_version: 6.155.7
-
-[1000, '0.001', '; ', 'HISTORICAL_BACKFILL', 'all_chunks_failed', 'fail_on_conflict', 'gaps_count', 'historical', 'no_chunks_planned', 'prefer_primary']

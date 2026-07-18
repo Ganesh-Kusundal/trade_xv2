@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/resilience/invariants.py
-# hypothesis_version: 6.155.7
-
-['VALID_SEGMENTS', 'assert_dhan_identity', 'assert_dhan_payload', 'assert_dhan_segment', 'exchangeSegment', 'exchange_segment', 'securityId', 'security_id']

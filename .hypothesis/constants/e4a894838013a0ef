@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/replay/state_assertor.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.01, 1.0, 5.0, 20.0, 10000.0, 100000.0, 'BUY', 'POSITION_CLOSED', 'SELL', 'TRADE', 'TRADE_APPLIED', 'UNKNOWN', 'actual', 'difference', 'entry_price', 'equity_final', 'error', 'event_count', 'expected', 'has_open_position', 'payload', 'price', 'quantity', 'side', 'symbol', 'trade_count', 'trades']

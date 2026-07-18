@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/portfolio/margin.py
-# hypothesis_version: 6.155.7
-
-['/margincalculator', '0', '; ', 'BUY', 'INTRADAY', 'LIMIT', 'MARKET', 'NSE', 'STOP_LOSS', 'availableMargin', 'data', 'dhanClientId', 'errors', 'exchange', 'exchangeSegment', 'exposureMargin', 'margin.calculate', 'margin_calculated', 'orderMargin', 'orderType', 'order_type', 'price', 'productType', 'product_type', 'quantity', 'securityId', 'spanMargin', 'symbol', 'totalMargin', 'total_margin', 'transactionType', 'triggerPrice']

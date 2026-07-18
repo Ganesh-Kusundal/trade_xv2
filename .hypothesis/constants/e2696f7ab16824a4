@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/segments.py
-# hypothesis_version: 6.155.7
-
-['BSE', 'BSE_CURR', 'BSE_CURRENCY', 'BSE_EQ', 'BSE_FNO', 'C', 'D', 'E', 'I', 'IDX', 'IDX_I', 'INDEX', 'M', 'MCX', 'MCX_COMM', 'NSE', 'NSE_COMM', 'NSE_CURR', 'NSE_CURRENCY', 'NSE_EQ', 'NSE_FNO', 'dhan']

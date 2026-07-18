@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/trading/trading_orchestrator.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.7, '0', 'NSE', 'OrchestratorConfig', 'TradingOrchestrator', 'candidate_id', 'confidence', 'exchange', 'execution_plan', 'legs_count', 'limit', 'order_id', 'reason', 'request', 'risk_check', 'rule', 'score', 'signal', 'signal_type', 'sizing_method', 'slicing_algo', 'strategy', 'symbol', 'total_qty', 'trading_orchestrator', 'unknown', 'value']

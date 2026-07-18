@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/paper/engine.py
-# hypothesis_version: 6.155.7
-
-[50.0, 'End of paper trading', 'SYMBOL', '_pending_signals', '_window', 'close', 'date', 'high', 'live', 'low', 'open', 'paper', 'symbol', 'timestamp', 'volume']

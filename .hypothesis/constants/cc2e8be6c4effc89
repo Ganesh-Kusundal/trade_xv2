@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/instruments/asset_kind.py
-# hypothesis_version: 6.155.7
-
-['BOND', 'COMMODITY', 'CRYPTO', 'CURRENCY', 'EQUITY', 'ETF', 'FUTURE', 'FUTURES', 'INDEX', 'OPTION', 'OPTIONS', 'SPOT', 'SYNTHETIC']

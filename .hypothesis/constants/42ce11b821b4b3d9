@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/sector/analyzer.py
-# hypothesis_version: 6.155.7
-
-['. ', 'Unknown', 'breadth', 'change_pct', 'close', 'date', 'lagging_sectors', 'leading_sectors', 'market_strength', 'momentum', 'phase', 'rotation_regime', 'rs_ratio', 'score', 'sector', 'sector_analysis', 'sector_rotation', 'sector_strength', 'sector_volume', 'signal', 'strongest_sector', 'symbol', 'timestamp', 'top_volume_sector', 'trend', 'volume', 'volume_concentration', 'weakest_sector']

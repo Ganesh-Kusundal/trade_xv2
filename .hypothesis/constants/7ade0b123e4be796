@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/data/depth_200.py
-# hypothesis_version: 6.155.7
-
-[200, 'DEPTH_200', 'DhanDepth200Feed', 'asks', 'bids', 'depth_200_subscribe', 'dhan.depth_200', 'error', 'evicted_instrument', 'instrument', 'new_instrument', 'remaining_feeds', 'total_feeds']

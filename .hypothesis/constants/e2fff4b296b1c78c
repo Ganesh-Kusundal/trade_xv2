@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/quality/validation.py
-# hypothesis_version: 6.155.7
-
-['%s: %s', '15m', '1m', '30m', '5m', '; ', 'close', 'event_time', 'high', 'ingested_at', 'invalid_rows', 'is_correction', 'issues', 'low', 'open', 'published_at', 'timestamp', 'total_rows', 'valid_rows', 'volume']

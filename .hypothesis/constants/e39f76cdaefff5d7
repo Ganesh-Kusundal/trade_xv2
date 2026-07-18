@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/build_info.py
-# hypothesis_version: 6.155.7
-
-['--short', '.git', '0.0.0+local', 'BUILD_COMMIT', 'BUILD_TIME', 'BUILD_VERSION', 'HEAD', 'TRADE_XV2_BUILD_TIME', 'TRADE_XV2_COMMIT', 'TRADE_XV2_VERSION', 'build_info_dict', 'build_time', 'commit', 'git', 'rev-parse', 'version']

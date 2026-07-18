@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/adapters/market_data_gateway.py
-# hypothesis_version: 6.155.7
-
-['0', '1D', ':', 'BANKEX', 'BANKNIFTY', 'FINNIFTY', 'IDX_I', 'MIDCPNIFTY', 'NFO', 'NIFTY', 'NSE', 'NSE_EQ', 'SENSEX', 'Upstox', 'available', 'broker', 'contracts', 'error', 'exchange', 'expiries', 'expiry', 'from', 'futures', 'historical', 'history_fetch_failed', 'instrument_count', 'instruments_loaded', 'interval', 'lot_size', 'market_data', 'options', 'streaming', 'symbol', 'to', 'total', 'trading_symbol', 'underlying', '|']

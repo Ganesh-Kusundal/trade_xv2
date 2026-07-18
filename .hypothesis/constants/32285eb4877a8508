@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/auth/oauth_client.py
-# hypothesis_version: 6.155.7
-
-[200, 300, 401, 403, 1000, '+00:00', '/', 'Accept', 'Authorization', 'Content-Type', 'Z', 'access_token', 'application/json', 'authorizationExpiry', 'authorization_code', 'authorization_expiry', 'client_id', 'client_secret', 'code', 'code_verifier', 'data', 'expires_in', 'grant_type', 'notifierUrl', 'notifier_url', 'redirect_uri', 'refresh_token', 'status', 'token_expiry', 'unknown']

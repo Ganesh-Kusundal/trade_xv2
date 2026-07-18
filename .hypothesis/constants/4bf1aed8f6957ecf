@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/mcp/sql_guard.py
-# hypothesis_version: 6.155.7
-
-[')\\b', ';', 'ALTER', 'ATTACH', 'CALL', 'CHECKPOINT', 'COPY', 'CREATE', 'DELETE', 'DETACH', 'DROP', 'EXECUTE', 'EXPORT', 'GRANT', 'IMPORT', 'INSERT', 'INSTALL', 'LOAD', 'MERGE', 'PRAGMA', 'REPLACE', 'REVOKE', 'SELECT', 'SET', 'TRUNCATE', 'UPDATE', 'VACUUM', 'WITH', '\\b(', 'empty query', 'from_csv', 'from_parquet', 'glob', 'read_blob', 'read_csv', 'read_json', 'read_parquet', 'read_text', 'sniff_csv', '|']

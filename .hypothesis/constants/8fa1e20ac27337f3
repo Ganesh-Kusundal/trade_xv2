@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/candles/historical.py
-# hypothesis_version: 6.155.7
-
-[0.0, 100.0, '1D', 'CENTER', 'LEFT', 'NSE', 'RIGHT', 'aggregate.ohlcv.v1', 'avg_volume', 'close', 'count', 'csv', 'datalake', 'exchange', 'first', 'high', 'iso', 'json', 'last', 'low', 'm', 'market_data.history', 'max', 'min', 'no_data', 'normalize.ohlcv.v1', 'oi', 'open', 'prefer_primary', 'records', 'replay', 'replay.bar', 'return_pct', 'stream', 'stream.tick', 'sum', 'symbol', 'timeframe', 'timestamp', 'volume']

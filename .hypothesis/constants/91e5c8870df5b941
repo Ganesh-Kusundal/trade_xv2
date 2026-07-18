@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/core/option_format.py
-# hypothesis_version: 6.155.7
-
-[100.0, 1000, '%Y-%m-%d', 'BANKNIFTY', 'CALL', 'CE', 'MONTH', 'NIFTY', 'PE', 'PUT', 'WEEK', 'bar_time_ms', 'close', 'close_paisa', 'exchange', 'expiry_code', 'expiry_date', 'expiry_kind', 'high', 'high_paisa', 'instrument_id', 'interval_min', 'iv', 'low', 'low_paisa', 'ms', 'oi', 'open', 'open_paisa', 'option_type', 'spot', 'spot_paisa', 'strike', 'strike_offset', 'strike_paisa', 'symbol', 'timestamp', 'underlying', 'volume']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/runtime_hooks.py
-# hypothesis_version: 6.155.7
-
-['RuntimeHooks', 'create_domain_event', 'set_runtime_hooks']

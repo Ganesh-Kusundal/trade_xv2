@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/streaming/session_manager.py
-# hypothesis_version: 6.155.7
-
-['AUTH_REQUIRED', 'DEGRADED', 'DISCONNECTED', 'HEALTHY', 'access_token', 'callback_count', 'connections', 'instruments', 'is_valid', 'lifecycle_state', 'market_feed', 'order_stream', 'state', 'subscription_count', 'subscription_engine', 'subscriptions', 'token_valid']

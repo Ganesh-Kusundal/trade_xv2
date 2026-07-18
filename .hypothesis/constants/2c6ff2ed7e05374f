@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/event_bus/async_event_bus.py
-# hypothesis_version: 6.155.7
-
-[0.05, 5.0, 10000, 'async-event-bus', 'dispatch_count', 'dropped_count', 'max_queue_size', 'publish_count', 'queue_depth', 'worker_alive']

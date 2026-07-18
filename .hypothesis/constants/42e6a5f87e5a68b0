@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/event_bus/dead_letter_queue.py
-# hypothesis_version: 6.155.7
-
-['capacity', 'dropped', 'error_message', 'error_type', 'event_id', 'event_type', 'failed_at', 'handler_id', 'size', 'source', 'symbol', 'timestamp', 'traceback']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/config/config.py
-# hypothesis_version: 6.155.7
-
-[0.04, 0.05, 0.1, 1.0, 130, 500, 5000, 30000, '/charts/', '/fundlimit', '/holdings', '/instruments', '/killswitch', '/marketfeed/ltp', '/marketfeed/ohlc', '/marketfeed/quote', '/marketstatus', '/optionchain', '/orders', '/positions', '/sliceorder', 'DEFAULT_CONFIG', 'DEFAULT_MAX_DELAY_MS', 'DEFAULT_MAX_RETRIES', 'DEFAULT_RATE_LIMITS', 'DhanRateLimitConfig', 'DhanResilienceConfig', 'DhanRetryConfig', 'DhanTokenConfig', 'admin', 'base_delay_ms', 'base_url', 'bucket_map', 'circuit_breaker', 'limits', 'max_delay_ms', 'max_retries', 'orders', 'quotes', 'rate_limit', 'read', 'read_prefixes', 'recovery_timeout_ms', 'retry', 'success_threshold', 'token', 'write', 'write_prefixes']

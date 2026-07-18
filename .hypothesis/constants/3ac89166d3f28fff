@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/options/__init__.py
-# hypothesis_version: 6.155.7
-
-['GatewayOptionsFacade', 'to_canonical_strikes']

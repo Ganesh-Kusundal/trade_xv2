@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/async_compat.py
-# hypothesis_version: 6.155.7
-
-['connect_async_then', 'run_async_compat']

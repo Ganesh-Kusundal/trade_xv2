@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/services/market_data.py
-# hypothesis_version: 6.155.7
-
-[0.05, 2.0, 200, '1D', 'NSE', 'depth_20', 'depth_200', 'depth_30', 'full_depth', 'get_depth', 'get_depth30', 'get_extension', 'get_history', 'get_history_batch', 'get_option_chain', 'get_quote', 'is_connected', 'probe_depth_ws', 'run_subscribe_probe']

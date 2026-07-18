@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/resilience/broker_health_monitor.py
-# hypothesis_version: 6.155.7
-
-[0.0, 100, 'circuit_state', 'consecutive_failures', 'error_rate', 'healthy', 'last_health_check', 'last_successful_call', 'latency_p50_ms', 'total_calls', 'total_failures', 'unhealthy']

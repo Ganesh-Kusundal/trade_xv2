@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/config/profiles/base.py
-# hypothesis_version: 6.155.7
-
-['INFO', 'api_auth_required', 'base', 'cors_origins', 'debug_enabled', 'encryption_required', 'log_level', 'metrics_endpoint', 'mock_brokers_allowed', 'name', 'rate_limit_enabled', 'strict_validation']

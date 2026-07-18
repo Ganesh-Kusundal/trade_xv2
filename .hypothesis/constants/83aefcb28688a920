@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/analytics/corporate_actions.py
-# hypothesis_version: 6.155.7
-
-[0.0, 1.0, ' AND ', 'action_date', 'action_date <= ?', 'action_date >= ?', 'action_type', 'adj_close', 'backward', 'bonus', 'by_type', 'catalog.duckdb', 'close', 'dividend', 'forward', 'high', 'int64', 'low', 'open', 'ratio', 'rights', 'split', 'symbol = ?', 'symbols_with_actions', 'timestamp', 'total_actions', 'volume']

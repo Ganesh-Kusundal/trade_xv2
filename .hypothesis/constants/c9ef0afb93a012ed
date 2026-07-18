@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/services/core.py
-# hypothesis_version: 6.155.7
-
-['VerifyReport', 'VerifyStep', '_', '__dict__', '_borrow_session', '_cap_value', '_caps_to_dict', '_open', '_session_gateway', 'cancel_order', 'get_capabilities', 'get_depth', 'get_depth30', 'get_funds', 'get_history', 'get_history_batch', 'get_holdings', 'get_news', 'get_option_chain', 'get_orders', 'get_positions', 'get_quote', 'list_forever_orders', 'list_super_orders', 'lookup_instrument', 'lookup_security', 'lookup_symbol', 'modify_order', 'place_order', 'probe_depth_ws', 'run_benchmark', 'run_certify', 'run_connect', 'run_diagnose', 'run_doctor', 'run_health', 'run_mapping', 'run_market_hours', 'run_subscribe_probe', 'run_verify', 'safe_serialize', 'snapshot', 'status_from_session', 'to_dict']

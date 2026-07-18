@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/orders/placement.py
-# hypothesis_version: 6.155.7
-
-['0', 'build_execution_plan', 'build_order_intent', 'correlation_id', 'exchange', 'order_type', 'plan_to_intents', 'price', 'product_type', 'quantity', 'side', 'slice_order_request', 'symbol', 'trigger_price']

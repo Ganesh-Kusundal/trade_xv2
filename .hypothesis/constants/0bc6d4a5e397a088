@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/streaming/orchestrator.py
-# hypothesis_version: 6.155.7
-
-[0.0, 30.0, 1000, 'broker_id', 'consumer_id', 'event', 'from_state', 'market', 'no_consumers', 'orchestrator_stop', 'order', 'portfolio', 'reason', 'session_id', 'stream.heartbeat', 'stream.subscribed', 'stream_kind', 'sub_id', 'timestamp', 'to_state', 'unknown']

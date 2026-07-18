@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/auth/ip_management.py
-# hypothesis_version: 6.155.7
-
-['/ip', 'PRIMARY', 'SECONDARY', 'count', 'data', 'ipAddress', 'ipType', 'ip_address', 'ip_configs_fetched', 'ip_modified', 'ip_set', 'ip_type', 'status']

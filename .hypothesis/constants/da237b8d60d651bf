@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/websocket/market_data_v3.py
-# hypothesis_version: 6.155.7
-
-['LTP', 'MARKET_DATA_DEGRADED', 'TICK', 'UpstoxMarketDataV3', 'backfill', 'change_mode', 'close', 'data', 'degraded', 'disconnect', 'dropped_ticks', 'frame_type', 'full', 'full_d30', 'guid', 'instrumentKey', 'instrumentKeys', 'instrument_key', 'invalid_quote', 'lastPr', 'lastPrice', 'last_price', 'ltp', 'ltpc', 'market_info', 'method', 'missing_payload', 'now', 'option_greeks', 'payload', 'publish_error', 'quote', 'reason', 'recv', 'send', 'sub', 'symbol', 'tick', 'tradingSymbol', 'translation_failed', 'type', 'unsub']

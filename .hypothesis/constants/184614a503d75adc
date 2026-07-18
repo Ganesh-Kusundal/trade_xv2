@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/tradex/session.py
-# hypothesis_version: 6.155.7
-
-['BANKNIFTY', 'ENG-001', 'HDFCBANK', 'ICICIBANK', 'INFY', 'NIFTY', 'NIFTYBEES', 'NSE', 'OMS_FAILED', 'RELIANCE', 'SBIN', 'TCS', 'Unknown broker', '_lifecycle', '_oms', '_orders', '_submit_fn', 'bootstrap_status', 'datalake', 'get_candles', 'kernel', 'order_manager', 'original', 'paper', 'phantom', 'probe_name', 'refreshed_token', 'trade']

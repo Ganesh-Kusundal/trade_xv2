@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/diagnostics/core.py
-# hypothesis_version: 6.155.7
-
-[1000.0, '1D', 'Authentication', 'Capabilities', 'FAIL', 'Historical Data', 'NIFTY', 'OK', 'Option Chain', 'Overall: %s', 'PASS', 'Quote', 'RELIANCE', 'SKIP', 'Subscription', 'WARNING', 'all_passed', 'available_balance', 'available_margin', 'bar_count', 'broker_id', 'checks', 'funds', 'ltp', 'n/a', 'no quote returned', 'strikes', 'subscription active']

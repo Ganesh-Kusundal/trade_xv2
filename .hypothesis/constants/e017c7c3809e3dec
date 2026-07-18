@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/resilience/retry_policies.py
-# hypothesis_version: 6.155.7
-
-[0.2, 2.0, 500.0, 1000.0, 4000.0, 8000.0, 'ADMIN_POLICY', 'DhanRetryPolicy', 'MARKET_DATA_POLICY', 'ORDERS_POLICY', 'PORTFOLIO_POLICY', 'admin', 'attempt', 'build_retry_executor', 'category', 'create', 'defaulting_to', 'dhan_retry', 'error', 'market_data', 'orders', 'portfolio']

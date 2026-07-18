@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/replay/orchestrator.py
-# hypothesis_version: 6.155.7
-
-[5.0, 20.0, 100000.0, 999999, '%Y-%m-%d', '1m', 'No data found for %s', 'REPLAY', 'ReplayItem', 'UnifiedReplayResult', 'date', 'error', 'event', 'no data', 'symbol', 'symbols']

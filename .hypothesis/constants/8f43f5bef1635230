@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/market/__init__.py
-# hypothesis_version: 6.155.7
-
-['Exchange', 'ExchangeSession', 'NSE_EQUITY_CLOSE', 'NSE_EQUITY_OPEN']

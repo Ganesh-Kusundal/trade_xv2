@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/status_mapper.py
-# hypothesis_version: 6.155.7
-
-['AMO', 'CANCELLED', 'COMPLETE', 'COMPLETED', 'EXECUTED', 'EXPIRED', 'FILLED', 'MARGIN_TRADED', 'OPEN', 'OPEN_PENDING', 'PARTIAL', 'PARTIALLY_CANCELLED', 'PARTIALLY_EXECUTED', 'PARTIALLY_FILLED', 'PENDING', 'QUEUED', 'REJECTED', 'TRADED', 'TRANSIT', 'TRIGGER_PENDING', 'UNKNOWN', '_', 'common']

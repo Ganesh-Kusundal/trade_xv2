@@ -103,3 +103,4 @@ src/runtime/event-log/
 src/brokers/runtime/*.json
 src/brokers/runtime/*.lock
 src/brokers/runtime/*.log
+.hypothesis/

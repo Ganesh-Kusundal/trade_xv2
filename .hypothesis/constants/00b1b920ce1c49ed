@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/reconciliation_service.py
-# hypothesis_version: 6.155.7
-
-['RECONCILIATION_DRIFT', 'broker_funds', 'broker_order_list', 'broker_position_list', 'details', 'drift', 'drift_count', 'drift_items', 'execution_ledger', 'has_drift', 'high_severity_count', 'interval_seconds', 'kind', 'last_drift_count', 'lifecycle', 'not running', 'ok', 'oms.reconciliation', 'reconciliation-timer', 'run_count', 'severity', 'status', 'symbol', 'trade_recorder', 'unknown']

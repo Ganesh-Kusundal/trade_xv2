@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/ports/broker_gateway.py
-# hypothesis_version: 6.155.7
-
-[0.0, '_token_id', 'alive', 'auth_valid', 'broker_id', 'endpoint_class', 'error_rate', 'from_date', 'instrument', 'instruments', 'latency_p50', 'modes', 'on_raw_frame', 'priority_class', 'reason', 'request_id', 'timeframe', 'to_date']

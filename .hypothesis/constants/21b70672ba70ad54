@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/session_status.py
-# hypothesis_version: 6.155.7
-
-['Failed', 'ReadyMarket', 'ReadyTrade', 'authenticated', 'broker_id', 'diagnostics', 'instruments_loaded', 'market', 'mode', 'orders_enabled', 'phase', 'sim', 'trace_id', 'trade']

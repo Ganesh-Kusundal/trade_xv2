@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/market_breadth/breadth.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.5, 1.0, 2.0, 20.0, 50.0, 100.0, 100, 'Defensive', 'Negative', 'Neutral', 'No breadth data', 'No sector data', 'Positive', 'Risk-on', 'advances', 'breadth', 'declines', 'down_volume', 'float64', 'inf', 'mcclellan_oscillator', 'net', 'new_highs', 'new_lows', 'records', 'relative_strength', 'return_pct', 'sector', 'sector_rotation', 'sector_strength', 'sectors', 'top_sector', 'total_issues', 'trin', 'unchanged', 'up_volume', 'weak_sector']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/instruments/segment_mapper.py
-# hypothesis_version: 6.155.7
-
-['BCD_FO', 'BSE_EQ', 'BSE_FNO', 'BSE_FO', 'BSE_INDEX', 'GLOBAL_INDEX', 'IDX', 'INDEX', 'MCX_COMM', 'MCX_FO', 'MCX_INDEX', 'NCD_FO', 'NSE', 'NSE_COM', 'NSE_EQ', 'NSE_FNO', 'NSE_FO', 'NSE_INDEX', 'UNKNOWN', 'upstox']

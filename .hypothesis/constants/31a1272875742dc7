@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/connect_errors.py
-# hypothesis_version: 6.155.7
-
-[' | ', 'AUTH_FAILED', 'CONNECT_FAILED', 'ENG_011', 'Failed', 'GATEWAY_FAILED', 'MISSING_ENV', 'OMS_REQUIRED', 'ORDERS_DISABLED', 'UNKNOWN_BROKER', 'UNKNOWN_MODE', 'broker_id', 'code', 'details', 'message', 'mode', 'phase', 'remediation', 'trace_id']

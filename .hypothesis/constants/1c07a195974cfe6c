@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/auth/token_refresher.py
-# hypothesis_version: 6.155.7
-
-[30.0, 1000, 'TOTP', 'access_token', 'analytics_only']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/connection/authenticated_readiness.py
-# hypothesis_version: 6.155.7
-
-[423, 1000, '.env.local', '401', '403', '423', 'AuthProbeResult', 'AuthenticationError', 'DHAN_ACCESS_TOKEN', 'UpstoxAuthError', '_auth', '_broker', '_client', '_conn', '_store', 'broadcast_token', 'broker', 'dh-808', 'dh-906', 'dhan', 'dhan.funds', 'error', 'forbidden', 'has_refresh', 'invalid token', 'is_token_rejection', 'is_totp', 'locked', 'maintenance', 'oauth_client', 'paper', 'paper_skip', 'probe', 'revoke', 'settings', 'status_code', 'token rejected', 'token_manager', 'unauthorized', 'upstox', 'upstox.funds', 'upstox.profile']

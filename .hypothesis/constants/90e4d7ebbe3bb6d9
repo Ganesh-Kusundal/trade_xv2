@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/replay/event_publishing.py
-# hypothesis_version: 6.155.7
-
-['confidence', 'score', 'signal_type', 'strategy', 'symbol', 'value']

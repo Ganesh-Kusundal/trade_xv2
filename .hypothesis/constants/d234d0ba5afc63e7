@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/options/capability.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.95, 1.05, 'NFO', 'NSE', 'call_count', 'calls', 'exchange', 'expiry', 'future_chain', 'greeks_available', 'long_call_at_expiry', 'option_chain', 'payoffs', 'put_count', 'puts', 'sample', 'spot', 'strike', 'underlying']

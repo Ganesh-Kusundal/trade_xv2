@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/market_data/options_adapter.py
-# hypothesis_version: 6.155.7
-
-['BANKEX', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'NIFTY', 'NIFTY50', 'NIFTYBANK', 'SENSEX', 'body', 'data', 'expiry', 'status', 'success', 'underlying']

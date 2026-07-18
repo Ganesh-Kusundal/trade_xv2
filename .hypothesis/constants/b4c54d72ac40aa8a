@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/services/operations.py
-# hypothesis_version: 6.155.7
-
-['1D', 'Authentication', 'Broker Connect', 'Broker Plugin', 'Capabilities', 'Configuration', 'FAIL', 'Historical', 'Mappings', 'Overall: %s', 'PASS', 'RELIANCE', 'Sample Quote', 'Secrets', 'VerifyReport', 'VerifyStep', 'WebSocket', '[%s] %s%s', 'bar_count', 'broker_id', 'certified', 'detail', 'env resolved', 'matrix', 'name', 'off-market (skipped)', 'paper', 'passed', 'run_benchmark', 'run_certify', 'run_diagnose', 'run_doctor', 'run_health', 'run_mapping', 'run_market_hours', 'run_verify', 'schema_version', 'status', 'steps', 'tier']

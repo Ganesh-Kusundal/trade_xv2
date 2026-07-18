@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/instruments/instrument.py
-# hypothesis_version: 6.155.7
-
-['BrokerFacade', 'Commodity', 'Currency', 'ETF', 'Equity', 'Future', 'Index', 'Instrument', 'Option', 'Spot', '_catalog', '_exchange', '_symbol', 'capabilities', 'catalog', 'depth', 'disconnect', 'for_instrument', 'has', 'list_capabilities', 'list_option_expiries', 'name', 'provider', 'quote', 'reconnect', 'tick']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/instruments/service.py
-# hypothesis_version: 6.155.7
-
-[0.0, '0.05', 'BSE', 'BSE_EQ', 'EQUITY', 'MCX_FO', 'NSE', 'NSE_EQ', 'cached', 'count', 'instrument_key', 'load_time_s', 'loaded', 'memory_time_s', 'model_dump', 'source', 'symbol', 'total', 'trading_symbol', '|']

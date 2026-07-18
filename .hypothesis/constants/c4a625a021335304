@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/websocket/connection.py
-# hypothesis_version: 6.155.7
-
-[0.0, 1.0, 2.0, 5.0, 30.0, 1000.0, 30000.0, '429', 'Market feed stopped', '_connected_at', '_last_message_at', 'admission_blocked', 'admission_status', 'age_seconds', 'attempts', 'cooldown_seconds', 'dhan.market_feed', 'is_connected', 'is_stale', 'last_message_age', 'loop', 'max_attempts', 'no close frame', 'reconnect_count', 'seconds', 'staleness_threshold', 'thread_alive', 'threshold_seconds', 'ws']

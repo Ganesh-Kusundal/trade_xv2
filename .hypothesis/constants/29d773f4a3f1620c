@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/intraday/afternoon_expansion.py
-# hypothesis_version: 6.155.7
-
-[0.05, 0.3, 1.5, 5.0, 10.0, '09:15:00', '09:50:00', '15:15:00', '1m', 'DECISION_END', 'MIN_ABS_MORNING_GAIN', 'MIN_HIST_SESSIONS', 'MIN_HIT_GE5', 'MIN_MORNING_BARS', 'MIN_RVOL', 'MORNING_START', 'SESSION_END', 'TARGET_MFE_HI', 'TARGET_MFE_LO', 'avg_mfe', 'c950', 'close_in_range', 'hist_sessions', 'hit_5_10', 'hit_ge5', 'morning_gain', 'p90_mfe', 'rvol', 'sector', 'symbol']

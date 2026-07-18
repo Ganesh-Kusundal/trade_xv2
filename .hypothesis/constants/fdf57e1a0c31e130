@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/streaming/connection_admission.py
-# hypothesis_version: 6.155.7
-
-[0.0, '(noop)', '+00:00', '120', '3600', '60', '900', 'DHAN_TOKEN_STATE_DIR', 'Z', '[^A-Za-z0-9._-]+', '_', 'a+', 'admission_lock_path', 'client_id', 'connection_type', 'cooldown_seconds', 'error', 'http_429', 'lock_path', 'market-feed', 'next_allowed_at', 'noop', 'reason', 'recorded_at', 'runtime', 'unknown', 'utf-8']

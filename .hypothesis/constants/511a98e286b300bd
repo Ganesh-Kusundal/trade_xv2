@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/walk_forward/engine.py
-# hypothesis_version: 6.155.7
-
-[0.0, 100000.0, 100, 500, 'TEST', 'metrics', 'pnl', 'sharpe', 'sharpe_ratio', 'test_end', 'test_start', 'total_pnl', 'trade_analysis', 'train_start', 'window']

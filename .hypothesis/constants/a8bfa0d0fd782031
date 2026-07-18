@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/normalize.py
-# hypothesis_version: 6.155.7
-
-[0.3, '  %-15s %4d symbols', '--dry-run', ':memory:', 'Asia/Kolkata', 'DROP TABLE _tmp', 'EMPTY', 'ERROR', 'IST', 'IST_SHIFTED', 'MIXED', 'No data found at %s', 'Results:', 'SELECT * FROM _tmp', 'SKIPPED', 'UNKNOWN', 'UTC', '__main__', 'read_all', 'snappy', 'store_true', 'symbol=']

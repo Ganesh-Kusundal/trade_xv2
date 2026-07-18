@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/indicators/patterns.py
-# hypothesis_version: 6.155.7
-
-[1e-10, 0.1, 0.3, 0.4, 2.0, 'BEAR', 'BULL', 'NEUTRAL', 'Trend Continuation', 'Uptrend', 'cdl_direction', 'cdl_doji', 'cdl_engulfing_bear', 'cdl_engulfing_bull', 'cdl_hammer', 'cdl_harami_bear', 'cdl_harami_bull', 'cdl_shooting_star', 'close', 'high', 'low', 'market_structure', 'open', 'swing_breakdown', 'swing_continuation', 'swing_low', 'trend']

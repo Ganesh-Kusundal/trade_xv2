@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/orders/exit_all_adapter.py
-# hypothesis_version: 6.155.7
-
-['ALL', 'DEACTIVATE', 'error', 'exit_all_executed', 'exit_all_failed', 'message', 'orders_cancelled', 'positions_closed', 'raw', 'result', 'segment', 'status', 'success']

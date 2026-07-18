@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/diagnostics/benchmark.py
-# hypothesis_version: 6.155.7
-
-[0.0, 1000, 1048576, '  %s: %.2fms  %s', '1D', '30d 1D', 'Average: %.2fms', 'CPU', 'History', 'MB RSS', 'Memory', 'Quote', 'RELIANCE', 'Subscribe', 'broker_id', 'handle acquire', 'paper', 'process cpu %', 'psutil unavailable', 'results']

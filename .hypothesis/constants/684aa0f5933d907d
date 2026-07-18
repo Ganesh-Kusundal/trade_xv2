@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/cli/broker.py
-# hypothesis_version: 6.155.7
-
-[200, '--broker', '--days', '--exchange', '--json', '--live', '--quiet', '--tf', '--yaml', '--yes', '-q', '-y', '1D', 'Aborted.', 'Brokers', 'Capabilities', 'Current broker', 'NSE', 'News', 'Switch to', 'Switched', '__main__', 'active', 'as_json', 'as_yaml', 'broker', 'broker.default', 'broker_id', 'connect', 'connected', 'depth20', 'depth200', 'depth30', 'error', 'extensions', 'handle', 'instrument_id', 'json', 'json_output', 'list', 'mode', 'none', 'orders_enabled', 'paper', 'quiet', 'remediation', 'security', 'session', 'shell', 'shell_session', 'subscribed', 'symbol', 'symbols', 'underlying', 'yaml']

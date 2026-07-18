@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/auth/credential_validator.py
-# hypothesis_version: 6.155.7
-
-['DHAN_ACCESS_TOKEN', 'DHAN_CLIENT_ID', 'DHAN_PIN', 'DHAN_PIN_FILE', 'DHAN_TOTP_SECRET', 'STATIC', 'TOTP', 'UPSTOX_ACCESS_TOKEN', 'UPSTOX_AUTH_MODE', 'UPSTOX_CLIENT_ID', 'UPSTOX_MOBILE', 'UPSTOX_PIN', 'UPSTOX_PIN_FILE', 'UPSTOX_REFRESH_TOKEN', 'UPSTOX_TOTP_SECRET', 'auth', 'dhan', 'env_file', 'error', 'paper', 'totp', 'upstox', 'warning']

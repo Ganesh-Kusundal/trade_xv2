@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/execution/order_placement.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.1, '/orders', '/orders/slicing', '0', '; ', 'BUY', 'DAY', 'INTRADAY', 'IdempotencyCache', 'LIMIT', 'ORDER_PLACED', 'Order placed', 'OrderPlacer', 'Slice order failed', 'allowed', 'correlationId', 'correlation_id', 'data', 'dhanClientId', 'disclosedQuantity', 'error', 'errorCode', 'errorMessage', 'event_publish_failed', 'exchangeSegment', 'idempotency_waiting', 'order', 'orderId', 'orderStatus', 'orderType', 'order_id', 'orders.place_order', 'price', 'productType', 'quantity', 'reason', 'risk-precheck', 'securityId', 'status', 'transactionType', 'triggerPrice', 'validity', 'value']

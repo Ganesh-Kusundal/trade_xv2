@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/instruments/service.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.01, '0.05', 'cached', 'count', 'exchange', 'exchange_segment', 'force_refresh', 'http://', 'https://', 'issue_count', 'load_time_s', 'loaded', 'memory_time_s', 'name', 'security_id', 'skip_rate', 'skipped', 'source', 'symbol', 'threshold', 'total', 'type', 'value']
