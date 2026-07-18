@@ -34,7 +34,6 @@ SANCTIONED = {"datalake/core/duckdb_utils.py"}
 # Format: relative_path -> reason.
 EXEMPTIONS: dict[str, str] = {
     "datalake/adapters/analytics_provider.py": "Provider.query() uses :memory: (broken — cannot see catalog); fix in Phase 1",
-    "analytics/scanner/scanner_queries.py": "Scanner SQL uses :memory:; route through pool in Phase 1/2",
     "analytics/intraday/afternoon_expansion.py": "Intraday scan uses ad-hoc connect; route through pool in Phase 1",
     "datalake/mcp/tools.py": "MCP tool builds a per-call connection; route through pool in Phase 1",
     "datalake/normalize.py": "Ingestion normalize uses :memory:; route through pool in Phase 1",

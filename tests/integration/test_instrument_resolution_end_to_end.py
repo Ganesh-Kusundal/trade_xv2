@@ -99,14 +99,27 @@ class TestInstrumentIdIntegration:
 
     def test_scanner_output_includes_instrument_id(self):
         """Scanner should be able to add instrument_id to results."""
-        from analytics.scanner.rules.engine import RuleEngine
+        import pandas as pd
 
-        engine = RuleEngine()
-        df = engine.execute("volume_spike", params={"as_of_date": "2026-06-10"})
-        # Scanner results have 'symbol' column - can be converted
-        assert "symbol" in df.columns
-        # Verify we can create instrument_id from scanner results
+        from analytics.scanner import VolumeScanner
         from datalake.core.symbols import instrument_id_from_symbol
-        if not df.empty:
-            iid = instrument_id_from_symbol(df["symbol"].iloc[0], "NSE")
-            assert iid.startswith("NSE:")
+
+        # Create minimal universe with OHLCV data
+        universe = pd.DataFrame({
+            "symbol": ["RELIANCE", "INFY", "TCS"],
+            "timestamp": pd.to_datetime(["2026-06-10 09:30:00"] * 3),
+            "open": [2500.0, 1800.0, 3500.0],
+            "high": [2520.0, 1820.0, 3520.0],
+            "low": [2480.0, 1780.0, 3480.0],
+            "close": [2510.0, 1810.0, 3510.0],
+            "volume": [100000, 80000, 60000],
+        })
+
+        scanner = VolumeScanner(top_n=2)
+        result = scanner.scan(universe)
+
+        # Scanner results have 'symbol' column - can be converted
+        assert result.count > 0
+        # Verify we can create instrument_id from scanner results
+        iid = instrument_id_from_symbol(result.candidates[0].symbol, "NSE")
+        assert iid.startswith("NSE:")
