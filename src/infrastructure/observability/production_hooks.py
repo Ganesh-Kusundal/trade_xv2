@@ -32,7 +32,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from enum import Enum
+
 from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
@@ -245,10 +245,7 @@ class ErrorRateTracker:
 # 3. Health Check Helpers
 # ---------------------------------------------------------------------------
 
-class HealthState(str, Enum):
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
+from domain.lifecycle_health import HealthState
 
 
 @dataclass
