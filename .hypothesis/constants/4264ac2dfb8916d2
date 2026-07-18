@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/__init__.py
+# hypothesis_version: 6.155.7
+
+[365, '1m', 'CorporateActionStore', 'DataCatalog', 'DataLake', 'DataQualityEngine', 'HistoricalDataLoader', 'NIFTY500', 'ResearchAPI', 'compute_daily_vwap', 'compute_vwap']

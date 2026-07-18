@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/streaming/connection.py
+# hypothesis_version: 6.155.7
+
+[2.0, 5.0, 3600, '0', 'IDX_I', 'LTP', 'NFO', 'NSE', 'NSE_EQ', 'NSE_FNO', '_alerts', '_edis', '_exit_all', '_forever_orders', '_futures', '_historical', '_ip_management', '_last_error', '_ledger', '_margin', '_market_data', '_options', '_pnl_exit', '_portfolio', '_session_manager', '_super_orders', '_token_scheduler', '_user_profile', 'admin_cb', 'change', 'close', 'error_count', 'high', 'low', 'ltp', 'open', 'read_cb', 'refresh_count', 'symbol', 'volume', 'write_cb']

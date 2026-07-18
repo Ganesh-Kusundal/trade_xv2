@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/streaming/tick_router.py
+# hypothesis_version: 6.155.7
+
+[1.0, 2.0, 100000000000.0, 1000, 4096, 'NSE', 'ask', 'avg_price', 'bid', 'bucket', 'consumer_id', 'event_time', 'exchange', 'exchange_timestamp', 'filled_qty', 'high', 'instrument', 'last_price', 'low', 'ltp', 'market', 'open', 'order_id', 'sequence', 'session_id', 'status', 'stream', 'stream.consumer.slow', 'stream.tick.dedup', 'symbol', 'timestamp', 'trading_symbol', 'volume']

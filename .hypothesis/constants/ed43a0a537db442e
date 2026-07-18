@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/capabilities/market_surface.py
+# hypothesis_version: 6.155.7
+
+['FUTURE_CHAIN', 'LTP', 'MarketCoverage', 'OPERATIONS', 'OPTION_CHAIN', 'QUOTE', 'RESOLVE', 'future_chain', 'ltp', 'option_chain', 'quote', 'resolve']

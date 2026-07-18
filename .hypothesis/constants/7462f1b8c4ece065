@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/instrument_resolver.py
+# hypothesis_version: 6.155.7
+
+['(OTM|ITM)(\\d+)', '50', ':', 'ATM', 'CALL', 'CE', 'CURRENT', 'FUT', 'MONTH', 'NFO', 'OTM', 'PE', 'PUT', 'WEEK', '^(OTM|ITM)\\d+$', '_', 'kind', 'offset', 'right', 'strike_ref', 'underlying']

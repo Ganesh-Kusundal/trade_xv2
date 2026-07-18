@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/tradex/cli.py
+# hypothesis_version: 6.155.7
+
+['--days', '--price', '--top-n', 'Preferences reset.', '__main__', 'analytics', 'args', 'backtest', 'breadth', 'breakout', 'broker', 'edit', 'get', 'halftrend', 'halftrend-scan', 'interface.ui.main', 'key', 'levels', 'list', 'momentum', 'nearest', 'nearest_resistance', 'nearest_support', 'optimize', 'paper', 'prefs_store', 'replay', 'reset', 'rs', 'run', 'scan-breakout', 'scan-momentum', 'scan-rs', 'scan-volume', 'sector', 'sector-rotation', 'sector-strength', 'sector-volume', 'set', 'strategies', 'symbol', 'top_n', 'tradexv2', 'value', 'version', 'volume', 'walkforward']

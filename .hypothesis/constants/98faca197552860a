@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/reconciliation_engine.py
+# hypothesis_version: 6.155.7
+
+['0', '0.01', 'HIGH', 'MEDIUM', 'avg_price', 'avg_price_mismatch', 'broker_available', 'broker_avg', 'broker_filled', 'broker_qty', 'exchange', 'filled_quantity', 'funds_mismatch', 'local_available', 'local_avg', 'local_filled', 'local_qty', 'missing_broker_order', 'missing_local_order', 'order_id', 'symbol', 'to_decimal', 'tolerance']

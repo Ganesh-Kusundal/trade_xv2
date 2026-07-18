@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/ingestion/converter.py
+# hypothesis_version: 6.155.7
+
+[0.5, 1000, '*.parquet', '1m', 'Converting %s...', 'UTC', 'bar_time_ms', 'close', 'close_paisa', 'data.parquet', 'duplicates_dropped', 'event_time', 'exchange', 'high', 'high_paisa', 'ignore', 'ingested_at', 'interval', 'invalid_dropped', 'is_correction', 'last', 'low', 'low_paisa', 'ms', 'oi', 'open', 'open_paisa', 'published_at', 'rows', 'snappy', 'symbol', 'symbol=', 'timestamp', 'trade_count', 'volume', 'vwap']

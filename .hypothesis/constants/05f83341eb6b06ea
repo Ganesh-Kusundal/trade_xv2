@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/primitives/value_objects.py
+# hypothesis_version: 6.155.7
+
+['Clock', 'DomainValueError', 'INR', 'Money', 'Money | Decimal', 'Quantity', 'Quantity | Decimal', 'addend', 'amount', 'currency', 'divisor', 'magnitude', 'minuend', 'multiplier', 'other', 'subtrahend', 'unit']

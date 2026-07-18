@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/storage/catalog.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.05, '1m', 'EQUITY', 'NSE', 'OK', 'catalog.duckdb', 'data.parquet', 'quality_records', 'symbol=', 'symbols', 'timestamp', 'total_rows']

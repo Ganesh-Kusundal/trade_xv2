@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/storage/parquet_store.py
+# hypothesis_version: 6.155.7
+
+[100, 300, 1000, '15m', '15min', '1D', '1h', '1m', '30m', '30min', '5m', '5min', 'No data for %s/%s', 'candles', 'close', 'curated', 'data.parquet', 'equities', 'first', 'high', 'last', 'legacy', 'low', 'max', 'min', 'none', 'open', 'sum', 'symbol', 'symbol=', 'timeframe=1m', 'timestamp', 'volume']

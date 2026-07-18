@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/observability/tracing.py
+# hypothesis_version: 6.155.7
+
+[1000, 'Operation failed: %s', 'T', 'TraceContext', '_get_tracer', 'correlation_id', 'duration_ms', 'error', 'error.message', 'error.type', 'error_message', 'error_type', 'event_type', 'function', 'handler', 'no-correlation', 'operation', 'status', 'success', 'trace_event_handler', 'trace_operation', 'tradex.tracing']

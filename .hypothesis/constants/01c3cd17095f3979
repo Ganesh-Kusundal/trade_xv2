@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/orders/execution_plan.py
+# hypothesis_version: 6.155.7
+
+['0', '1', 'BUY', 'ENTRY', 'ExecutionPlan', 'ICEBERG', 'NONE', 'NSE', 'OrderSizing', 'PlanContext', 'PlanGuards', 'RoutingHint', 'STRONG_BUY', 'SlicingAlgo', 'SlicingPlan', 'TWAP', 'VWAP', 'algo', 'confidence', 'correlation_id', 'disclosed_qty', 'exchange', 'interval_seconds', 'legs', 'method', 'per_leg_allocation', 'signal_type', 'sizing', 'slice_count', 'slicing', 'source_strategy', 'symbol', 'total_qty']

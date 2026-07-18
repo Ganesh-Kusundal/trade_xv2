@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/event_log.py
+# hypothesis_version: 6.155.7
+
+[1.0, 100, 200000, '*.jsonl', ',', ':', '__type__', 'a', 'buffer_size', 'correlation_id', 'date', 'datetime', 'decimal', 'event_id', 'event_type', 'fileno', 'flush_count', 'flush_interval', 'flush_threshold', 'last_flush', 'payload', 'sequence_number', 'source', 'symbol', 'timestamp', 'utf-8', 'value']

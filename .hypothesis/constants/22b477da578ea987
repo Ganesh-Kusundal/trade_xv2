@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/resolver.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.01, 100, '-', '0', '0.05', '9999-12-31', 'BSE_CURRENCY', 'BSE_FNO', 'CALL', 'CE', 'EQUITY', 'FUTCOM', 'FUTCUR', 'FUTIDX', 'FUTSTK', 'INDEX', 'MCX_COMM', 'NSE_CURRENCY', 'NSE_FNO', 'OPTCOM', 'OPTCUR', 'OPTFUT', 'OPTIDX', 'OPTSTK', 'PE', 'PUT', 'SEM_CUSTOM_SYMBOL', 'SEM_EXM_EXCH_ID', 'SEM_EXPIRY_DATE', 'SEM_INSTRUMENT_NAME', 'SEM_LOT_UNITS', 'SEM_OPTION_TYPE', 'SEM_SMST_SECURITY_ID', 'SEM_STRIKE_PRICE', 'SEM_TICK_SIZE', 'SEM_TRADING_SYMBOL', 'SM_SYMBOL_NAME', '_', 'canonical_name', 'loaded', 'rate', 'security_id', 'skip_rate', 'skipped', 'symbol', 'total']

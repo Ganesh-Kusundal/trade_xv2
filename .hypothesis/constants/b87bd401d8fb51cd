@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/certification/golden.py
+# hypothesis_version: 6.155.7
+
+['  [%s] %s: %s', '0.05', 'FAIL', 'GOLDEN MISMATCH', 'NSE', 'Overall: %s', 'PASS', 'RELIANCE', '_metadata', 'asset', 'cases', 'commodity', 'currency', 'equity', 'exchange', 'expected_exchange', 'expected_lot_size', 'expected_security_id', 'expected_tick_size', 'future', 'golden_dataset.json', 'index', 'matches golden', 'metadata', 'paper', 'securityId', 'security_id', 'symbol', 'utf-8']

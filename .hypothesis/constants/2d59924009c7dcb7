@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/strategy/pipeline.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.15, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 30.0, 35.0, 40.0, 45.0, 50.0, 60.0, 70.0, 'Breakout', 'Momentum', 'No data', 'atr', 'breakout', 'close', 'last_swing_high', 'last_swing_low', 'momentum', 'roc', 'rsi', 'sma20', 'sma_20', 'swing_high', 'swing_low', 'volume', 'volume_sma', 'weakened']

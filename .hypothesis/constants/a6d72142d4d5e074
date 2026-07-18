@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/order_manager.py
+# hypothesis_version: 6.155.7
+
+[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, '0', 'PYTEST_CURRENT_TEST', 'correlation_id', 'exchange', 'oms_active_orders', 'oms_orders_total', 'order', 'price', 'reason', 'symbol', 'to_decimal', 'trade']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/config/settings.py
+# hypothesis_version: 6.155.7
+
+[15.0, 100, 'ACCESS_TOKEN', 'ALLOW_LIVE_ORDERS', 'BASE_URL', 'CLIENT_ID', 'DHAN', 'ENABLE_RETRY', 'ENVIRONMENT', 'HTTP_TIMEOUT', 'LIVE', 'PIN', 'POOL_CONNECTIONS', 'POOL_MAXSIZE', 'SANDBOX', 'SANDBOX_ACCESS_TOKEN', 'SANDBOX_CLIENT_ID', 'TOKEN_STATE_DIR', 'TOTP_SECRET', 'accessToken', 'access_token', 'allowLiveOrders', 'baseUrl', 'base_url', 'clientId', 'client_id', 'enableRetry', 'httpTimeout', 'pin', 'poolConnections', 'poolMaxsize', 'refreshBufferSeconds', 'runtime', 'tokenLifetimeSeconds', 'totpSecret', 'totp_secret']

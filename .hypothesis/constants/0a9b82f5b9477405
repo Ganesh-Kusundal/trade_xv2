@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/wire.py
+# hypothesis_version: 6.155.7
+
+[200, '-', '0', '1D', 'ALREADY_EXECUTED', 'BANKNIFTY', 'BFO', 'BUY', 'DAY', 'DEPTH_5', 'DepthStreamHandle', 'Dhan', 'DhanBrokerGateway', 'DhanWireAdapter', 'FILLED', 'FINNIFTY', 'FULL', 'INTRADAY', 'LTP', 'MARKET', 'NFO', 'NIFTY', 'SENSEX', 'SL', 'SLM', 'STOPLOSS', 'STOPLOSS_MARKET', 'STOP_LOSS', 'STOP_LOSS_MARKET', '_', '_auth', '_client', '_market_feed', '_session_manager', '_try_refresh_token', 'access_token', 'asks', 'auth', 'available', 'bids', 'broker', 'create_wire_adapter', 'depth', 'dhan', 'ensure_valid', 'error', 'expiry', 'futures', 'get_order_failed', 'historical', 'instrument_count', 'instruments_loaded', 'is_connected', 'lot_size', 'market_data', 'market_feed', 'options', 'order_id', 'orders', 'price', 'quantity', 'state', 'streaming', 'symbol', 'total', 'underlying', 'update_token']

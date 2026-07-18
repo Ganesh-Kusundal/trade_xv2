@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/paper/data_provider.py
+# hypothesis_version: 6.155.7
+
+[120, '1D', 'ask', 'bid', 'close', 'empty', 'high', 'low', 'open', 'open_', 'paper', 'paper.history', 'volume']

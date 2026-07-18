@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/instruments/search.py
+# hypothesis_version: 6.155.7
+
+[0.0, 'data', 'exchange', 'expiry', 'freeze_qty', 'instrument_key', 'instrument_type', 'isin', 'lot_size', 'name', 'option_type', 'segment', 'strike', 'symbol', 'tick_size', 'trading_symbol', 'underlying_key', 'underlying_symbol', 'url_resolver']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/indicators/atr.py
+# hypothesis_version: 6.155.7
+
+[0.0, 1.0, 'atr', 'close', 'high', 'low']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/portfolio/portfolio.py
+# hypothesis_version: 6.155.7
+
+['/fundlimit', '/holdings', '/positions', '/positions/convert', '0', 'INTRADAY', 'LONG', 'NSE', 'NSE_EQ', 'availabelBalance', 'availableBalance', 'availableQty', 'availableQuantity', 'available_balance', 'avgCostPrice', 'balance_fetch_failed', 'balance_fetched', 'buyAveragePrice', 'collateralAmount', 'convertQty', 'costPrice', 'count', 'data', 'dhanClientId', 'exchangeSegment', 'from', 'fromProductType', 'holdings_fetched', 'lastPrice', 'lastTradedPrice', 'netQuantity', 'pnlValue', 'positionType', 'position_converted', 'positions_fetched', 'productType', 'quantity', 'realizedPnl', 'reason', 'securityId', 'sodLimit', 'symbol', 'to', 'toProductType', 'totalQty', 'tradingSymbol', 'unrealizedPnl', 'utilizedAmount', 'withdrawableBalance']

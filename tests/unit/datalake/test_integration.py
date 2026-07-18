@@ -15,6 +15,7 @@ from analytics.scanner import MomentumScanner
 from analytics.scanner.models import Candidate
 from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
 from datalake.research.api import ResearchAPI
+from tests.fixtures.data_helpers import make_ohlcv
 
 
 def _write_parquet(path: Path, df: pd.DataFrame) -> None:
@@ -29,29 +30,14 @@ def _make_ohlcv(
     trend: str = "up",
 ) -> pd.DataFrame:
     """Create synthetic OHLCV data with controllable trend."""
-    np.random.seed(hash(symbol) % 2**31)
-    dates = pd.date_range(start, periods=n, freq="1min")
-
-    if trend == "up":
-        close = 100 + np.cumsum(np.abs(np.random.randn(n)) * 0.3)
-    elif trend == "down":
-        close = 200 - np.cumsum(np.abs(np.random.randn(n)) * 0.3)
-    else:
-        close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-
-    return pd.DataFrame(
-        {
-            "timestamp": dates,
-            "symbol": symbol,
-            "exchange": "NSE",
-            "open": close + np.random.randn(n) * 0.2,
-            "high": close + np.abs(np.random.randn(n)) * 0.5,
-            "low": close - np.abs(np.random.randn(n)) * 0.5,
-            "close": close,
-            "volume": np.random.randint(1000, 10000, n),
-            "oi": np.zeros(n, dtype=np.int64),
-        }
-    )
+    from datetime import datetime
+    seed = hash(symbol) % 2**31
+    start_date = datetime.fromisoformat(start).replace(tzinfo=None)
+    df = make_ohlcv(n=n, symbol=symbol, seed=seed, start_date=start_date, trend=trend)
+    # Add extra columns needed by this test
+    df["exchange"] = "NSE"
+    df["oi"] = 0
+    return df
 
 
 def _setup_lake(tmp_path: Path, symbols: list[tuple[str, str]]) -> None:

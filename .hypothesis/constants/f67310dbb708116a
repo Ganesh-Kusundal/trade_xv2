@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/auth/jwt_expiry.py
+# hypothesis_version: 6.155.7
+
+[1000, '.', '=', 'exp', 'utf-8']

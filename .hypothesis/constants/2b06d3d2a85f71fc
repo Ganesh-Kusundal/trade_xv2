@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/instruments/instrument_id.py
+# hypothesis_version: 6.155.7
+
+['%Y%m%d', ':', 'BANKNIFTY', 'BSE', 'CDS', 'CE', 'FINNIFTY', 'FUT', 'MCX', 'MIDCPNIFTY', 'NFO', 'NIFTY', 'NSE', 'PE', 'SENSEX', '^\\d{8}$', 'kind', 'strike']

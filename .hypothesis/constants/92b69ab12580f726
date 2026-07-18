@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/core/schema.py
+# hypothesis_version: 6.155.7
+
+['..', '15m', '1d', '1h', '1m', '1w', '30m', '5m', 'NIFTY100', 'NIFTY200', 'NIFTY50', 'NIFTY500', 'bar_time_ms', 'close', 'close_paisa', 'data/universes', 'event_time', 'exchange', 'high', 'high_paisa', 'ingested_at', 'is_correction', 'low', 'low_paisa', 'oi', 'open', 'open_paisa', 'published_at', 'symbol', 'timestamp', 'timestamp_ms', 'trade_count', 'trade_xv2', 'us', 'volume', 'vwap']

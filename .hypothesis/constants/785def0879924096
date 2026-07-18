@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/config/endpoints.py
+# hypothesis_version: 6.155.7
+
+['/charts/historical', '/charts/intraday', '/instruments', '/killswitch', '/marketfeed/ltp', '/marketfeed/ohlc', '/marketfeed/quote', '/marketstatus', '/optionchain', '/orders', '/sliceorder', 'NSE']

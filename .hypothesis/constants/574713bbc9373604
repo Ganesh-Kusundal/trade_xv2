@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/scanner/models.py
+# hypothesis_version: 6.155.7
+
+[0.0, 50.0, ', ', '0', '100', '50', 'COMPLETED', 'FAILED', 'IDLE', 'NSE', 'RUNNING', 'UNKNOWN', '_signal', 'base', 'candidate_count', 'candidate_id', 'close', 'composite_score', 'exchange', 'high', 'low', 'open', 'profile', 'reason', 'reasons', 'score', 'score_', 'symbol', 'timestamp', 'universe', 'volume']

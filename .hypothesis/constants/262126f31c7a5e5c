@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/mappers/_base.py
+# hypothesis_version: 6.155.7
+
+['BUY', 'COM', 'COMMODITY', 'CUR', 'CURRENCY', 'D', 'DAY', 'DELIVERY', 'EQ', 'EQUITY', 'FUT', 'FUTURE', 'FUTURES', 'I', 'IDX', 'INDEX', 'INTRADAY', 'IOC', 'LIMIT', 'LMT', 'M', 'MARGIN', 'MARKET', 'MIS', 'MKT', 'MTF', 'OPT', 'OPTION', 'OPTIONS', 'SELL', 'SL', 'SL-M', 'SLM', 'STOCK', 'STOPLOSS', 'STOPLOSS_MARKET', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'algo_name', 'is_amo', 'market_protection']

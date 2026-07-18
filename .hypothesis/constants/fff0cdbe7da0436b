@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/plugins/exchanges/nse/calendar.py
+# hypothesis_version: 6.155.7
+
+[2020, 2021, 2022, 2023, 2024, 2025, 2026, 'Asia/Kolkata', 'NSE']

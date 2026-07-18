@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/certification/market_hours.py
+# hypothesis_version: 6.155.7
+
+['1', 'FORCE_MARKET_OPEN', 'PASS', 'RELIANCE', 'WARN', 'after_market', 'auction', 'bar_count', 'closing_auction', 'history', 'holiday', 'market_hours', 'open', 'orders', 'orders_enabled', 'paper', 'pre_market', 'quote', 'subscription', 'weekend']

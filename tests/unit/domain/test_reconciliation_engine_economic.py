@@ -4,27 +4,27 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.entities import Order, Position
+from domain.entities import Position
 from domain.reconciliation_engine import ReconciliationEngine
-from domain.types import OrderStatus, OrderType, ProductType, Side, Validity
+from domain.types import OrderStatus
+from tests.fixtures.domain_helpers import make_order
 
 
-def _make_order(**overrides) -> Order:
+def _make_order(**overrides):
     defaults = {
         "order_id": "ORD-001",
         "symbol": "RELIANCE",
         "exchange": "NSE",
-        "side": Side.BUY,
-        "order_type": OrderType.LIMIT,
+        "side": "BUY",
+        "order_type": "LIMIT",
         "quantity": 10,
         "filled_quantity": 0,
         "status": OrderStatus.OPEN,
-        "product_type": ProductType.INTRADAY,
-        "validity": Validity.DAY,
-        "avg_price": Decimal("0"),
+        "product_type": "INTRADAY",
+        "validity": "DAY",
     }
     defaults.update(overrides)
-    return Order(**defaults)
+    return make_order(**defaults)
 
 
 def _make_position(**overrides) -> Position:

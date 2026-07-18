@@ -12,35 +12,33 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from domain.entities import Order, Position
-from domain.types import OrderStatus, OrderType, ProductType, Side, Validity
+from domain.entities import Position
+from domain.types import OrderStatus, OrderType, ProductType, Side
+from tests.fixtures.domain_helpers import make_order
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_order(**overrides) -> Order:
+def _make_order(**overrides):
     defaults = {
         "order_id": "O-1001",
         "symbol": "RELIANCE",
         "exchange": "NSE",
-        "side": Side.BUY,
-        "order_type": OrderType.LIMIT,
+        "side": "BUY",
+        "order_type": "LIMIT",
         "quantity": 10,
         "filled_quantity": 0,
         "price": Decimal("2500"),
         "trigger_price": Decimal("0"),
         "status": OrderStatus.OPEN,
-        "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc),
-        "product_type": ProductType.INTRADAY,
-        "validity": Validity.DAY,
-        "avg_price": Decimal("0"),
-        "reject_reason": "",
+        "product_type": "INTRADAY",
+        "validity": "DAY",
         "correlation_id": "corr-1",
     }
     defaults.update(overrides)
-    return Order(**defaults)
+    return make_order(**defaults)
 
 
 def _make_position(**overrides) -> Position:

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/idempotency/memory_cache.py
+# hypothesis_version: 6.155.7
+
+[0.0, 10000, 'CacheEntry', 'T', 'default_ttl_seconds', 'evictions', 'hit_rate', 'hits', 'max_size', 'memory', 'misses', 'size', 'type']

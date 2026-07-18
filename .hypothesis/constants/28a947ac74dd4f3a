@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/analytics/features.py
+# hypothesis_version: 6.155.7
+
+[-100.0, 0.0, 0.015, 0.34, 0.5, 1.0, 1.34, 2.0, 3.0, 100.0, 100, 252, 'adx', 'atr_14', 'bb_bandwidth', 'bb_lower', 'bb_mid', 'bb_pct_b', 'bb_upper', 'cci_20', 'close', 'gk_vol', 'high', 'hvol_20', 'low', 'macd', 'macd_histogram', 'macd_signal', 'minus_di', 'nan', 'obv', 'open', 'parkinson_vol', 'plus_di', 'price_range', 'roc_10', 'roc_20', 'roc_5', 'rsi', 'rsi_14', 'rsi_7', 'rsi_overbought', 'rsi_oversold', 'stoch_d', 'stoch_k', 'timestamp', 'volume', 'vwap_dev_20', 'williams_r_14', 'yz_vol', 'zscore_20']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/datalake/quality/monitor.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.05, 0.15, 0.8, 1.0, 7.0, 10.0, 80.0, 100, '  - %s', '%s [%s]', '-', '15m', '1m', '30m', '5m', '=', 'Date Range: %s to %s', 'FAIL', 'No errors', 'OK', 'OVERVIEW', 'PASS', 'Total Candles: %d', 'Total Symbols: %d', 'WARN', 'WARNING', '[%s] %s: %s', 'avg_candles_per_day', 'catalog.duckdb', 'completeness', 'data.parquet', 'days_old', 'freshness', 'health_score', 'last_date', 'ohlc_errors', 'ohlc_integrity', 'symbol', 'symbol=*', 'symbols_fail', 'symbols_pass', 'symbols_warning', 'total_candles', 'zero_volume']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/entities/options.py
+# hypothesis_version: 6.155.7
+
+['0', 'NFO', 'OPTION', 'ask', 'bid', 'call', 'contracts', 'exchange', 'expiries', 'expiry', 'greeks', 'instrument_key', 'iv', 'lot_size', 'ltp', 'oi', 'put', 'spot', 'strike', 'strikes', 'symbol', 'trading_symbol', 'underlying', 'volume']

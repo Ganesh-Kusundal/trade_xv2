@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/upstox/data_provider.py
+# hypothesis_version: 6.155.7
+
+[120, '%Y-%m-%d', '1D', 'ask', 'ask_price', 'bid', 'bid_price', 'empty', 'exchange', 'full', 'future_chain', 'get_history_series', 'history', 'last_price', 'ltp', 'ltpc', 'oi', 'option_chain', 'quote_batch', 'stop', 'stream', 'stream_depth', 'symbol', 'underlying', 'upstox', 'upstox.history', 'volume']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/strategy/registry.py
+# hypothesis_version: 6.155.7
+
+[0.05, 0.3, 100, 5000, '1min', '2026-01-02 09:15', '50', 'GOLDEN', '__path__', 'close', 'high', 'low', 'open', 'timestamp', 'volume']

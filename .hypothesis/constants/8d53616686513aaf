@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/services/_session.py
+# hypothesis_version: 6.155.7
+
+['LIVE_BROKERS', 'RELIANCE', '_borrow_session', '_open', 'authenticated', 'broker_id', 'checkpoints', 'connected', 'detail', 'dhan', 'extensions', 'instruments_loaded', 'mode', 'name', 'ok', 'orders_enabled', 'paper', 'run_connect', 'status_from_session', 'upstox']

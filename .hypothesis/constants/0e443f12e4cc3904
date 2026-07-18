@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/infrastructure/connection/bootstrap_result.py
+# hypothesis_version: 6.155.7
+
+['BootstrapResult', 'BootstrapStatus', '_auth', '_broker', '_client', '_conn', '_state', 'access_token', 'analytics_token', 'classify_exception', 'client', 'dhan', 'paper', 'settings', 'token_manager', 'upstox']

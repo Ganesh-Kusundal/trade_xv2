@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/common/recon_local.py
+# hypothesis_version: 6.155.7
+
+['NSE', 'average_price', 'avg_price', 'exchange', 'exchange_segment', 'filled_quantity', 'net_quantity', 'order_id', 'order_type', 'price', 'product_type', 'quantity', 'side', 'status', 'symbol', 'trading_symbol']

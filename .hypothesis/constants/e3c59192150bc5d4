@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/oms/position_manager.py
+# hypothesis_version: 6.155.7
+
+[0.0, 10000, '0', 'Decimal', 'NSE', 'apply_trade', 'average_price', 'avg_price', 'buy_average_price', 'exchange', 'exchange_segment', 'last_price', 'ltp', 'net_pnl', 'net_quantity', 'pnl', 'position', 'position_updated', 'quantity', 'realized_pnl', 'symbol', 'trading_symbol', 'unrealized_pnl']

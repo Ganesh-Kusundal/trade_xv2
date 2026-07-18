@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/capabilities/enums.py
+# hypothesis_version: 6.155.7
+
+['CONNECTED', 'CONNECTING', 'DISCONNECTED', 'RECONNECTING', 'alerts', 'amo_order', 'cover_order', 'depth', 'depth_20', 'depth_200', 'depth_30', 'exit_all', 'fii_dii', 'fundamentals', 'futures', 'global_markets', 'gtt_order', 'historical_data', 'historical_trades', 'idempotency', 'instrument_search', 'instruments', 'ipo', 'kill_switch', 'level2_market_data', 'margin', 'market_data', 'market_intelligence', 'market_status', 'mtf', 'multi_order', 'mutual_funds', 'news', 'oi_pcr_maxpain', 'option_greeks', 'options_chain', 'order_command', 'order_query', 'order_slicing', 'order_stream', 'payments', 'portfolio', 'portfolio_stream', 'session_risk', 'slice_order', 'smartlist', 'static_ip', 'trailing_stop_loss', 'volatility_index', 'webhooks', 'websocket']

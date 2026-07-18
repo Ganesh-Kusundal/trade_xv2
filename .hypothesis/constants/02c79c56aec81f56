@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/dhan/resilience/circuit_breaker.py
+# hypothesis_version: 6.155.7
+
+[30000, 'admin', 'dhan-admin', 'dhan-market-data', 'dhan-orders', 'dhan-portfolio', 'market_data', 'orders', 'portfolio']

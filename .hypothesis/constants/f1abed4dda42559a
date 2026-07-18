@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/instruments/display_names.py
+# hypothesis_version: 6.155.7
+
+[':', 'APR', 'AUG', 'BANKEX', 'BANKNIFTY', 'BFO', 'BSE', 'C', 'CALL', 'CE', 'COPPER', 'CRUDEOIL', 'DEC', 'Empty display name', 'FEB', 'FINNIFTY', 'GOLD', 'JAN', 'JUL', 'JUN', 'MAR', 'MAY', 'MCX', 'MIDCPNIFTY', 'NATURALGAS', 'NFO', 'NICKEL', 'NIFTY', 'NOV', 'NSE', 'OCT', 'P', 'PE', 'PUT', 'SENSEX', 'SEP', 'SEPT', 'SILVER', 'ZINC', '^[A-Z][A-Z0-9]*$', 'day', 'mon', 'right', 'strike', 'underlying', 'year']

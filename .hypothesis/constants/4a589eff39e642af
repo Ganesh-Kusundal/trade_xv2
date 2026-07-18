@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/analytics/replay/signal_processor.py
+# hypothesis_version: 6.155.7
+
+[0.0, 100, 'BUY', 'NSE', 'SELL', 'close', 'open', 'replay_signal', 'simulated_signal']

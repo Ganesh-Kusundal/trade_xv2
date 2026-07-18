@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/brokers/common/capabilities_validator.py
+# hypothesis_version: 6.155.7
+
+['cancel_order', 'depth', 'holdings', 'modify_order', 'positions', 'stream_depth', 'stream_order', 'supports_depth', 'supports_holdings', 'supports_positions']

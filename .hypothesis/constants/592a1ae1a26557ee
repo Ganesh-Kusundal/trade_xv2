@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/domain/capabilities/broker_capabilities.py
+# hypothesis_version: 6.155.7
+
+['AssetKind | str', 'BrokerCapabilities', 'CapabilityDescriptor', 'MarketCoverage', 'RateLimitProfile', 'StreamLimitProfile', 'medium', 'tier2']

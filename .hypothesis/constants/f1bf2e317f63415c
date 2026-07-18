@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/data/gap_detector.py
+# hypothesis_version: 6.155.7
+
+['all_failed', 'missing_chunk', 'missing_from_end', 'missing_from_start']

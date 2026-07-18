@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/.worktrees/wave5-test/src/application/services/download_engine.py
+# hypothesis_version: 6.155.7
+
+[0.0, 1.0, 5.0, 30.0, 365, 3650, '15m', '1D', '1h', '1m', '30m', '5m', 'Cache failed: %s', 'Cached %d rows to %s', 'NSE', '_', 'capabilities', 'close', 'coerce', 'exchange', 'high', 'last', 'low', 'max_daily_days', 'max_intraday_days', 'open', 'parquet', 'snappy', 'symbol', 'timeframe', 'timestamp', 'volume']
