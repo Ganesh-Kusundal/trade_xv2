@@ -100,7 +100,7 @@ class StreamLimitProfile:
 class BrokerCapabilities:
     """Runtime capability matrix for a single broker connection.
 
-    Returned by ``CommonBrokerGateway.list_capabilities()`` and cached in
+    Returned by ``BrokerAdapter.list_capabilities()`` and cached in
     ``BrokerRegistry``.  All routing and feature-gating decisions must go
     through this object — never through ``if broker_id == "dhan"`` branches.
 

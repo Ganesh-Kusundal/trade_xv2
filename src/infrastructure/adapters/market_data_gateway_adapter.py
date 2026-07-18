@@ -1,4 +1,4 @@
-"""Wrap sync MarketDataGateway instances as CommonBrokerGateway adapters."""
+"""Wrap sync MarketDataGateway instances as BrokerAdapter adapters."""
 
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ class _GatewayStreamHandle:
 
 
 class MarketDataGatewayAdapter:
-    """Adapts a legacy ``MarketDataGateway`` to ``CommonBrokerGateway``."""
+    """Adapts a legacy ``MarketDataGateway`` to ``BrokerAdapter``."""
 
     def __init__(
         self,
@@ -345,7 +345,7 @@ def wrap_market_gateway(
     capabilities: BrokerCapabilities | None = None,
     extensions: frozenset[str] | None = None,
 ) -> MarketDataGatewayAdapter:
-    """Wrap a legacy gateway as CommonBrokerGateway."""
+    """Wrap a legacy gateway as BrokerAdapter."""
     return MarketDataGatewayAdapter(
         gateway,
         broker_id,

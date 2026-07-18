@@ -5,7 +5,7 @@ interface so BrokerService can call either factory polymorphically.
 
 .. note::
     This factory returns ``MarketDataGateway`` (the legacy ABC). To use the
-    new ``CommonBrokerGateway`` Protocol, wrap the result with
+    new ``BrokerAdapter`` Protocol, wrap the result with
     ``infrastructure.adapters.wrap_market_gateway()``.  See
     ``brokers.common.bootstrap`` for the full wiring sequence.
 """

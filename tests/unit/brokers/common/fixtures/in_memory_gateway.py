@@ -71,7 +71,7 @@ class InMemoryStreamHandle:
 
 
 class InMemoryBrokerGateway:
-    """Configurable in-memory gateway implementing CommonBrokerGateway."""
+    """Configurable in-memory gateway implementing BrokerAdapter."""
 
     def __init__(
         self,

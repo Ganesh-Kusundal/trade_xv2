@@ -13,7 +13,7 @@ This is a standalone component — not embedded in any gateway.  It owns:
 The system gets historical data faster by using both brokers' quotas in
 parallel where the date range can be partitioned cleanly.
 
-Architecture invariant: the coordinator calls ``CommonBrokerGateway.get_historical_bars()``
+Architecture invariant: the coordinator calls ``BrokerAdapter.get_historical_bars()``
 on individual gateways.  It does not call gateway.history() or any internal
 adapter method.  Provenance survives every step.
 

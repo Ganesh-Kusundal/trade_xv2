@@ -1,7 +1,7 @@
 """Broker extension bundle and factory registry.
 
 Typed interfaces for broker-specific capabilities that are not part of the
-universal ``CommonBrokerGateway`` contract.  Callers acquire them through
+universal ``BrokerAdapter`` contract.  Callers acquire them through
 ``BrokerExtensionRegistry.require()`` — never through downcasts or isinstance
 checks — so broker-specific power stays available without infecting common code.
 
