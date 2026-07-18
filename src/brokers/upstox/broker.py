@@ -15,6 +15,7 @@ while the public attribute surface is unchanged for backward compatibility.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from domain import Capability, ConnectionStatus
@@ -24,6 +25,13 @@ from infrastructure.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.upstox.capabilities import (
+    InstrumentsCapability,
+    MarketDataCapability,
+    OrdersCapability,
+    PortfolioCapability,
+    StreamingCapability,
+)
 from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
 from brokers.upstox.instruments.search import UpstoxInstrumentSearch
 from brokers.upstox.instruments.service import UpstoxInstrumentService
@@ -74,6 +82,17 @@ from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _UpstoxCapabilities:
+    """Broker capabilities snapshot — constructed once, cached by the broker."""
+
+    market_data: MarketDataCapability
+    orders: OrdersCapability
+    portfolio: PortfolioCapability
+    instruments: InstrumentsCapability
+    streaming: StreamingCapability
 
 
 class UpstoxBroker:
@@ -154,6 +173,10 @@ class UpstoxBroker:
         )
 
         self._register_all_capabilities()
+
+        # Eagerly construct the capabilities dataclass so the property
+        # doesn't rebuild it on every access.
+        self._capabilities_obj: Any = None
 
     # ── REF-23: bundle helpers ──────────────────────────────────────────
 
@@ -365,25 +388,10 @@ class UpstoxBroker:
 
     @property
     def capabilities(self) -> Any:
+        if self._capabilities_obj is not None:
+            return self._capabilities_obj
         self._ensure_extended()
-        from dataclasses import dataclass
-        from brokers.upstox.capabilities import (
-            InstrumentsCapability,
-            MarketDataCapability,
-            OrdersCapability,
-            PortfolioCapability,
-            StreamingCapability,
-        )
-
-        @dataclass(frozen=True)
-        class _UpstoxCapabilities:
-            market_data: MarketDataCapability
-            orders: OrdersCapability
-            portfolio: PortfolioCapability
-            instruments: InstrumentsCapability
-            streaming: StreamingCapability
-
-        return _UpstoxCapabilities(
+        self._capabilities_obj = _UpstoxCapabilities(
             market_data=MarketDataCapability(
                 market_data=self.market_data,
                 market_data_v2=self.market_data_v2,
@@ -423,6 +431,7 @@ class UpstoxBroker:
                 market_data_websocket=self.market_data_websocket,
             ),
         )
+        return self._capabilities_obj
 
     @property
     def token_manager(self) -> UpstoxTokenManager:

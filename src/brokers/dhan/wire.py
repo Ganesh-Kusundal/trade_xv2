@@ -395,8 +395,9 @@ class DhanWireAdapter:
         exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
         expiry: str | None = None,
     ) -> dict:
-        """Get option chain. Delegates MCX-specific expiry lookup to extended."""
-        return self.extended.get_option_chain(underlying, exchange, expiry)
+        """Get option chain. Delegates MCX-specific expiry lookup to data sub-facade."""
+        from brokers.dhan.extended_data import DhanDataCapabilities
+        return DhanDataCapabilities(self._conn).get_option_chain(underlying, exchange, expiry)
 
     def future_chain(
         self,
