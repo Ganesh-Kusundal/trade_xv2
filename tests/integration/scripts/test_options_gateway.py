@@ -31,7 +31,7 @@ def test_dhan_options_via_gateway():
     try:
         import time
 
-        from infrastructure.config.env_loader import load_env_file
+        from infrastructure.io.environment_bootstrap import load_env_file
         from infrastructure.gateway.factory import bootstrap_gateway
 
         env_path = Path(".env.local")
@@ -164,7 +164,7 @@ def test_upstox_options_via_gateway():
     try:
         import time
 
-        from infrastructure.config.env_loader import load_env_file
+        from infrastructure.io.environment_bootstrap import load_env_file
         from infrastructure.gateway.factory import bootstrap_gateway
 
         env_path = Path(".env.upstox")

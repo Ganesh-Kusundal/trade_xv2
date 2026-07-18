@@ -16,7 +16,7 @@ import os
 
 import pytest
 
-from infrastructure.auth.environment_bootstrap import bootstrap_environment
+from infrastructure.io.environment_bootstrap import bootstrap_environment
 from infrastructure.connection.bootstrap_result import BootstrapStatus
 from tests.integration.auth_gates import (
     REPO_ROOT,

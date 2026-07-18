@@ -16,7 +16,7 @@ sys.path.insert(0, str(_ROOT))
 
 from rich.console import Console
 
-from infrastructure.config.env_loader import load_env_file
+from infrastructure.io.environment_bootstrap import load_env_file
 
 console = Console()
 

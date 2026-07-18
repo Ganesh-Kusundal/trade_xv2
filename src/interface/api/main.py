@@ -299,7 +299,7 @@ def create_app(
         register_oms_backtest_factory,
         register_trading_context_factory,
     )
-    from infrastructure.event_bus.factory import create_domain_event
+    from domain.runtime_hooks import create_domain_event
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)

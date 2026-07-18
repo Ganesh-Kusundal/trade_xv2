@@ -22,7 +22,7 @@ from infrastructure.resilience.circuit_breaker import (
     CircuitState,
 )
 from infrastructure.resilience.errors import RetryableError
-from infrastructure.resilience.retry import RetryConfig, RetryExecutor
+from infrastructure.resilience.retry_executor import RetryConfig, RetryExecutor
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 

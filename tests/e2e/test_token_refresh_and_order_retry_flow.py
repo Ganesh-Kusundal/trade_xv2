@@ -197,7 +197,7 @@ def test_retry_executor_backoff(fast_exp_backoff: ExponentialBackoff) -> None:
 
     captured_delays: list[float] = []
 
-    with patch("infrastructure.resilience.retry.time.sleep") as mock_sleep:
+    with patch("infrastructure.resilience.retry_executor.time.sleep") as mock_sleep:
         mock_sleep.side_effect = lambda d: captured_delays.append(d)
         result = executor.execute(lambda: broker.place_order(None))
 
