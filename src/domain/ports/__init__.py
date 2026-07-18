@@ -15,7 +15,6 @@ from domain.ports.exchange_calendar import TradingCalendar
 from domain.ports.execution_ledger import ExecutionLedgerPort
 from domain.ports.lifecycle import LifecycleManagerPort, ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
-from domain.ports.market_data import MarketDataPort
 from domain.ports.metrics import MetricsRegistryPort
 from domain.ports.observability import AlertingEnginePort, EventMetricsPort
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
@@ -44,7 +43,6 @@ __all__ = [
     "LifecycleManagerPort",
     "ManagedServicePort",
     "MarginProviderPort",
-    "MarketDataPort",
     "MetricsRegistryPort",
     "OmsBacktestAdapterPort",
     "OrderResult",

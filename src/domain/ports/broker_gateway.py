@@ -1,4 +1,4 @@
-"""CommonBrokerGateway — alias for domain ``BrokerAdapter``.
+"""Supporting transport types for broker gateways.
 
 Product code should prefer the narrow domain ports and the object API::
 
@@ -12,9 +12,8 @@ Concrete ``*BrokerGateway`` classes under ``brokers/{dhan,upstox,paper}`` are
 :class:`~domain.ports.protocols.DataProvider` and
 :class:`~domain.ports.protocols.ExecutionProvider`, not on gateway classes.
 
-``CommonBrokerGateway`` / ``MarketDataGateway`` names remain as compatibility
-aliases for ``domain.ports.broker_adapter.BrokerAdapter`` during the shim
-migration (Wave A — see ``reports/BROKERS_EVOLUTION_PLAN.md``).
+Use :class:`~domain.ports.broker_adapter.BrokerAdapter` as the canonical
+broker interface.
 """
 
 from __future__ import annotations
@@ -22,23 +21,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
-from domain.ports.broker_adapter import BrokerAdapter
-
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
 from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
-
-# ---------------------------------------------------------------------------
-# CommonBrokerGateway — re-exported from domain.ports.broker_adapter
-# ---------------------------------------------------------------------------
-
-CommonBrokerGateway = BrokerAdapter
-"""Universal broker port — alias for ``BrokerAdapter``.
-
-All broker adapters must satisfy this protocol.  See
-``domain.ports.broker_adapter.BrokerAdapter`` for the canonical definition.
-"""
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +38,7 @@ class OrderTransportPort(Protocol):
 
     Defined here in ``domain.ports.broker_gateway`` so the OMS (and its
     tests) can depend on this protocol without pulling in broker-specific
-    transports or the full ``CommonBrokerGateway``.
+    transports or the full ``BrokerAdapter``.
 
     All broker adapters and fake gateways implement this protocol.
     """
@@ -114,7 +100,7 @@ class BrokerStreamPlan:
 
 
 class HistoricalBarRequest:
-    """Input to CommonBrokerGateway.get_historical_bars — a single-broker request.
+    """Input to BrokerAdapter.get_historical_bars — a single-broker request.
 
     The HistoricalDataCoordinator creates these from a larger federated query
     after range clipping and chunking.

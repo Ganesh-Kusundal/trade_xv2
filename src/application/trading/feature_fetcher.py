@@ -11,7 +11,7 @@ import pandas as pd
 
 from domain.candles.historical import HistoricalSeries
 from domain.models.features import FeatureSet
-from domain.ports import MarketDataPort
+from domain.ports.protocols import DataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class PipelineFeatureFetcher:
     def __init__(
         self,
         pipeline: Any,
-        market_data: MarketDataPort | None = None,
+        market_data: DataProvider | None = None,
         gateway: object | None = None,
         lookback_bars: int = 200,
         cache_max_entries: int = _DEFAULT_CACHE_MAX,

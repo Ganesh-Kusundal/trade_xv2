@@ -11,7 +11,7 @@ import logging
 import threading
 from collections.abc import Callable
 
-from domain.ports.broker_gateway import CommonBrokerGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
 from domain.errors import BrokerUnavailableError
 from domain.extensions.broker_bundle import ExtensionBundle, ExtensionRegistry
@@ -39,7 +39,7 @@ class BrokerRegistry:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._gateways: dict[str, CommonBrokerGateway] = {}
+        self._gateways: dict[str, BrokerAdapter] = {}
         self._capabilities: dict[str, CapabilityDescriptor] = {}
         self._health: dict[str, BrokerHealthSnapshot] = {}
         self._stream_summaries: dict[str, StreamStateSummary] = {}
@@ -51,7 +51,7 @@ class BrokerRegistry:
 
     def register(
         self,
-        gateway: CommonBrokerGateway,
+        gateway: BrokerAdapter,
         bundle: ExtensionBundle | None = None,
     ) -> None:
         """Register a broker gateway (and optionally its extension bundle).
@@ -91,7 +91,7 @@ class BrokerRegistry:
     # Reads
     # ------------------------------------------------------------------
 
-    def get_gateway(self, broker_id: str) -> CommonBrokerGateway:
+    def get_gateway(self, broker_id: str) -> BrokerAdapter:
         """Return the gateway for the given broker_id.
 
         Raises ``BrokerUnavailableError`` if the broker is not registered or

@@ -21,7 +21,7 @@ import pandas as pd
 from domain.entities.options import FutureChain, OptionChain
 from domain.entities.market import MarketDepth
 from domain.instruments.instrument_id import InstrumentId
-from domain.ports.protocols import Subscription
+from domain.ports.protocols import SubscriptionHandle
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class FallbackDataProvider:
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
-    ) -> Subscription:
+    ) -> SubscriptionHandle:
         for provider in self._providers:
             try:
                 result = provider.subscribe(instrument_id, callback, depth=depth)
@@ -142,7 +142,7 @@ class FallbackDataProvider:
                 logger.debug("Provider %s failed for subscribe(%s): %s", provider.name, instrument_id, exc)
         return _NullSubscription()
 
-    def unsubscribe(self, subscription: Subscription) -> None:
+    def unsubscribe(self, subscription: SubscriptionHandle) -> None:
         subscription.unsubscribe()
 
     def history_batch(

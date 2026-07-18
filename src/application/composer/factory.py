@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from application.data.historical_coordinator import HistoricalDataCoordinator
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.source_selection import SourceSelectionPolicy
-    from domain.ports.broker_gateway import CommonBrokerGateway
+    from domain.ports.broker_adapter import BrokerAdapter
     from domain.ports.broker_infrastructure import BrokerInfrastructurePort
 
 from application.composer.execution import ExecutionComposer
@@ -390,7 +390,7 @@ def create_composers_from_infra(
 
 
 def create_composers(
-    gateways: list[CommonBrokerGateway],
+    gateways: list[BrokerAdapter],
     policy: SourceSelectionPolicy | None = None,
     quota_scheduler: QuotaScheduler | None = None,
     risk_manager: Any | None = None,
@@ -509,7 +509,7 @@ def create_composers(
 
 
 def create_market_data_composer(
-    gateways: list[CommonBrokerGateway],
+    gateways: list[BrokerAdapter],
     policy: SourceSelectionPolicy | None = None,
 ) -> MarketDataComposer:
     """Create only MarketDataComposer (for read-only market data use cases)."""
@@ -518,7 +518,7 @@ def create_market_data_composer(
 
 
 def create_execution_composer(
-    gateways: list[CommonBrokerGateway],
+    gateways: list[BrokerAdapter],
     policy: SourceSelectionPolicy | None = None,
     quota_scheduler: QuotaScheduler | None = None,
 ) -> ExecutionComposer:

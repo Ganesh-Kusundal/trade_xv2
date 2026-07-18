@@ -64,29 +64,6 @@ class ExchangeAdapter(Protocol):
         ...
 
 
-@runtime_checkable
-class ExchangeAdapterPort(Protocol):
-    """Protocol for exchange-specific behavior (trading hours/days)."""
-
-    @property
-    def exchange_code(self) -> str:
-        """Exchange identifier (e.g., 'NSE', 'BSE', 'MCX')."""
-        ...
-
-    @property
-    def timezone(self) -> ZoneInfo:
-        """Exchange local timezone."""
-        ...
-
-    def is_trading_hours(self, now: datetime) -> bool:
-        """Check if *now* falls within regular trading hours."""
-        ...
-
-    def is_trading_day(self, now: datetime) -> bool:
-        """Check if *now*'s date is a trading day."""
-        ...
-
-
 # Backward-compatible re-exports — concrete adapters moved to
 # domain.market.exchange_adapters. Import from there in new code.
 import warnings as _warnings

@@ -12,7 +12,6 @@ from typing import Any
 
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
-from domain.ports.broker_transport import BrokerTransport
 from domain.ports.protocols import ExecutionProvider, OrderResult
 
 
@@ -100,8 +99,8 @@ class DhanOrderTransport(ExecutionProvider):
         return self._gateway.funds()
 
 
-class DhanTransport(BrokerTransport):
-    """Concrete Dhan broker plugin behind the domain BrokerTransport port."""
+class DhanTransport:
+    """Concrete Dhan broker plugin — wraps gateway behind domain-shaped properties."""
 
     def __init__(self, gateway: Any) -> None:
         self._gateway = gateway

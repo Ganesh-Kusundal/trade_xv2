@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from application.oms.context import TradingContext
-from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from infrastructure.lifecycle import LifecycleManager
 
 if TYPE_CHECKING:

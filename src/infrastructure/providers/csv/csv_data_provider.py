@@ -17,7 +17,7 @@ import pandas as pd
 from domain.entities.options import FutureChain, OptionChain
 from domain.entities.market import MarketDepth
 from domain.instruments.instrument_id import InstrumentId
-from domain.ports.protocols import Subscription
+from domain.ports.protocols import SubscriptionHandle
 
 logger = logging.getLogger(__name__)
 
@@ -171,11 +171,11 @@ class CsvDataProvider:
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
-    ) -> Subscription:
+    ) -> SubscriptionHandle:
         """CSV data does not support live subscriptions."""
         return _NullSubscription()
 
-    def unsubscribe(self, subscription: Subscription) -> None:
+    def unsubscribe(self, subscription: SubscriptionHandle) -> None:
         """No-op for CSV data."""
         pass
 

@@ -59,10 +59,6 @@ class SubscriptionHandle(Protocol):
         ...
 
 
-# Backward-compatible alias — old code imports ``Subscription``.
-Subscription = SubscriptionHandle
-
-
 @runtime_checkable
 class DataProvider(Protocol):
     """Central data-access protocol.

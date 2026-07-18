@@ -23,7 +23,7 @@ from fastapi import HTTPException, status
 
 from domain.exceptions import LiveBrokerBlockedError
 from domain.ports.event_publisher import EventBusPort
-from domain.ports.market_data import MarketDataPort
+from domain.ports.protocols import DataProvider
 from domain.ports.order_service import OrderServicePort
 from domain.ports.risk_manager import RiskManagerPort
 from application.oms.live_order_authority import RiskRejectedError, authorize_live_order
@@ -219,7 +219,7 @@ def get_broker_service() -> Any:
     return di_container.resolve("broker_service")
 
 
-def get_market_data_composer() -> MarketDataPort:
+def get_market_data_composer() -> DataProvider:
     """Get MarketDataComposer for unified multi-broker historical/streaming data.
 
     Raises 503 if not initialized.

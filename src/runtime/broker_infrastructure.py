@@ -37,7 +37,7 @@ from application.streaming.orchestrator import StreamOrchestrator
 from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain.extensions.broker_bundle import ExtensionBundle, ExtensionRegistry
 from domain.policies.source_selection import SourceSelectionPolicy
-from domain.ports.broker_gateway import CommonBrokerGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_id import BrokerId
 
 
@@ -66,7 +66,7 @@ class BrokerInfrastructure:
     streams: StreamOrchestrator
     extensions: ExtensionRegistry
 
-    def gateway_for(self, broker_id: str | BrokerId) -> CommonBrokerGateway:
+    def gateway_for(self, broker_id: str | BrokerId) -> BrokerAdapter:
         """Return a gateway by broker_id — for explicit single-broker use cases."""
         return self.registry.get_gateway(broker_id)
 
@@ -76,7 +76,7 @@ class BrokerInfrastructure:
 
 
 def build_infrastructure(
-    gateways: Sequence[CommonBrokerGateway],
+    gateways: Sequence[BrokerAdapter],
     policy: SourceSelectionPolicy,
     bundles: dict[str, ExtensionBundle] | None = None,
     *,

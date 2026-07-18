@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from domain.ports.event_publisher import EventBusPort
     from domain.instruments.instrument_id import InstrumentId
-    from domain.ports.protocols import Subscription as ProviderSubscription
+    from domain.ports.protocols import SubscriptionHandle as ProviderSubscription
 
 
 class Subscription:

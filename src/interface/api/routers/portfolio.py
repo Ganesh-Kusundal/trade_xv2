@@ -25,7 +25,6 @@ from interface.api.schemas import (
     PositionsResponse,
 )
 from application.portfolio.portfolio_service import PortfolioService
-from domain.repositories import PositionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ async def get_holdings():
 
 @router.get("/summary", response_model=PortfolioSummary)
 async def get_portfolio_summary(
-    position_repo: PositionRepository = Depends(get_position_repository),
+    position_repo = Depends(get_position_repository),
     risk_manager=Depends(get_risk_manager),
 ):
     """Get portfolio summary with key metrics.
@@ -193,7 +192,7 @@ async def get_pnl_history(
     to_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     group_by: str = Query("day", description="Group by: day, week, month"),
     journal=Depends(get_trade_journal),
-    position_repo: PositionRepository = Depends(get_position_repository),
+    position_repo = Depends(get_position_repository),
 ):
     """Get historical P&L curve.
 

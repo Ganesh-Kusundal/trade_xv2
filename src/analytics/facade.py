@@ -91,8 +91,7 @@ class Analytics:
 
         This is the recommended entry point for notebook / CLI usage.
         All historical data flows through
-        :class:`~datalake.adapters.analytics_provider.DataLakeMarketDataProvider`,
-        which implements :class:`~domain.ports.market_data.MarketDataPort`.
+        :class:`~datalake.adapters.analytics_provider.DataLakeMarketDataProvider`.
         """
         from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
 

@@ -88,7 +88,6 @@ def test_core_domain_modules_import_without_prior_pandas() -> None:
             "domain.indicators.indicators",
             "domain.services.history",
             "domain.services.analytics",
-            "domain.ports.market_data",
             "domain.ports.protocols",
         ]
         for modname in core:

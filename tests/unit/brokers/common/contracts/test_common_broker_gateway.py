@@ -1,7 +1,7 @@
-"""CommonBrokerGateway — contract tests verifying the async v2 protocol.
+"""BrokerAdapter — contract tests verifying the async v2 protocol.
 
 Subclasses must provide a ``gateway`` fixture returning an object that
-satisfies :class:`~brokers.common.broker_port.CommonBrokerGateway`.
+satisfies :class:`~domain.ports.broker_adapter.BrokerAdapter`.
 """
 
 from __future__ import annotations
@@ -10,11 +10,11 @@ from typing import Any
 
 import pytest
 
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
     BrokerStreamPlan,
-    CommonBrokerGateway,
     HistoricalBarRequest,
     QuotaToken,
 )
@@ -24,13 +24,13 @@ from domain.entities.market import MarketDepth
 from domain.candles.historical import HistoricalBar, InstrumentRef
 
 
-class CommonBrokerGatewayContractSuite:
-    """Contract tests for any CommonBrokerGateway implementation."""
+class BrokerAdapterContractSuite:
+    """Contract tests for any BrokerAdapter implementation."""
 
     @pytest.fixture
-    def gateway(self) -> CommonBrokerGateway:
+    def gateway(self) -> BrokerAdapter:
         raise NotImplementedError(
-            "gateway fixture must return a CommonBrokerGateway implementation"
+            "gateway fixture must return a BrokerAdapter implementation"
         )
 
     @pytest.fixture
@@ -45,7 +45,7 @@ class CommonBrokerGatewayContractSuite:
     # ── Protocol conformance ──────────────────────────────────────────────
 
     def test_gateway_satisfies_protocol(self, gateway: Any) -> None:
-        assert isinstance(gateway, CommonBrokerGateway)
+        assert isinstance(gateway, BrokerAdapter)
 
     def test_has_broker_id(self, gateway: Any) -> None:
         assert hasattr(gateway, "broker_id")
@@ -166,12 +166,12 @@ class CommonBrokerGatewayContractSuite:
         gateway.close()
 
 
-class _MockCommonBrokerGateway(CommonBrokerGateway):
+class _MockBrokerAdapter(BrokerAdapter):
     """Minimal stand-in for protocol conformance testing.
 
-    Subclasses the runtime-checkable ``CommonBrokerGateway`` (alias of
+    Subclasses the runtime-checkable ``BrokerAdapter`` (alias of
     ``BrokerAdapter``) and implements every protocol member so
-    ``isinstance(..., CommonBrokerGateway)`` holds.
+    ``isinstance(..., BrokerAdapter)`` holds.
     """
 
     broker_id = "mock"
@@ -351,10 +351,10 @@ class _MockCommonBrokerGateway(CommonBrokerGateway):
         pass
 
 
-class TestCommonBrokerGatewayContract(CommonBrokerGatewayContractSuite):
+class TestBrokerAdapterContract(BrokerAdapterContractSuite):
     @pytest.fixture
-    def gateway(self) -> CommonBrokerGateway:
-        return _MockCommonBrokerGateway()
+    def gateway(self) -> BrokerAdapter:
+        return _MockBrokerAdapter()
 
     @pytest.fixture
     def quota_token(self) -> QuotaToken:

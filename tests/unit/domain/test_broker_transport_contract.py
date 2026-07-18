@@ -1,8 +1,8 @@
-"""Cross-broker BrokerTransport contract — the shared spec every plugin must pass.
+"""Cross-broker BrokerAdapter contract — the shared spec every plugin must pass.
 
-Subclass ``_BrokerTransportContract`` (prefix ``_`` so pytest does not collect
-the base) and implement ``build_transport`` with a concrete broker transport.
-The inherited tests then prove the transport conforms to the domain's broker
+Subclass ``_BrokerAdapterContract`` (prefix ``_`` so pytest does not collect
+the base) and implement ``build_transport`` with a concrete broker adapter.
+The inherited tests then prove the adapter conforms to the domain's broker
 port across all six surfaces (market / orders / portfolio / historical /
 streaming / capabilities) — the enforceable parity the roadmap requires.
 """
@@ -14,7 +14,6 @@ from decimal import Decimal
 from domain.capabilities import Capability
 from domain.instruments.instrument_id import InstrumentId
 from domain.orders.requests import OrderRequest
-from domain.ports.broker_transport import BrokerTransport
 from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult
 from tests.unit.domain._fakes import FakeProvider
 from domain.types import OrderType, ProductType, Side
@@ -50,7 +49,7 @@ class FakeExecutionProvider:
         return None
 
 
-class FakeTransport(BrokerTransport):
+class FakeTransport:
     """Reference transport backed by in-memory fakes."""
 
     def __init__(self) -> None:
@@ -73,14 +72,17 @@ class FakeTransport(BrokerTransport):
     def capabilities(self) -> list[Capability]:
         return [Capability.MARKET_DATA, Capability.ORDER_COMMAND, Capability.OPTIONS_CHAIN]
 
+    def supports(self, cap: Capability) -> bool:
+        return cap in self.capabilities()
+
     def close(self) -> None:
         pass
 
 
-class _BrokerTransportContract:
-    """Shared BrokerTransport conformance contract (not collected directly)."""
+class _BrokerAdapterContract:
+    """Shared BrokerAdapter conformance contract (not collected directly)."""
 
-    def build_transport(self) -> BrokerTransport:
+    def build_transport(self) -> object:
         raise NotImplementedError
 
     def test_name_present(self) -> None:
@@ -122,6 +124,6 @@ class _BrokerTransportContract:
         assert res.success is True
 
 
-class TestFakeTransportContract(_BrokerTransportContract):
-    def build_transport(self) -> BrokerTransport:
+class TestFakeTransportContract(_BrokerAdapterContract):
+    def build_transport(self) -> object:
         return FakeTransport()

@@ -7,13 +7,9 @@ definitions. These are behavioural implementations owned by the market domain.
 from __future__ import annotations
 
 from datetime import datetime, time
-from typing import TYPE_CHECKING
 
 from domain.constants.market import IST
 from domain.market.hours import NSE_EQUITY_CLOSE, NSE_EQUITY_OPEN
-
-if TYPE_CHECKING:
-    from domain.ports.exchange_adapter import ExchangeAdapterPort
 
 
 class NSEExchangeAdapter:
@@ -80,7 +76,7 @@ _EXCHANGE_REGISTRY: dict[str, type] = {
 }
 
 
-def get_exchange_adapter(exchange: str) -> ExchangeAdapterPort:
+def get_exchange_adapter(exchange: str) -> object:
     """Get the adapter for *exchange*, raising KeyError if unknown."""
     cls = _EXCHANGE_REGISTRY.get(exchange.upper())
     if cls is None:

@@ -1,4 +1,4 @@
-"""In-memory CommonBrokerGateway implementations for integration tests.
+"""In-memory BrokerAdapter implementations for integration tests.
 
 These are concrete adapter implementations (not unittest.mock) used to exercise
 registry, router, coordinator, and stream orchestrator with real components.

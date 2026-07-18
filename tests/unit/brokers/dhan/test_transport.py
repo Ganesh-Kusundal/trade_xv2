@@ -8,7 +8,6 @@ from decimal import Decimal
 
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
-from domain.ports.broker_transport import BrokerTransport
 from domain.types import OrderType, ProductType, Side
 
 from brokers.dhan.api.transport import DhanTransport, _DHAN_CAPABILITIES
@@ -61,7 +60,12 @@ def _transport() -> DhanTransport:
 
 
 def test_dhan_transport_is_broker_transport():
-    assert isinstance(_transport(), BrokerTransport)
+    t = _transport()
+    assert hasattr(t, "name")
+    assert hasattr(t, "market_data")
+    assert hasattr(t, "execution")
+    assert hasattr(t, "capabilities")
+    assert hasattr(t, "close")
 
 
 def test_dhan_transport_identity_and_capabilities():
@@ -102,11 +106,11 @@ def test_dhan_transport_close_tears_down_gateway():
 
 
 def test_dhan_transport_satisfies_shared_contract():
-    # Reuse the domain's BrokerTransport contract on the real plugin.
-    from tests.unit.domain.test_broker_transport_contract import _BrokerTransportContract, FakeProvider
+    # Reuse the domain's BrokerAdapter contract on the real plugin.
+    from tests.unit.domain.test_broker_transport_contract import _BrokerAdapterContract, FakeProvider
     from domain.ports.protocols import DataProvider
 
-    class _Contract(_BrokerTransportContract):
+    class _Contract(_BrokerAdapterContract):
         def build_transport(self):
             return _transport()
 

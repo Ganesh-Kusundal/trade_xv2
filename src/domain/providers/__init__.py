@@ -12,11 +12,11 @@ Submodules:
 from __future__ import annotations
 
 from domain.providers.registry import ProviderRegistry
-from domain.ports.protocols import DataProvider, ExecutionProvider, Subscription
+from domain.ports.protocols import DataProvider, ExecutionProvider, SubscriptionHandle
 
 __all__ = [
     "DataProvider",
     "ExecutionProvider",
     "ProviderRegistry",
-    "Subscription",
+    "SubscriptionHandle",
 ]

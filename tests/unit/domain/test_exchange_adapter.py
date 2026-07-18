@@ -7,12 +7,14 @@ from domain.market.exchange_adapters import (
     NSEExchangeAdapter,
     get_exchange_adapter,
 )
-from domain.ports.exchange_adapter import ExchangeAdapterPort
 
 
-def test_nse_adapter_satisfies_protocol():
+def test_nse_adapter_has_required_methods():
     adapter = NSEExchangeAdapter()
-    assert isinstance(adapter, ExchangeAdapterPort)
+    assert hasattr(adapter, "exchange_code")
+    assert hasattr(adapter, "timezone")
+    assert hasattr(adapter, "is_trading_hours")
+    assert hasattr(adapter, "is_trading_day")
 
 
 def test_nse_trading_hours():

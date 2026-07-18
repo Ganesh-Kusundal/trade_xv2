@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from domain.capabilities import Capability, ConnectionStatus
 from domain.extensions import Extension, ExtensionRegistry
-from domain.providers import DataProvider, ExecutionProvider, ProviderRegistry, Subscription
-from domain.ports.broker_transport import BrokerTransport
+from domain.providers import DataProvider, ExecutionProvider, ProviderRegistry, SubscriptionHandle
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
 from domain.value_objects import (
     ExtensionInfo,
@@ -80,7 +80,7 @@ __all__ = [
     "InstrumentState",
     "Money",
     "ProviderRegistry",
-    "Subscription",
+    "SubscriptionHandle",
     "SubscriptionState",
     "TickSize",
     # ── New domain objects (Phase 1) ────────────────────────────
@@ -88,7 +88,7 @@ __all__ = [
     "Session",
     "Universe",
     "TradeXV2RecoverableError",
-    "BrokerTransport",
+    "BrokerAdapter",
     "BootstrapResult",
     "BootstrapStatus",
     # ── Phase 3: risk policies + Portfolio ───────────────────────
