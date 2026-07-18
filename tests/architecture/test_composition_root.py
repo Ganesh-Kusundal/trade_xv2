@@ -18,15 +18,6 @@ def test_runtime_factory_build_is_public_entry() -> None:
 
 
 @pytest.mark.architecture
-def test_trading_runtime_factory_is_deprecated_reexport() -> None:
-    """TradingRuntimeFactory is now a deprecated wrapper; factory.build is the real root."""
-    import runtime.trading_runtime_factory as trf_mod
-
-    src = inspect.getsource(trf_mod.TradingRuntimeFactory)
-    assert "deprecated" in src.lower() or "DeprecationWarning" in src
-
-
-@pytest.mark.architecture
 def test_ledger_policy_defaults_off() -> None:
     import runtime.ledger_policy as policy
 

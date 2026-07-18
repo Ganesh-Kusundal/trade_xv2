@@ -10,7 +10,6 @@ from decimal import Decimal
 
 from domain.constants.market import DEFAULT_EXCHANGE, DEFAULT_TICK_SIZE
 from domain.field_mapping import DefaultFieldMapping
-from domain.specifications.concrete import EquitySpecification
 
 
 def test_field_mapping_default_exchange_uses_surface() -> None:
@@ -19,13 +18,6 @@ def test_field_mapping_default_exchange_uses_surface() -> None:
     assert mapping.map_exchange({}) == DEFAULT_EXCHANGE == "NSE"
     # Explicit value still wins.
     assert mapping.map_exchange({"exchange": "BSE"}) == "BSE"
-
-
-def test_equity_spec_default_tick_uses_surface() -> None:
-    spec = EquitySpecification()
-    assert spec.tick_size == DEFAULT_TICK_SIZE == Decimal("0.05")
-    assert spec.lot_size == 1
-    assert spec.instrument_type == "EQUITY"
 
 
 def test_universe_default_exchange_is_surface() -> None:

@@ -1,8 +1,6 @@
 """Single composition root (ADR-017).
 
-All runtime wiring lives here.  ``TradingRuntimeFactory`` in
-``trading_runtime_factory.py`` is a deprecated re-export kept for backward
-compatibility until all call sites migrate.
+All runtime wiring lives here.
 """
 
 from __future__ import annotations
@@ -86,7 +84,7 @@ class BuildOptions:
 
 
 # ---------------------------------------------------------------------------
-# Private wiring helpers (extracted from TradingRuntimeFactory)
+# Private wiring helpers
 # ---------------------------------------------------------------------------
 
 

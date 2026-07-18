@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from infrastructure.auth.environment_bootstrap import bootstrap_environment
+from infrastructure.io.environment_bootstrap import bootstrap_environment
 
 
 class TestBootstrapEnvironment:

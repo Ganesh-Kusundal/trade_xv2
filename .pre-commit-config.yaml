@@ -35,7 +35,7 @@ repos:
         # blocks the commit locally, matching CI. Brokers and the remaining
         # error-bearing domain/OMS modules are intentionally excluded here (tracked
         # advisory in CI, full flip deferred to P7).
-        files: ^src/(domain/(aggregates|analytics|backtest|capability_manifest|constants|market|models|primitives|providers|quotes|repositories|risk|scanners|sessions|value_objects)/.*|application/oms/reconciliation/.*|application/oms/(__init__\.py|composition\.py|daily_pnl_reset_scheduler\.py|errors\.py|factory\.py|idempotency_guard\.py|ledger_outbox\.py|ledger_shadow\.py|order_audit_logger\.py|order_position_updater\.py|order_repository_adapter\.py|order_state_validator\.py|order_validator\.py|position_repository_adapter\.py|process_context\.py|protocols\.py|recon_heal_policy\.py|risk_manager\.py|square_off_service\.py))$
+        files: ^src/(domain/(aggregates|analytics|backtest|capability_manifest|constants|market|models|primitives|providers|quotes|repositories|risk|scanners|sessions|value_objects)/.*|application/oms/reconciliation/.*|application/oms/(__init__\.py|composition\.py|daily_pnl_reset_scheduler\.py|errors\.py|factory\.py|idempotency_guard\.py|ledger_shadow\.py|order_audit_logger\.py|order_position_updater\.py|order_repository_adapter\.py|order_state_validator\.py|order_validator\.py|process_context\.py|protocols\.py|recon_heal_policy\.py|risk_manager\.py|square_off_service\.py))$
         additional_dependencies: [pydantic, pandas, requests]
         args: [--ignore-missing-imports]
 

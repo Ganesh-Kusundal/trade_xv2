@@ -45,35 +45,6 @@ def build_event_bus(
     )
 
 
-def build_async_event_bus(
-    sync_bus: Any,
-    resilience: Any | None = None,
-) -> Any:
-    """Wrap a sync ``EventBus`` in an ``AsyncEventBus`` sized from resilience config."""
-    from infrastructure.event_bus import AsyncEventBus
-
-    max_queue = 10_000
-    if resilience is not None:
-        max_queue = resilience.max_async_bus_queue
-    return AsyncEventBus(sync_bus, max_queue_size=max_queue)
-
-
-def build_resilient_event_bus(
-    resilience: Any | None = None,
-    *,
-    event_log: Any = None,
-) -> Any:
-    """Production ``EventBus`` whose resilience knobs come from ``resilience``."""
-    from infrastructure.observability.event_metrics import EventMetrics
-
-    return build_event_bus(
-        event_log=event_log,
-        metrics=EventMetrics(),
-        dead_letter_queue=build_dead_letter_queue(),
-        resilience=resilience,
-    )
-
-
 def build_processed_trade_repository() -> Any:
     """Construct the concrete in-memory idempotency ledger."""
     from infrastructure.event_bus import ProcessedTradeRepository

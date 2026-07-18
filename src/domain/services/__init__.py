@@ -15,13 +15,9 @@ from __future__ import annotations
 from domain.services.analytics import AnalyticsService
 from domain.services.history import HistoryService
 from domain.services.orders import OrderService
-from domain.services.quote import QuoteService
-from domain.services.streaming import StreamingService
 
 __all__ = [
     "AnalyticsService",
     "HistoryService",
     "OrderService",
-    "QuoteService",
-    "StreamingService",
 ]

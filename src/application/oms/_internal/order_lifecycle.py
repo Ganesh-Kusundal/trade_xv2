@@ -143,13 +143,10 @@ class OrderLifecycle:
 
         try:
             if intent is not None and self._execution_ledger is not None:
-                from application.oms.ledger_outbox import persist_intent_then_submit
-
-                order = persist_intent_then_submit(
-                    self._execution_ledger,
-                    intent,
-                    _broker_submit,
-                )
+                # Record-then-submit: persist intent durably before broker I/O
+                # so a crash after broker accept still leaves a reconcilable order.
+                self._execution_ledger.record_intent(intent)
+                order = _broker_submit()
             else:
                 from application.oms.ledger_authority import (
                     ledger_authority_enabled,

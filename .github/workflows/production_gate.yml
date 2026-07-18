@@ -204,10 +204,10 @@ jobs:
             src/application/oms/__init__.py src/application/oms/composition.py
             src/application/oms/daily_pnl_reset_scheduler.py src/application/oms/errors.py
             src/application/oms/factory.py src/application/oms/idempotency_guard.py
-            src/application/oms/ledger_outbox.py src/application/oms/ledger_shadow.py
+            src/application/oms/ledger_shadow.py
             src/application/oms/order_audit_logger.py src/application/oms/order_position_updater.py
             src/application/oms/order_repository_adapter.py src/application/oms/order_state_validator.py
-            src/application/oms/order_validator.py src/application/oms/position_repository_adapter.py
+            src/application/oms/order_validator.py
             src/application/oms/process_context.py src/application/oms/protocols.py
             src/application/oms/recon_heal_policy.py src/application/oms/risk_manager.py
             src/application/oms/square_off_service.py
@@ -289,8 +289,6 @@ jobs:
         run: |
           PYTHONPATH=src pytest \
             tests/unit/application/services/test_api_readiness.py \
-            tests/unit/application/oms/test_ledger_outbox.py \
-            tests/architecture/test_ledger_outbox_boundary.py \
             tests/architecture/test_shadow_parity_gate.py \
             tests/integration/api/test_health.py \
             -q --tb=short

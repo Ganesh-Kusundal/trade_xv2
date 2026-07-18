@@ -21,10 +21,3 @@ class AlertingEnginePort(Protocol):
     def evaluate(self) -> list[Any]: ...
 
     def stop(self) -> None: ...
-
-
-@runtime_checkable
-class TracerPort(Protocol):
-    """Protocol for function-level tracing with correlation IDs."""
-
-    def trace_operation(self, operation_name: str) -> Any: ...

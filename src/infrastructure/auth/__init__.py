@@ -1,7 +1,7 @@
 """Canonical auth — credential resolution, token lifecycle, auth bootstrapping."""
 from infrastructure.auth.credential_resolver import CredentialResolver
 from infrastructure.auth.credential_validator import CredentialIssue, CredentialValidator
-from infrastructure.auth.environment_bootstrap import bootstrap_environment
+from infrastructure.io.environment_bootstrap import bootstrap_environment
 from infrastructure.auth.jwt_expiry import JwtExpiry
 from infrastructure.auth.metrics import AuthMetrics
 from infrastructure.auth.registry import BrokerAuthError

@@ -210,10 +210,8 @@ def get_order_repository() -> Any:
 
 
 def get_position_repository() -> Any:
-    """Get PositionRepository adapter backed by PositionManager."""
-    from application.oms.position_repository_adapter import PositionManagerRepository
-
-    return PositionManagerRepository(get_position_manager())
+    """Get PositionRepository backed by PositionManager."""
+    return get_position_manager()
 
 
 def get_broker_service() -> Any:

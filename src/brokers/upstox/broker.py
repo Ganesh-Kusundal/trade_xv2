@@ -6,9 +6,10 @@ This is a plain class (no ABC base). The ``UpstoxWireAdapter`` wrapper
 implements the ``MarketDataGateway`` contract; this class provides the
 adapter wiring.
 
-The construction is organized into three bundles (ClientBundle, AdapterBundle,
-OrderBundle) in ``brokers.upstox.bundles`` for readability while keeping
-the public attribute surface unchanged for backward compatibility.
+The construction is delegated to private helpers (``_build_raw_clients``,
+``_build_adapters``, ``_build_order_path``) so the god-constructor reads
+top-down rather than as a wall of identical ``UpstoxXClient(...)`` calls,
+while the public attribute surface is unchanged for backward compatibility.
 """
 
 from __future__ import annotations
@@ -23,14 +24,11 @@ from infrastructure.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
-from brokers.upstox.bundles import AdapterBundle, ClientBundle, OrderBundle
-from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
 from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
 from brokers.upstox.instruments.search import UpstoxInstrumentSearch
 from brokers.upstox.instruments.service import UpstoxInstrumentService
 from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
 from brokers.upstox.ipo.client import UpstoxIpoClient
-from brokers.upstox.kill_switch.adapter import UpstoxKillSwitchAdapter
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
 from brokers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
 from brokers.upstox.market_data.client_v2 import UpstoxMarketDataV2Client
@@ -53,7 +51,6 @@ from brokers.upstox.market_data.trade_pnl import TradePnLCalculator
 from brokers.upstox.market_intelligence.adapter import UpstoxMarketIntelligenceAdapter
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
 from brokers.upstox.market_intelligence.snapshot import UpstoxMarketIntelligenceSnapshotBuilder
-from brokers.upstox.mutual_funds.adapter import UpstoxMutualFundsAdapter
 from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
 from brokers.upstox.news.adapter import UpstoxNewsAdapter
 from brokers.upstox.news.client import UpstoxNewsClient
@@ -66,10 +63,8 @@ from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from brokers.upstox.orders.order_query_adapter import UpstoxOrderQueryAdapter
 from brokers.upstox.orders.slice_adapter import UpstoxSliceAdapter
-from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
 from brokers.upstox.payments.client import UpstoxPaymentsClient
 from brokers.upstox.reconciliation.service import UpstoxReconciliationService
-from brokers.upstox.static_ip.adapter import UpstoxStaticIpAdapter
 from brokers.upstox.static_ip.client import UpstoxStaticIpClient
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
@@ -227,7 +222,7 @@ class UpstoxBroker:
         self.intelligence_snapshot = UpstoxMarketIntelligenceSnapshotBuilder(
             self.intelligence_client
         )
-        self.kill_switch = UpstoxKillSwitchAdapter(self.kill_switch_client)
+        self.kill_switch = self.kill_switch_client
         self.exit_all = UpstoxExitAllAdapter(self.kill_switch_client)
         # ``static_ip``, ``ipo``, ``payments``, ``mutual_funds``,
         # ``fundamentals`` and ``intelligence`` are Upstox-specific "extended"
@@ -309,11 +304,11 @@ class UpstoxBroker:
             return
 
         self.intelligence = UpstoxMarketIntelligenceAdapter(self.intelligence_client)
-        self.static_ip = UpstoxStaticIpAdapter(self.static_ip_client)
+        self.static_ip = self.static_ip_client
         self.ipo = UpstoxIpoAdapter(self.ipo_client)
-        self.payments = UpstoxPaymentsAdapter(self.payments_client)
-        self.mutual_funds = UpstoxMutualFundsAdapter(self.mutual_funds_client)
-        self.fundamentals = UpstoxFundamentalsAdapter(self.fundamentals_client)
+        self.payments = self.payments_client
+        self.mutual_funds = self.mutual_funds_client
+        self.fundamentals = self.fundamentals_client
 
         self._register_capability(Capability.MARKET_INTELLIGENCE, self.intelligence)
         self._register_capability(Capability.OPTION_GREEKS, self.intelligence)

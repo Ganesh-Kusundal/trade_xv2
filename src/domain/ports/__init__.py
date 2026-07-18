@@ -3,7 +3,6 @@
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.broker_id import BrokerId
-from domain.ports.correlation import CorrelationProviderPort
 from domain.ports.event_log import (
     DeadLetterQueuePort,
     EventLogPort,
@@ -18,7 +17,7 @@ from domain.ports.lifecycle import LifecycleManagerPort, ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
 from domain.ports.market_data import MarketDataPort
 from domain.ports.metrics import MetricsRegistryPort
-from domain.ports.observability import AlertingEnginePort, EventMetricsPort, TracerPort
+from domain.ports.observability import AlertingEnginePort, EventMetricsPort
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.ports.order_service import OrderServicePort
 from domain.ports.order_store import OrderStorePort
@@ -32,7 +31,6 @@ __all__ = [
     "BootstrapResult",
     "BootstrapStatus",
     "ClockPort",
-    "CorrelationProviderPort",
     "DataProvider",
     "DeadLetterQueuePort",
     "EventBusPort",
@@ -58,5 +56,4 @@ __all__ = [
     "StrategyEvaluator",
     "SubscriptionHandle",
     "TimeServicePort",
-    "TracerPort",
 ]

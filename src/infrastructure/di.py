@@ -27,7 +27,6 @@ from collections.abc import Callable
 from typing import Any
 
 from domain.exceptions import TradeXV2Error
-from infrastructure.di_scopes import ScopeManager
 from infrastructure.time_service import time_service
 
 logger = logging.getLogger(__name__)
@@ -44,10 +43,9 @@ class ServiceNotFoundError(TradeXV2Error):
 class Container:
     """Thread-safe dependency injection container.
 
-    Supports three scopes:
+    Supports two scopes:
     - singleton: Factory called once, result cached forever
     - transient: Factory called on every resolve()
-    - request: Factory called once per request_scope() context manager
 
     Parameters
     ----------
@@ -67,7 +65,6 @@ class Container:
         self._factories: dict[str, Callable[[], Any]] = {}
         self._scopes: dict[str, str] = {}
         self._singletons: dict[str, Any] = {}
-        self._scope_manager = ScopeManager()
         self._resolving: set[str] = set()
 
     def register(
@@ -92,8 +89,8 @@ class Container:
         ValueError
             If scope is not one of the allowed values.
         """
-        if scope not in ("singleton", "transient", "request"):
-            raise ValueError(f"Invalid scope '{scope}'. Must be 'singleton', 'transient', or 'request'.")
+        if scope not in ("singleton", "transient"):
+            raise ValueError(f"Invalid scope '{scope}'. Must be 'singleton' or 'transient'.")
 
         with self._lock:
             self._factories[name] = factory
@@ -153,8 +150,6 @@ class Container:
             return self._resolve_singleton(name, factory)
         elif scope == "transient":
             return self._resolve_transient(name, factory)
-        elif scope == "request":
-            return self._resolve_request(name, factory)
         else:
             # instance scope
             return self._singletons[name]
@@ -210,10 +205,6 @@ class Container:
             with self._lock:
                 self._resolving.discard(name)
 
-    def _resolve_request(self, name: str, factory: Callable) -> Any:
-        """Resolve a request-scoped service."""
-        return self._scope_manager.resolve(name, factory)
-
     def reset(self) -> None:
         """Clear all registrations and cached instances.
 
@@ -223,7 +214,6 @@ class Container:
             self._factories.clear()
             self._scopes.clear()
             self._singletons.clear()
-            self._scope_manager.clear()
             self._resolving.clear()
             logger.debug("Container reset")
 
