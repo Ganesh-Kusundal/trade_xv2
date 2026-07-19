@@ -355,8 +355,6 @@ ignore_imports = [
     # Gateway factory is a composition root — it constructs broker gateways
     # via runtime.broker_builders (lazy import, never static broker dep).
     "infrastructure.gateway.factory -> runtime.broker_builders",
-    # Thin re-export shim: composition root lives in runtime/ (may wire application).
-    "infrastructure.broker_infrastructure -> runtime.broker_infrastructure",
 ]
 
 [[tool.importlinter.contracts]]
