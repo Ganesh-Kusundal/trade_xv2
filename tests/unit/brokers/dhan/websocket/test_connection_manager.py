@@ -173,11 +173,11 @@ class TestWebSocketConnectionManager:
         feed = manager.get_market_feed()
         stream = manager.get_order_stream()
         
-        # Mock the start method and is_connected property to track calls
+        # Mock the start method to track calls.
+        # is_connected defaults to False on freshly-created feeds so no
+        # patch is needed — the property is read-only (no setter/deleter).
         with patch.object(feed, 'start') as mock_feed_start, \
-             patch.object(stream, 'start') as mock_stream_start, \
-             patch.object(type(feed), 'is_connected', new_callable=PropertyMock, return_value=False), \
-             patch.object(type(stream), 'is_connected', new_callable=PropertyMock, return_value=False):
+             patch.object(stream, 'start') as mock_stream_start:
             
             manager.start_all()
             
