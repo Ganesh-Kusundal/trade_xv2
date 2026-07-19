@@ -69,7 +69,7 @@ rule), even though none of them are reachable from a live broker order-placement
   scoped to authenticating market-data access.
 - **Platform / Infra**: resilience (circuit breaker, rate limiter, retry), persistence,
   config, lifecycle, metrics, observability.
-- **Interfaces**: FastAPI, Textual TUI, Click CLI, two MCP servers.
+- **Interfaces**: FastAPI, Textual TUI, Click CLI, MCP server (datalake-mcp).
   (A React/TS Web SPA under `web/` is planned but **not yet implemented** —
   `web/` currently holds only `.env.example`. Do not reference `web/` source
   files as if they exist.)
