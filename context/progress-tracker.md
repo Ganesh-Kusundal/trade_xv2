@@ -18,7 +18,7 @@
 
 | Week | Date (Mon 03:00 UTC) | Status | Notes |
 |------|----------------------|--------|-------|
-| 1/4 | — | pending | `.github/workflows/weekly-hardening.yml` active |
+| 1/4 | 2026-07-20 | **green (local + dispatched)** | PR #10 merged; workflow_dispatch triggered; 251/251 hardening tests local |
 | 2/4 | — | pending | |
 | 3/4 | — | pending | |
 | 4/4 | — | pending | Requires 4 consecutive green on `main` |

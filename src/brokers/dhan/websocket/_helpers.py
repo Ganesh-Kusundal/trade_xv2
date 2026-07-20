@@ -29,8 +29,11 @@ def _sdk_market_feed_class() -> type:
     """Lazy import so ``import brokers.dhan.wire`` does not require dhanhq at import time."""
     from dhanhq import marketfeed as mf
 
-    # dhanhq >=2.x renamed MarketFeed -> DhanFeed
-    return getattr(mf, "MarketFeed", mf.DhanFeed)
+    for name in ("MarketFeed", "DhanFeed"):
+        cls = getattr(mf, name, None)
+        if cls is not None:
+            return cls
+    raise ImportError("dhanhq.marketfeed has no MarketFeed or DhanFeed class")
 
 
 def _sdk_order_update_class() -> type:
@@ -53,12 +56,20 @@ class _ModeMapCache:
     _map: dict[str, int] | None = None
 
 
+def _sdk_attr(module: Any, cls: type, name: str) -> Any:
+    """Resolve SDK constant from class first, then module (no eager default eval)."""
+    val = getattr(cls, name, None)
+    if val is not None:
+        return val
+    return getattr(module, name)
+
+
 def _sdk_subscription_ticker() -> int:
     """SDK constant for default LTP/Ticker subscription mode."""
     from dhanhq import marketfeed as mf_mod
 
     mf_cls = _sdk_market_feed_class()
-    return getattr(mf_cls, "Ticker", mf_mod.Ticker)
+    return _sdk_attr(mf_mod, mf_cls, "Ticker")
 
 
 def _mode_map() -> dict[str, int]:
@@ -69,7 +80,7 @@ def _mode_map() -> dict[str, int]:
         mf = _sdk_market_feed_class()
 
         def _sdk_const(name: str) -> int:
-            return getattr(mf, name, getattr(mf_mod, name))
+            return _sdk_attr(mf_mod, mf, name)
 
         _ModeMapCache._map = {
             "LTP": _sdk_const("Ticker"),
