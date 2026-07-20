@@ -9,7 +9,7 @@
 - **Next Maturity Contexts — complete** (2026-07-20): DP-04 tick authority, quote-zero fail-closed, deploy-profile auth (SEC-009 profile-scoped), Context 7 StrategyEvaluator bridge
 - **Architecture Maturity Program — Contexts 5–7, 8, 10 complete** (2026-07-20)
 - Constitution addendum: [`docs/constitution/10-architecture-maturity-program.md`](../docs/constitution/10-architecture-maturity-program.md)
-- **PR #10 CI fixes** (2026-07-20): `batch_quote_coordinator.py` tracked (`.gitignore` `/data/` only); optimizer syntax; architecture suite **658 passed**; scoped ruff E9 in CI
+- **PR #10 CI fixes** (2026-07-20): architecture-enforcement **all green** on `feat/live-adr-readiness` (658 arch tests, ruff 0.15.22 pinned)
 - **PRE-DEPLOY revision:** paper **8.1/10** Conditional GO, live **6.8/10** NO-GO — [`PRE-DEPLOYMENT-REVIEW-2026-07-20-REVISION.md`](../docs/architecture/PRE-DEPLOYMENT-REVIEW-2026-07-20-REVISION.md)
 - Delivered: `should_publish_tick_directly`, `QuoteUnavailableError`, `evaluator_bridge.py`, deploy-profile auth ratchet, reconnect disconnect-before-reopen
 - **Live ADR blocked:** 4× weekly chaos green (0/4 on `main`); live score < 8.5; ADR-0012 lift per [`adr/0013-live-adr-lift-preconditions.md`](../docs/architecture/adr/0013-live-adr-lift-preconditions.md)
