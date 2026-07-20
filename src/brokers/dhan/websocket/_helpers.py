@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -153,10 +154,34 @@ def _best_bid_ask(raw_depth: Any) -> tuple[Decimal | None, Decimal | None]:
     )
 
 
+def _parse_quote_exchange_time(data: dict, now: datetime) -> datetime:
+    """Prefer exchange time from the SDK frame; fall back to *now*."""
+    for key in ("last_traded_time", "exchange_timestamp", "LTT", "timestamp"):
+        ts_raw = data.get(key)
+        if ts_raw is None or ts_raw == "":
+            continue
+        if isinstance(ts_raw, datetime):
+            return ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=now.tzinfo)
+        try:
+            if isinstance(ts_raw, (int, float)):
+                if ts_raw <= 0:
+                    continue
+                if ts_raw > 1e11:
+                    return datetime.fromtimestamp(ts_raw / 1000, tz=now.tzinfo)
+                return datetime.fromtimestamp(ts_raw, tz=now.tzinfo)
+            if isinstance(ts_raw, str) and ts_raw.strip():
+                parsed = datetime.fromisoformat(ts_raw)
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=now.tzinfo)
+        except (ValueError, OSError, OverflowError):
+            continue
+    return now
+
+
 def _transform_quote(data: dict, resolver: Any = None) -> dict:
     """Transform a raw SDK ticker/quote frame into a canonical quote dict."""
     from domain.ports.time_service import get_current_clock
 
+    now = get_current_clock().now()
     security_id = str(data.get("security_id", ""))
     symbol = _resolve_security_symbol(security_id, resolver)
     bid, ask = _best_bid_ask(data.get("depth"))
@@ -171,7 +196,7 @@ def _transform_quote(data: dict, resolver: Any = None) -> dict:
         "change": Decimal("0"),
         "bid": bid,
         "ask": ask,
-        "timestamp": get_current_clock().now(),
+        "timestamp": _parse_quote_exchange_time(data, now),
     }
 
 

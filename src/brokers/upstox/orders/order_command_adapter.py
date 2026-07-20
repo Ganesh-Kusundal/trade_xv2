@@ -6,6 +6,7 @@ Mirrors ``brokers.dhan.orders.order_command_adapter.DhanOrderCommandAdapter``.
 from __future__ import annotations
 
 import logging
+import time
 from decimal import Decimal
 from typing import Any
 
@@ -55,10 +56,29 @@ class UpstoxOrderCommandAdapter:
     def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
         from domain.errors import OrderError
 
-        if request.correlation_id and self._idempotency_cache is not None:
-            cached = self._idempotency_cache.get(request.correlation_id)
+        cid = request.correlation_id
+        if cid and self._idempotency_cache is not None:
+            cached = self._idempotency_cache.get(cid)
             if cached is not None:
                 return cached
+
+            if not self._idempotency_cache.reserve(cid):
+                logger.info("idempotency_waiting", extra={"correlation_id": cid})
+                for _ in range(50):
+                    cached = self._idempotency_cache.get(cid)
+                    if cached is not None:
+                        return cached
+                    time.sleep(0.1)
+                raise OrderError("concurrent placement for same correlation_id timed out")
+
+        try:
+            return self._place_order_impl(request)
+        finally:
+            if cid and self._idempotency_cache is not None:
+                self._idempotency_cache.clear_reservation(cid)
+
+    def _place_order_impl(self, request: BrokerOrderPayload) -> OrderResponse:
+        from domain.errors import OrderError
 
         if self._risk_manager is not None:
             preview_order = self._to_domain_order(request)
@@ -92,11 +112,11 @@ class UpstoxOrderCommandAdapter:
 
         response = UpstoxDomainMapper.to_order_response(result)
         if response.success:
+            if request.correlation_id and self._idempotency_cache is not None:
+                self._idempotency_cache.commit(request.correlation_id, response)
             self._publish_order_placed(request, response)
         elif response.message:
             raise OrderError(response.message)
-        if request.correlation_id and self._idempotency_cache is not None and response.success:
-            self._idempotency_cache.put(request.correlation_id, response)
         return response
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
