@@ -28,7 +28,9 @@ from infrastructure.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from infrastructure.resilience.backoff import NoBackoff
+from infrastructure.resilience.backoff import ExponentialBackoff
+
+_ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.resilience import (
     create_circuit_breakers,
@@ -334,7 +336,7 @@ class TestRetryExecutorPolicy:
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
-            backoff=NoBackoff(),  # No delays for test speed
+            backoff=_ZERO_BACKOFF,  # No delays for test speed
         )
 
         with pytest.raises(RetryableError):
@@ -355,7 +357,7 @@ class TestRetryExecutorPolicy:
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=5),
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         result = executor.execute(eventually_succeeds)
@@ -373,7 +375,7 @@ class TestRetryExecutorPolicy:
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=5),
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         with pytest.raises(NonRetryableError):
@@ -393,7 +395,7 @@ class TestRetryExecutorPolicy:
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
             circuit_breaker=cb,
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         with pytest.raises(CircuitBreakerOpenError):
@@ -417,7 +419,7 @@ class TestRetryExecutorPolicy:
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
             circuit_breaker=cb,
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         call_count = 0

@@ -8,6 +8,7 @@ reach a broker (see the plan's "read-only analysis only" scope decision).
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 
 import duckdb

@@ -36,6 +36,10 @@
 - **W2.13** Removed `@trace_operation` from application layer; `application/observability.py` is `get_logger` only.
 - **W2.14** Profiles → one dataclass + env table; dropped `NoBackoff`/`FixedBackoff` from src; Dhan resilience imports `retry_policies` directly (deleted `retry_executor.py` re-export).
 
+### Test collection remediation — Tier 1 Agent-TEST (2026-07-20)
+
+- **TC-1** Fixed 4 collection errors from W2.14 `NoBackoff` removal + missing `logging` in `datalake/mcp/tools.py`: e2e circuit-breaker + token-refresh flows and `test_resilience_composition.py` now use `_ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)`; `tools.py` imports `logging`. Full collect: **8615 tests, 4 errors** (Tier 2 `test_async_event_bus_priority` + 3 unrelated modules remain).
+
 ### Ponytail Wave 3 (composition root) — 2026-07-20
 
 - API bootstrap uses `runtime.api_compose.build_for_api` → `runtime.factory.build` (`interface/api/bootstrap.py`).
