@@ -84,7 +84,7 @@ class SymbolResolver:
         exch = self._normalise_exchange(exchange)
         key = (normalize_symbol(underlying), exch)
         contracts = self._by_underlying.get(key, [])
-        return sorted(contracts, key=lambda i: (i.expiry or "9999-12-31"))
+        return sorted(contracts, key=lambda i: i.expiry or "9999-12-31")
 
     def get_futures_expiries(self, underlying: str, exchange: str) -> list[str]:
         seen: set[str] = set()

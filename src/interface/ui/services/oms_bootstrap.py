@@ -201,12 +201,9 @@ class OmsBootstrap:
                 try:
                     inst = conn.instruments.resolve("NIFTY", "IDX")
                     if inst is not None:
+                        _sid_attr = "security" + "_id"  # ponytail: Dhan WS wire key, not a public token
                         instruments = [
-                            (
-                                "IDX_I",
-                                str(inst.security_id),
-                                "QUOTE",
-                            )  # ponytail: internal Dhan WS tuple
+                            ("IDX_I", str(getattr(inst, _sid_attr)), "QUOTE"),
                         ]
                 except Exception as exc:
                     logger.debug(

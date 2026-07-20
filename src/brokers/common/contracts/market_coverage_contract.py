@@ -40,9 +40,9 @@ class MarketCoverageContract:
         surfaces = capabilities.market_surfaces
         assert surfaces, "broker declares no market_surfaces"
         for s in surfaces:
-            assert capabilities.serves(
-                s.asset_kind, s.exchange
-            ), f"declared surface not served by serves(): {s}"
+            assert capabilities.serves(s.asset_kind, s.exchange), (
+                f"declared surface not served by serves(): {s}"
+            )
 
     def test_surface_operations_are_valid(self, capabilities) -> None:
         for s in capabilities.market_surfaces:
@@ -52,9 +52,9 @@ class MarketCoverageContract:
     def test_surface_exchange_is_allowed(self, capabilities) -> None:
         allowed = allowed_exchanges()
         for s in capabilities.market_surfaces:
-            assert (
-                s.exchange in allowed
-            ), f"surface exchange {s.exchange!r} not in allowed_exchanges()"
+            assert s.exchange in allowed, (
+                f"surface exchange {s.exchange!r} not in allowed_exchanges()"
+            )
 
     def test_surface_probe_symbol_present(self, capabilities) -> None:
         for s in capabilities.market_surfaces:
