@@ -12,12 +12,12 @@ import threading
 from collections.abc import Iterable
 
 from brokers.common.instruments.keys import generate_alternate_keys
-from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType, OptionType
+from brokers.dhan.domain import DhanInstrument, Exchange, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+from config.indices import get_index_entry, is_index
 from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 from domain.symbols import normalize_exchange, normalize_symbol
-from config.indices import get_index_entry, is_index
 
 logger = logging.getLogger(__name__)
 
@@ -389,7 +389,7 @@ class SymbolResolver:
                 import re
 
                 m = re.match(r"^([A-Z]+)\d+[A-Z]{3}FUT$", symbol.upper())
-                underlying = (m.group(1)                if m else symbol).upper()
+                underlying = (m.group(1) if m else symbol).upper()
 
         # Create domain instrument first
         domain_inst = DomainInstrument(

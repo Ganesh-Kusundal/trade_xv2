@@ -33,7 +33,6 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -43,7 +42,7 @@ from application.trading.candidate_evaluator import CandidateEvaluator
 from application.trading.execution_planner import ExecutionPlanner
 from application.trading.models import FeatureFetcher
 from application.trading.order_placer import OrderPlacer
-from domain import OrderType, ProductType, Side
+from domain import OrderType, ProductType
 from domain.events.types import DomainEvent, EventType
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, SlicingAlgo
@@ -169,6 +168,7 @@ class TradingOrchestrator:
             default_exchange=self._config.default_exchange,
             max_position_size_pct=self._config.max_position_size_pct,
             resolve_equity=self._order_placer.resolve_equity,
+            resolve_existing_notional=self._resolve_existing_notional,
         )
 
         self._executed_count: int = 0
@@ -503,6 +503,16 @@ class TradingOrchestrator:
         """Thread-safe increment of error counter."""
         with self._counter_lock:
             self._error_count += 1
+
+    def _resolve_existing_notional(self, symbol: str, exchange: str) -> Decimal:
+        pm = getattr(self._order_manager, "position_manager", None)
+        if pm is None:
+            return Decimal("0")
+        pos = pm.get_position(symbol, exchange)
+        if pos is None or not getattr(pos, "quantity", 0):
+            return Decimal("0")
+        ltp = pos.ltp.to_decimal() if hasattr(pos.ltp, "to_decimal") else Decimal(str(pos.ltp))
+        return ltp * Decimal(str(abs(int(pos.quantity))))
 
 
 __all__ = [

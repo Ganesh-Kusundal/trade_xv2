@@ -16,8 +16,8 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 
-from datalake.gateway import DataLakeGateway
 from datalake.core.io import atomic_parquet_write
+from datalake.gateway import DataLakeGateway
 
 
 def _make_dataframe(symbol: str, n: int = 10_000) -> pd.DataFrame:

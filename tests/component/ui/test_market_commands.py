@@ -358,7 +358,7 @@ class TestShowHistorical:
         mock_series.bar_count = 10
         mock_series.is_degraded = False
 
-        with patch("interface.ui.commands.market.get_history", return_value=mock_series) as mock_get:
+        with patch("interface.ui.commands.market.get_history", return_value=mock_series):
             show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
 
@@ -448,7 +448,10 @@ class TestMarketRouter:
             mock_ledger = MagicMock()
             mock_ledger.conflicts = []
 
-            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
+            with patch(
+                "infrastructure.async_compat.run_async_compat",
+                return_value=(mock_series, mock_ledger),
+            ):
                 cmd_market.run(["historical", "RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()

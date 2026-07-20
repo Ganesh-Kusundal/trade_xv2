@@ -63,9 +63,7 @@ def risk_config() -> RiskConfig:
 
 
 class TestTickSizeValidation:
-    def test_aligned_price_passes(
-        self, position_manager, risk_config, capital_provider
-    ):
+    def test_aligned_price_passes(self, position_manager, risk_config, capital_provider):
         provider = _FakeInstrumentProvider(_FakeInstrument(Decimal("0.05")))
         rm = RiskManager(
             position_manager=position_manager,
@@ -77,9 +75,7 @@ class TestTickSizeValidation:
         result = rm.check_order(order)
         assert result.allowed is True
 
-    def test_misaligned_price_rejected(
-        self, position_manager, risk_config, capital_provider
-    ):
+    def test_misaligned_price_rejected(self, position_manager, risk_config, capital_provider):
         provider = _FakeInstrumentProvider(_FakeInstrument(Decimal("0.05")))
         rm = RiskManager(
             position_manager=position_manager,
@@ -92,9 +88,7 @@ class TestTickSizeValidation:
         assert result.allowed is False
         assert "tick size" in (result.reason or "").lower()
 
-    def test_market_order_skips_tick_check(
-        self, position_manager, risk_config, capital_provider
-    ):
+    def test_market_order_skips_tick_check(self, position_manager, risk_config, capital_provider):
         provider = _FakeInstrumentProvider(_FakeInstrument(Decimal("0.05")))
         rm = RiskManager(
             position_manager=position_manager,
@@ -117,7 +111,7 @@ class TestTickSizeValidation:
         result = rm.check_order(order)
         assert result.allowed is True
 
-    def test_no_instrument_provider_skips_check(
+    def test_no_instrument_provider_fail_closed_for_limit_orders(
         self, position_manager, risk_config, capital_provider
     ):
         rm = RiskManager(
@@ -127,9 +121,10 @@ class TestTickSizeValidation:
         )
         order = _make_order(price=Decimal("100.07"))
         result = rm.check_order(order)
-        assert result.allowed is True
+        assert result.allowed is False
+        assert "instrument provider" in (result.reason or "").lower()
 
-    def test_instrument_not_found_skips_check(
+    def test_instrument_not_found_rejected(
         self, position_manager, risk_config, capital_provider
     ):
         provider = _FakeInstrumentProvider(instrument=None)
@@ -141,11 +136,10 @@ class TestTickSizeValidation:
         )
         order = _make_order(price=Decimal("100.07"))
         result = rm.check_order(order)
-        assert result.allowed is True
+        assert result.allowed is False
+        assert "lookup failed" in (result.reason or "").lower()
 
-    def test_lookup_exception_skips_check(
-        self, position_manager, risk_config, capital_provider
-    ):
+    def test_lookup_exception_rejected(self, position_manager, risk_config, capital_provider):
         class BrokenProvider:
             def resolve(self, symbol, exchange):
                 raise RuntimeError("DB down")
@@ -158,7 +152,8 @@ class TestTickSizeValidation:
         )
         order = _make_order(price=Decimal("100.07"))
         result = rm.check_order(order)
-        assert result.allowed is True
+        assert result.allowed is False
+        assert "lookup failed" in (result.reason or "").lower()
 
     def test_float_tick_size_from_canonical_instrument(
         self, position_manager, risk_config, capital_provider
@@ -178,9 +173,7 @@ class TestTickSizeValidation:
         result = rm.check_order(order)
         assert result.allowed is True
 
-    def test_large_tick_size_fno(
-        self, position_manager, capital_provider
-    ):
+    def test_large_tick_size_fno(self, position_manager, capital_provider):
         config = RiskConfig(enable_margin_check=False)
         provider = _FakeInstrumentProvider(_FakeInstrument(Decimal("10")))
         rm = RiskManager(

@@ -2,10 +2,10 @@
 
 from decimal import Decimal
 
-from domain.models.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
 from brokers.dhan.execution.orders import OrdersAdapter
 from domain import OrderStatus, Side
+from domain.models.dtos import BrokerOrderPayload
 from infrastructure.event_bus import EventBus
 
 
@@ -267,8 +267,8 @@ def test_place_order_idempotency_does_not_publish_duplicate(fake_client, resolve
 def test_place_order_risk_check_blocks_order(fake_client, resolver):
     from decimal import Decimal
 
-    from application.oms.position_manager import PositionManager
     from application.oms._internal.risk_manager import RiskConfig, RiskManager
+    from application.oms.position_manager import PositionManager
 
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()
@@ -297,8 +297,8 @@ def test_place_order_transport_only_does_not_bypass_risk_check(fake_client, reso
     risk checks are always enforced regardless of any transport flags."""
     from decimal import Decimal
 
-    from application.oms.position_manager import PositionManager
     from application.oms._internal.risk_manager import RiskConfig, RiskManager
+    from application.oms.position_manager import PositionManager
 
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()

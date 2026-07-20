@@ -14,15 +14,12 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from domain.models.dtos import BrokerOrderPayload
 from brokers.common.idempotency import IdempotencyCache
-from brokers.dhan.exceptions import OrderError
 from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
-from brokers.dhan.resilience.invariants import assert_dhan_payload
 from brokers.dhan.execution.order_validator import OrderValidator
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT, segment_to_exchange
-from config.endpoints import Dhan
+from brokers.dhan.identity import DhanIdentityProvider
+from brokers.dhan.resilience.invariants import assert_dhan_payload
+from brokers.dhan.segments import segment_to_exchange
 from domain import (
     Order,
     OrderResponse,
@@ -32,11 +29,11 @@ from domain import (
     Validity,
 )
 from domain import Side as OrderSide
-from domain.field_mapping import DefaultFieldMapping
-from domain.symbols import normalize_exchange
-from domain.value_objects.price import to_wire_float
 from domain.events import DomainEvent
+from domain.field_mapping import DefaultFieldMapping
+from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort
+from domain.value_objects.price import to_wire_float
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -124,9 +121,7 @@ class OrderPlacer:
         """Internal placement after idempotency reservation is held."""
         # -- Safety guard ---------------------------------------------------
         if not self._allow_live_orders:
-            return OrderResponse.fail(
-                "Live orders disabled; set DHAN_ALLOW_LIVE_ORDERS=1"
-            )
+            return OrderResponse.fail("Live orders disabled; set DHAN_ALLOW_LIVE_ORDERS=1")
 
         # -- Resolve instrument --------------------------------------------
         try:
@@ -209,9 +204,7 @@ class OrderPlacer:
         The Dhan API handles the slicing server-side.
         """
         if not self._allow_live_orders:
-            return OrderResponse.fail(
-                "Live orders disabled; set DHAN_ALLOW_LIVE_ORDERS=1"
-            )
+            return OrderResponse.fail("Live orders disabled; set DHAN_ALLOW_LIVE_ORDERS=1")
 
         try:
             ref = self._identity.resolve_ref(symbol, exchange)
@@ -241,9 +234,7 @@ class OrderPlacer:
 
         raw = data.get("data", data) if isinstance(data, dict) else data
         order_id = (
-            str(raw.get("orderId", raw.get("order_id", "")))
-            if isinstance(raw, dict)
-            else str(raw)
+            str(raw.get("orderId", raw.get("order_id", ""))) if isinstance(raw, dict) else str(raw)
         )
         success = bool(order_id) and order_id != "0"
         response = OrderResponse(
@@ -254,7 +245,9 @@ class OrderPlacer:
             status=OrderStatus.OPEN if success else OrderStatus.REJECTED,
         )
         if success:
-            self._publish_slice(response, symbol, exchange, side, quantity, order_type, product_type)
+            self._publish_slice(
+                response, symbol, exchange, side, quantity, order_type, product_type
+            )
         return response
 
     def _publish_slice(
@@ -305,7 +298,8 @@ class OrderPlacer:
         )
         vl = (
             request.validity.value
-            if hasattr(request, "validity") and isinstance(getattr(request, "validity", None), Validity)
+            if hasattr(request, "validity")
+            and isinstance(getattr(request, "validity", None), Validity)
             else "DAY"
         )
         return ot, pt, vl

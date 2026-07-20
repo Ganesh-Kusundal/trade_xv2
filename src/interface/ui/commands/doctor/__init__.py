@@ -33,22 +33,22 @@ from typing import Any
 
 from rich.console import Console
 
+from interface.ui.commands._broker import broker_id_from
 from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
 from interface.ui.commands.doctor.orchestrator import CheckOrchestrator, SectionResult
 from interface.ui.commands.doctor.renderer import ResultRenderer, _status_str
 from interface.ui.commands.doctor.strategies import (
     ActiveBrokerCheck,
-    AuthLiveProbeCheck,
     AuthenticatedReadinessCheck,
+    AuthLiveProbeCheck,
     BrokerRegistryCheck,
     HTTPObservabilityCheck,
     InstrumentCatalogCheck,
     LifecycleCheck,
     OMSRiskManagerCheck,
 )
-from interface.ui.commands._broker import broker_id_from
-from runtime.platform_bridge import run_doctor
 from interface.ui.services.broker_service import BrokerService
+from runtime.platform_bridge import run_doctor
 
 logger = logging.getLogger(__name__)
 
@@ -365,8 +365,6 @@ def run(args: list[str], broker_service: BrokerService, console: Console) -> Non
         return
 
     if force_refresh and not auth_only:
-        console.print(
-            "[yellow]--force-refresh only applies with `doctor auth`; ignoring.[/yellow]"
-        )
+        console.print("[yellow]--force-refresh only applies with `doctor auth`; ignoring.[/yellow]")
 
     run_doctor(broker_service, console, quick_mode=quick_mode, parallel_mode=parallel_mode)

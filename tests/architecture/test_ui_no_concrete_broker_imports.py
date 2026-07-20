@@ -42,8 +42,7 @@ def test_interface_ui_has_no_concrete_broker_imports() -> None:
             continue
         violations.extend(_forbidden_imports(path))
     assert not violations, (
-        "interface.ui imports concrete broker packages (TOS-P5-002):\n"
-        + "\n".join(violations)
+        "interface.ui imports concrete broker packages (TOS-P5-002):\n" + "\n".join(violations)
     )
 
 

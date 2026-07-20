@@ -20,7 +20,6 @@ from decimal import Decimal
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # F1 — capability/method mismatch is surfaced, not silently accepted
 # ---------------------------------------------------------------------------
@@ -142,8 +141,8 @@ def test_f2_depth_validation_matrix():
 
 def test_m2_seen_ids_bounded_lru_and_dedup(tmp_path):
     try:
-        from infrastructure.event_bus import DomainEvent
         from infrastructure import event_log as event_log_mod
+        from infrastructure.event_bus import DomainEvent
         from infrastructure.event_log import EventLog
     except Exception as exc:  # pragma: no cover
         pytest.skip(f"infrastructure.event_log unavailable: {exc}")
@@ -190,7 +189,7 @@ def test_m2_seen_ids_bounded_lru_and_dedup(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_orch() -> "object":
+def _make_orch() -> object:
     """Build a StreamOrchestrator without running __init__ (heavy deps)."""
     try:
         from application.streaming.orchestrator import StreamOrchestrator

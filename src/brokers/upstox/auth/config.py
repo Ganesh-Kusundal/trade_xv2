@@ -4,9 +4,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from infrastructure.config.settings import BrokerSettings, SettingsLoaderBase
-
 from config.endpoints import Upstox as _UpstoxEndpoints
+from infrastructure.config.settings import BrokerSettings, SettingsLoaderBase
 
 UPSTOX_PREFIX = "UPSTOX"
 

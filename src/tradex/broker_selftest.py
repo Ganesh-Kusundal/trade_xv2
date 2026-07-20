@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
-from domain.connect_errors import ConnectError, GATEWAY_FAILED
+from domain.connect_errors import GATEWAY_FAILED, ConnectError
 from domain.universe import Session as DomainSession
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,9 @@ def run(session: DomainSession, broker_id: str) -> None:
     report = VerifyReport(broker_id=broker_id)
     report.add("Configuration", True, f"broker={broker_id}")
     st = getattr(session, "status", None)
-    report.add("Authentication", bool(getattr(st, "authenticated", False)), getattr(st, "mode", "?"))
+    report.add(
+        "Authentication", bool(getattr(st, "authenticated", False)), getattr(st, "mode", "?")
+    )
     try:
         stock = session.universe.equity("RELIANCE")
         caps = stock.capabilities()
@@ -45,7 +46,7 @@ def run(session: DomainSession, broker_id: str) -> None:
         report.add("WebSocket", handle is not None)
         if handle is not None:
             stock.unsubscribe()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add("SelfTest", False, f"{type(exc).__name__}: {exc}")
         raise ConnectError(
             f"Broker self-test failed for {broker_id!r}.",

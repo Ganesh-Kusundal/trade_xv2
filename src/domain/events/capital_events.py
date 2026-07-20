@@ -27,12 +27,13 @@ def is_capital_event(event_type: str) -> bool:
 
 
 # AsyncEventBus: never drop these under backpressure (same semantics as sync fsync set).
-CAPITAL_EVENT_TYPES: frozenset[str] = frozenset(
-    et for et in _EXPLICIT_CAPITAL
-) | frozenset(
-    # Prefix families are evaluated at runtime via is_capital_event; explicit set
-    # covers known enum values. Dynamic ORDER_/TRADE_/POSITION_ strings are
-    # handled by is_capital_event() in AsyncEventBus.publish().
+CAPITAL_EVENT_TYPES: frozenset[str] = (
+    frozenset(et for et in _EXPLICIT_CAPITAL)
+    | frozenset(
+        # Prefix families are evaluated at runtime via is_capital_event; explicit set
+        # covers known enum values. Dynamic ORDER_/TRADE_/POSITION_ strings are
+        # handled by is_capital_event() in AsyncEventBus.publish().
+    )
 )
 
 __all__ = ["CAPITAL_EVENT_TYPES", "is_capital_event"]

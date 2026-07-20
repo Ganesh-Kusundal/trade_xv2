@@ -9,6 +9,7 @@ events from the OMS ``TradingContext.event_bus`` when one is available.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import TYPE_CHECKING
 
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 class EventBusService:
     """Read-only mirror over the canonical OMS EventBus."""
 
-    def __init__(self, event_bus: "EventBus | None" = None) -> None:
+    def __init__(self, event_bus: EventBus | None = None) -> None:
         self.event_bus = event_bus
         self._counters: dict[str, int] = {
             "MARKET": 0,
@@ -34,10 +35,8 @@ class EventBusService:
         self._logs: list[str] = []
         self._max_logs = 500
         if event_bus is not None:
-            try:
+            with contextlib.suppress(AttributeError):
                 event_bus.subscribe_all(self._on_event)
-            except AttributeError:
-                pass
 
     def _on_event(self, event) -> None:
         event_type = getattr(event, "event_type", "")

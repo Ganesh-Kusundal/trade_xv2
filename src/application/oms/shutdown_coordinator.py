@@ -17,8 +17,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from application.oms.order_manager import OrderManager
     from application.oms._internal.risk_manager import RiskManager
+    from application.oms.order_manager import OrderManager
     from domain.ports import EventBusPort, EventLogPort
 
 logger = logging.getLogger(__name__)
@@ -160,9 +160,7 @@ class ShutdownCoordinator:
         failed_ids: list[str] = []
 
         open_orders = [
-            order
-            for order in self._order_manager.get_orders()
-            if order.status == OrderStatus.OPEN
+            order for order in self._order_manager.get_orders() if order.status == OrderStatus.OPEN
         ]
 
         if not open_orders:

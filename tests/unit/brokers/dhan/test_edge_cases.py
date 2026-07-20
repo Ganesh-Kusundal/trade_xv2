@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.exceptions import InstrumentNotFoundError
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.wire import DhanBrokerGateway
 from domain import OrderStatus
-from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
+from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
 
 
 @pytest.fixture()

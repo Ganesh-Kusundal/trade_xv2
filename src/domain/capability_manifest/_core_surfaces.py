@@ -19,7 +19,12 @@ CORE_SURFACES = (
         ),
         rest=(
             ("GET", "/api/v1/market/candles", "src/interface/api/routers/market.py", "datalake"),
-            ("GET", "/api/v1/live/candles", "src/interface/api/routers/live/market.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/live/candles",
+                "src/interface/api/routers/live/market.py",
+                "live_broker",
+            ),
         ),
         notes="Dual API + MCP broker_history; services: get_history",
     ),
@@ -36,8 +41,18 @@ CORE_SURFACES = (
         ),
         notes="MCP: broker_quote; services: get_quote",
         rest=(
-            ("GET", "/api/v1/market/quote/{symbol}", "src/interface/api/routers/market.py", "datalake"),
-            ("GET", "/api/v1/live/quote/{symbol}", "src/interface/api/routers/live/market.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/market/quote/{symbol}",
+                "src/interface/api/routers/market.py",
+                "datalake",
+            ),
+            (
+                "GET",
+                "/api/v1/live/quote/{symbol}",
+                "src/interface/api/routers/live/market.py",
+                "live_broker",
+            ),
         ),
     ),
     surface(
@@ -47,7 +62,14 @@ CORE_SURFACES = (
         abc_required=True,
         dhan="market_data.get_ltp",
         upstox="market_data.get_ltp",
-        rest=(("GET", "/api/v1/live/ltp/{symbol}", "src/interface/api/routers/live/market.py", "live_broker"),),
+        rest=(
+            (
+                "GET",
+                "/api/v1/live/ltp/{symbol}",
+                "src/interface/api/routers/live/market.py",
+                "live_broker",
+            ),
+        ),
         notes="No dedicated CLI/REST; used internally by dashboard/validate",
     ),
     surface(
@@ -61,7 +83,14 @@ CORE_SURFACES = (
             ("depth", "src/interface/ui/commands/market_handlers.py"),
             ("depth", "src/brokers/cli/broker.py"),
         ),
-        rest=(("GET", "/api/v1/live/depth/{symbol}", "src/interface/api/routers/live/market.py", "live_broker"),),
+        rest=(
+            (
+                "GET",
+                "/api/v1/live/depth/{symbol}",
+                "src/interface/api/routers/live/market.py",
+                "live_broker",
+            ),
+        ),
         notes="MCP: broker_market_depth; services: get_depth, probe_depth_ws",
     ),
     surface(
@@ -73,7 +102,12 @@ CORE_SURFACES = (
         upstox="options.get_option_chain",
         cli=(("option-chain", "src/interface/ui/commands/market_handlers.py"),),
         rest=(
-            ("GET", "/api/v1/options/chain/{underlying}", "src/interface/api/routers/options.py", "datalake"),
+            (
+                "GET",
+                "/api/v1/options/chain/{underlying}",
+                "src/interface/api/routers/options.py",
+                "datalake",
+            ),
             (
                 "GET",
                 "/api/v1/live/options/chain/{underlying}",
@@ -123,7 +157,9 @@ CORE_SURFACES = (
         dhan="gateway.stream_depth",
         upstox="market_data.subscribe_depth",
         cli=(("depth", "src/interface/ui/commands/market_handlers.py"),),
-        rest=(("WS", "/ws/market/depth/{symbol}", "src/interface/api/ws/market.py", "live_broker"),),
+        rest=(
+            ("WS", "/ws/market/depth/{symbol}", "src/interface/api/ws/market.py", "live_broker"),
+        ),
     ),
     surface(
         "batch.ltp_batch",

@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from analytics.backtest import BacktestConfig, BacktestEngine
+from analytics.backtest.engine import ResearchMode
 from analytics.indicators.halftrend import HalfTrend
 from analytics.indicators.halftrend_backtest import HalfTrendStrategy
 from analytics.pipeline import ATR, RSI, FeaturePipeline
@@ -221,7 +222,9 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
             df = gw.history(sym, timeframe="1m", lookback_days=lookback_days)
             if df.empty:
                 return (i, sym, "[red]No data[/red]", "-", "-", "-")
-            engine = BacktestEngine(pipeline, strategy, config)
+            engine = BacktestEngine(
+                pipeline, strategy, config, mode=ResearchMode.PURE_SIM
+            )
             bt_result = engine.run(df, symbol=sym)
             m = bt_result.metrics
             ret_style = "green" if m.total_return_pct >= 0 else "red"

@@ -10,12 +10,10 @@ import time
 from decimal import Decimal
 from typing import Any
 
-from domain.models.dtos import BrokerOrderPayload
+from brokers.common.idempotency import IdempotencyCache, IdempotencyCachePort
 from brokers.common.order_validation import validate_tick_alignment
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-from brokers.common.idempotency import IdempotencyCachePort
-from brokers.common.idempotency import IdempotencyCache
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import (
     Order,
@@ -24,8 +22,9 @@ from domain import (
     OrderResponse,
 )
 from domain import Side as OrderSide
-from domain.ports.risk_manager import RiskManagerPort
 from domain.events import DomainEvent
+from domain.models.dtos import BrokerOrderPayload
+from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -88,9 +87,7 @@ class UpstoxOrderCommandAdapter:
 
         instrument_key = self._resolve_instrument_key(request)
         if not instrument_key:
-            raise OrderError(
-                f"Cannot resolve Upstox instrument_key for {request.symbol!r}"
-            )
+            raise OrderError(f"Cannot resolve Upstox instrument_key for {request.symbol!r}")
 
         preview = self.preview_order(request)
         if not preview.valid:
@@ -161,6 +158,7 @@ class UpstoxOrderCommandAdapter:
             broker's error code/message on failure.
         """
         from domain import OrderResponse
+
         try:
             result = self._order_client.cancel_order_v3(order_id)
         except (RuntimeError, OSError) as exc:
@@ -252,9 +250,8 @@ class UpstoxOrderCommandAdapter:
         return request.symbol or None
 
     def _to_domain_order(self, request: BrokerOrderPayload) -> Order:
-        from domain.ports.time_service import get_current_clock
-
         from domain import OrderStatus, OrderType, ProductType, Validity
+        from domain.ports.time_service import get_current_clock
 
         return Order(
             order_id="",

@@ -36,10 +36,14 @@ from analytics.strategy.pipeline import StrategyPipeline
 class _NullOmsAdapter:
     """Minimal OMS adapter for replay tests that satisfies the port protocol."""
 
-    def open_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+    def open_long(
+        self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None
+    ):
         return f"SIM-{symbol}"
 
-    def close_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+    def close_long(
+        self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None
+    ):
         return f"SIM-CLOSE-{symbol}"
 
     def modify_order(self, order_id, *, price=None, quantity=None, trigger_price=None):

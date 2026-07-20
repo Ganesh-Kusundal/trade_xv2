@@ -32,7 +32,7 @@ def _nse_exchange_adapter():
     yield
     from datalake import exchange_registry
 
-    exchange_registry._ACTIVE = None  # noqa: SLF001 — test isolation
+    exchange_registry._ACTIVE = None
 
 
 def _publish_tick(

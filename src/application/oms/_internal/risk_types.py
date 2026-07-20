@@ -41,7 +41,7 @@ class RiskConfig:
     margin_safety_multiplier: Decimal = Decimal(str(RISK_MARGIN_SAFETY_MULTIPLIER))
     enable_margin_check: bool = True
 
-    def replace(self, **changes: Any) -> "RiskConfig":
+    def replace(self, **changes: Any) -> RiskConfig:
         """Convenience mirror of :func:`dataclasses.replace` for callers."""
         return replace(self, **changes)
 
@@ -52,7 +52,7 @@ class RiskResult:
     reason: str | None = None
 
 
-def risk_result_from_domain(domain_result: "DomainRiskResult") -> RiskResult:
+def risk_result_from_domain(domain_result: DomainRiskResult) -> RiskResult:
     """Map ``domain.risk.policy.RiskResult`` (``approved``) → OMS ``RiskResult`` (``allowed``).
 
     Bridge only — does not reimplement domain policy. Callers that already hold a

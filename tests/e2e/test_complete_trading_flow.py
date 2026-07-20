@@ -28,8 +28,8 @@ DEFAULT_SELL_PRICE = Decimal("110.0")
 DEFAULT_SYMBOL = "RELIANCE"
 DEFAULT_QUANTITY = 10
 
-from application.oms.order_manager import OmsOrderCommand
 from application.oms._internal.risk_manager import RiskConfig
+from application.oms.order_manager import OmsOrderCommand
 from domain import (
     Order,
     OrderStatus,
@@ -324,7 +324,9 @@ class TestOrderToPositionFlow:
             correlation_id="sell-reduce-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(buy_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Sell half
         cmd_sell = OmsOrderCommand(
@@ -364,7 +366,9 @@ class TestOrderToPositionFlow:
             correlation_id="full-close-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(buy_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Close all
         cmd_sell = OmsOrderCommand(
@@ -452,7 +456,9 @@ class TestPnLCalculations:
             correlation_id="pnl-realized-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(buy_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Sell at 110
         cmd_sell = OmsOrderCommand(
@@ -719,7 +725,9 @@ class TestStateConsistency:
                 correlation_id=unique_id,
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
+            trading_context.order_manager.record_trade(
+                _make_trade(result.order, DEFAULT_FILL_PRICE)
+            )
 
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == 3
@@ -813,7 +821,9 @@ class TestFundBalanceVerification:
             correlation_id="balance-bs-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(buy_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Sell at 110 (profit of 100)
         cmd_sell = OmsOrderCommand(
@@ -889,7 +899,9 @@ class TestFundBalanceVerification:
                 correlation_id=unique_id,
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
+            trading_context.order_manager.record_trade(
+                _make_trade(result.order, DEFAULT_FILL_PRICE)
+            )
 
         # Verify all positions exist
         positions = trading_context.position_manager.get_positions()
@@ -914,7 +926,9 @@ class TestKillSwitchWithActivePositions:
             correlation_id="kill-active-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(buy_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Activate kill switch
         trading_context.risk_manager.set_kill_switch(True)
@@ -950,7 +964,9 @@ class TestKillSwitchWithActivePositions:
             correlation_id="kill-close-buy",
         )
         buy_result = trading_context.order_manager.place_order(cmd_buy, submit_fn=_make_submit_fn())
-        trading_context.order_manager.record_trade(_make_trade(buy_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(buy_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Activate kill switch
         trading_context.risk_manager.set_kill_switch(True)
@@ -1037,7 +1053,9 @@ class TestMultiSymbolPortfolioTrading:
                 correlation_id=unique_id,
             )
             result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
-            trading_context.order_manager.record_trade(_make_trade(result.order, DEFAULT_FILL_PRICE))
+            trading_context.order_manager.record_trade(
+                _make_trade(result.order, DEFAULT_FILL_PRICE)
+            )
 
         # Verify all positions exist
         positions = trading_context.position_manager.get_positions()
@@ -1106,7 +1124,9 @@ class TestMultiSymbolPortfolioTrading:
         long_result = trading_context.order_manager.place_order(
             cmd_long, submit_fn=_make_submit_fn()
         )
-        trading_context.order_manager.record_trade(_make_trade(long_result.order, DEFAULT_FILL_PRICE))
+        trading_context.order_manager.record_trade(
+            _make_trade(long_result.order, DEFAULT_FILL_PRICE)
+        )
 
         # Open short position
         short_id = f"mixed-short-{uuid.uuid4().hex}"

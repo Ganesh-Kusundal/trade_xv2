@@ -74,9 +74,7 @@ _DOMAIN_PROTOCOL_ALLOWLIST = frozenset(
 )
 
 _FULL_ALLOWLIST = (
-    _APPLICATION_INTERFACE_ALLOWLIST
-    | _BROKER_WIRE_ALLOWLIST
-    | _DOMAIN_PROTOCOL_ALLOWLIST
+    _APPLICATION_INTERFACE_ALLOWLIST | _BROKER_WIRE_ALLOWLIST | _DOMAIN_PROTOCOL_ALLOWLIST
 )
 
 
@@ -102,7 +100,7 @@ def _defines_place_order(path: Path) -> bool:
     except SyntaxError:
         return False
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "place_order":
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == "place_order":
             return True
     return False
 

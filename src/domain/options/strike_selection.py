@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from domain.instruments.instrument import Option
+    pass
 
 
 @dataclass(frozen=True, slots=True)

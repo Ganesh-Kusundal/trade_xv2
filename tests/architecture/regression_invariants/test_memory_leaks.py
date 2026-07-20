@@ -248,7 +248,6 @@ class TestCacheEviction:
         assert "key" not in cache, "Entry should have expired after TTL"
 
 
-
 # ──────────────────────────────────────────────────────────────────────
 # Section 4: Reference Cycles
 # ──────────────────────────────────────────────────────────────────────
@@ -449,7 +448,7 @@ class TestDataFrameMemory:
 
         size = df.memory_usage(deep=True).sum()
         assert size > 0, "memory_usage should return positive value"
-        assert isinstance(size, (int, np.integer)), "memory_usage should return int"
+        assert isinstance(size, int | np.integer), "memory_usage should return int"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -462,9 +461,9 @@ class TestOverallMemoryGrowth:
 
     def test_sustained_event_bus_load_bounded_growth(self):
         """Sustained EventBus load should have bounded memory growth (< 10MB)."""
-        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
         from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
+        from infrastructure.observability.event_metrics import EventMetrics
 
         tracemalloc.start()
 

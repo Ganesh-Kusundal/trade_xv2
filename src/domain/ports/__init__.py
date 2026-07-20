@@ -1,18 +1,24 @@
 """Application ports."""
 
+from domain.exceptions import ExchangeNotConfigured
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
 from domain.ports.broker_gateway import OrderTransportPort
+from domain.ports.broker_session_state import (
+    BrokerSessionState,
+    BrokerSessionStatus,
+    InvalidSessionTransitionError,
+)
 from domain.ports.broker_id import BrokerId
 from domain.ports.event_log import (
     DeadLetterQueuePort,
     EventLogPort,
     ProcessedTradeRepositoryPort,
 )
-from domain.exceptions import ExchangeNotConfigured
 from domain.ports.event_publisher import EventBusPort, EventPublisher
 from domain.ports.exchange_adapter import ExchangeAdapter
 from domain.ports.exchange_calendar import TradingCalendar
 from domain.ports.execution_ledger import ExecutionLedgerPort
+from domain.ports.execution_target import ExecutionTarget, ExecutionTargetKind
 from domain.ports.lifecycle import LifecycleManagerPort, ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
 from domain.ports.metrics import MetricsRegistryPort
@@ -22,22 +28,24 @@ from domain.ports.order_service import OrderServicePort
 from domain.ports.order_store import OrderStorePort
 from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult, SubscriptionHandle
 from domain.ports.risk_manager import RiskManagerPort
-from domain.ports.execution_target import ExecutionTarget, ExecutionTargetKind
 from domain.ports.time_service import ClockPort
 
 __all__ = [
     "AlertingEnginePort",
     "BootstrapResult",
     "BootstrapStatus",
+    "BrokerSessionState",
+    "BrokerSessionStatus",
+    "InvalidSessionTransitionError",
     "ClockPort",
     "DataProvider",
     "DeadLetterQueuePort",
     "EventBusPort",
     "EventLogPort",
-    "ExchangeNotConfigured",
     "EventMetricsPort",
     "EventPublisher",
     "ExchangeAdapter",
+    "ExchangeNotConfigured",
     "ExecutionLedgerPort",
     "ExecutionProvider",
     "ExecutionTarget",

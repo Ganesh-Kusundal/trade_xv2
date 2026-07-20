@@ -14,6 +14,8 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
+from brokers.common.tick_validation import is_valid_quote
+from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
 from brokers.upstox.auth.config import (
     UPSTOX_WS_PING_INTERVAL_SECONDS,
     UPSTOX_WS_PING_TIMEOUT_SECONDS,
@@ -25,8 +27,6 @@ from brokers.upstox.websocket.feed_authorizer import (
 )
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
-from brokers.common.tick_validation import is_valid_quote
-from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
 from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
@@ -199,6 +199,7 @@ class UpstoxMarketDataV3Multiplexer:
     async def _open_socket(self, url: str) -> Any:
         socket_or_awaitable = self._socket_factory(url)
         import inspect
+
         if inspect.isawaitable(socket_or_awaitable):
             return await socket_or_awaitable
         return socket_or_awaitable
@@ -277,10 +278,11 @@ class UpstoxMarketDataV3Multiplexer:
         send = getattr(self._socket, "send", None)
         if send is None:
             return
-        
+
         import asyncio
+
         data = encode_subscribe_payload(payload)
-        
+
         if asyncio.iscoroutinefunction(send):
             try:
                 loop = asyncio.get_running_loop()
@@ -291,7 +293,9 @@ class UpstoxMarketDataV3Multiplexer:
                     loop = self._task.get_loop()
                     asyncio.run_coroutine_threadsafe(send(data), loop)
                 else:
-                    logger.warning("Upstox V3 send failed: no running event loop found to schedule send")
+                    logger.warning(
+                        "Upstox V3 send failed: no running event loop found to schedule send"
+                    )
         else:
             with self._send_lock:
                 try:
@@ -354,11 +358,11 @@ class UpstoxMarketDataV3Multiplexer:
                 continue
             if not frames:
                 continue
-            
+
             # Support both list of frames and a single frame (backward/test compatibility)
             if not isinstance(frames, list):
                 frames = [frames]
-                
+
             for frame in frames:
                 # Track tick times for backfill
                 self._track_tick_from_frame(frame)
@@ -467,6 +471,10 @@ class UpstoxMarketDataV3Multiplexer:
 
     def _publish_tick_to_bus(self, frame: Any) -> None:
         """Publish canonical TICK to EventBus (ADR-016 — parity with Dhan path)."""
+        from runtime.tick_authority import should_publish_tick_directly
+
+        if not should_publish_tick_directly():
+            return
         if self._event_bus is None:
             return
         payload = getattr(frame, "payload", None)

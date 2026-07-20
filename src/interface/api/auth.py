@@ -5,7 +5,13 @@ and ``API_KEY`` only if you expose the API beyond localhost.
 
 Public endpoints (never require auth):
 - /healthz, /readyz (health probes)
-- /api/v1/health/metrics (observability)
+- /api/v1/health, /api/v1/health/readyz (liveness/readiness)
+
+Metrics endpoints require ``X-API-Key`` in production/staging only (SEC-004/005):
+- /api/v1/health/metrics, /api/v1/health/metrics/prometheus
+
+In production/staging (``TRADEX_ENV``), /docs, /redoc, /openapi.json also require
+auth when ``AUTH_MODE=api_key``.
 """
 
 from __future__ import annotations
@@ -25,10 +31,9 @@ _VALID_AUTH_MODES = frozenset({"none", "api_key"})
 def _normalize_auth_mode(mode: str) -> str:
     m = mode.lower().strip()
     if m not in _VALID_AUTH_MODES:
-        raise RuntimeError(
-            f"Invalid AUTH_MODE={m!r}. Use 'none' (default) or 'api_key'."
-        )
+        raise RuntimeError(f"Invalid AUTH_MODE={m!r}. Use 'none' (default) or 'api_key'.")
     return m
+
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -48,9 +53,7 @@ class _AuthConfig:
             cls.API_KEY = api_key.strip()
         elif cls.AUTH_MODE == "api_key" and not cls.API_KEY:
             cls.API_KEY = secrets.token_urlsafe(32)
-            logger.warning(
-                "AUTH_MODE=api_key but API_KEY not set — ephemeral key generated."
-            )
+            logger.warning("AUTH_MODE=api_key but API_KEY not set — ephemeral key generated.")
         elif cls.AUTH_MODE == "none":
             cls.API_KEY = ""
 
@@ -62,9 +65,7 @@ ADMIN_API_KEY = _AuthConfig.ADMIN_API_KEY
 if AUTH_MODE == "api_key" and not API_KEY.strip():
     API_KEY = secrets.token_urlsafe(32)
     _AuthConfig.API_KEY = API_KEY
-    logger.warning(
-        "AUTH_MODE=api_key but API_KEY not set — ephemeral key generated."
-    )
+    logger.warning("AUTH_MODE=api_key but API_KEY not set — ephemeral key generated.")
 
 
 def configure(*, auth_mode: str, api_key: str = "") -> None:
@@ -81,6 +82,13 @@ def _is_production_docs_gated() -> bool:
         return False
     env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
     return env in ("production", "staging")
+
+
+def _is_metrics_auth_gated() -> bool:
+    """Gate metrics behind auth in production/staging (SEC-004/005)."""
+    from runtime.production_config import is_production_environment
+
+    return is_production_environment()
 
 
 # ── Security Scheme ───────────────────────────────────────────────────────────
@@ -124,9 +132,7 @@ def is_public_path(path: str) -> bool:
     """Check if a path should bypass authentication."""
     if path in _BASE_PUBLIC_PATHS:
         return True
-    if not _is_production_docs_gated() and path in _DEV_PUBLIC_PATHS:
-        return True
-    return False
+    return bool(not _is_production_docs_gated() and path in _DEV_PUBLIC_PATHS)
 
 
 def _validate_api_key_value(api_key: str | None) -> None:
@@ -154,12 +160,11 @@ def _validate_admin_api_key(api_key: str | None) -> None:
     """Require admin credentials for control-plane routes."""
     _validate_api_key_value(api_key)
     admin_key = (ADMIN_API_KEY or os.getenv("ADMIN_API_KEY", "")).strip()
-    if admin_key:
-        if not api_key or not secrets.compare_digest(api_key, admin_key):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin API key required for this operation",
-            )
+    if admin_key and (not api_key or not secrets.compare_digest(api_key, admin_key)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin API key required for this operation",
+        )
 
 
 async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
@@ -183,6 +188,32 @@ async def require_auth(
 ) -> None:
     """FastAPI dependency that validates API key when AUTH_MODE=api_key."""
     _validate_api_key_value(x_api_key)
+
+
+async def require_metrics_auth(
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> None:
+    """Profile-scoped metrics auth — prod/staging only; dev stays public."""
+    if not _is_metrics_auth_gated():
+        return
+    if not API_KEY.strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Metrics authentication misconfigured (API_KEY not set)",
+        )
+    if not x_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key. Provide X-API-Key header.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    if not secrets.compare_digest(x_api_key, API_KEY):
+        logger.warning("Invalid API key attempt on metrics endpoint")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
 
 
 async def require_admin(

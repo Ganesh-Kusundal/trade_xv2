@@ -7,9 +7,9 @@ import pytest
 from analytics.backtest.engine import BacktestEngine, ResearchMode
 
 
-def test_default_mode_is_pure_sim():
-    eng = BacktestEngine()
-    assert eng.mode is ResearchMode.PURE_SIM
+def test_default_mode_is_parity_requires_context():
+    with pytest.raises(ValueError, match="PARITY"):
+        BacktestEngine()
 
 
 def test_parity_requires_oms_or_context():
@@ -22,25 +22,37 @@ def test_parity_accepts_oms_adapter():
     assert eng.mode is ResearchMode.PARITY
 
 
-def test_facade_backtest_defaults_to_pure_sim():
+def test_explicit_pure_sim_default():
+    eng = BacktestEngine(mode=ResearchMode.PURE_SIM)
+    assert eng.mode is ResearchMode.PURE_SIM
+
+
+def test_facade_backtest_defaults_to_parity():
     from analytics.facade import Analytics
 
     engine = Analytics().backtest()
+    assert engine.mode is ResearchMode.PARITY
+
+
+def test_facade_backtest_research_only_pure_sim():
+    from analytics.facade import Analytics
+
+    engine = Analytics().backtest(research_only=True)
     assert engine.mode is ResearchMode.PURE_SIM
 
 
-def test_facade_backtest_forwards_parity_mode_and_context():
-    """Analytics.backtest(mode=PARITY, trading_context=...) reaches BacktestEngine."""
+def test_facade_backtest_returns_parity_engine_by_default():
     from analytics.facade import Analytics
 
-    engine = Analytics().backtest(mode=ResearchMode.PARITY, trading_context=object())
+    engine = Analytics().backtest()
     assert engine.mode is ResearchMode.PARITY
+    assert engine._trading_context is not None
 
 
 def test_run_backtest_cli_builds_real_trading_context_for_parity():
     """run_backtest.py's --parity path composes a real, broker-free TradingContext."""
-    from application.oms.context import TradingContext
     from analytics.backtest.run_backtest import _build_parity_context
+    from application.oms.context import TradingContext
 
     ctx = _build_parity_context(initial_capital=100_000)
     assert isinstance(ctx, TradingContext)
@@ -50,8 +62,9 @@ def test_run_backtest_cli_builds_real_trading_context_for_parity():
 
 def test_run_backtest_cli_parity_without_symbol_raises():
     """--parity without --symbol is rejected (mirrors ReplayEngine TypeError contract)."""
-    from analytics.backtest.run_backtest import main
     import sys
+
+    from analytics.backtest.run_backtest import main
 
     old_argv = sys.argv
     try:

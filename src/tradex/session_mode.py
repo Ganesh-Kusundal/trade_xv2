@@ -7,9 +7,7 @@ concrete broker import.
 
 from __future__ import annotations
 
-from typing import Any
-
-from domain.connect_errors import ConnectError, UNKNOWN_MODE
+from domain.connect_errors import UNKNOWN_MODE, ConnectError
 from domain.session_status import (
     MODE_MARKET,
     MODE_SIM,
@@ -56,7 +54,7 @@ def normalize_mode(broker_id: str, mode: str | None) -> str:
         if resolved not in plugin.supported_modes and broker_id != "paper":
             if resolved == MODE_SIM and plugin.is_live:
                 raise ConnectError(
-                    f"mode='sim' is only valid for paper.",
+                    "mode='sim' is only valid for paper.",
                     code=UNKNOWN_MODE,
                     broker_id=broker_id,
                     mode=resolved,
@@ -67,7 +65,7 @@ def normalize_mode(broker_id: str, mode: str | None) -> str:
             return MODE_SIM
         if is_live(broker_id) and resolved == MODE_SIM:
             raise ConnectError(
-                f"mode='sim' is only valid for paper.",
+                "mode='sim' is only valid for paper.",
                 code=UNKNOWN_MODE,
                 broker_id=broker_id,
                 mode=resolved,

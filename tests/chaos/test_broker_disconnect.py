@@ -71,6 +71,7 @@ class TestDisconnectDuringOrderSubmission:
 
     def test_multiple_disconnectes_eventually_fail(self):
         """Network fails on all attempts, retry exhausts."""
+
         def always_fails():
             raise ConnectionError("Persistent network disconnect")
 
@@ -106,13 +107,17 @@ class TestDisconnectDuringOrderSubmission:
 
     def test_disconnect_triggers_circuit_breaker_after_threshold(self):
         """Repeated failures open circuit breaker."""
+
         def always_fails():
             raise ConnectionError("Network down")
 
-        cb = CircuitBreaker("test", CircuitBreakerConfig(
-            failure_threshold=2,
-            open_duration_ms=5000,
-        ))
+        cb = CircuitBreaker(
+            "test",
+            CircuitBreakerConfig(
+                failure_threshold=2,
+                open_duration_ms=5000,
+            ),
+        )
         executor = _make_retry_executor(circuit_breaker=cb, max_attempts=5)
 
         # Trigger failures up to threshold
@@ -298,7 +303,7 @@ class TestDisconnectDuringMarketDataStream:
         def attempt_reconnect():
             nonlocal attempt
             attempt += 1
-            backoff = min(2 ** attempt * 0.01, 1.0)  # Fast backoff for tests
+            backoff = min(2**attempt * 0.01, 1.0)  # Fast backoff for tests
             reconnect_times.append(backoff)
             time.sleep(backoff)
             return True

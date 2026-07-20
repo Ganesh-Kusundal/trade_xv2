@@ -14,18 +14,17 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from domain.events.types import DomainEvent
-
 from analytics.strategy.models import Signal
+from domain.events.types import DomainEvent
 from domain.portfolio_projection import PortfolioProjector
+from domain.ports.time_service import get_current_clock
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
-from domain.ports.time_service import get_current_clock
 
 # ---------------------------------------------------------------------------
 # ReplayItem — single item in the merged replay stream
@@ -58,7 +57,7 @@ class ReplayItem:
 class UnifiedReplayResult:
     """Output from a completed unified replay run."""
 
-    replay_result: "ReplayResult | None"
+    replay_result: ReplayResult | None
     events_replayed: int
     bars_replayed: int
     state_matches: bool
@@ -109,9 +108,6 @@ class FillModel(str, Enum):
 # ---------------------------------------------------------------------------
 # Indian Market Fees
 # ---------------------------------------------------------------------------
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -319,11 +315,7 @@ class ReplaySession:
         return pos is not None and pos.quantity != 0
 
     def open_symbols(self) -> list[str]:
-        return [
-            p.symbol
-            for p in self.fill_pipeline.projector.get_positions()
-            if p.quantity != 0
-        ]
+        return [p.symbol for p in self.fill_pipeline.projector.get_positions() if p.quantity != 0]
 
     def mark_symbol(self, symbol: str, price: float, exchange: str = "NSE") -> None:
         from decimal import Decimal
@@ -336,9 +328,10 @@ class ReplaySession:
         *,
         exchange: str = "NSE",
     ) -> None:
+        from decimal import Decimal
+
         from domain import Side as DomainSide
         from domain.entities import Trade
-        from decimal import Decimal
 
         side = DomainSide.BUY if position.side == "BUY" else DomainSide.SELL
         order_id = f"bootstrap:{position.symbol}"
@@ -366,7 +359,9 @@ class ReplaySession:
     def clear_position(self, symbol: str) -> None:
         self.position_meta.pop(symbol, None)
 
-    def _to_simulated_position(self, symbol: str, exchange: str = "NSE") -> SimulatedPosition | None:
+    def _to_simulated_position(
+        self, symbol: str, exchange: str = "NSE"
+    ) -> SimulatedPosition | None:
         pos = self.fill_pipeline.projector.get_position(symbol, exchange)
         if pos is None or pos.quantity == 0:
             return None

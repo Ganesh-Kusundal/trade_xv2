@@ -380,9 +380,7 @@ def test_all_feature_classes_have_tests() -> None:
     feature_classes = {
         name
         for name, obj in inspect.getmembers(feat_mod, inspect.isclass)
-        if obj.__module__ == feat_mod.__name__
-        and hasattr(obj, "compute")
-        and name != "Feature"
+        if obj.__module__ == feat_mod.__name__ and hasattr(obj, "compute") and name != "Feature"
     }
 
     import sys
@@ -424,12 +422,14 @@ def test_bollinger_constant_prices() -> None:
 
 
 def test_atr_empty_after_warmup() -> None:
-    df = pd.DataFrame({
-        "open": [100.0],
-        "high": [102.0],
-        "low": [98.0],
-        "close": [101.0],
-    })
+    df = pd.DataFrame(
+        {
+            "open": [100.0],
+            "high": [102.0],
+            "low": [98.0],
+            "close": [101.0],
+        }
+    )
     result = ATR(period=10).compute(df)
     assert len(result) == 1
     assert result["atr"].isna().iloc[0]

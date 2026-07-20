@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 from application.oms import register_oms_context, reset_oms_context
-from application.oms.session_bridge import build_paper_oms_service, make_submit_fn
+from application.oms.session_bridge import build_oms_service, make_submit_fn
 from domain.entities.order import OrderResponse
 from domain.enums import OrderStatus, OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
@@ -71,7 +71,7 @@ def standalone_oms_wiring():
 
 def test_build_paper_oms_places_via_execution(registered_paper_oms):
     exec_p = FakeExecutionProvider()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",
@@ -93,7 +93,7 @@ def test_build_paper_oms_places_via_execution(registered_paper_oms):
 
 def test_oms_idempotent_on_correlation_id(registered_paper_oms):
     exec_p = FakeExecutionProvider()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",
@@ -111,7 +111,7 @@ def test_oms_idempotent_on_correlation_id(registered_paper_oms):
 
 def test_risk_kill_switch_blocks_before_execution(registered_paper_oms):
     exec_p = FakeExecutionProvider()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     service.order_manager.risk_manager.set_kill_switch(True)
     intent = OrderIntent(
         symbol="RELIANCE",
@@ -129,7 +129,7 @@ def test_risk_kill_switch_blocks_before_execution(registered_paper_oms):
 def test_execution_failure_surfaces_as_order_result(registered_paper_oms):
     exec_p = FakeExecutionProvider()
     exec_p.reject = True
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",

@@ -11,11 +11,10 @@ from typing import TYPE_CHECKING, Any
 from domain.portfolio.portfolio import Portfolio
 
 if TYPE_CHECKING:
-    from domain.entities.account import Balance
-    from domain.entities.position import Holding, Position
+    from domain.entities.position import Position
+    from domain.portfolio.risk_profile import RiskProfile
     from domain.ports.protocols import ExecutionProvider
     from domain.ports.risk_view import RiskViewPort
-    from domain.portfolio.risk_profile import RiskProfile
 
 
 class AccountView:
@@ -23,8 +22,8 @@ class AccountView:
 
     def __init__(
         self,
-        execution_provider: "ExecutionProvider | None" = None,
-        risk_view: "RiskViewPort | None" = None,
+        execution_provider: ExecutionProvider | None = None,
+        risk_view: RiskViewPort | None = None,
     ) -> None:
         self._ep = execution_provider
         self._risk_view = risk_view
@@ -55,7 +54,7 @@ class AccountView:
         return self._refreshed
 
     @property
-    def risk_profile(self) -> "RiskProfile | None":
+    def risk_profile(self) -> RiskProfile | None:
         """Current risk limits and today's headroom, or None if not wired.
 
         Read-only — never call this to make a risk decision; it exists
@@ -67,7 +66,7 @@ class AccountView:
             return None
         return self._risk_view.get_risk_profile()
 
-    def refresh(self) -> "AccountView":
+    def refresh(self) -> AccountView:
         """Pull positions / holdings / funds from ExecutionProvider into domain objects."""
         if self._ep is None:
             raise RuntimeError(
@@ -102,7 +101,7 @@ class AccountView:
         return self
 
     @staticmethod
-    def _coerce_position(raw: Any) -> "Position | None":
+    def _coerce_position(raw: Any) -> Position | None:
         from decimal import Decimal
 
         from domain.entities.position import Position
@@ -111,7 +110,9 @@ class AccountView:
             return raw
         if raw is None:
             return None
-        symbol = getattr(raw, "symbol", None) or (raw.get("symbol") if isinstance(raw, dict) else None)
+        symbol = getattr(raw, "symbol", None) or (
+            raw.get("symbol") if isinstance(raw, dict) else None
+        )
         if not symbol:
             return None
         exchange = getattr(raw, "exchange", None) or (

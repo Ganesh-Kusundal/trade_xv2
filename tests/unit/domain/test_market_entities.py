@@ -44,9 +44,7 @@ def test_future_chain_to_dict_strips_tokens() -> None:
     chain = FutureChain(
         underlying="NIFTY",
         exchange="NFO",
-        contracts=(
-            FutureContract(symbol="NIFTY24JULFUT", expiry="2024-07-25", lot_size=25),
-        ),
+        contracts=(FutureContract(symbol="NIFTY24JULFUT", expiry="2024-07-25", lot_size=25),),
     )
     payload = chain.to_dict()
     assert "security_id" not in str(payload)

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import lookup_security
-from interface.ui.commands._broker import broker_id_from
-from interface.ui.services.broker_service import BrokerService
+from domain.enums import BrokerId
 from domain.symbols import normalize_symbol
+from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import lookup_security
+from interface.ui.services.broker_service import BrokerService
 
 
 def _show_all_brokers(symbol: str, console: Console) -> None:

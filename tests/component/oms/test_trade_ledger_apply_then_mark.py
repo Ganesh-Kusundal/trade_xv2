@@ -95,9 +95,7 @@ def test_apply_happens_before_mark(
     repo.mark_processed = spy_mark  # type: ignore[method-assign]
 
     assert order_manager.record_trade(_make_trade()) is True
-    assert calls == ["apply", "mark"], (
-        f"expected apply before mark, got {calls}"
-    )
+    assert calls == ["apply", "mark"], f"expected apply before mark, got {calls}"
 
 
 def test_crash_between_apply_and_mark_reapplies_on_replay(
@@ -191,5 +189,5 @@ class _RecordingBus:
         self._sink = sink
         self._lock = threading.RLock()
 
-    def publish(self, event) -> None:  # noqa: D401 - test helper
+    def publish(self, event) -> None:
         self._sink.append(event.event_type)

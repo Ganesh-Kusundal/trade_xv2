@@ -78,6 +78,13 @@ class AsyncEventBus:
         self._dropped_count = 0
         self._batch_size = 64  # drain up to N events per wake-up
 
+    def _record_drop(self, event: DomainEvent) -> None:
+        """Increment observability counters — drops must never be silent."""
+        metrics = getattr(self._bus, "_metrics", None)
+        if metrics is not None:
+            metrics.inc(str(event.event_type), "async_dropped")
+            metrics.inc("AsyncEventBus", "dropped")
+
     # ── Public API ──────────────────────────────────────────────────────
 
     @property
@@ -104,6 +111,7 @@ class AsyncEventBus:
         with self._lock:
             if len(self._queue) >= self._max_queue_size and not is_critical:
                 self._dropped_count += 1
+                self._record_drop(event)
                 logger.warning(
                     "AsyncEventBus: queue full (%d), dropping non-capital event %s (type=%s)",
                     self._max_queue_size,
@@ -215,7 +223,7 @@ class AsyncEventBus:
         """Delegate EventBus surface (metrics, event_log, etc.) to sync bus."""
         return getattr(self._bus, name)
 
-    def as_managed_service(self) -> "AsyncEventBusManagedService":
+    def as_managed_service(self) -> AsyncEventBusManagedService:
         """Return a LifecycleManager-compatible wrapper."""
         return AsyncEventBusManagedService(self)
 

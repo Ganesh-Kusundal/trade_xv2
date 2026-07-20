@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
@@ -17,10 +18,20 @@ from infrastructure.event_bus.event_bus import EventBus
 def _make_oms() -> tuple[OrderManager, RiskManager]:
     bus = EventBus()
     pm = PositionManager(event_bus=bus)
+
+    @dataclass
+    class _Inst:
+        tick_size: Decimal = Decimal("0.05")
+
+    class _Provider:
+        def resolve(self, symbol: str, exchange: str):
+            return _Inst()
+
     rm = RiskManager(
         config=RiskConfig(),
         position_manager=pm,
         capital_fn=lambda: Decimal("1_000_000"),
+        instrument_provider=_Provider(),
     )
     om = OrderManager(event_bus=bus, risk_manager=rm)
     return om, rm
@@ -59,9 +70,7 @@ def test_modify_order_blocked_when_kill_switch_active() -> None:
     rm.set_kill_switch(True)
     from domain.orders.requests import ModifyOrderRequest
 
-    modified = om.modify_order(
-        ModifyOrderRequest(order_id=placed.order.order_id, quantity=5)
-    )
+    modified = om.modify_order(ModifyOrderRequest(order_id=placed.order.order_id, quantity=5))
     assert not modified.success
     assert modified.error is not None
     assert "kill switch" in modified.error.lower()

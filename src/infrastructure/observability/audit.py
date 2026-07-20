@@ -356,7 +356,7 @@ def emit_degraded_mode(
 
 
 # Re-export catalog for backward compatibility
-from infrastructure.observability._catalog import (  # noqa: E402
+from infrastructure.observability._catalog import (
     ALERTING_RULES,
     FAILURE_TAXONOMY,
     METRICS_CATALOG,

@@ -64,7 +64,9 @@ class AnalyticsDataFetcher:
                 symbol = self._instrument
             else:
                 return AnalysisResult(
-                    name="history", symbol="unknown", summary="No symbol provided and no instrument set."
+                    name="history",
+                    symbol="unknown",
+                    summary="No symbol provided and no instrument set.",
                 )
         if isinstance(symbol, Instrument):
             instrument = symbol
@@ -154,9 +156,7 @@ class AnalyticsDataFetcher:
         if symbol is None:
             symbol = self._instrument
         if symbol is None:
-            return AnalysisResult(
-                name="stock", symbol="unknown", summary="No symbol provided."
-            )
+            return AnalysisResult(name="stock", symbol="unknown", summary="No symbol provided.")
         if isinstance(symbol, Instrument):
             instrument = symbol
             if self._instrument_analyzer is not None:
@@ -169,9 +169,7 @@ class AnalyticsDataFetcher:
         else:
             sym = symbol
         if prices is None or prices.empty:
-            return AnalysisResult(
-                name="stock", symbol=sym, summary=f"No data available for {sym}."
-            )
+            return AnalysisResult(name="stock", symbol=sym, summary=f"No data available for {sym}.")
         logger.info("Analyzing stock %s (%d bars)", sym, len(prices))
         return self._engines.stock_engine.analyze(
             sym, prices, benchmark_prices, benchmark_symbol, sector_prices
@@ -216,9 +214,7 @@ class AnalyticsDataFetcher:
         if underlying is None:
             underlying = self._instrument
         if underlying is None:
-            return AnalysisResult(
-                name="options", symbol="unknown", summary="No symbol provided."
-            )
+            return AnalysisResult(name="options", symbol="unknown", summary="No symbol provided.")
         if isinstance(underlying, Instrument):
             instrument = underlying
             if self._instrument_analyzer is not None:

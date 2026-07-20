@@ -15,7 +15,6 @@ import pytest
 
 from analytics.intraday.afternoon_expansion import (
     AfternoonExpansionConfig,
-    industry_diversified_top_k,
     resolve_trade_date,
     run_scan,
     scan_afternoon_expansion,
@@ -46,7 +45,6 @@ class TestAfternoonExpansion:
     def test_no_lookahead_in_ranking(self) -> None:
         """Selection must not depend on the same-day afternoon outcome."""
         df = scan_afternoon_expansion(self.TRADE_DATE)
-        pred_sql = scan_afternoon_expansion.__doc__  # sanity
         # Realized columns must not appear in the WHERE/ORDER BY.
         # We assert the selector-level invariant directly: ranking order is
         # reproducible without the realized columns present.
@@ -54,12 +52,10 @@ class TestAfternoonExpansion:
         assert all(k in df.columns for k in ranking_keys)
         # Recompute a rank ignoring realized_* and confirm it still sorts by
         # the historical keys only.
-        rerank = df.sort_values(
-            ranking_keys, ascending=[False, False, False]
-        ).reset_index(drop=True)
-        pd.testing.assert_frame_equal(
-            df.reset_index(drop=True), rerank, check_like=True
+        rerank = df.sort_values(ranking_keys, ascending=[False, False, False]).reset_index(
+            drop=True
         )
+        pd.testing.assert_frame_equal(df.reset_index(drop=True), rerank, check_like=True)
 
     def test_picks_are_sector_diversified(self) -> None:
         passes, picks = run_scan(self.TRADE_DATE, pick=True)
@@ -68,9 +64,7 @@ class TestAfternoonExpansion:
             assigned = mapper.assign_sectors(picks)
             # No two picked names share a known sector.
             known = assigned[assigned["sector"] != "Unknown"]
-            assert known["sector"].nunique() == len(known), (
-                "sector diversification broken"
-            )
+            assert known["sector"].nunique() == len(known), "sector diversification broken"
         assert len(picks) <= AfternoonExpansionConfig().top_k
 
     def test_live_0950_path_yields_morning_only(self) -> None:
@@ -94,16 +88,11 @@ class TestAfternoonExpansion:
     def test_date_resolution_falls_back_to_latest(self) -> None:
         from datalake.core.paths import timeframe_partition_dir
 
-        glob = str(
-            Path(timeframe_partition_dir(DEFAULT_DATA_ROOT, "1m"))
-            / "symbol=*/data.parquet"
-        )
+        glob = str(Path(timeframe_partition_dir(DEFAULT_DATA_ROOT, "1m")) / "symbol=*/data.parquet")
         con = duckdb.connect()
         latest = con.execute(
             f"SELECT max(CAST(timestamp AS DATE))::VARCHAR "
             f"FROM read_parquet('{glob}', hive_partitioning := true)"
         ).fetchone()[0]
         resolved = resolve_trade_date(con, None)
-        assert resolved == latest, (
-            f"expected latest lake date {latest}, got {resolved}"
-        )
+        assert resolved == latest, f"expected latest lake date {latest}, got {resolved}"

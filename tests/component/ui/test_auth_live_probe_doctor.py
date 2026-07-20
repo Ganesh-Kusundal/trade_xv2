@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from interface.ui.commands.doctor.strategies.auth_live_probe import AuthLiveProbeCheck
 from infrastructure.connection.authenticated_readiness import AuthProbeResult
+from interface.ui.commands.doctor.strategies.auth_live_probe import AuthLiveProbeCheck
 
 
 def test_auth_live_probe_probe_only_never_force_refreshes():
@@ -42,9 +42,7 @@ def test_auth_live_probe_force_refresh_uses_readiness_probe():
         ),
         patch(
             "interface.ui.commands.doctor.strategies.auth_live_probe.authenticated_readiness_probe",
-            return_value=AuthProbeResult(
-                ok=True, probe_name="dhan.funds", refreshed_token=True
-            ),
+            return_value=AuthProbeResult(ok=True, probe_name="dhan.funds", refreshed_token=True),
         ) as forced,
     ):
         results = check.execute(None)

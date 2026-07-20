@@ -5,16 +5,16 @@ from decimal import Decimal
 
 import pytest
 
-from application.data.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
-from domain.policies.source_selection import auto_dual_broker_policy
-from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
-from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway, _bar
+from application.data.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
+from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.policies.source_selection import auto_dual_broker_policy
 from domain.provenance import DataProvenance
+from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway, _bar
 
 
 def _make_coordinator(
@@ -241,9 +241,12 @@ class TestHistoricalDataCoordinator:
                 days = [from_d + timedelta(days=i) for i in range((to_d - from_d).days + 1)]
             return [
                 _bar(
-                    request.instrument, request.timeframe,
+                    request.instrument,
+                    request.timeframe,
                     datetime(d.year, d.month, d.day, 9, 15, tzinfo=timezone.utc),
-                    Decimal("100.00"), "upstox", request.request_id,
+                    Decimal("100.00"),
+                    "upstox",
+                    request.request_id,
                 )
                 for d in days
             ]
@@ -253,9 +256,12 @@ class TestHistoricalDataCoordinator:
             from_d = date.fromisoformat(request.from_date)
             return [
                 _bar(
-                    request.instrument, request.timeframe,
+                    request.instrument,
+                    request.timeframe,
                     datetime(from_d.year, from_d.month, from_d.day, 9, 15, tzinfo=timezone.utc),
-                    Decimal("100.00"), "dhan", request.request_id,
+                    Decimal("100.00"),
+                    "dhan",
+                    request.request_id,
                 )
             ]
 

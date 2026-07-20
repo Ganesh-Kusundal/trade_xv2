@@ -8,8 +8,9 @@ from domain.entities.position import Position
 from domain.portfolio.portfolio import Portfolio
 
 
-def _pos(symbol: str, qty: int, avg: Decimal, ltp: Decimal,
-         realized: Decimal = Decimal("0")) -> Position:
+def _pos(
+    symbol: str, qty: int, avg: Decimal, ltp: Decimal, realized: Decimal = Decimal("0")
+) -> Position:
     return Position(
         symbol=symbol,
         exchange="NSE",
@@ -43,7 +44,7 @@ def test_multiple_positions_pnl():
     p.add_position(_pos("TCS", 5, Decimal("3500"), Decimal("3400"), realized=Decimal("100")))
     # R: unrealized = 10*(2600-2500) = 1000, realized=200; TCS: 5*(3400-3500)=-500, realized=100
     assert p.unrealized_pnl.to_decimal() == Decimal("500")  # 1000 - 500
-    assert p.realized_pnl.to_decimal() == Decimal("300")    # 200 + 100
+    assert p.realized_pnl.to_decimal() == Decimal("300")  # 200 + 100
     assert p.total_pnl.to_decimal() == Decimal("800")
 
 

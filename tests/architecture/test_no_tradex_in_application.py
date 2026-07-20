@@ -13,10 +13,12 @@ def test_application_does_not_import_tradex() -> None:
     for path in (ROOT / "src" / "application").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("tradex"):
-                violations.append(
-                    f"{path.relative_to(ROOT)}:{node.lineno}: from {node.module}"
-                )
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.startswith("tradex")
+            ):
+                violations.append(f"{path.relative_to(ROOT)}:{node.lineno}: from {node.module}")
             elif isinstance(node, ast.Import):
                 for alias in node.names:
                     if alias.name.startswith("tradex"):
@@ -25,6 +27,5 @@ def test_application_does_not_import_tradex() -> None:
                         )
     assert not violations, (
         "Application layer must not import tradex "
-        "(use runtime.session_opener.get_session_opener() instead):\n"
-        + "\n".join(violations)
+        "(use runtime.session_opener.get_session_opener() instead):\n" + "\n".join(violations)
     )

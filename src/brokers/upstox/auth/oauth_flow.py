@@ -39,9 +39,7 @@ class OAuthFlow:
             "code_challenge_method": "S256",
             "code_challenge": pkce.code_challenge,
         }
-        auth_url = (
-            f"{m._oauth_client._base_url}/v2/login/authorization/dialog?{urlencode(params)}"
-        )
+        auth_url = f"{m._oauth_client._base_url}/v2/login/authorization/dialog?{urlencode(params)}"
         if browser_opener is not None:
             try:
                 browser_opener(auth_url)

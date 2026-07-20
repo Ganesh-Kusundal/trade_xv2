@@ -1,6 +1,5 @@
 """Orders endpoints (orders, trades, orderbook)."""
 
-
 import logging
 import uuid
 from datetime import datetime
@@ -9,21 +8,19 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from domain import OrderStatus, OrderType, ProductType, Side
+from infrastructure.observability.tracing import trace_operation
 from interface.api.auth import require_auth
 from interface.api.deps import (
     enforce_live_order_authority,
     get_execution_composer,
     get_order_manager,
-    get_position_manager,
 )
 from interface.api.schemas import (
     OrderRequest,
     OrderResponse,
     OrdersResponse,
 )
-from domain import OrderStatus, OrderType, ProductType, Side
-from domain.orders.requests import OrderRequest as DomainOrderRequest
-from infrastructure.observability.tracing import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +28,7 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 
 # Include trade endpoints as sub-router
 from interface.api.routers._trades import router as trades_router
+
 router.include_router(trades_router, prefix="/trades", tags=["trades"])
 
 

@@ -15,9 +15,6 @@ import logging
 import threading
 from collections.abc import Callable
 
-from infrastructure.auth.jwt_expiry import JwtExpiry
-
-from .exceptions import UpstoxAuthError
 from .holder_factory import TokenHolderFactory
 from .holders import (
     ThreadSafeTokenHolder,
@@ -204,9 +201,7 @@ class UpstoxTokenManager:
     def _effective_expiry_ms(self) -> int:
         return self._refresher._effective_expiry_ms()
 
-    def _run_exclusive_refresh(
-        self, action: Callable[[], TokenSnapshot]
-    ) -> TokenSnapshot | None:
+    def _run_exclusive_refresh(self, action: Callable[[], TokenSnapshot]) -> TokenSnapshot | None:
         return self._refresher._run_exclusive_refresh(action)
 
     def _do_totp_refresh(self) -> TokenSnapshot:

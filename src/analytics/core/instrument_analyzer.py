@@ -15,9 +15,6 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Any
-
-import pandas as pd
 
 from analytics.core.feature_builder import FeatureBuilder
 from analytics.core.models import AnalysisResult

@@ -58,3 +58,13 @@ class ExponentialBackoff(BackoffStrategy):
         delay_ms = min(delay_ms, self._max_delay_ms)
 
         return delay_ms / 1000.0
+
+
+def exponential_backoff_seconds(
+    attempt: int,
+    base_delay_ms: float = 500.0,
+    max_delay_ms: float = 5000.0,
+) -> float:
+    """Simple exponential backoff in seconds (HTTP client helper)."""
+    delay_ms = min(base_delay_ms * (2 ** (attempt - 1)), max_delay_ms)
+    return delay_ms / 1000.0

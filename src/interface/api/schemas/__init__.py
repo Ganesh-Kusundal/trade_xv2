@@ -6,8 +6,8 @@ All existing ``from interface.api.schemas import X`` imports continue to work.
 
 from interface.api.schemas._analytics import (
     IndicatorRequest,
-    IndicatorValue,
     IndicatorsResponse,
+    IndicatorValue,
     MarketBreadthResponse,
     RelativeStrengthResponse,
     ScannerCandidatesResponse,
@@ -96,9 +96,9 @@ __all__ = [
     "PositionsResponse",
     "QuoteResponse",
     "ReadinessResponse",
+    "RelativeStrengthResponse",
     "ReplayControlRequest",
     "ReplaySessionResponse",
-    "RelativeStrengthResponse",
     "ScannerCandidatesResponse",
     "ScannerSnapshot",
     "StrategySignal",

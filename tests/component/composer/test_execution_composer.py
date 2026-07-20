@@ -46,7 +46,7 @@ class TestExecutionComposerKillSwitch:
     @pytest.fixture
     def mock_order_manager(self) -> MagicMock:
         from domain.entities import Order
-        from domain.types import OrderStatus, Side, OrderType, ProductType
+        from domain.types import OrderStatus, OrderType, ProductType, Side
 
         om = MagicMock()
         om.place_order.return_value = OrderResult(

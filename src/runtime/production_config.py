@@ -42,7 +42,16 @@ def validate_production_config(*, surface: Surface = "runtime") -> None:
     violations: list[str] = []
 
     if surface == "api":
-        pass  # ponytail: API auth optional; default AUTH_MODE=none
+        auth_mode = (os.getenv("AUTH_MODE") or "none").strip().lower()
+        if auth_mode != "api_key":
+            violations.append(
+                f"AUTH_MODE must be 'api_key' in production/staging (got '{auth_mode}')"
+            )
+        if not (os.getenv("API_KEY") or "").strip():
+            violations.append(
+                "API_KEY must be set explicitly in production/staging "
+                "(do not rely on auto-generated keys)"
+            )
 
     if _unsafe_env("RISK_FAIL_OPEN"):
         violations.append(

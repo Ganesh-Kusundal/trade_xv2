@@ -22,11 +22,10 @@ logger = logging.getLogger(__name__)
 class ResearchAPI:
     """Fast local data access for research."""
 
-    def __init__(
-        self, root: str | None = None, catalog=None
-    ) -> None:
+    def __init__(self, root: str | None = None, catalog=None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog = catalog
@@ -112,7 +111,9 @@ class ResearchAPI:
         symbols = self._load_universe_list(universe, as_of_date=as_of_date)
         available = []
         for symbol in symbols:
-            df = self._gateway.history(symbol, exchange=get_active_exchange_code(), timeframe="1m", lookback_days=1)
+            df = self._gateway.history(
+                symbol, exchange=get_active_exchange_code(), timeframe="1m", lookback_days=1
+            )
             if not df.empty:
                 available.append(symbol)
         return available

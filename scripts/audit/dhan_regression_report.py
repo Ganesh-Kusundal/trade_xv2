@@ -30,6 +30,7 @@ try:
         MARKET_HOURS_CASES,
         OFF_MARKET_CASES,
     )
+
     _MANIFEST_LOADED = True
     _CASE_MAP = {c.id: c for c in OFF_MARKET_CASES + MARKET_HOURS_CASES}
 except ImportError:
@@ -145,7 +146,9 @@ def build_report(results: list[TestResult]) -> str:
         lines.append("| Test | Capability | Severity | Status | Duration |")
         lines.append("|------|-----------|----------|--------|----------|")
         for r in sorted(tier_results, key=lambda x: (_severity_rank(x.severity), x.name)):
-            icon = {"passed": "✅", "failed": "❌", "error": "💥", "skipped": "⏭"}.get(r.status, "?")
+            icon = {"passed": "✅", "failed": "❌", "error": "💥", "skipped": "⏭"}.get(
+                r.status, "?"
+            )
             lines.append(
                 f"| `{r.name}` | `{r.capability}` | {r.severity} "
                 f"| {icon} {r.status} | {r.duration_s:.2f}s |"

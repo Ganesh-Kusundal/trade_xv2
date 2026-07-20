@@ -3,14 +3,15 @@
 Mode-agnostic: both live and sim go through the same place/cancel/modify
 path. The only difference is the injected FillSource.
 """
+
 from __future__ import annotations
 
 import logging
 
 from application.execution.fill_source import FillSource
-from domain.ports.execution_target import ExecutionTarget
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from domain.ports.execution_target import ExecutionTarget
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,20 @@ class ExecutionEngine:
         return place_order_spine(self._ctx.order_manager, command, self._fill_source)
 
     def cancel_order(self, order_id: str) -> OrderResult:
-        """Cancel an order through the engine."""
+        """Cancel an order through the unified engine."""
         from application.execution.cancel_order_use_case import CancelOrderUseCase
-        return CancelOrderUseCase(self._ctx.order_manager).execute(order_id)
+
+        cancel_fn = getattr(self._fill_source, "cancel_fn", None)
+        resolved = cancel_fn() if callable(cancel_fn) else None
+        return CancelOrderUseCase(self._ctx.order_manager, cancel_fn=resolved).execute(
+            order_id
+        )
+
+    def modify_order(self, request: object) -> OrderResult:
+        """Modify an order through the unified engine."""
+        modify_fn = getattr(self._fill_source, "modify_fn", None)
+        resolved = modify_fn() if callable(modify_fn) else None
+        return self._ctx.order_manager.modify_order(request, modify_fn=resolved)
 
     def apply_mass_status(
         self,
@@ -86,10 +98,10 @@ class ExecutionEngine:
                         om.upsert_order(order)
                     except Exception as exc:
                         logger.warning("mass_status_order_heal_failed %s: %s", order_id, exc)
-                elif (
-                    existing.status != getattr(order, "status", existing.status)
-                    or existing.filled_quantity
-                    != getattr(order, "filled_quantity", existing.filled_quantity)
+                elif existing.status != getattr(
+                    order, "status", existing.status
+                ) or existing.filled_quantity != getattr(
+                    order, "filled_quantity", existing.filled_quantity
                 ):
                     drift_items.append(
                         {
@@ -161,8 +173,6 @@ class ExecutionEngine:
                         try:
                             pm.upsert_position(payload)
                         except Exception as exc:
-                            logger.warning(
-                                "mass_status_position_sync_failed %s: %s", symbol, exc
-                            )
+                            logger.warning("mass_status_position_sync_failed %s: %s", symbol, exc)
 
         return drift_items

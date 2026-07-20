@@ -46,7 +46,12 @@ def routed(operation: Any, endpoint_class: str) -> Callable:
             token = self._acquire_quota(broker_id, endpoint_class)
 
             try:
-                is_mock = type(gateway).__name__ in ("Mock", "MagicMock", "NonCallableMock", "AsyncMock")
+                is_mock = type(gateway).__name__ in (
+                    "Mock",
+                    "MagicMock",
+                    "NonCallableMock",
+                    "AsyncMock",
+                )
                 legacy_gateway = gateway if is_mock else getattr(gateway, "legacy_gateway", gateway)
                 return fn(self, *args, _gateway=legacy_gateway, **kwargs)
             finally:

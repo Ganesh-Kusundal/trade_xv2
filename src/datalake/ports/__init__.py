@@ -2,4 +2,4 @@
 
 from datalake.ports.read_ports import BatchReadPort, HistoryReadPort, OptionsChainPort
 
-__all__ = ["HistoryReadPort", "BatchReadPort", "OptionsChainPort"]
+__all__ = ["BatchReadPort", "HistoryReadPort", "OptionsChainPort"]

@@ -7,8 +7,6 @@ from unittest import mock
 
 import pytest
 
-from domain.ports.broker_gateway import BrokerStreamPlan
-from domain.policies.source_selection import auto_dual_broker_policy
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
 from application.streaming.orchestrator import (
@@ -16,12 +14,14 @@ from application.streaming.orchestrator import (
     StreamOrchestrator,
     SubscriptionRequest,
 )
-from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
+from application.streaming.tick_router import TickRouter
 from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
+from domain.policies.source_selection import auto_dual_broker_policy
+from domain.ports.broker_gateway import BrokerStreamPlan
 from domain.stream_health import FreshnessState, SubscriptionState, TransportState
-from application.streaming.tick_router import TickRouter
 from infrastructure.time_service import time_service
+from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
 
 
 class _RecordingConsumer:
@@ -119,7 +119,7 @@ class TestStreamOrchestrator:
         """Upstox exchange_timestamp must override local arrival time."""
         from datetime import datetime, timezone
 
-        session = orchestrator.all_sessions()
+        orchestrator.all_sessions()
         # Build a session manually is not needed; use normalize directly.
         now = datetime.now(timezone.utc)
         exchange_ts_ms = 1_700_000_000_000  # 2023-11-14T22:13:20Z
@@ -171,10 +171,25 @@ class TestStreamOrchestrator:
             "sequence": 7,
         }
         # First delivery is accepted, second is a duplicate → dropped.
-        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 7) is False
-        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 7) is True
+        assert (
+            orchestrator._tick_router.dedup_drop(
+                "RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 7
+            )
+            is False
+        )
+        assert (
+            orchestrator._tick_router.dedup_drop(
+                "RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 7
+            )
+            is True
+        )
         # Different sequence on same instrument/time is NOT a duplicate.
-        assert orchestrator._tick_router.dedup_drop("RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 8) is False
+        assert (
+            orchestrator._tick_router.dedup_drop(
+                "RELIANCE:NSE", TickRouter._normalize_tick(frame, "s", "upstox", now).event_time, 8
+            )
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_dedup_not_applied_to_timestamp_less_quotes(self, orchestrator):
@@ -183,7 +198,7 @@ class TestStreamOrchestrator:
         Because the dedup key falls back to arrival time and each delivery has
         a distinct arrival time, two separate Dhan ticks do not collide.
         """
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         base = datetime.now(timezone.utc)
         frame = {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100}
@@ -277,9 +292,7 @@ class _TransportLossGateway:
 
     def deliver_tick(self, symbol: str = "RELIANCE", ltp: float = 100.0) -> None:
         if self._tick_callback:
-            self._tick_callback(
-                {"symbol": symbol, "exchange": "NSE", "ltp": ltp, "volume": 1}
-            )
+            self._tick_callback({"symbol": symbol, "exchange": "NSE", "ltp": ltp, "volume": 1})
 
     async def health(self):
         from domain.ports.broker_gateway import BrokerHealthSnapshot

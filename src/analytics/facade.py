@@ -369,16 +369,19 @@ class Analytics:
         *,
         symbol: str = "SYMBOL",
         config: ReplayConfig | None = None,
+        research_only: bool = False,
     ) -> ReplayEngine | ReplayResult:
         """Run historical replay through the same pipeline used in live trading.
 
         If called with no arguments, returns the ReplayEngine for configuration.
         If called with data, runs replay and returns ReplayResult.
         """
+        from runtime.paper_session import build_replay_engine
+
         if data is None:
-            return ReplayEngine(config=config, allow_simulate_without_oms=True)
+            return build_replay_engine(None, None, config, research_only=research_only)
         logger.info("Running replay on %d bars for %s", len(data), symbol)
-        engine = ReplayEngine(config=config, allow_simulate_without_oms=True)
+        engine = build_replay_engine(None, None, config, research_only=research_only)
         return engine.run(data, symbol=symbol)
 
     def backtest(
@@ -388,16 +391,19 @@ class Analytics:
         symbol: str = "SYMBOL",
         config: BacktestConfig | None = None,
         benchmark: pd.DataFrame | None = None,
+        research_only: bool = False,
     ) -> BacktestEngine | BacktestResult:
         """Run backtest with rich performance analytics.
 
         If called with no arguments, returns the BacktestEngine for configuration.
         If called with data, runs backtest and returns BacktestResult.
         """
+        from runtime.paper_session import build_backtest_engine
+
         if data is None:
-            return BacktestEngine(config=config)
+            return build_backtest_engine(None, None, config, research_only=research_only)
         logger.info("Running backtest on %d bars for %s", len(data), symbol)
-        engine = BacktestEngine(config=config)
+        engine = build_backtest_engine(None, None, config, research_only=research_only)
         return engine.run(data, symbol=symbol, benchmark=benchmark)
 
     def paper(
@@ -406,14 +412,17 @@ class Analytics:
         *,
         symbol: str = "SYMBOL",
         config: PaperConfig | None = None,
+        research_only: bool = False,
     ) -> PaperTradingEngine | PaperResult:
         """Run paper trading — same pipeline as live, simulated fills.
 
         If called with no arguments, returns the PaperTradingEngine for configuration.
         If called with data, runs paper trading and returns PaperResult.
         """
+        from runtime.paper_session import build_paper_trading_engine
+
         if data is None:
-            return PaperTradingEngine(config=config, allow_simulate_without_oms=True)
+            return build_paper_trading_engine(None, None, config, research_only=research_only)
         logger.info("Running paper trading on %d bars for %s", len(data), symbol)
-        engine = PaperTradingEngine(config=config, allow_simulate_without_oms=True)
+        engine = build_paper_trading_engine(None, None, config, research_only=research_only)
         return engine.run(data, symbol=symbol)

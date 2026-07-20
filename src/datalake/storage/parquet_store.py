@@ -10,9 +10,9 @@ import duckdb
 import pandas as pd
 from cachetools import TTLCache, cached
 
-from datalake.storage.cache_utils import generate_cache_key
 from datalake.core.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
 from datalake.core.symbols import normalize_symbol_for_storage, symbol_to_path
+from datalake.storage.cache_utils import generate_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class ParquetStore:
     def __init__(self, root: str | None = None, curated_root: str = CURATED_ROOT) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._candles_dir = self._root / "equities" / "candles"
@@ -194,6 +195,7 @@ class ParquetStore:
         # Try curated layout via DuckDB (no filesystem glob check)
         try:
             import duckdb
+
             glob_pattern = curated_equity_glob(root=str(self._curated_root))
             df = duckdb.execute(
                 "SELECT DISTINCT symbol FROM read_parquet(?) ORDER BY symbol",

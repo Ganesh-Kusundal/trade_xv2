@@ -39,7 +39,7 @@ class DhanSuperOrderExtension(Extension):
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True
 
-    def for_instrument(self, symbol: str, exchange: str = NSE) -> "DhanSuperOrderExtension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> DhanSuperOrderExtension:
         ext = DhanSuperOrderExtension(self._gw)
         ext._symbol = symbol
         ext._exchange = exchange
@@ -56,9 +56,7 @@ class DhanSuperOrderExtension(Extension):
         **kwargs: Any,
     ) -> Any:
         """Place super/bracket order via gateway if supported."""
-        fn = getattr(self._gw, "super_order", None) or getattr(
-            self._gw, "place_super_order", None
-        )
+        fn = getattr(self._gw, "super_order", None) or getattr(self._gw, "place_super_order", None)
         if not callable(fn):
             raise RuntimeError("Dhan gateway has no super_order capability wired")
         return fn(

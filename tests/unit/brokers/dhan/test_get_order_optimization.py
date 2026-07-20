@@ -92,6 +92,7 @@ class TestCancelOrderPostVerification:
 
         # Simulate successful cancel
         from domain import OrderResponse
+
         conn.orders.cancel_order.return_value = OrderResponse.ok(
             order_id="ORD-123", message="Cancelled", status=OrderStatus.CANCELLED
         )
@@ -110,6 +111,7 @@ class TestCancelOrderPostVerification:
         conn = MagicMock()
 
         from domain import OrderResponse
+
         conn.orders.cancel_order.return_value = OrderResponse.ok(
             order_id="ORD-123", message="Cancelled"
         )
@@ -120,13 +122,16 @@ class TestCancelOrderPostVerification:
         result = gw.cancel_order("ORD-123")
 
         assert result.success is False
-        assert "already filled" in result.message.lower() or "ALREADY_EXECUTED" in str(result.error_code or "")
+        assert "already filled" in result.message.lower() or "ALREADY_EXECUTED" in str(
+            result.error_code or ""
+        )
 
     def test_cancel_order_handles_get_order_failure_gracefully(self):
         """cancel_order() succeeds even if post-verification get_order fails."""
         conn = MagicMock()
 
         from domain import OrderResponse
+
         conn.orders.cancel_order.return_value = OrderResponse.ok(
             order_id="ORD-123", message="Cancelled"
         )

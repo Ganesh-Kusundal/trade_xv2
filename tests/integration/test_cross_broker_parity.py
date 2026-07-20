@@ -28,7 +28,7 @@ class TestQuoteSchemaParity:
         quote = gw.quote("RELIANCE", "NSE")
 
         # Quote dataclass fields (no 'exchange' field in Quote)
-        required_fields = ['symbol', 'ltp', 'open', 'high', 'low', 'close', 'volume']
+        required_fields = ["symbol", "ltp", "open", "high", "low", "close", "volume"]
         for field in required_fields:
             assert hasattr(quote, field), f"Quote missing field: {field}"
 
@@ -40,9 +40,9 @@ class TestQuoteSchemaParity:
         quote = gw.quote("TATASTEEL", "NSE")
 
         assert isinstance(quote.symbol, str)
-        assert isinstance(quote.ltp, (int, float, Decimal))
+        assert isinstance(quote.ltp, int | float | Decimal)
         assert quote.ltp > 0
-        assert isinstance(quote.volume, (int, float))
+        assert isinstance(quote.volume, int | float)
         assert quote.volume >= 0
 
 
@@ -55,11 +55,14 @@ class TestOrderResponseSchemaParity:
 
         gw = PaperGateway()
         response = gw.place_order(
-            symbol="RELIANCE", exchange="NSE", side="BUY",
-            quantity=10, order_type="MARKET",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side="BUY",
+            quantity=10,
+            order_type="MARKET",
         )
 
-        required_fields = ['success', 'order_id', 'message', 'status', 'error_code']
+        required_fields = ["success", "order_id", "message", "status", "error_code"]
         for field in required_fields:
             assert hasattr(response, field), f"OrderResponse missing field: {field}"
 
@@ -69,8 +72,11 @@ class TestOrderResponseSchemaParity:
 
         gw = PaperGateway()
         response = gw.place_order(
-            symbol="HDFCBANK", exchange="NSE", side="BUY",
-            quantity=5, order_type="MARKET",
+            symbol="HDFCBANK",
+            exchange="NSE",
+            side="BUY",
+            quantity=5,
+            order_type="MARKET",
         )
 
         assert isinstance(response.success, bool)
@@ -81,8 +87,11 @@ class TestOrderResponseSchemaParity:
 
         gw = PaperGateway()
         response = gw.place_order(
-            symbol="ICICIBANK", exchange="NSE", side="BUY",
-            quantity=5, order_type="MARKET",
+            symbol="ICICIBANK",
+            exchange="NSE",
+            side="BUY",
+            quantity=5,
+            order_type="MARKET",
         )
 
         assert isinstance(response.status, OrderStatus)
@@ -97,8 +106,11 @@ class TestOrderLifecycleParity:
 
         gw = PaperGateway()
         response = gw.place_order(
-            symbol="SBIN", exchange="NSE", side="BUY",
-            quantity=10, order_type="MARKET",
+            symbol="SBIN",
+            exchange="NSE",
+            side="BUY",
+            quantity=10,
+            order_type="MARKET",
         )
 
         assert response.success is True
@@ -111,8 +123,11 @@ class TestOrderLifecycleParity:
 
         gw = PaperGateway()
         place_resp = gw.place_order(
-            symbol="AXISBANK", exchange="NSE", side="BUY",
-            quantity=10, order_type="MARKET",
+            symbol="AXISBANK",
+            exchange="NSE",
+            side="BUY",
+            quantity=10,
+            order_type="MARKET",
         )
         assert place_resp.success is True
 
@@ -126,8 +141,11 @@ class TestOrderLifecycleParity:
 
         gw = PaperGateway()
         place_resp = gw.place_order(
-            symbol="KOTAKBANK", exchange="NSE", side="BUY",
-            quantity=10, order_type="MARKET",
+            symbol="KOTAKBANK",
+            exchange="NSE",
+            side="BUY",
+            quantity=10,
+            order_type="MARKET",
         )
 
         order = gw.get_order(place_resp.order_id)
@@ -168,8 +186,8 @@ class TestMarketDepthSchemaParity:
         depth = gw.depth("RELIANCE", "NSE")
 
         assert isinstance(depth, MarketDepth)
-        assert hasattr(depth, 'bids')
-        assert hasattr(depth, 'asks')
+        assert hasattr(depth, "bids")
+        assert hasattr(depth, "asks")
         assert isinstance(depth.bids, list)
         assert isinstance(depth.asks, list)
 
@@ -181,9 +199,9 @@ class TestMarketDepthSchemaParity:
         depth = gw.depth("TATASTEEL", "NSE")
 
         for level in depth.bids[:5]:
-            assert hasattr(level, 'price')
-            assert hasattr(level, 'quantity')
-            assert isinstance(level.price, (int, float, Decimal))
+            assert hasattr(level, "price")
+            assert hasattr(level, "quantity")
+            assert isinstance(level.price, int | float | Decimal)
 
 
 class TestPortfolioSchemaParity:
@@ -205,7 +223,7 @@ class TestPortfolioSchemaParity:
         gw = PaperGateway()
         balance = gw.funds()
         assert isinstance(balance, Balance)
-        assert hasattr(balance, 'available_balance')
+        assert hasattr(balance, "available_balance")
         assert balance.available_balance >= 0
 
 
@@ -216,6 +234,7 @@ class TestSandboxBrokerParity:
     @pytest.fixture
     def paper_gw(self):
         from brokers.paper.paper_gateway import PaperGateway
+
         return PaperGateway()
 
     @pytest.fixture

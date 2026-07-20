@@ -6,6 +6,7 @@ convert to the canonical ``domain.entities.Trade`` via the same helper,
 zero-parity guarantee: backtest/replay/paper/live all produce identical
 domain trades (D7/D12).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from domain.enums import Side
 @dataclass(frozen=True)
 class SimTrade:
     """Unified simulated trade for paper and replay engines."""
+
     trade_id: str
     symbol: str
     side: Side
@@ -42,6 +44,7 @@ class SimTrade:
 @dataclass(frozen=True)
 class SimPosition:
     """Unified simulated position for paper and replay engines."""
+
     symbol: str
     side: Side
     quantity: int

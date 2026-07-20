@@ -37,7 +37,7 @@ class UpstoxNewsExtension(Extension):
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True
 
-    def for_instrument(self, symbol: str, exchange: str = NSE) -> "UpstoxNewsExtension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> UpstoxNewsExtension:
         ext = UpstoxNewsExtension(self._gw)
         ext._symbol = symbol
         ext._exchange = exchange

@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import patch
 
 from application.execution.execution_engine import ExecutionEngine
 from application.oms import PositionManager, RiskManager, TradingContext
 from application.oms._internal.margin_checker import MarginChecker
-from application.oms.order_manager import OmsOrderCommand, OrderManager
 from application.oms._internal.risk_manager import RiskConfig
+from application.oms.order_manager import OmsOrderCommand, OrderManager
 from domain.entities import Order, Trade
 from domain.enums import OrderType, ProductType, Side
 from domain.events.types import DomainEvent, EventType
@@ -268,12 +267,13 @@ def test_concentration_includes_in_flight_pending():
 
 def test_order_placer_routes_through_execution_engine():
     """OrderPlacer calls ExecutionEngine.place_order (zero-parity spine)."""
-    from application.trading.order_placer import OrderPlacer
-    from application.oms.order_manager import OmsOrderCommand, OrderManager
-    from domain.enums import OrderType, ProductType, Side
-    from domain.models.trading import SignalDTO
     from decimal import Decimal
     from unittest.mock import MagicMock
+
+    from application.oms.order_manager import OmsOrderCommand, OrderManager
+    from application.trading.order_placer import OrderPlacer
+    from domain.enums import OrderType, ProductType, Side
+    from domain.models.trading import SignalDTO
 
     om = OrderManager()
     engine = MagicMock()

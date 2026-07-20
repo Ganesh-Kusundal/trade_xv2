@@ -64,7 +64,9 @@ def make_order(
         quantity=quantity,
         filled_quantity=filled_quantity,
         price=Decimal(str(price)) if not isinstance(price, Decimal) else price,
-        trigger_price=Decimal(str(trigger_price)) if not isinstance(trigger_price, Decimal) else trigger_price,
+        trigger_price=Decimal(str(trigger_price))
+        if not isinstance(trigger_price, Decimal)
+        else trigger_price,
         product_type=product_type,
         status=status,
         validity=validity,
@@ -122,7 +124,11 @@ def make_position(
         quantity=quantity,
         avg_price=Decimal(str(avg_price)) if not isinstance(avg_price, Decimal) else avg_price,
         ltp=Decimal(str(ltp)) if not isinstance(ltp, Decimal) else ltp,
-        unrealized_pnl=Decimal(str(unrealized_pnl)) if not isinstance(unrealized_pnl, Decimal) else unrealized_pnl,
-        realized_pnl=Decimal(str(realized_pnl)) if not isinstance(realized_pnl, Decimal) else realized_pnl,
+        unrealized_pnl=Decimal(str(unrealized_pnl))
+        if not isinstance(unrealized_pnl, Decimal)
+        else unrealized_pnl,
+        realized_pnl=Decimal(str(realized_pnl))
+        if not isinstance(realized_pnl, Decimal)
+        else realized_pnl,
         product_type=product_type,
     )

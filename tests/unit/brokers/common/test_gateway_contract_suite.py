@@ -1,6 +1,9 @@
 """REF-006: Gateway contract compliance suite.
 
-Abstract test class that all MarketDataGateway implementations must pass.
+.. deprecated::
+    Prefer :class:`brokers.common.contracts.broker_contract.BrokerContractSuite`.
+    This legacy suite remains for paper gateway smoke tests only.
+
 Each broker adapter provides a ``gateway`` fixture, and these tests verify
 that the returned object conforms to the MarketDataGateway v1.0 contract.
 
@@ -22,7 +25,6 @@ import pandas as pd
 import pytest
 
 from domain.capabilities.broker_capabilities import BrokerCapabilities
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.entities import (
     Balance,
     FutureChain,
@@ -35,6 +37,7 @@ from domain.entities import (
     Quote,
     Trade,
 )
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
 class GatewayContractSuite(ABC):

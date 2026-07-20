@@ -76,6 +76,7 @@ market_data/_quarantine/
 archive/
 
 graphify-out/
+src/graphify-out/
 
 # Runtime logs and lock files
 *.log
@@ -104,3 +105,4 @@ src/brokers/runtime/*.json
 src/brokers/runtime/*.lock
 src/brokers/runtime/*.log
 .hypothesis/
+worktrees/

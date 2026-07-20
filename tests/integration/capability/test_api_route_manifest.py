@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from domain.capability_manifest import CAPABILITY_SURFACES
 from interface.api.config import APIConfig
 from interface.api.main import create_app
-from domain.capability_manifest import CAPABILITY_SURFACES
 
 # Manifest REST paths (normalized without method prefix for lookup).
 _MANIFEST_REST_PATHS: set[tuple[str, str]] = set()

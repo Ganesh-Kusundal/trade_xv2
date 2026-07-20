@@ -3,7 +3,7 @@ description: graphify knowledge graph context
 alwaysApply: true
 ---
 
-This project has a graphify knowledge graph at graphify-out/.
+This project has a graphify knowledge graph at `src/graphify-out/` (scope: `src/` only — no repo-root graph).
 
 **MANDATORY: Before using Read, Grep, Glob, or Bash to explore the codebase, you MUST run graphify first:**
 - `graphify query "<question>"` — scoped subgraph for any codebase or architecture question
@@ -14,8 +14,8 @@ This applies to YOU and to every subagent you spawn. Include this rule explicitl
 
 Only use Read/Grep/Glob directly when:
 1. graphify has already oriented you and you need to modify or debug specific lines
-2. `graphify-out/graph.json` does not exist yet
+2. `src/graphify-out/graph.json` does not exist yet
 
-- If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
-- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review when query/path/explain do not surface enough context
-- After modifying code files, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- If `src/graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
+- Read `src/graphify-out/GRAPH_REPORT.md` only for broad architecture review when query/path/explain do not surface enough context
+- After modifying code files under `src/`, run `graphify update src` to keep the graph current (AST-only, no API cost). Do not run `graphify update .` on the repo root.

@@ -20,16 +20,24 @@ hidden inside the broker plugin selected by ``BrokerSession``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from brokers.runtime import RuntimeBundle
+from domain.candles.historical import HistoricalSeries
+from domain.ports.broker_session_state import (
+    BrokerSessionState,
+    BrokerSessionStatus,
+    build_session_status,
+    transition_state,
+)
 from domain.instruments.instrument import (
+    ETF,
     Commodity,
     Currency,
     Equity,
-    ETF,
     Future,
     Index,
     Instrument,
@@ -38,7 +46,6 @@ from domain.instruments.instrument import (
 )
 from domain.options.option_chain import OptionChain
 from domain.universe import Session as DomainSession
-from domain.candles.historical import HistoricalSeries
 from runtime.session_historical import fetch_historical_sync
 from runtime.session_opener import get_session_opener
 
@@ -63,6 +70,10 @@ class BrokerSession:
         **kwargs: Any,
     ) -> None:
         self._broker_id = (broker or "paper").lower().strip()
+        self._session_state = BrokerSessionState.CREATED
+        self._session_state = transition_state(
+            self._session_state, BrokerSessionState.INITIALIZING
+        )
         self._session: DomainSession = get_session_opener()(
             self._broker_id,
             mode=mode,
@@ -72,11 +83,21 @@ class BrokerSession:
             run_selftest=run_selftest,
             **kwargs,
         )
+        self._session_state = transition_state(
+            self._session_state, BrokerSessionState.AUTHENTICATING
+        )
+        self._session_state = transition_state(
+            self._session_state, BrokerSessionState.CONNECTED
+        )
+        self._session_state = transition_state(
+            self._session_state, BrokerSessionState.HEALTHY
+        )
         self._runtime = RuntimeBundle(session=self._session)
         self._runtime.record_startup()
+        self._publish_lifecycle_event("BROKER_CONNECTED")
 
     @classmethod
-    def connect(cls, broker: str = "paper", **kwargs: Any) -> "BrokerSession":
+    def connect(cls, broker: str = "paper", **kwargs: Any) -> BrokerSession:
         """Trading OS startup entry: load plugin → auth → symbols → caps → ready.
 
         Equivalent to ``BrokerSession(broker, ...)``; named ``connect`` to match
@@ -109,8 +130,38 @@ class BrokerSession:
         return self._session.provider
 
     @property
-    def status(self) -> Any | None:
-        return self._session.status
+    def session_state(self) -> BrokerSessionState:
+        """Unified broker session FSM state."""
+        return self._session_state
+
+    def _publish_lifecycle_event(self, event_name: str, **payload: Any) -> None:
+        bus = self._session.event_bus
+        if bus is None:
+            return
+        from domain.events.types import DomainEvent, EventType
+
+        try:
+            event_type = EventType[event_name]
+        except KeyError:
+            return
+        event = DomainEvent.now(
+            event_type=event_type.value,
+            payload={"broker_id": self._broker_id, **payload},
+            source=self._broker_id,
+        )
+        bus.publish(event)
+
+    def _set_session_state(self, target: BrokerSessionState) -> None:
+        self._session_state = transition_state(self._session_state, target)
+
+    @property
+    def status(self) -> BrokerSessionStatus:
+        """Unified broker session snapshot (FSM + connect readiness)."""
+        return build_session_status(
+            state=self._session_state,
+            connect_status=self._session.status,
+            broker_id=self._broker_id,
+        )
 
     # ── Instrument builders (return rich domain objects) ──────────────
 
@@ -133,17 +184,11 @@ class BrokerSession:
     def currency(self, symbol: str, exchange: str = "NSE") -> Currency:
         return self._session.universe.currency(symbol, exchange)
 
-    def future(
-        self, symbol: str, *, expiry: date, exchange: str = "NFO"
-    ) -> Future:
+    def future(self, symbol: str, *, expiry: date, exchange: str = "NFO") -> Future:
         return self._session.universe.future(symbol, expiry=expiry, exchange=exchange)
 
-    def commodity(
-        self, symbol: str, *, expiry: date, exchange: str = "MCX"
-    ) -> Commodity:
-        return self._session.universe.commodity(
-            symbol, expiry=expiry, exchange=exchange
-        )
+    def commodity(self, symbol: str, *, expiry: date, exchange: str = "MCX") -> Commodity:
+        return self._session.universe.commodity(symbol, expiry=expiry, exchange=exchange)
 
     def option(
         self,
@@ -167,9 +212,7 @@ class BrokerSession:
         exchange: str = "NSE",
     ) -> OptionChain:
         """Option chain as a rich aggregate composed of ``Option`` instruments."""
-        return self._session.option_chain(
-            underlying, expiry=expiry, exchange=exchange
-        )
+        return self._session.option_chain(underlying, expiry=expiry, exchange=exchange)
 
     # ── Convenience data actions (delegate to the instrument's behavior) ─
 
@@ -205,7 +248,7 @@ class BrokerSession:
         instruments: list[Instrument],
         timeframe: str = "1D",
         days: int = 120,
-    ) -> dict[str, "HistoricalSeries"]:
+    ) -> dict[str, HistoricalSeries]:
         """Fetch history for multiple instruments via the federated coordinator.
 
         Returns a dict mapping each symbol to its ``HistoricalSeries``. Each
@@ -299,6 +342,11 @@ class BrokerSession:
         return format_session_capabilities(self, symbol)
 
     def close(self) -> None:
+        from domain.ports.broker_session_state import force_session_state
+
+        self._publish_lifecycle_event("BROKER_DISCONNECTED")
+        if self._session_state != BrokerSessionState.SHUTDOWN:
+            self._session_state = force_session_state(BrokerSessionState.SHUTDOWN)
         self._session.close()
 
     def __repr__(self) -> str:

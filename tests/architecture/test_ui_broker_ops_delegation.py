@@ -78,4 +78,6 @@ class TestUiBrokerOpsDelegation:
             text = path.read_text(encoding="utf-8")
             if not _DELEGATION_RE.search(text):
                 missing.append(str(path.relative_to(PROJECT_ROOT)))
-        assert not missing, "Commands missing broker_ops/brokers.services import:\n" + "\n".join(missing)
+        assert not missing, "Commands missing broker_ops/brokers.services import:\n" + "\n".join(
+            missing
+        )

@@ -59,14 +59,21 @@ def test_to_intent_returns_order_intent():
 def test_to_intent_sizes_from_capital_and_max_position_pct():
     # capital=1,000,000, max_position_pct=10% -> budget=100,000; price=100 -> qty=1000
     signal = _signal(price=Decimal("100"))
-    intent = signal.to_intent(_risk_profile(capital=Decimal("1000000"), max_position_pct=Decimal("10")), AccountView())
+    intent = signal.to_intent(
+        _risk_profile(capital=Decimal("1000000"), max_position_pct=Decimal("10")), AccountView()
+    )
     assert intent.quantity == 1000
 
 
 def test_to_intent_uses_entry_price_when_price_unset():
     signal = SignalDTO(
-        symbol="RELIANCE", exchange="NSE", side="BUY", signal_type="BUY",
-        confidence=Decimal("0.9"), price=None, entry_price=Decimal("50"),
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        signal_type="BUY",
+        confidence=Decimal("0.9"),
+        price=None,
+        entry_price=Decimal("50"),
     )
     intent = signal.to_intent(_risk_profile(), AccountView())
     assert intent.price == Decimal("50")
@@ -120,8 +127,13 @@ def test_to_intent_raises_when_not_actionable():
 
 def test_to_intent_raises_when_no_price_available():
     signal = SignalDTO(
-        symbol="RELIANCE", exchange="NSE", side="BUY", signal_type="BUY",
-        confidence=Decimal("0.9"), price=None, entry_price=None,
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        signal_type="BUY",
+        confidence=Decimal("0.9"),
+        price=None,
+        entry_price=None,
     )
     with pytest.raises(ValueError, match="no usable price"):
         signal.to_intent(_risk_profile(), AccountView())

@@ -1,19 +1,27 @@
-import pytest
 from datetime import datetime, timezone
-from decimal import Decimal
+
+import pytest
 
 from domain.entities.order import Order
 from domain.enums import OrderStatus
 from domain.state_machine import IllegalTransitionError
-from domain.types import Side, OrderType, ProductType, Validity
+from domain.types import OrderType, ProductType, Side, Validity
 
 
 def _make_order(status: OrderStatus) -> Order:
     return Order(
-        order_id="test-1", symbol="RELIANCE", exchange="NSE",
-        side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
-        price=2500.0, trigger_price=0.0, product_type=ProductType.CNC,
-        validity=Validity.DAY, status=status, timestamp=datetime.now(timezone.utc),
+        order_id="test-1",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=2500.0,
+        trigger_price=0.0,
+        product_type=ProductType.CNC,
+        validity=Validity.DAY,
+        status=status,
+        timestamp=datetime.now(timezone.utc),
     )
 
 

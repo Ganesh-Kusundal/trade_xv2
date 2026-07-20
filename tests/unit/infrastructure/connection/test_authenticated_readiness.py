@@ -248,9 +248,7 @@ class TestBootstrapLiveReady:
         ]
         conn = MagicMock()
         auth = MagicMock()
-        auth.force_refresh.return_value = TokenState(
-            access_token="fresh", source=TokenSource.TOTP
-        )
+        auth.force_refresh.return_value = TokenState(access_token="fresh", source=TokenSource.TOTP)
         conn._auth = auth
         conn._client = MagicMock()
         gw._conn = conn

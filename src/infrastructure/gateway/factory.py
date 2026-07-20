@@ -52,8 +52,11 @@ def _is_live_broker(broker: str) -> bool:
 
 def resolve_env_path(broker: str, env_path: str | Path | None = None) -> Path | None:
     """Resolve the environment file path for *broker*."""
-    if env_path is not None:
-        return Path(env_path)
+    from infrastructure.auth.credential_resolver import CredentialResolver
+
+    resolved = CredentialResolver.resolve_env_path(broker, env_path)
+    if resolved is not None:
+        return resolved
     default = _env_file_for_broker(broker)
     if default is not None:
         return Path(default)
@@ -144,9 +147,7 @@ def _create_transport_gateway(
     _ensure_default_builders()
     builder = _GATEWAY_BUILDERS.get(broker)
     if builder is None:
-        logger.error(
-            "Unknown broker %r. Expected one of: %s", broker, sorted(_GATEWAY_BUILDERS)
-        )
+        logger.error("Unknown broker %r. Expected one of: %s", broker, sorted(_GATEWAY_BUILDERS))
         return None
     resolved = resolve_env_path(broker, env_path)
     try:
@@ -245,10 +246,7 @@ def bootstrap_gateway(
             return BootstrapResult(
                 status=BootstrapStatus.FAILED,
                 broker=broker,
-                error=(
-                    f"Unknown broker {broker!r}. "
-                    f"Expected one of: {sorted(known_brokers)}"
-                ),
+                error=(f"Unknown broker {broker!r}. Expected one of: {sorted(known_brokers)}"),
             )
         return BootstrapResult(
             status=BootstrapStatus.FAILED,
@@ -267,10 +265,10 @@ def bootstrap_gateway(
             probe_name=f"{broker}_skip",
         )
 
-    from infrastructure.connection.bootstrap_result import structural_readiness_probe
     from infrastructure.connection.authenticated_readiness import (
         authenticated_readiness_probe,
     )
+    from infrastructure.connection.bootstrap_result import structural_readiness_probe
 
     struct_ok, struct_err = structural_readiness_probe(gw, broker)
     if not struct_ok:
@@ -305,11 +303,7 @@ def bootstrap_gateway(
         )
 
     # Auth failed — do not hand out a dead gateway for live trading
-    status = (
-        BootstrapStatus.REAUTH_REQUIRED
-        if probe.token_rejected
-        else BootstrapStatus.FAILED
-    )
+    status = BootstrapStatus.REAUTH_REQUIRED if probe.token_rejected else BootstrapStatus.FAILED
     logger.warning(
         "bootstrap_auth_failed",
         extra={

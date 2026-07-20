@@ -85,9 +85,7 @@ def test_workflow_referenced_paths_exist() -> None:
         for path_str in sorted(_extract_path_candidates(content)):
             if not _exists_in_repo(path_str):
                 missing.append((wf.name, path_str))
-    assert not missing, "Stale CI paths:\n" + "\n".join(
-        f"  {wf}: {path}" for wf, path in missing
-    )
+    assert not missing, "Stale CI paths:\n" + "\n".join(f"  {wf}: {path}" for wf, path in missing)
 
 
 @pytest.mark.architecture

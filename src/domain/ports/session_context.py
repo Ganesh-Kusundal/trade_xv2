@@ -10,22 +10,23 @@ Universe-stamped instruments in worker threads.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from domain.universe import Session
 
-_ambient: ContextVar["Session | None"] = ContextVar("ambient_session", default=None)
+_ambient: ContextVar[Session | None] = ContextVar("ambient_session", default=None)
 
 
-def get_ambient_session() -> "Session | None":
+def get_ambient_session() -> Session | None:
     """Return the ambient Session for this context, or None."""
     return _ambient.get()
 
 
-def set_ambient_session(session: "Session | None") -> Token:
+def set_ambient_session(session: Session | None) -> Token:
     """Set ambient Session; return token for :func:`reset_ambient_session`."""
     return _ambient.set(session)
 
@@ -35,14 +36,14 @@ def reset_ambient_session(token: Token) -> None:
     _ambient.reset(token)
 
 
-def clear_ambient_session_if_current(session: "Session") -> None:
+def clear_ambient_session_if_current(session: Session) -> None:
     """Clear ambient only if *session* is still the active ambient."""
     if _ambient.get() is session:
         _ambient.set(None)
 
 
 @contextmanager
-def activate_session(session: "Session") -> Iterator["Session"]:
+def activate_session(session: Session) -> Iterator[Session]:
     """Nested-safe activation for notebooks / multi-session REPL.
 
     Pushes ambient Session and (temporarily) the process default provider

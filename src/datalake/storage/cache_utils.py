@@ -262,7 +262,11 @@ def get_last_candle_fast(
     """
     from datalake.core.paths import get_candle_path
 
-    path = get_candle_path(symbol, timeframe, root=root) if root else get_candle_path(symbol, timeframe)
+    path = (
+        get_candle_path(symbol, timeframe, root=root)
+        if root
+        else get_candle_path(symbol, timeframe)
+    )
     if not path.exists():
         return None
 

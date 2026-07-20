@@ -10,8 +10,8 @@ Tests:
 import asyncio
 import sys
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Add repo to path
 repo_root = Path(__file__).parent.parent.parent
@@ -44,6 +44,7 @@ class WebSocketStreamingTest:
         except Exception as e:
             print(f"❌ Failed to create gateway: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -61,19 +62,12 @@ class WebSocketStreamingTest:
             nonlocal tick_count
             tick_count += 1
             elapsed = time.time() - start_time
-            self.ltp_ticks.append({
-                "timestamp": datetime.now(),
-                "data": tick,
-                "elapsed": elapsed
-            })
+            self.ltp_ticks.append({"timestamp": datetime.now(), "data": tick, "elapsed": elapsed})
             print(f"   ✓ Tick #{tick_count:3d} @ {elapsed:6.1f}s: {tick}")
 
         try:
             subscription_handle = self.gateway.stream(
-                self.test_symbol,
-                self.test_exchange,
-                mode="LTP",
-                on_tick=on_ltp_tick
+                self.test_symbol, self.test_exchange, mode="LTP", on_tick=on_ltp_tick
             )
             print(f"✅ Subscribed to LTP stream")
 
@@ -126,30 +120,31 @@ class WebSocketStreamingTest:
                 spread = float(best_ask.price - best_bid.price)
                 spread_pct = (spread / float(best_bid.price)) * 100
 
-                self.depth_updates.append({
-                    "timestamp": datetime.now(),
-                    "bid_price": float(best_bid.price),
-                    "bid_qty": best_bid.quantity,
-                    "ask_price": float(best_ask.price),
-                    "ask_qty": best_ask.quantity,
-                    "spread": spread,
-                    "spread_pct": spread_pct,
-                    "total_bids": len(depth.bids),
-                    "total_asks": len(depth.asks),
-                    "elapsed": elapsed
-                })
+                self.depth_updates.append(
+                    {
+                        "timestamp": datetime.now(),
+                        "bid_price": float(best_bid.price),
+                        "bid_qty": best_bid.quantity,
+                        "ask_price": float(best_ask.price),
+                        "ask_qty": best_ask.quantity,
+                        "spread": spread,
+                        "spread_pct": spread_pct,
+                        "total_bids": len(depth.bids),
+                        "total_asks": len(depth.asks),
+                        "elapsed": elapsed,
+                    }
+                )
 
-                print(f"   ✓ Depth #{depth_count:3d} @ {elapsed:6.1f}s: "
-                      f"Bid {best_bid.price}x{best_bid.quantity:4d} | "
-                      f"Ask {best_ask.price}x{best_ask.quantity:4d} | "
-                      f"Spread: ₹{spread:7.2f} ({spread_pct:5.3f}%)")
+                print(
+                    f"   ✓ Depth #{depth_count:3d} @ {elapsed:6.1f}s: "
+                    f"Bid {best_bid.price}x{best_bid.quantity:4d} | "
+                    f"Ask {best_ask.price}x{best_ask.quantity:4d} | "
+                    f"Spread: ₹{spread:7.2f} ({spread_pct:5.3f}%)"
+                )
 
         try:
             subscription_handle = self.gateway.stream_depth(
-                self.test_symbol,
-                self.test_exchange,
-                levels=5,
-                on_depth=on_depth_update
+                self.test_symbol, self.test_exchange, levels=5, on_depth=on_depth_update
             )
             print(f"✅ Subscribed to depth stream")
 
@@ -161,6 +156,7 @@ class WebSocketStreamingTest:
         except Exception as e:
             print(f"❌ Depth subscription error: {e}")
             import traceback
+
             traceback.print_exc()
             return False
         finally:
@@ -176,7 +172,9 @@ class WebSocketStreamingTest:
         if depth_count > 0:
             freq = depth_count / elapsed_total
             avg_spread = sum(u["spread"] for u in self.depth_updates) / len(self.depth_updates)
-            avg_spread_pct = sum(u["spread_pct"] for u in self.depth_updates) / len(self.depth_updates)
+            avg_spread_pct = sum(u["spread_pct"] for u in self.depth_updates) / len(
+                self.depth_updates
+            )
 
             print(f"\n✅ Depth Subscription Working:")
             print(f"   - Received {depth_count} updates in {elapsed_total:.1f}s")
@@ -200,7 +198,7 @@ class WebSocketStreamingTest:
         # Calculate update intervals
         intervals = []
         for i in range(1, len(self.depth_updates)):
-            interval = self.depth_updates[i]["elapsed"] - self.depth_updates[i-1]["elapsed"]
+            interval = self.depth_updates[i]["elapsed"] - self.depth_updates[i - 1]["elapsed"]
             intervals.append(interval)
 
         if intervals:
@@ -210,9 +208,9 @@ class WebSocketStreamingTest:
 
             print(f"✅ Data Continuity Check:")
             print(f"   - Total updates: {len(self.depth_updates)}")
-            print(f"   - Avg interval: {avg_interval*1000:.1f}ms")
-            print(f"   - Min interval: {min_interval*1000:.1f}ms")
-            print(f"   - Max interval: {max_interval*1000:.1f}ms")
+            print(f"   - Avg interval: {avg_interval * 1000:.1f}ms")
+            print(f"   - Min interval: {min_interval * 1000:.1f}ms")
+            print(f"   - Max interval: {max_interval * 1000:.1f}ms")
 
             # Check for gaps
             gaps = [i for i in intervals if i > 1.0]  # More than 1 second gap
@@ -289,6 +287,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from cachetools import TTLCache
 

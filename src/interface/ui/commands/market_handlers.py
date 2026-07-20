@@ -9,24 +9,22 @@ and lifecycle.
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.console import Console
 from rich.table import Table
 
+from domain import DepthLevel, MarketDepth
+from domain.symbols import normalize_symbol
 from interface.ui.commands import market as cmd_market
 from interface.ui.commands import oms as cmd_oms
 from interface.ui.commands import validate as cmd_validate
 from interface.ui.commands import validate_history as cmd_validate_history
 from interface.ui.commands import validate_option_chain as cmd_validate_option_chain
+from interface.ui.commands._broker import broker_id_from
 from interface.ui.commands.argparse_helpers import parse_flag, require_symbol
 from interface.ui.commands.registry import CommandResult
 from interface.ui.services.broker_ops import get_depth, get_history, get_quote
-from interface.ui.commands._broker import broker_id_from
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.renderers import render_depth, render_quote
-from domain import DepthLevel, MarketDepth
-from domain.symbols import normalize_symbol
 
 
 def handle_quote(
@@ -122,7 +120,9 @@ def handle_history(
         # bar_count only — print count
         console.print(f"[green]{n} candles for {normalize_symbol(symbol)}[/green]")
         return CommandResult(success=True, data={"symbol": symbol, "candles": n})
-    table = Table(title=f"History: {normalize_symbol(symbol)} (last 5 days)", header_style="bold magenta")
+    table = Table(
+        title=f"History: {normalize_symbol(symbol)} (last 5 days)", header_style="bold magenta"
+    )
     table.add_column("Date", style="bold white")
     table.add_column("Open", justify="right")
     table.add_column("High", justify="right")

@@ -70,7 +70,9 @@ def test_facade_walk_forward_matches_direct_engine_call() -> None:
     # No-args form returns a configurable engine, matching .replay()/.backtest()/.paper().
     engine = analytics.walk_forward(
         strategy_pipeline=StrategyPipeline(strategies=[_HoldStrategy()]),
-        config=WalkForwardConfig(train_bars=200, test_bars=50, step_bars=50, initial_capital=50_000),
+        config=WalkForwardConfig(
+            train_bars=200, test_bars=50, step_bars=50, initial_capital=50_000
+        ),
     )
     assert isinstance(engine, WalkForwardEngine)
 
@@ -79,7 +81,9 @@ def test_facade_walk_forward_matches_direct_engine_call() -> None:
         df,
         symbol="TEST",
         strategy_pipeline=StrategyPipeline(strategies=[_HoldStrategy()]),
-        config=WalkForwardConfig(train_bars=200, test_bars=50, step_bars=50, initial_capital=50_000),
+        config=WalkForwardConfig(
+            train_bars=200, test_bars=50, step_bars=50, initial_capital=50_000
+        ),
     )
     assert result.window_count >= 1
     assert isinstance(result.total_pnl, float)

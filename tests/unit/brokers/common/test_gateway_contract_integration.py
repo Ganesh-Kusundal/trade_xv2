@@ -16,7 +16,6 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain import (
     Balance,
     FutureChain,
@@ -25,9 +24,9 @@ from domain import (
     OrderResponse,
     Quote,
 )
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
 
 
 def _get_abstract_methods() -> set[str]:
@@ -47,7 +46,9 @@ def _get_abstract_methods() -> set[str]:
 # ── Gateway Return Type Contracts ─────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="MarketDataGateway ABC dissolved — structural typing via BrokerAdapter protocol replaces contract enforcement")
+@pytest.mark.skip(
+    reason="MarketDataGateway ABC dissolved — structural typing via BrokerAdapter protocol replaces contract enforcement"
+)
 class TestABCContractSignatures:
     """Verify method signatures match the ABC contract (param names, defaults).
 
@@ -314,7 +315,9 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.trades()
         assert isinstance(result, list)
 
-    @pytest.mark.xfail(reason="Pre-existing: option_chain() returns dict, not OptionChain; gateway needs fix")
+    @pytest.mark.xfail(
+        reason="Pre-existing: option_chain() returns dict, not OptionChain; gateway needs fix"
+    )
     def test_option_chain_returns_option_chain(self, dhan_gw):
         options_adapter = MagicMock()
         options_adapter.get_expiries.return_value = ["2026-06-26"]
@@ -328,7 +331,9 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.option_chain("NIFTY", "NFO")
         assert isinstance(result, OptionChain)
 
-    @pytest.mark.xfail(reason="Pre-existing: future_chain() returns dict, not FutureChain; gateway needs fix")
+    @pytest.mark.xfail(
+        reason="Pre-existing: future_chain() returns dict, not FutureChain; gateway needs fix"
+    )
     def test_future_chain_returns_future_chain(self, dhan_gw):
         dhan_gw._conn.futures = MagicMock()
         dhan_gw._conn.futures.get_contracts.return_value = []
@@ -336,7 +341,9 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.future_chain("NIFTY", "NFO")
         assert isinstance(result, FutureChain)
 
-    @pytest.mark.xfail(reason="Pre-existing: unstream() was from deleted MarketDataGateway ABC; never implemented in Dhan")
+    @pytest.mark.xfail(
+        reason="Pre-existing: unstream() was from deleted MarketDataGateway ABC; never implemented in Dhan"
+    )
     def test_unstream_exists_and_is_callable(self, dhan_gw):
         assert callable(getattr(dhan_gw, "unstream", None))
 
@@ -530,14 +537,15 @@ class TestPaperGatewayContract:
         paper_gw.close()  # Should not raise
 
 
-
 # ── ObservabilityProvider Contract ───────────────────────────────────────────
 
 
 class TestObservabilityProvider:
     """ObservabilityProvider methods — removed with MarketDataGateway ABC."""
 
-    pytestmark = pytest.mark.skip(reason="ObservabilityProvider was part of deleted MarketDataGateway ABC")
+    pytestmark = pytest.mark.skip(
+        reason="ObservabilityProvider was part of deleted MarketDataGateway ABC"
+    )
 
     def test_dhan_get_connection_status(self):
         from brokers.dhan.wire import DhanBrokerGateway
@@ -634,15 +642,17 @@ class TestUpstoxObservabilityProvider:
         assert "refresh_count" in result
 
     def test_upstox_get_rate_limiter_metrics(self):
-        from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
         from brokers.upstox.wire import UpstoxBrokerGateway
+        from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
 
-        rl = MultiBucketRateLimiter({
-            "quotes": RateLimitConfig(rate_per_second=1, capacity=1),
-            "data": RateLimitConfig(rate_per_second=5, capacity=20),
-            "orders": RateLimitConfig(rate_per_second=10, capacity=10),
-            "admin": RateLimitConfig(rate_per_second=10, capacity=10),
-        })
+        rl = MultiBucketRateLimiter(
+            {
+                "quotes": RateLimitConfig(rate_per_second=1, capacity=1),
+                "data": RateLimitConfig(rate_per_second=5, capacity=20),
+                "orders": RateLimitConfig(rate_per_second=10, capacity=10),
+                "admin": RateLimitConfig(rate_per_second=10, capacity=10),
+            }
+        )
         broker = MagicMock()
         broker.context.rate_limiter = rl
         gw = UpstoxBrokerGateway(broker)

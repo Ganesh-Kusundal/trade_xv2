@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 from application.oms.order_manager import OmsOrderCommand
 from domain import Order, OrderStatus
 from domain.entities import OrderResponse
 from domain.ports.broker_gateway import OrderTransportPort
+from domain.ports.order_placement import OrderPlacementPort
 from domain.ports.execution_context import oms_managed
 from domain.ports.time_service import ClockPort, get_current_clock
 
@@ -42,7 +41,7 @@ def order_from_response(
 
 
 def make_gateway_submit_fn(
-    gateway: OrderTransportPort,
+    gateway: OrderTransportPort | OrderPlacementPort,
     clock: ClockPort | None = None,
 ) -> Callable[[OmsOrderCommand], Order]:
     """Return an OMS ``submit_fn`` that sends orders through *gateway*.

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from application.oms.context import TradingContext
@@ -29,10 +29,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_registered: "TradingContext | None" = None
+_registered: TradingContext | None = None
 
 
-def register_oms_context(ctx: "TradingContext") -> None:
+def register_oms_context(ctx: TradingContext) -> None:
     """Register the canonical process-wide OMS context.
 
     Called by the composition root (CLI BrokerService.register_oms_services,
@@ -51,7 +51,7 @@ def register_oms_context(ctx: "TradingContext") -> None:
         _registered = ctx
 
 
-def get_oms_context() -> "TradingContext | None":
+def get_oms_context() -> TradingContext | None:
     """Return the registered process-wide OMS context, or None if not set."""
     with _lock:
         return _registered

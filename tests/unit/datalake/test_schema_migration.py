@@ -8,6 +8,7 @@ These tests verify that:
 5. Data can be inserted and queried through the created schema
 6. Migration version tracking works correctly
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -17,7 +18,6 @@ import pytest
 
 from datalake.core.migrations import CURRENT_SCHEMA_VERSION, apply_migrations
 from datalake.storage.catalog import DataCatalog
-
 
 # All tables created by DataCatalog._init_schema + migrations
 EXPECTED_TABLES = {
@@ -45,7 +45,7 @@ def _get_columns(conn: duckdb.DuckDBPyConnection, table: str) -> dict[str, str]:
         "WHERE table_schema = 'main' AND table_name = ?",
         [table],
     ).fetchall()
-    return {name: dtype for name, dtype in rows}
+    return dict(rows)
 
 
 @pytest.fixture
@@ -98,7 +98,7 @@ class TestSchemaCreation:
         catalog2.close()
 
         assert tables1 == tables2
-        assert EXPECTED_TABLES <= tables2
+        assert tables2 >= EXPECTED_TABLES
 
     def test_idempotent_in_memory(self):
         """Calling schema init twice on the same connection doesn't fail."""
@@ -107,7 +107,7 @@ class TestSchemaCreation:
             _init_schema_on_conn(conn)
             _init_schema_on_conn(conn)  # second call is no-op (IF NOT EXISTS)
             tables = _get_tables(conn)
-            assert EXPECTED_TABLES <= tables
+            assert tables >= EXPECTED_TABLES
         finally:
             conn.close()
 
@@ -137,16 +137,32 @@ class TestSchemaColumns:
 
     def test_data_quality_columns(self, fresh_in_memory):
         cols = _get_columns(fresh_in_memory, "data_quality")
-        for col in ("symbol", "check_date", "timeframe", "total_rows",
-                     "missing_candles", "duplicate_candles", "gap_days",
-                     "completeness_pct", "status"):
+        for col in (
+            "symbol",
+            "check_date",
+            "timeframe",
+            "total_rows",
+            "missing_candles",
+            "duplicate_candles",
+            "gap_days",
+            "completeness_pct",
+            "status",
+        ):
             assert col in cols, f"Missing column {col} in data_quality"
 
     def test_download_jobs_columns(self, fresh_in_memory):
         cols = _get_columns(fresh_in_memory, "download_jobs")
-        for col in ("job_id", "universe", "timeframe", "symbols_total",
-                     "symbols_completed", "symbols_failed", "status",
-                     "started_at", "completed_at"):
+        for col in (
+            "job_id",
+            "universe",
+            "timeframe",
+            "symbols_total",
+            "symbols_completed",
+            "symbols_failed",
+            "status",
+            "started_at",
+            "completed_at",
+        ):
             assert col in cols, f"Missing column {col} in download_jobs"
 
     def test_universe_history_columns(self, fresh_in_memory):
@@ -156,14 +172,31 @@ class TestSchemaColumns:
 
     def test_symbol_metadata_history_columns(self, fresh_in_memory):
         cols = _get_columns(fresh_in_memory, "symbol_metadata_history")
-        for col in ("symbol", "effective_date", "end_date", "lot_size",
-                     "tick_size", "sector", "isin", "instrument_type", "added_at"):
+        for col in (
+            "symbol",
+            "effective_date",
+            "end_date",
+            "lot_size",
+            "tick_size",
+            "sector",
+            "isin",
+            "instrument_type",
+            "added_at",
+        ):
             assert col in cols, f"Missing column {col} in symbol_metadata_history"
 
     def test_data_versions_columns(self, fresh_in_memory):
         cols = _get_columns(fresh_in_memory, "data_versions")
-        for col in ("table_name", "version_id", "min_event_time", "max_event_time",
-                     "min_published_at", "max_published_at", "row_count", "created_at"):
+        for col in (
+            "table_name",
+            "version_id",
+            "min_event_time",
+            "max_event_time",
+            "min_published_at",
+            "max_published_at",
+            "row_count",
+            "created_at",
+        ):
             assert col in cols, f"Missing column {col} in data_versions"
 
     def test_universe_symbols_columns(self, fresh_in_memory):
@@ -188,13 +221,13 @@ class TestMigrationVersioning:
     def test_repeated_migration_is_noop(self, fresh_in_memory):
         apply_migrations(fresh_in_memory)
         # Second call should not insert a new row for the same version
-        count_before = fresh_in_memory.execute(
-            "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0]
+        count_before = fresh_in_memory.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[
+            0
+        ]
         apply_migrations(fresh_in_memory)
-        count_after = fresh_in_memory.execute(
-            "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0]
+        count_after = fresh_in_memory.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[
+            0
+        ]
         assert count_after == count_before
 
 
@@ -251,8 +284,7 @@ class TestSchemaDataOperations:
             isin="INE002A01018",
         )
         row = fresh_catalog.conn.execute(
-            "SELECT lot_size, sector, isin FROM symbol_metadata_history "
-            "WHERE symbol = 'RELIANCE'"
+            "SELECT lot_size, sector, isin FROM symbol_metadata_history WHERE symbol = 'RELIANCE'"
         ).fetchone()
         assert row is not None
         assert row[0] == 1

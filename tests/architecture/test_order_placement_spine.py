@@ -58,6 +58,6 @@ def test_no_parallel_place_order_god_paths_in_application() -> None:
                 if "Protocol" in text and rel.endswith("protocols.py"):
                     continue
                 forbidden_modules.append(rel)
-    assert not forbidden_modules, (
-        "place_order outside OMS spine (TOS-P5-021):\n" + "\n".join(forbidden_modules)
+    assert not forbidden_modules, "place_order outside OMS spine (TOS-P5-021):\n" + "\n".join(
+        forbidden_modules
     )

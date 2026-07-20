@@ -15,15 +15,15 @@ from domain.execution_contracts import LedgerFillRecord
 from domain.fill_reducer import FillReducer
 
 if TYPE_CHECKING:
-    from domain.ports.execution_ledger import ExecutionLedgerPort
     from application.oms._internal.order_audit_logger import OrderAuditLogger
     from application.oms._internal.order_position_updater import OrderPositionUpdater
     from domain.entities import Order, Trade
     from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
-
-from domain.ports.time_service import ClockPort, get_current_clock
+    from domain.ports.execution_ledger import ExecutionLedgerPort
 
 import logging
+
+from domain.ports.time_service import ClockPort, get_current_clock
 
 logger = logging.getLogger(__name__)
 

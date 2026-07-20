@@ -4,6 +4,7 @@ The E2E spec (invariant I2) requires all order/trade/event timestamps to come
 from an injected ClockPort. datetime.now() is forbidden in these paths to
 ensure replay determinism.
 """
+
 from __future__ import annotations
 
 import ast
@@ -39,10 +40,12 @@ def _find_datetime_now_calls(filepath: pathlib.Path) -> list[int]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             # Check for datetime.now() pattern
-            if (isinstance(node.func, ast.Attribute) and
-                node.func.attr == "now" and
-                isinstance(node.func.value, ast.Name) and
-                node.func.value.id == "datetime"):
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "now"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "datetime"
+            ):
                 lines.append(node.lineno)
     return lines
 
@@ -78,7 +81,7 @@ def test_no_datetime_now_in_execution_paths():
                         violations.append(f"{rel}:{lines}")
 
     assert not violations, (
-        f"datetime.now() found in forbidden paths (I2 invariant):\n"
+        "datetime.now() found in forbidden paths (I2 invariant):\n"
         + "\n".join(f"  - {v}" for v in violations)
         + "\n\nUse get_current_clock().now() or inject ClockPort instead."
     )

@@ -38,8 +38,7 @@ def test_no_shadow_dhan_module_names() -> None:
     offenders = [
         name
         for name in ("gateway", "orders")
-        if hasattr(dhan_pkg, name)
-        or (Path(dhan_pkg.__file__).parent / f"{name}.py").exists()
+        if hasattr(dhan_pkg, name) or (Path(dhan_pkg.__file__).parent / f"{name}.py").exists()
     ]
     assert not offenders, f"shadow dhan module names present: {offenders}"
 

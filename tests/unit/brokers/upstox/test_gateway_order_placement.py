@@ -199,9 +199,9 @@ class TestResolveInstrumentKey:
 
     def test_index_symbol_resolves_to_nse_index(self):
         """Index symbols (NIFTY) should resolve to NSE_INDEX segment."""
-        from brokers.upstox.wire import UpstoxBrokerGateway
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
         from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from domain.market_enums import ExchangeSegment
 
         mock_broker = MagicMock()
@@ -229,9 +229,9 @@ class TestResolveInstrumentKey:
 
     def test_equity_symbol_resolves_to_isin(self):
         """Equity symbols should resolve to NSE_EQ|ISIN format."""
-        from brokers.upstox.wire import UpstoxBrokerGateway
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
         from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
+        from brokers.upstox.wire import UpstoxBrokerGateway
         from domain.market_enums import ExchangeSegment
 
         mock_broker = MagicMock()

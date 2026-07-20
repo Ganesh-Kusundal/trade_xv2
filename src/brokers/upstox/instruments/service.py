@@ -8,11 +8,11 @@ connection / adapters only.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from brokers.common.instruments.carrier import BrokerWireRef, LoadStats, ResolvedInstrument
 from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
@@ -57,10 +57,8 @@ class UpstoxInstrumentService:
         else:
             # force_refresh: bypass cache validity by deleting then re-download
             if force_refresh and _DEFAULT_CACHE.exists():
-                try:
+                with contextlib.suppress(OSError):
                     _DEFAULT_CACHE.unlink()
-                except OSError:
-                    pass
             path = self._loader.download(_DEFAULT_CACHE)
 
         start = time.monotonic()
@@ -174,7 +172,9 @@ class UpstoxInstrumentService:
             # so an unfiltered pick can silently return an NSE_COM contract
             # (no MCX market data => zero LTP) instead of the MCX one.
             contracts = [
-                c for c in self._resolver.list_future_contracts(symbol) if c.exchange_segment == segment
+                c
+                for c in self._resolver.list_future_contracts(symbol)
+                if c.exchange_segment == segment
             ]
             if contracts:
                 return contracts[0].instrument_key

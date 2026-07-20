@@ -11,8 +11,8 @@ Submodules:
 
 from __future__ import annotations
 
-from domain.providers.registry import ProviderRegistry
 from domain.ports.protocols import DataProvider, ExecutionProvider, SubscriptionHandle
+from domain.providers.registry import ProviderRegistry
 
 __all__ = [
     "DataProvider",

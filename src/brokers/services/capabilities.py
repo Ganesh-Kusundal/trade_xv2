@@ -28,7 +28,7 @@ def _session_gateway(session: BrokerSession) -> Any | None:
 
 def _cap_value(value: Any) -> Any:
     """JSON-safe conversion for capability matrix values."""
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, str | int | float | bool):
         return value
     if isinstance(value, frozenset):
         if not value:
@@ -40,10 +40,7 @@ def _cap_value(value: Any) -> Any:
     if isinstance(value, tuple):
         return [_cap_value(v) for v in value]
     if hasattr(value, "__dataclass_fields__"):
-        return {
-            k: _cap_value(getattr(value, k))
-            for k in value.__dataclass_fields__
-        }
+        return {k: _cap_value(getattr(value, k)) for k in value.__dataclass_fields__}
     if hasattr(value, "value"):  # Enum
         return value.value
     return str(value)
@@ -93,9 +90,9 @@ def get_capabilities(
 
 
 __all__ = [
-    "_session_gateway",
     "_cap_value",
     "_caps_to_dict",
+    "_session_gateway",
     "format_session_capabilities",
     "get_capabilities",
 ]

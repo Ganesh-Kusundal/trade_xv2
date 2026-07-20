@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status
-
+from fastapi import APIRouter, Depends, HTTPException, status
 from starlette.responses import PlainTextResponse
+
+from interface.api.auth import require_metrics_auth
 
 from interface.api.schemas import HealthResponse, ReadinessResponse
 
@@ -89,7 +90,7 @@ async def readiness_alias():
     return await _readiness_probe()
 
 
-@router.get("/metrics", response_model=dict)
+@router.get("/metrics", response_model=dict, dependencies=[Depends(require_metrics_auth)])
 async def get_metrics():
     """Get observability metrics as JSON.
 
@@ -117,14 +118,21 @@ async def get_metrics():
 
         snap = metrics_registry.snapshot_detailed()
         cache_info = {}
-        for name in ("cache_hits_total", "cache_misses_total", "cache_evictions_total", "cache_size"):
+        for name in (
+            "cache_hits_total",
+            "cache_misses_total",
+            "cache_evictions_total",
+            "cache_size",
+        ):
             if name in snap.get("counters", {}):
                 cache_info[name] = snap["counters"][name]["value"]
             elif name in snap.get("gauges", {}):
                 cache_info[name] = snap["gauges"][name]["value"]
         if cache_info:
             total = cache_info.get("cache_hits_total", 0) + cache_info.get("cache_misses_total", 0)
-            cache_info["hit_rate"] = round(cache_info.get("cache_hits_total", 0) / total, 4) if total > 0 else 0
+            cache_info["hit_rate"] = (
+                round(cache_info.get("cache_hits_total", 0) / total, 4) if total > 0 else 0
+            )
             result["cache"] = cache_info
     except Exception:
         pass
@@ -132,9 +140,12 @@ async def get_metrics():
     return result
 
 
-@router.get("/metrics/prometheus")
+@router.get("/metrics/prometheus", dependencies=[Depends(require_metrics_auth)])
 async def get_metrics_prometheus():
-    """Prometheus text exposition format for HTTP request metrics."""
+    """Prometheus text exposition format for HTTP request metrics.
+
+    Requires ``X-API-Key`` in production/staging (SEC-004/005).
+    """
     from interface.api.middleware import http_metrics
 
     body = http_metrics.render_prometheus()

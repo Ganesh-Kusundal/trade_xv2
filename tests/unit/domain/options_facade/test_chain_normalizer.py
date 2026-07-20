@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from domain.entities import OptionChain, OptionContract
+from domain.entities.options import OptionLeg, OptionStrike
 from domain.options.chain_normalizer import (
     to_canonical_strikes,
     upstox_chain_to_canonical,
 )
-from domain.entities import OptionChain, OptionContract
-from domain.entities.options import OptionLeg, OptionStrike
 
 
 def _row(strike: str, ce_ltp=100, pe_ltp=80, ce_iv=14, pe_iv=15) -> dict:

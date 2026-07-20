@@ -22,18 +22,19 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable, Mapping, Sequence
 from decimal import (
     Decimal,
     InvalidOperation,
 )
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["is_valid_quote", "validate_depth"]
 
 
-def _to_decimal(value: Any) -> Optional[Decimal]:
+def _to_decimal(value: Any) -> Decimal | None:
     """Coerce ``int`` / ``float`` / ``Decimal`` / ``str`` to ``Decimal``.
 
     Returns ``None`` for ``None`` or any value that cannot be parsed, or for
@@ -47,7 +48,7 @@ def _to_decimal(value: Any) -> Optional[Decimal]:
         if not math.isfinite(value):
             return None
         return Decimal(str(value))
-    if isinstance(value, (int, str)):
+    if isinstance(value, int | str):
         try:
             return Decimal(value)
         except (InvalidOperation, ValueError, TypeError):
@@ -67,7 +68,7 @@ def _is_missing_symbol(quote: Mapping[str, Any]) -> bool:
     return False
 
 
-def is_valid_quote(quote: Mapping[str, Any], log: Optional[Callable[[str], None]] = None) -> bool:
+def is_valid_quote(quote: Mapping[str, Any], log: Callable[[str], None] | None = None) -> bool:
     """Return ``False`` when the quote should be DROPPED (strict mode).
 
     Args:
@@ -146,10 +147,7 @@ def validate_depth(book: Sequence[Mapping[str, Any]]) -> bool:
     if price is None:
         return False
 
-    if price <= 0:
-        return False
-
-    return True
+    return not price <= 0
 
 
 def _emit(log: Any, message: str) -> None:

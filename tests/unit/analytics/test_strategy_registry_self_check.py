@@ -16,7 +16,9 @@ class _GoodStrategy:
     name = "good"
 
     def evaluate(self, candidate: Candidate, features: pd.DataFrame) -> Signal:
-        return Signal(symbol=candidate.symbol, signal_type=SignalType.HOLD, confidence=0.0, strategy=self.name)
+        return Signal(
+            symbol=candidate.symbol, signal_type=SignalType.HOLD, confidence=0.0, strategy=self.name
+        )
 
 
 class _RaisingStrategy:
@@ -57,7 +59,9 @@ def test_self_check_passes_registered_builtins() -> None:
 def test_self_check_accepts_custom_candidate_and_features() -> None:
     custom_candidate = Candidate(symbol="CUSTOM", score=Decimal("10"))
     custom_features = pd.DataFrame({"close": [1.0, 2.0, 3.0]})
-    StrategyRegistry.self_check([_GoodStrategy()], candidate=custom_candidate, features=custom_features)
+    StrategyRegistry.self_check(
+        [_GoodStrategy()], candidate=custom_candidate, features=custom_features
+    )
 
 
 def test_engines_run_self_check_at_construction() -> None:

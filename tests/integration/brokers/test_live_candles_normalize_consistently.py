@@ -34,7 +34,14 @@ def _import_runtime():
         from domain.candles.historical import HistoricalBar, InstrumentRef
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"runtime module not importable: {exc}")
-    return CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, StreamOrchestrator, InstrumentRef
+    return (
+        CandleAggregator,
+        HistoricalBar,
+        parse_timeframe,
+        MarketTick,
+        StreamOrchestrator,
+        InstrumentRef,
+    )
 
 
 def _tick(symbol, ltp, volume, ts, exchange="NSE"):
@@ -43,7 +50,9 @@ def _tick(symbol, ltp, volume, ts, exchange="NSE"):
     from domain.entities.market import MarketTick
     from domain.provenance import DataProvenance
 
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
     return MarketTick(
         instrument=InstrumentRef(symbol=symbol, exchange=exchange),
         ltp=Decimal(str(ltp)),
@@ -64,7 +73,9 @@ def _tick(symbol, ltp, volume, ts, exchange="NSE"):
 
 
 def test_1m_candle_ohlcv_and_boundary():
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -98,7 +109,9 @@ def test_1m_candle_ohlcv_and_boundary():
 
 
 def test_multi_timeframe_per_symbol():
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m", "5m"))
@@ -137,7 +150,9 @@ def test_multi_timeframe_per_symbol():
 
 
 def test_independent_symbols():
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -167,7 +182,9 @@ def test_independent_symbols():
 
 
 def test_late_tick_discarded():
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -196,7 +213,14 @@ def test_late_tick_discarded():
 
 
 def test_orchestrator_feeds_aggregator_when_attached():
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, StreamOrchestrator, InstrumentRef = _import_runtime()
+    (
+        CandleAggregator,
+        HistoricalBar,
+        parse_timeframe,
+        MarketTick,
+        StreamOrchestrator,
+        InstrumentRef,
+    ) = _import_runtime()
 
     emitted = []
     agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
@@ -223,7 +247,9 @@ def test_orchestrator_feeds_aggregator_when_attached():
 
 
 def test_parse_timeframe():
-    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = _import_runtime()
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
     assert parse_timeframe("1m") == 60
     assert parse_timeframe("5m") == 300
     assert parse_timeframe("15m") == 900

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib
 import subprocess
-import sys
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -142,7 +141,7 @@ class TestPhase4ModuleBoundaryEnforcement:
 
                 # Skip TYPE_CHECKING blocks (type hints only)
                 in_type_checking = False
-                for prev_line in lines[max(0, line_num - 10):line_num - 1]:
+                for prev_line in lines[max(0, line_num - 10) : line_num - 1]:
                     if "if TYPE_CHECKING:" in prev_line:
                         in_type_checking = True
                         break
@@ -155,8 +154,12 @@ class TestPhase4ModuleBoundaryEnforcement:
                     continue
 
                 # Check for application imports
-                if stripped.startswith("from application") or stripped.startswith("import application"):
-                    violations.append(f"{py_file.relative_to(brokers_common_path)}:{line_num}: {stripped}")
+                if stripped.startswith("from application") or stripped.startswith(
+                    "import application"
+                ):
+                    violations.append(
+                        f"{py_file.relative_to(brokers_common_path)}:{line_num}: {stripped}"
+                    )
 
         assert not violations, (
             "brokers.common production code imports from application/ (boundary violation):\n"
@@ -195,12 +198,14 @@ class TestPhase4ModuleBoundaryEnforcement:
                     continue
 
                 # Check for infrastructure imports (but allow TYPE_CHECKING blocks)
-                if stripped.startswith("from infrastructure") or stripped.startswith("import infrastructure"):
+                if stripped.startswith("from infrastructure") or stripped.startswith(
+                    "import infrastructure"
+                ):
                     # Allow imports inside TYPE_CHECKING blocks (type hints only)
                     # Simple heuristic: check if we're in a TYPE_CHECKING block
                     # by looking backwards for 'if TYPE_CHECKING:'
                     in_type_checking = False
-                    for prev_line in lines[max(0, line_num - 10):line_num - 1]:
+                    for prev_line in lines[max(0, line_num - 10) : line_num - 1]:
                         if "if TYPE_CHECKING:" in prev_line:
                             in_type_checking = True
                             break
@@ -338,6 +343,7 @@ class TestPhase5GodObjectDecomposition:
 
         # Test 5: Verify module __init__.py exports correctly
         from brokers.dhan.websocket import __all__ as websocket_exports
+
         assert "DhanMarketFeed" in websocket_exports or "market_feed" in websocket_exports, (
             "websocket __init__.py should export main classes or submodules"
         )
@@ -466,16 +472,12 @@ class TestPhase6TypeSafetyAndResilience:
         assert cb.state == CircuitState.OPEN, (
             f"Circuit breaker should be OPEN after {cb_config.failure_threshold} failures, got {cb.state}"
         )
-        assert not cb.allow_request(), (
-            "Circuit breaker should reject requests in OPEN state"
-        )
+        assert not cb.allow_request(), "Circuit breaker should reject requests in OPEN state"
 
         # Test 4: Rate limiter allows requests within capacity
         from infrastructure.resilience.rate_limiter import RateLimitConfig
 
-        rate_limiter = TokenBucketRateLimiter(
-            RateLimitConfig(rate_per_second=10, capacity=10)
-        )
+        rate_limiter = TokenBucketRateLimiter(RateLimitConfig(rate_per_second=10, capacity=10))
         for _ in range(5):  # Request 5 tokens (within capacity)
             assert rate_limiter.acquire(timeout=1.0), (
                 "Rate limiter should allow requests within capacity"
@@ -483,9 +485,7 @@ class TestPhase6TypeSafetyAndResilience:
 
         # Test 5: Rate limiter refills over time
         time.sleep(0.2)  # Wait for refill (10 tokens/sec = 2 tokens in 0.2s)
-        assert rate_limiter.acquire(timeout=1.0), (
-            "Rate limiter should allow request after refill"
-        )
+        assert rate_limiter.acquire(timeout=1.0), "Rate limiter should allow request after refill"
 
     def test_config_validation_doesnt_break_factory(self):
         """Prevent regression: Config validation must not prevent BrokerFactory from
@@ -500,8 +500,8 @@ class TestPhase6TypeSafetyAndResilience:
         2. Config validation accepts valid configurations
         3. Factory.create() method signature is compatible with existing callers
         """
-        from infrastructure.gateway.provider_factory import BrokerProviderFactory
         from brokers.dhan.identity.factory import BrokerFactory
+        from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         # Test 1: BrokerFactory is instantiable
         factory = BrokerFactory()
@@ -518,12 +518,14 @@ class TestPhase6TypeSafetyAndResilience:
         # Test 4: Config validation files exist and import cleanly
         try:
             from infrastructure.config.settings import BrokerSettings
+
             # Settings should be loadable
             settings = BrokerSettings
             assert settings is not None, "BrokerSettings should be importable"
         except ImportError:
             # Settings module may have different name, check alternatives
             import infrastructure.config.settings as settings
+
             assert settings is not None, "infrastructure.config.settings must be importable"
 
     def test_cache_manager_accepts_optional_connection(self):
@@ -568,7 +570,9 @@ class TestPhase6TypeSafetyAndResilience:
         conn2 = duckdb.connect(":memory:")
         conn2.execute("CREATE TABLE test_source2 AS SELECT 2 as col1")
         cache_no_conn2 = CacheManager()  # No connection on init
-        elapsed2 = cache_no_conn2.materialize("test_table2", "SELECT * FROM test_source2", conn=conn2)
+        elapsed2 = cache_no_conn2.materialize(
+            "test_table2", "SELECT * FROM test_source2", conn=conn2
+        )
         assert elapsed2 > 0, "Materialize should work with connection passed as parameter"
 
         # Cleanup

@@ -191,12 +191,12 @@ def get_option_chain(
 
 
 __all__ = [
-    "get_quote",
-    "get_history",
-    "get_history_batch",
-    "run_subscribe_probe",
     "get_depth",
     "get_depth30",
-    "probe_depth_ws",
+    "get_history",
+    "get_history_batch",
     "get_option_chain",
+    "get_quote",
+    "probe_depth_ws",
+    "run_subscribe_probe",
 ]

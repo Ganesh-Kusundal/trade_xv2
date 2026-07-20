@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from analytics.pipeline import ATR, ROC, RSI, SMA, FeaturePipeline, Trend
@@ -31,6 +30,7 @@ def _make_ohlcv(
 ) -> pd.DataFrame:
     """Create synthetic OHLCV data with controllable trend."""
     from datetime import datetime
+
     seed = hash(symbol) % 2**31
     start_date = datetime.fromisoformat(start).replace(tzinfo=None)
     df = make_ohlcv(n=n, symbol=symbol, seed=seed, start_date=start_date, trend=trend)

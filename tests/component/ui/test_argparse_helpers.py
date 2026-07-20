@@ -55,10 +55,10 @@ class TestRequireSymbol:
         assert symbol == "RELIANCE"
         assert gw is broker_service.active_broker
 
-    def test_returns_error_when_args_empty(self, broker_service: MagicMock, console: Console) -> None:
-        result = require_symbol(
-            [], broker_service, console, usage="tradex quote <symbol>"
-        )
+    def test_returns_error_when_args_empty(
+        self, broker_service: MagicMock, console: Console
+    ) -> None:
+        result = require_symbol([], broker_service, console, usage="tradex quote <symbol>")
         assert isinstance(result, CommandResult)
         assert not result.success
         assert result.error == "Missing symbol"
@@ -66,9 +66,7 @@ class TestRequireSymbol:
     def test_returns_error_when_no_gateway(self, console: Console) -> None:
         svc = MagicMock()
         svc.active_broker = None
-        result = require_symbol(
-            ["RELIANCE"], svc, console, usage="tradex quote <symbol>"
-        )
+        result = require_symbol(["RELIANCE"], svc, console, usage="tradex quote <symbol>")
         assert isinstance(result, CommandResult)
         assert not result.success
         assert "No broker gateway" in result.error

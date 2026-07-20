@@ -15,14 +15,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import threading
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.websocket._helpers import _DhanContext, _sdk_market_feed_class
-from domain.constants.ws import DHAN_MAX_INSTRUMENTS_PER_FEED
 from config.ws_settings import (
     DHAN_MAX_RECONNECT_ATTEMPTS,
     DHAN_RECONNECT_COOLDOWN_SECONDS,
@@ -101,7 +100,9 @@ class MarketFeedConnection:
         self._reconnect_count = 0
 
         # Admission gate — injectable via _set_admission_for_test.
-        self._admission: MarketFeedConnectionAdmission | None = MarketFeedConnectionAdmission(client_id)
+        self._admission: MarketFeedConnectionAdmission | None = MarketFeedConnectionAdmission(
+            client_id
+        )
         self._admission_blocked = False
 
     # ------------------------------------------------------------------
@@ -198,9 +199,7 @@ class MarketFeedConnection:
         with self._lock:
             age = self._last_activity_age_seconds_locked()
             is_stale = (
-                self._is_connected
-                and age is not None
-                and age > self._staleness_threshold_seconds()
+                self._is_connected and age is not None and age > self._staleness_threshold_seconds()
             )
             return self._is_connected and not is_stale
 
@@ -238,7 +237,6 @@ class MarketFeedConnection:
         backing off.
         """
         backoff = 1.0
-        max_backoff = 30.0
         max_reconnect_attempts = DHAN_MAX_RECONNECT_ATTEMPTS
         staleness_threshold = DHAN_STALENESS_THRESHOLD_SECONDS
 
@@ -277,7 +275,10 @@ class MarketFeedConnection:
                     extra={"attempts": current_reconnects, "max_attempts": max_reconnect_attempts},
                 )
                 self._emit_reconnect_metric()
-                logger.warning("market_feed_reconnect_cooldown", extra={"cooldown_seconds": DHAN_RECONNECT_COOLDOWN_SECONDS})
+                logger.warning(
+                    "market_feed_reconnect_cooldown",
+                    extra={"cooldown_seconds": DHAN_RECONNECT_COOLDOWN_SECONDS},
+                )
                 if self._stop_event.wait(timeout=DHAN_RECONNECT_COOLDOWN_SECONDS):
                     break
                 with self._lock:
@@ -309,7 +310,9 @@ class MarketFeedConnection:
                     break
                 from brokers.common.backoff import exponential_backoff
 
-                backoff = exponential_backoff(current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0)
+                backoff = exponential_backoff(
+                    current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0
+                )
                 continue
 
             # ── Run the SDK ───────────────────────────────────────────────────
@@ -371,7 +374,9 @@ class MarketFeedConnection:
                 break
             from brokers.common.backoff import exponential_backoff
 
-            backoff = exponential_backoff(current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0)
+            backoff = exponential_backoff(
+                current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0
+            )
 
         # Always release the host-wide admission lock on exit.
         if admission is not None:
@@ -450,10 +455,7 @@ class MarketFeedConnection:
                     feed.close_connection()
                 return
         # On reconnect, backfill the gap via the parent
-        if (
-            not was_connected
-            and disconnect_time is not None
-        ):
+        if not was_connected and disconnect_time is not None:
             self._feed_ref._backfill_gap(disconnect_time)
 
     def _on_close(self, feed) -> None:
@@ -535,16 +537,14 @@ class MarketFeedConnection:
             last_message_age = self._last_activity_age_seconds_locked()
             admission_blocked = self._admission_blocked
 
-        admission_status = (
-            self._admission.status()
-            if self._admission is not None
-            else {}
-        )
+        admission_status = self._admission.status() if self._admission is not None else {}
 
         staleness_threshold = self._staleness_threshold_seconds()
         is_stale = (
-            last_message_age is not None and last_message_age > staleness_threshold
-        ) if last_message_age is not None else False
+            (last_message_age is not None and last_message_age > staleness_threshold)
+            if last_message_age is not None
+            else False
+        )
 
         return {
             "thread_alive": thread_alive,

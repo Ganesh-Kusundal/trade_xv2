@@ -15,7 +15,7 @@ argument-hint: "<question or command>"
 
 # Graphify — Code Knowledge Graph
 
-You have access to a pre-built code knowledge graph at `graphify-out/`. This
+You have access to a pre-built code knowledge graph at `src/graphify-out/` (scope: `src/` only).
 graph captures AST-level and semantic relationships across the entire codebase —
 including cross-file dependencies and inferred edges that grep/Read cannot find.
 
@@ -27,7 +27,7 @@ in every subagent prompt that involves code exploration.
 
 Only skip graphify when:
 1. You already know the exact file and lines to modify (e.g. from a prior query)
-2. `graphify-out/graph.json` does not exist yet
+2. `src/graphify-out/graph.json` does not exist yet
 
 ## Quick Reference
 
@@ -54,11 +54,11 @@ graphify affected "<X>" --relation imports   # filter by specific relation type
 
 | Command | When to Use |
 |---|---|
-| `graphify update .` | After modifying code files — AST-only, no API cost |
-| `graphify update . --force` | After large refactors that delete many files |
-| `graphify check-update .` | Cron-safe check if graph is stale |
-| `graphify cluster-only .` | Rerun community detection + regenerate report |
-| `graphify label . --missing-only` | Name any unlabeled communities via LLM |
+| `graphify update src` | After modifying code files — AST-only, no API cost |
+| `graphify update src --force` | After large refactors that delete many files |
+| `graphify check-update src` | Cron-safe check if graph is stale |
+| `graphify cluster-only src` | Rerun community detection + regenerate report |
+| `graphify label src --missing-only` | Name any unlabeled communities via LLM |
 
 ### Diagnostic Commands
 
@@ -99,15 +99,15 @@ graphify path "DhanHttpClient" "OrderManager"
 ### Pattern 4: Post-Change Graph Sync
 ```
 # After editing code files:
-graphify update .
+graphify update src
 # AST-only, no LLM cost, keeps graph current
 ```
 
 ## Reading the Report
 
 For broad architecture overview (when query/path/explain don't provide enough):
-- Read `graphify-out/GRAPH_REPORT.md` — community hubs, extraction stats, corpus info
-- Read `graphify-out/GRAPH_TREE.html` — interactive D3 tree visualization (run `graphify tree` first)
+- Read `src/graphify-out/GRAPH_REPORT.md` — community hubs, extraction stats, corpus info
+- Read `src/graphify-out/GRAPH_TREE.html` — interactive D3 tree visualization (run `graphify tree` first)
 
 ## Subagent Instruction Template
 

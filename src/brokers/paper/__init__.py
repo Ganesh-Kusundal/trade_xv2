@@ -43,8 +43,8 @@ register_broker_plugin(
     )
 )
 
-from domain.market.segment_registry import register_segment_mapper
 from brokers.paper.segment_mapper import PaperSegmentMapper
+from domain.market.segment_registry import register_segment_mapper
 
 register_segment_mapper("paper", PaperSegmentMapper)
 

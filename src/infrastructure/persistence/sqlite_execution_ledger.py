@@ -8,16 +8,16 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
+from domain.constants import SQLITE_BUSY_TIMEOUT_MS
+from domain.enums import OrderType, ProductType
 from domain.execution_contracts import (
     LedgerFillRecord,
     OrderIntent,
     SubmissionOutcome,
     SubmissionState,
 )
-from domain.enums import OrderType, ProductType
-from domain.types import Side
 from domain.ports.execution_ledger import ExecutionLedgerPort
-from domain.constants import SQLITE_BUSY_TIMEOUT_MS
+from domain.types import Side
 
 
 def _parse_order_type(raw: str) -> OrderType:
@@ -38,6 +38,7 @@ class SqliteExecutionLedger(ExecutionLedgerPort):
 
     def __init__(self, path: Path | str | None = None) -> None:
         from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
         if path is None:
             path = str(DEFAULT_DATA_PATHS.execution_ledger_path)
         self._path = Path(path)

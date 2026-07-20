@@ -26,11 +26,7 @@ console = Console()
 
 def json_mode(ctx: Any | None = None) -> bool:
     """Return True when output should be raw JSON."""
-    if (
-        ctx is not None
-        and getattr(ctx, "obj", None)
-        and ctx.obj.get("json")
-    ):
+    if ctx is not None and getattr(ctx, "obj", None) and ctx.obj.get("json"):
         return True
     return not sys.stdout.isatty()
 
@@ -142,14 +138,16 @@ def _render_history(data: Any, title: str | None, out: Console) -> None:
     bars = list(getattr(data, "bars", []) or [])
     rows: list[dict] = []
     for bar in bars[-10:]:
-        rows.append({
-            "time": getattr(bar, "event_time", ""),
-            "open": str(getattr(bar, "open", "")),
-            "high": str(getattr(bar, "high", "")),
-            "low": str(getattr(bar, "low", "")),
-            "close": str(getattr(bar, "close", "")),
-            "volume": getattr(bar, "volume", 0),
-        })
+        rows.append(
+            {
+                "time": getattr(bar, "event_time", ""),
+                "open": str(getattr(bar, "open", "")),
+                "high": str(getattr(bar, "high", "")),
+                "low": str(getattr(bar, "low", "")),
+                "close": str(getattr(bar, "close", "")),
+                "volume": getattr(bar, "volume", 0),
+            }
+        )
     if rows:
         _render_records(rows, title, out)
     else:
@@ -205,11 +203,13 @@ def _chain_strike_rows(data: Any) -> list[dict]:
         else:
             call = getattr(row, "call", None)
             put = getattr(row, "put", None)
-            rows.append({
-                "strike": getattr(row, "strike", None),
-                "call": call.to_dict() if hasattr(call, "to_dict") else call,
-                "put": put.to_dict() if hasattr(put, "to_dict") else put,
-            })
+            rows.append(
+                {
+                    "strike": getattr(row, "strike", None),
+                    "call": call.to_dict() if hasattr(call, "to_dict") else call,
+                    "put": put.to_dict() if hasattr(put, "to_dict") else put,
+                }
+            )
     return rows
 
 
@@ -231,7 +231,9 @@ def _atm_strike_value(data: Any, rows: list[dict]) -> Any:
     return None
 
 
-def _atm_window(rows: list[dict], atm_strike: Any, *, half: int = 10) -> tuple[list[dict], int, int]:
+def _atm_window(
+    rows: list[dict], atm_strike: Any, *, half: int = 10
+) -> tuple[list[dict], int, int]:
     if not rows:
         return [], 0, 0
     idx = len(rows) // 2
@@ -305,8 +307,8 @@ def _render_capabilities(data: dict, title: str | None, out: Console) -> None:
 
 def _domain_type_name(data: Any) -> str | None:
     """Map domain value objects to their rendering kind via isinstance."""
-    from domain.entities.market import QuoteSnapshot, MarketDepth
     from domain.candles.historical import HistoricalSeries
+    from domain.entities.market import MarketDepth, QuoteSnapshot
 
     if isinstance(data, QuoteSnapshot):
         return "QuoteSnapshot"
@@ -317,12 +319,14 @@ def _domain_type_name(data: Any) -> str | None:
     # OptionChain has two implementations — check both
     try:
         from domain.options.option_chain import OptionChain as RichOptionChain
+
         if isinstance(data, RichOptionChain):
             return "OptionChain"
     except ImportError:
         pass
     try:
         from domain.entities.options import OptionChain as V0OptionChain
+
         if isinstance(data, V0OptionChain):
             return "OptionChain"
     except ImportError:

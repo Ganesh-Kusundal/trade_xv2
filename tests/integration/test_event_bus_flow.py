@@ -15,13 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_bus.persistent_dead_letter_queue import (
     PersistentDeadLetterQueue,
 )
 from infrastructure.event_log import EventLog
+from infrastructure.observability.event_metrics import EventMetrics
 
 pytestmark = pytest.mark.integration
 
@@ -57,7 +57,9 @@ def event_log(tmp_path: Path) -> EventLog:
 @pytest.fixture()
 def event_bus(event_log: EventLog) -> EventBus:
     """Function-scoped EventBus wired to a real EventLog."""
-    return EventBus(event_log=event_log, config=EventBusConfig(logging_enabled=False, fail_fast=False))
+    return EventBus(
+        event_log=event_log, config=EventBusConfig(logging_enabled=False, fail_fast=False)
+    )
 
 
 # ── 1. Fan-out correctness ───────────────────────────────────────────────

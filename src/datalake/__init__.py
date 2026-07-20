@@ -23,13 +23,13 @@ Usage:
     report = lake.quality.check("RELIANCE")
 """
 
-from datalake.storage.catalog import DataCatalog
 from datalake.analytics.corporate_actions import CorporateActionStore
+from datalake.analytics.vwap import compute_daily_vwap, compute_vwap
 from datalake.ingestion.loader import HistoricalDataLoader
 from datalake.quality.engine import DataQualityEngine
 from datalake.quality.universe import UniverseQualityEngine
 from datalake.research.api import ResearchAPI
-from datalake.analytics.vwap import compute_daily_vwap, compute_vwap
+from datalake.storage.catalog import DataCatalog
 
 __all__ = [
     "CorporateActionStore",
@@ -50,6 +50,7 @@ class DataLake:
     def __init__(self, root: str | None = None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = root
         self._catalog = DataCatalog(root)

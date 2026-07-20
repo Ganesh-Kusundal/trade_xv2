@@ -7,6 +7,7 @@ Critical: scan ``src/domain`` (src-layout). A previous version scanned
 ``ROOT/domain`` which does not exist, so the AST walker parsed zero files
 and the suite silently passed.
 """
+
 from __future__ import annotations
 
 import ast
@@ -73,7 +74,7 @@ class TestDomainIsolation:
             except SyntaxError:
                 continue
             for node in ast.walk(tree):
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                if isinstance(node, ast.Import | ast.ImportFrom):
                     root = _extract_import_root(node)
                     if root == forbidden:
                         violations.append(f"{f.relative_to(ROOT)}:{node.lineno}")

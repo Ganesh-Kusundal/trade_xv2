@@ -46,13 +46,15 @@ class Indicators:
         bars = self._inst.history().bars
         import pandas as pd
 
-        df = pd.DataFrame({
-            "open": [float(b.open) for b in bars],
-            "high": [float(b.high) for b in bars],
-            "low": [float(b.low) for b in bars],
-            "close": [float(b.close) for b in bars],
-            "volume": [float(b.volume) for b in bars],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [float(b.open) for b in bars],
+                "high": [float(b.high) for b in bars],
+                "low": [float(b.low) for b in bars],
+                "close": [float(b.close) for b in bars],
+                "volume": [float(b.volume) for b in bars],
+            }
+        )
         out = CandlestickPatterns().compute(df)
         return {
             col: out[col].tolist()

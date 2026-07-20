@@ -24,11 +24,13 @@ logger = logging.getLogger(__name__)
 # ``import brokers.dhan.wire`` works even when the SDK is not installed.
 # ---------------------------------------------------------------------------
 
+
 def _sdk_market_feed_class() -> type:
     """Lazy import so ``import brokers.dhan.wire`` does not require dhanhq at import time."""
-    from dhanhq.marketfeed import MarketFeed
+    from dhanhq import marketfeed as mf
 
-    return MarketFeed
+    # dhanhq >=2.x renamed MarketFeed -> DhanFeed
+    return getattr(mf, "MarketFeed", mf.DhanFeed)
 
 
 def _sdk_order_update_class() -> type:
@@ -51,16 +53,31 @@ class _ModeMapCache:
     _map: dict[str, int] | None = None
 
 
+
+
+def _sdk_subscription_ticker() -> int:
+    """SDK constant for default LTP/Ticker subscription mode."""
+    from dhanhq import marketfeed as mf_mod
+
+    mf_cls = _sdk_market_feed_class()
+    return getattr(mf_cls, "Ticker", mf_mod.Ticker)
+
 def _mode_map() -> dict[str, int]:
     """Return the mode-name -> SDK constant mapping (cached at module level)."""
     if _ModeMapCache._map is None:
+        from dhanhq import marketfeed as mf_mod
+
         mf = _sdk_market_feed_class()
+
+        def _sdk_const(name: str) -> int:
+            return getattr(mf, name, getattr(mf_mod, name))
+
         _ModeMapCache._map = {
-            "LTP": mf.Ticker,
-            "TICKER": mf.Ticker,
-            "QUOTE": mf.Quote,
-            "FULL": mf.Full,
-            "DEPTH": mf.Quote,  # v2 does not support Depth (19)
+            "LTP": _sdk_const("Ticker"),
+            "TICKER": _sdk_const("Ticker"),
+            "QUOTE": _sdk_const("Quote"),
+            "FULL": _sdk_const("Full"),
+            "DEPTH": _sdk_const("Quote"),  # v2 does not support Depth (19)
         }
     return _ModeMapCache._map
 
@@ -68,6 +85,7 @@ def _mode_map() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 # Decimal conversion helper
 # ---------------------------------------------------------------------------
+
 
 def _to_decimal(value: Any, default: str = "0") -> Decimal:
     """Convert a value to Decimal, avoiding redundant conversion if already Decimal.
@@ -86,6 +104,7 @@ def _to_decimal(value: Any, default: str = "0") -> Decimal:
 # ---------------------------------------------------------------------------
 # Market-feed payload parsing (pure, stateless)
 # ---------------------------------------------------------------------------
+
 
 def _resolve_security_symbol(security_id: str, resolver: Any = None) -> str:
     """Map *security_id* to a trading symbol via *resolver*, falling back to id."""
@@ -163,7 +182,7 @@ def _parse_quote_exchange_time(data: dict, now: datetime) -> datetime:
         if isinstance(ts_raw, datetime):
             return ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=now.tzinfo)
         try:
-            if isinstance(ts_raw, (int, float)):
+            if isinstance(ts_raw, int | float):
                 if ts_raw <= 0:
                     continue
                 if ts_raw > 1e11:
@@ -215,6 +234,7 @@ def _transform_depth(data: dict, resolver: Any = None) -> dict:
 # Instrument conversion
 # ---------------------------------------------------------------------------
 
+
 def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
     """Convert human-readable instruments to SDK format.
 
@@ -229,7 +249,7 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
     sdk_instruments = []
     # Task 1.6: resolve mode map once before the loop (was called per instrument).
     mode_map = _mode_map()
-    default_mode = _sdk_market_feed_class().Ticker
+    default_mode = _sdk_subscription_ticker()
     for item in instruments:
         if len(item) != 3:
             logger.warning("Skipping malformed instrument: %s", item)
@@ -255,9 +275,7 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
             continue
         sid_str = str(security_id)
         mode_int = (
-            mode_map.get(str(mode).upper(), default_mode)
-            if isinstance(mode, str)
-            else int(mode)
+            mode_map.get(str(mode).upper(), default_mode) if isinstance(mode, str) else int(mode)
         )
         sdk_instruments.append((exch_int, sid_str, mode_int))
     return sdk_instruments
@@ -266,6 +284,7 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
 # ---------------------------------------------------------------------------
 # Dhan SDK context shim
 # ---------------------------------------------------------------------------
+
 
 class _DhanContext:
     """Shim to satisfy SDK's dhan_context interface.

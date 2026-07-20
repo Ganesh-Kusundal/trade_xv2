@@ -30,8 +30,10 @@ def _make_event(event_type: str = "ORDER_PLACED", event_id: str = "evt-1") -> Do
 
 def _make_failing_handler(exception: Exception = RuntimeError("Handler failed")):
     """Create a handler that raises an exception."""
+
     def handler(event):
         raise exception
+
     return handler
 
 
@@ -149,8 +151,18 @@ class TestDLQProcessing:
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler(ValueError("Invalid order")))
 
-        event = _make_event(event_id="evt-debug")
-        event.payload["extra_context"] = "debugging info"
+        event = DomainEvent(
+            event_type="ORDER_PLACED",
+            timestamp=datetime.now(timezone.utc),
+            payload={
+                "order_id": "ORD-evt-debug",
+                "symbol": "RELIANCE",
+                "extra_context": "debugging info",
+            },
+            symbol="RELIANCE",
+            event_id="evt-debug",
+            sequence_number=1,
+        )
         bus.publish(event)
 
         dead_letter = dlq.peek(1)[0]
@@ -252,11 +264,13 @@ class TestDLQMonitoring:
 
         def check_alerts():
             if len(dlq) > 5:
-                alerts_triggered.append({
-                    "type": "DLQ_DEPTH_EXCEEDED",
-                    "depth": len(dlq),
-                    "threshold": 5,
-                })
+                alerts_triggered.append(
+                    {
+                        "type": "DLQ_DEPTH_EXCEEDED",
+                        "depth": len(dlq),
+                        "threshold": 5,
+                    }
+                )
 
         bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())

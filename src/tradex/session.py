@@ -45,14 +45,16 @@ from runtime.wire_runtime_hooks import wire_runtime_hooks
 # preserve backward compatibility for callers/tests that reference the old
 # names on ``tradex.session`` (and patch them there).
 from tradex.broker_registry import ensure_registered as _ensure_broker_registered
-from tradex.broker_selftest import is_enabled as _broker_selftest_enabled, run as _run_broker_selftest
+from tradex.broker_selftest import is_enabled as _broker_selftest_enabled
+from tradex.broker_selftest import run as _run_broker_selftest
 from tradex.gateway_extensions import collect as _collect_gateway_extensions
 from tradex.session_mode import (
     is_live as _is_live,
+)
+from tradex.session_mode import (
     normalize_mode as _normalize_mode,
 )
 from tradex.session_recorder import (
-    is_enabled as _session_recording_enabled,
     maybe_start as _maybe_start_session_recorder,
 )
 
@@ -162,13 +164,7 @@ def open_session(
             err = boot.error or f"status={boot.status.value}"
             unknown = "Unknown broker" in err
             reauth = boot.status == BootstrapStatus.REAUTH_REQUIRED
-            code = (
-                UNKNOWN_BROKER
-                if unknown
-                else AUTH_FAILED
-                if reauth
-                else GATEWAY_FAILED
-            )
+            code = UNKNOWN_BROKER if unknown else AUTH_FAILED if reauth else GATEWAY_FAILED
             remediation = (
                 "Use paper, dhan, upstox, or datalake."
                 if unknown
@@ -269,11 +265,7 @@ def open_session(
 
     if oms is None and use_oms and orders_wanted:
         # ADR-017: trade mode with process BrokerService uses runtime.factory.build.
-        if (
-            resolved_mode == MODE_TRADE
-            and broker_service is not None
-            and executor is not None
-        ):
+        if resolved_mode == MODE_TRADE and broker_service is not None and executor is not None:
             from runtime.factory import build as build_runtime
 
             runtime = build_runtime(
@@ -286,18 +278,18 @@ def open_session(
                 event_bus = runtime.event_bus
             if gw is None:
                 gw = runtime.gateway
-            setattr(runtime, "_tradex_session_delegate", True)
+            runtime._tradex_session_delegate = True
         elif executor is not None:
             from application.oms.session_bridge import build_oms_service
 
             processed_trades = None
             if event_bus is None:
-                from infrastructure.event_bus.event_bus import EventBus
+                from infrastructure.bootstrap import build_event_bus
                 from infrastructure.event_bus.processed_trade_repository import (
                     ProcessedTradeRepository,
                 )
 
-                event_bus = EventBus()
+                event_bus = build_event_bus()
                 processed_trades = ProcessedTradeRepository()
 
             try:
@@ -324,7 +316,9 @@ def open_session(
                     ) from exc
                 raise ConnectError(
                     msg,
-                    code=OMS_REQUIRED if "ENG-001" in msg or "phantom" in msg.lower() else "OMS_FAILED",
+                    code=OMS_REQUIRED
+                    if "ENG-001" in msg or "phantom" in msg.lower()
+                    else "OMS_FAILED",
                     broker_id=broker_id,
                     mode=resolved_mode,
                     trace_id=trace_id,
@@ -361,12 +355,12 @@ def open_session(
             broker_id, _collect_gateway_extensions(gw, broker_id=broker_id)
         )
     if _session_kernel is not None:
-        setattr(session, "kernel", _session_kernel)
+        session.kernel = _session_kernel
     if _lifecycle is not None:
         # Attach so the session's close() stops background services (TOTP
         # refresh, WS streams) deterministically. setattr keeps the domain
         # layer free of lifecycle imports.
-        setattr(session, "_lifecycle", _lifecycle)
+        session._lifecycle = _lifecycle
 
     # ── Order placement via OMS (session.order_service) ────────────────
     # ponytail: CQRS dispatchers removed — Session.place() uses order_service directly.

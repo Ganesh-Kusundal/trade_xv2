@@ -14,8 +14,8 @@ __all__ = [
     "ExecutionResult",
     "FeatureFetcher",
     "OrchestratorConfig",
-    "PlanResult",
-    "PipelineFeatureFetcher",
     "OrderPlacer",
+    "PipelineFeatureFetcher",
+    "PlanResult",
     "TradingOrchestrator",
 ]

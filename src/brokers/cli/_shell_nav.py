@@ -31,6 +31,7 @@ from brokers.cli._shell_types import (
 
 # Re-export types for backward compatibility.
 __all__ = [
+    "RECOVERY_MENU",
     "Back",
     "EnterSection",
     "Help",
@@ -41,7 +42,6 @@ __all__ = [
     "ShellItem",
     "ShellMenu",
     "Unknown",
-    "RECOVERY_MENU",
     "arg_hint_display",
     "ask_menu_line",
     "build_main_menu",
@@ -180,20 +180,13 @@ def arg_hint_display(group: Any, command: str) -> str | None:
 def filter_extension_commands(broker_id: str, declared: list[str] | None) -> list[str]:
     """Return broker extension CLI commands, filtered by session capabilities."""
     # G1: capability-driven dispatch
-    available = [
-        _cli_name_for_extension(cls)
-        for cls in get_broker_extension_classes(broker_id)
-    ]
+    available = [_cli_name_for_extension(cls) for cls in get_broker_extension_classes(broker_id)]
     if not available:
         return []
     if not declared:
         return available
     norm = {str(d).lower() for d in declared}
-    return [
-        cmd
-        for cmd in available
-        if _extension_runtime_key(cmd) in norm or cmd in declared
-    ]
+    return [cmd for cmd in available if _extension_runtime_key(cmd) in norm or cmd in declared]
 
 
 def _command_help(group: Any, name: str) -> str:
@@ -409,8 +402,10 @@ def render_help_for_menu(
 ) -> None:
     """Show command reference for the current menu without reconnecting."""
     target = out or console
-    title = "Recovery help" if menu.is_recovery else (
-        "Main menu help" if menu.is_main else f"{menu.title} help"
+    title = (
+        "Recovery help"
+        if menu.is_recovery
+        else ("Main menu help" if menu.is_main else f"{menu.title} help")
     )
     table = Table(title=title, title_justify="left", show_header=True, header_style="bold")
     table.add_column("Command", style="bold green", width=18, no_wrap=True)
@@ -466,11 +461,15 @@ def render_menu(
         target.print(_recovery_hint(broker_id, session_info))
         target.print(f"[dim]{_RECOVERY_FOOTER}[/dim]\n")
     elif menu.is_main:
-        target.print("[dim]Pick a section by number or name[/dim] (e.g. [green]2[/green] or [green]market[/green])")
+        target.print(
+            "[dim]Pick a section by number or name[/dim] (e.g. [green]2[/green] or [green]market[/green])"
+        )
         target.print(Rule(style="dim"))
         target.print(f"[dim]{_FOOTER_HINTS}[/dim]\n")
     else:
-        target.print("[dim]Pick a command by number or name[/dim]; [green]exit[/green] returns to main menu")
+        target.print(
+            "[dim]Pick a command by number or name[/dim]; [green]exit[/green] returns to main menu"
+        )
         target.print(Rule(style="dim"))
         target.print(f"[dim]{_FOOTER_HINTS}[/dim]\n")
 

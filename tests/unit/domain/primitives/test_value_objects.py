@@ -22,7 +22,9 @@ from domain.primitives.value_objects import (
     Quantity,
 )
 
-VO_MODULE = Path(__file__).resolve().parents[4] / "src" / "domain" / "primitives" / "value_objects.py"
+VO_MODULE = (
+    Path(__file__).resolve().parents[4] / "src" / "domain" / "primitives" / "value_objects.py"
+)
 
 
 class TestModuleIsPure:

@@ -28,8 +28,9 @@ class BaseViews:
 
     @property
     def _curated_glob(self) -> str:
-        return os.path.join(self._root, "curated", "equities", "candles",
-                            "year=*", "month=*", "data_*.parquet")
+        return os.path.join(
+            self._root, "curated", "equities", "candles", "year=*", "month=*", "data_*.parquet"
+        )
 
     def create_views(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create all base market views."""

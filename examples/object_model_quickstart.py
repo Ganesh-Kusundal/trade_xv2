@@ -27,7 +27,12 @@ def main() -> None:
         print("history bars:", series.bar_count)
 
         handle = stock.subscribe()
-        print("subscribe: live=", stock.is_live, "handle_active=", handle.is_active if handle else None)
+        print(
+            "subscribe: live=",
+            stock.is_live,
+            "handle_active=",
+            handle.is_active if handle else None,
+        )
         if handle is not None:
             handle.unsubscribe()
 

@@ -6,13 +6,13 @@ import logging
 import time
 from pathlib import Path
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from runtime.platform_bridge import run_benchmark
-from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from domain.enums import BrokerId
 from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from runtime.platform_bridge import run_benchmark
 
 logger = logging.getLogger(__name__)
 

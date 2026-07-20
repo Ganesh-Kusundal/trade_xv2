@@ -6,8 +6,8 @@ import logging
 
 from rich.console import Console
 
-from interface.ui.services.broker_ops import get_funds, get_positions
 from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_funds, get_positions
 from interface.ui.services.renderers import render_account_with_pnl
 
 logger = logging.getLogger(__name__)

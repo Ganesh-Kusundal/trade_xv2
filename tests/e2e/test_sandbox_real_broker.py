@@ -13,6 +13,7 @@ Requirements:
 Usage:
     ./venv/bin/python -m pytest tests/e2e/test_sandbox_real_broker.py -v -k sandbox
 """
+
 import contextlib
 import os
 
@@ -138,6 +139,7 @@ class TestDhanSandboxE2E:
         market price so the order cannot execute accidentally.
         """
         from decimal import Decimal
+
         gw = dhan_sandbox_gateway
 
         # Get current LTP to place far-below-market LIMIT
@@ -163,9 +165,7 @@ class TestDhanSandboxE2E:
         # Verify the order appears in the orderbook
         orders = gw.get_orderbook()
         order_ids = [o.order_id for o in orders]
-        assert order_id in order_ids, (
-            f"Order {order_id} not found in orderbook; got: {order_ids}"
-        )
+        assert order_id in order_ids, f"Order {order_id} not found in orderbook; got: {order_ids}"
 
         # Cancel
         cancel = gw.cancel_order(order_id)
@@ -180,6 +180,7 @@ class TestDhanSandboxE2E:
         """
         import uuid
         from decimal import Decimal
+
         gw = dhan_sandbox_gateway
 
         # Use a far-below-market LIMIT to avoid accidental execution
@@ -225,6 +226,7 @@ class TestDhanSandboxE2E:
         provides simulated funds) before attempting the place.
         """
         from decimal import Decimal
+
         gw = dhan_sandbox_gateway
 
         funds = gw.get_funds()
@@ -239,7 +241,9 @@ class TestDhanSandboxE2E:
         ltp = gw.ltp("INFY", "NSE")
         required_margin = Decimal(str(round(float(ltp), 2))) * 1  # qty=1
         if funds.available_balance < required_margin:
-            pytest.skip(f"Sandbox margin ({funds.available_balance}) < required ({required_margin})")
+            pytest.skip(
+                f"Sandbox margin ({funds.available_balance}) < required ({required_margin})"
+            )
 
         limit_price = round(float(ltp) * 0.80, 2)
         response = gw.place_order(
@@ -267,10 +271,10 @@ class TestUpstoxSandboxE2E:
     @pytest.fixture
     def upstox_sandbox_gateway(self):
         """Create Upstox gateway with sandbox credentials."""
-        from brokers.upstox.settings import UpstoxSettings
         from dotenv import load_dotenv
 
         from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.settings import UpstoxSettings
         from brokers.upstox.wire import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
@@ -375,10 +379,10 @@ class TestCrossBrokerParity:
     @pytest.fixture
     def upstox_sandbox(self):
         """Create Upstox sandbox gateway."""
-        from brokers.upstox.settings import UpstoxSettings
         from dotenv import load_dotenv
 
         from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.settings import UpstoxSettings
         from brokers.upstox.wire import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
@@ -412,10 +416,10 @@ class TestCrossBrokerParity:
 
         # Verify both have required fields
         for quote in [dhan_quote, upstox_quote]:
-            assert hasattr(quote, 'ltp')
-            assert hasattr(quote, 'symbol')
-            assert hasattr(quote, 'volume')
-            assert isinstance(quote.ltp, (int, float))
+            assert hasattr(quote, "ltp")
+            assert hasattr(quote, "symbol")
+            assert hasattr(quote, "volume")
+            assert isinstance(quote.ltp, int | float)
             assert quote.ltp > 0
 
         # Verify symbols match
@@ -442,8 +446,8 @@ class TestCrossBrokerParity:
 
         # Verify both have required fields
         for response in [dhan_response, upstox_response]:
-            assert hasattr(response, 'success')
-            assert hasattr(response, 'order_id')
+            assert hasattr(response, "success")
+            assert hasattr(response, "order_id")
             assert response.success is True
             assert response.order_id is not None
 

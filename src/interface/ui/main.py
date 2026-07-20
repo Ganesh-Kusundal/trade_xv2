@@ -12,6 +12,7 @@ from rich.console import Console
 
 # Initialize centralized logging BEFORE any other imports that log
 from infrastructure.logging_config import configure_logging
+
 configure_logging()
 
 logger = logging.getLogger(__name__)
@@ -22,36 +23,84 @@ if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
     load_dotenv(_ENV_PATH, override=True)
 
 from interface.ui.commands import (
-    benchmark as cmd_benchmark,
-    broker as cmd_broker,
-    compare as cmd_compare,
-    dashboard as cmd_dashboard,
-    doctor as cmd_doctor,
-    events as cmd_events,
-    instrument as cmd_instrument,
-    instruments as cmd_instruments,
     asset as cmd_asset,
-    livefeed as cmd_livefeed,
+)
+from interface.ui.commands import (
     auth as cmd_auth,
-    journal as cmd_journal,
-    load_test as cmd_load_test,
-    market as cmd_market,
-    news as cmd_news,
+)
+from interface.ui.commands import (
+    benchmark as cmd_benchmark,
+)
+from interface.ui.commands import (
+    broker as cmd_broker,
+)
+from interface.ui.commands import (
     cache_management as cmd_cache_management,
-    quality_report as cmd_quality_report,
-    search as cmd_search,
-    validate as cmd_validate,
-    validate_history as cmd_validate_history,
-    validate_option_chain as cmd_validate_option_chain,
+)
+from interface.ui.commands import (
+    compare as cmd_compare,
+)
+from interface.ui.commands import (
+    dashboard as cmd_dashboard,
+)
+from interface.ui.commands import (
+    doctor as cmd_doctor,
+)
+from interface.ui.commands import (
+    events as cmd_events,
+)
+from interface.ui.commands import (
+    instrument as cmd_instrument,
+)
+from interface.ui.commands import (
+    instruments as cmd_instruments,
+)
+from interface.ui.commands import (
+    journal as cmd_journal,
+)
+from interface.ui.commands import (
+    livefeed as cmd_livefeed,
+)
+from interface.ui.commands import (
+    load_test as cmd_load_test,
+)
+from interface.ui.commands import (
+    market as cmd_market,
+)
+from interface.ui.commands import (
+    news as cmd_news,
+)
+from interface.ui.commands import (
     options_sync as cmd_options_sync,
+)
+from interface.ui.commands import (
+    quality_report as cmd_quality_report,
+)
+from interface.ui.commands import (
+    search as cmd_search,
+)
+from interface.ui.commands import (
+    validate as cmd_validate,
+)
+from interface.ui.commands import (
+    validate_history as cmd_validate_history,
+)
+from interface.ui.commands import (
+    validate_option_chain as cmd_validate_option_chain,
+)
+from interface.ui.commands import (
     views as cmd_views,
+)
+from interface.ui.commands import (
     websocket as cmd_websocket,
 )
+from interface.ui.commands.events import EventBusService
 from interface.ui.commands.registry import lookup_handler, register_handler
-from interface.ui.services import compose as _compose  # noqa: F401  (wires session opener on import)
+from interface.ui.services import (
+    compose as _compose,  # noqa: F401  (wires session opener on import)
+)
 from interface.ui.services.broker_registry import bootstrap_gateway
 from interface.ui.services.broker_service import BrokerService
-from interface.ui.commands.events import EventBusService
 
 
 def _run_analytics_lazy(*args, **kwargs):
@@ -140,7 +189,7 @@ def main() -> None:
         idx = args.index("--broker")
         if idx + 1 < len(args):
             broker_name = args[idx + 1].lower()
-            args = args[:idx] + args[idx + 2:]
+            args = args[:idx] + args[idx + 2 :]
 
     # --risk-fail-open: explicit operator consent to use the legacy 1,000,000
     # INR placeholder capital when the real broker balance is unavailable.
@@ -155,7 +204,9 @@ def main() -> None:
 
     if not args or args[0] in ("--help", "-h", "help"):
         console.print("[bold]TradeXV2 CLI[/bold]\n")
-        console.print("[yellow]Usage: tradex <command> [args] [--broker dhan|upstox] [--risk-fail-open][/yellow]\n")
+        console.print(
+            "[yellow]Usage: tradex <command> [args] [--broker dhan|upstox] [--risk-fail-open][/yellow]\n"
+        )
         console.print("[bold]Commands:[/bold]")
         cmds = [
             ("broker", "Show broker connection info"),
@@ -213,7 +264,15 @@ def main() -> None:
     _MARKET_ONLY_CMDS = {"feed"}
 
     # Commands that need instruments (historical, search, instruments)
-    _NEEDS_INSTRUMENTS = {"historical", "history", "search", "instrument", "instruments", "option-chain", "futures"}
+    _NEEDS_INSTRUMENTS = {
+        "historical",
+        "history",
+        "search",
+        "instrument",
+        "instruments",
+        "option-chain",
+        "futures",
+    }
 
     runtime = None
     gateway = None
@@ -263,9 +322,7 @@ def main() -> None:
                 exit_code = 1
             elif subcommand == "events":
                 handler(cmd_args, event_bus_service, console)
-            elif subcommand == "journal":
-                handler(cmd_args, console)
-            elif subcommand in ("views", "options-sync"):
+            elif subcommand == "journal" or subcommand in ("views", "options-sync"):
                 handler(cmd_args, console)
             elif subcommand == "analytics":
                 result = handler(cmd_args, broker_service, console)

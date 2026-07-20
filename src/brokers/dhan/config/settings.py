@@ -23,14 +23,14 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from infrastructure.config.settings import BrokerSettings, SettingsLoaderBase
 from brokers.dhan.config import DhanResilienceConfig
+from config.endpoints import Dhan
 from domain.constants.auth import (
     DHAN_TOKEN_LIFETIME_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
     DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
 )
-from config.endpoints import Dhan
+from infrastructure.config.settings import BrokerSettings, SettingsLoaderBase
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class DhanConnectionSettings(BrokerSettings):
     refresh_buffer_seconds: int = DHAN_TOKEN_REFRESH_BUFFER_SECONDS
     allow_live_orders: bool = False
     token_state_dir: str = ""
-    
+
     # Resilience configuration
     resilience_config: DhanResilienceConfig | None = None
 
@@ -225,14 +225,11 @@ class DhanSettingsLoader(SettingsLoaderBase):
         Returns:
             DhanResilienceConfig if any resilience env vars are set, else None.
         """
-        from brokers.dhan.config import DhanConfigLoader, ENV_PREFIX, load_from_env_file
+        from brokers.dhan.config import ENV_PREFIX, DhanConfigLoader, load_from_env_file
 
         # Check if any resilience env vars are set
         resilience_prefix = ENV_PREFIX
-        has_resilience_vars = any(
-            key.startswith(resilience_prefix)
-            for key in os.environ.keys()
-        )
+        has_resilience_vars = any(key.startswith(resilience_prefix) for key in os.environ)
 
         if has_resilience_vars:
             return DhanConfigLoader.load_from_environment(resilience_prefix)

@@ -11,9 +11,9 @@ from domain.entities.order import OrderResponse
 from domain.instruments.instrument import Equity, Future, Index, Option
 from domain.orders.requests import OrderRequest
 from domain.ports.protocols import OrderResult
-from tests.unit.domain._fakes import FakeEventBus, FakeProvider
-from domain.types import OrderType, Side
+from domain.types import Side
 from domain.universe import Session, Universe
+from tests.unit.domain._fakes import FakeEventBus, FakeProvider
 
 
 class FakeExecutionProvider:
@@ -89,9 +89,7 @@ def test_universe_builds_future():
 
 def test_universe_builds_option():
     session, _, _, _ = _new_session()
-    opt = session.universe.option(
-        "RELIANCE", Decimal("2500"), "CE", expiry=date(2026, 7, 31)
-    )
+    opt = session.universe.option("RELIANCE", Decimal("2500"), "CE", expiry=date(2026, 7, 31))
     assert isinstance(opt, Option)
     assert opt.strike == Decimal("2500")
     assert opt.is_call is True

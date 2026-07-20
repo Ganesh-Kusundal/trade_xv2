@@ -6,12 +6,12 @@ import contextlib
 import time
 from pathlib import Path
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from domain.enums import BrokerId
 from interface.ui.commands._broker import broker_id_from, history_as_df
+from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
 
 
 def _env_kwargs(env: Path) -> dict:
@@ -40,7 +40,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
     for name, broker_id, env in brokers:
         kw = _env_kwargs(env)
         try:
-            df = history_as_df(get_history(broker_id_from(None, default=broker_id), "TCS", days=30, **kw))
+            df = history_as_df(
+                get_history(broker_id_from(None, default=broker_id), "TCS", days=30, **kw)
+            )
             rows = len(df)
             duplicates = (
                 df.duplicated(subset=["timestamp"]).sum()

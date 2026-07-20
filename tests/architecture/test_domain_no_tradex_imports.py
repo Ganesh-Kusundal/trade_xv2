@@ -68,9 +68,7 @@ class TestDomainDoesNotImportTradex:
                 violations.append(f"{path.relative_to(ROOT)}: SyntaxError: {exc}")
                 continue
             for lineno, module in _tradex_import_hits(tree):
-                violations.append(
-                    f"{path.relative_to(ROOT)}:{lineno}: import {module}"
-                )
+                violations.append(f"{path.relative_to(ROOT)}:{lineno}: import {module}")
 
         assert not violations, (
             "Production domain must not import tradex "

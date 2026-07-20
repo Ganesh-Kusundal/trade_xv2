@@ -75,9 +75,7 @@ def test_resolver_gtt_endpoints_use_hft():
 
 def test_resolver_websocket_authorize_endpoints():
     r = UpstoxApiUrlResolver(_settings("LIVE"))
-    assert (
-        r.feed_authorize_v3_url() == "https://api.upstox.com/v3/feed/market-data-feed/authorize"
-    )
+    assert r.feed_authorize_v3_url() == "https://api.upstox.com/v3/feed/market-data-feed/authorize"
     assert (
         r.portfolio_stream_authorize_url()
         == "https://api.upstox.com/v2/feed/portfolio-stream-feed/authorize"

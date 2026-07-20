@@ -17,11 +17,6 @@ from datetime import datetime, timezone
 
 import pytest
 
-from infrastructure.observability.event_metrics import EventMetrics
-from infrastructure.observability.http_server import (
-    HttpObservabilityServer,
-    render_prometheus_metrics,
-)
 from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
@@ -29,6 +24,11 @@ from infrastructure.lifecycle.lifecycle import (
     ManagedService,
 )
 from infrastructure.metrics.registry import metrics_registry
+from infrastructure.observability.event_metrics import EventMetrics
+from infrastructure.observability.http_server import (
+    HttpObservabilityServer,
+    render_prometheus_metrics,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +37,7 @@ def _reset_global_metrics_registry() -> None:
     metrics_registry.reset_all()
     yield
     metrics_registry.reset_all()
+
 
 # ── Prometheus renderer ───────────────────────────────────────────────────
 
@@ -261,6 +262,7 @@ async def test_version_endpoint_returns_build_info(
 ) -> None:
     """REF-30: ``/version`` exposes build metadata for incident response."""
     import aiohttp
+
     port = _get_port(server)
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://127.0.0.1:{port}/version") as resp:
@@ -277,6 +279,7 @@ async def test_info_endpoint_returns_runtime_and_endpoints(
 ) -> None:
     """REF-30: ``/info`` is the single-call discovery endpoint."""
     import aiohttp
+
     port = _get_port(server)
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://127.0.0.1:{port}/info") as resp:
@@ -309,7 +312,9 @@ def test_build_info_dict_returns_strings():
 
     info = build_info_dict()
     for key, value in info.items():
-        assert isinstance(value, str), f"{key} must be str, got {type(value)}"# ── /readyz with lifecycle ───────────────────────────────────────────────
+        assert isinstance(value, str), (
+            f"{key} must be str, got {type(value)}"
+        )  # ── /readyz with lifecycle ───────────────────────────────────────────────
 
 
 def test_readyz_returns_503_when_a_service_failed() -> None:

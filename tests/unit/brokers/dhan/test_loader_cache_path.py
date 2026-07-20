@@ -25,7 +25,11 @@ class TestCachePathResolution:
             patch.object(InstrumentLoader, "load_cached", return_value=[]),
         ):
             env_cache = os.environ.get("DHAN_CACHE_DIR")
-            cache_dir = Path(env_cache) if env_cache else project_root_from(__file__) / DEFAULT_INSTRUMENT_CACHE_DIR
+            cache_dir = (
+                Path(env_cache)
+                if env_cache
+                else project_root_from(__file__) / DEFAULT_INSTRUMENT_CACHE_DIR
+            )
             assert cache_dir == custom_cache
 
     def test_cache_path_uses_default_when_env_unset(self):

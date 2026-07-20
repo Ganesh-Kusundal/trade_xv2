@@ -106,7 +106,10 @@ class TestLiveInstruments:
         # Canonical resolve has no wire id on the carrier
         resolved = svc.resolve("RELIANCE", "NSE")
         assert resolved.symbol
-        assert not hasattr(resolved, "security_id") or getattr(resolved, "security_id", None) in (None, "")
+        assert not hasattr(resolved, "security_id") or getattr(resolved, "security_id", None) in (
+            None,
+            "",
+        )
 
     def test_resolve_ref_stays_internal(self, gateway: DhanBrokerGateway):
         """resolve_ref returns wire segment+security_id for connection use only."""

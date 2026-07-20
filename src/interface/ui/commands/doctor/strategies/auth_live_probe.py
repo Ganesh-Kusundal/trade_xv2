@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from domain.enums import BrokerId
-from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
-from interface.ui.services.broker_registry import list_available_brokers
-from interface.ui.services.broker_service import BrokerService
 from infrastructure.connection.authenticated_readiness import (
     AuthProbeResult,
     authenticated_readiness_probe,
     execute_read_only_probe,
 )
+from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
+from interface.ui.services.broker_registry import list_available_brokers
+from interface.ui.services.broker_service import BrokerService
 
 
 class AuthLiveProbeCheck(CheckStrategy):
@@ -64,9 +64,7 @@ class AuthLiveProbeCheck(CheckStrategy):
             results.extend(self._probe_broker(name, broker_service))
         return results
 
-    def _probe_broker(
-        self, name: str, broker_service: BrokerService | None
-    ) -> list[CheckResult]:
+    def _probe_broker(self, name: str, broker_service: BrokerService | None) -> list[CheckResult]:
         label = f"  {name.title()} Live Auth"
         try:
             gateway = self._get_gateway(name, broker_service)
@@ -77,18 +75,14 @@ class AuthLiveProbeCheck(CheckStrategy):
             return [CheckResult(label, "FAIL", "gateway is None")]
 
         if self.force_refresh:
-            probe = authenticated_readiness_probe(
-                gateway, name, env_path=self.env_path
-            )
+            probe = authenticated_readiness_probe(gateway, name, env_path=self.env_path)
             return [self._to_result(label, probe, forced=True)]
 
         # Probe-only: never call force refresh / TOTP.
         probe = execute_read_only_probe(gateway, name)
         return [self._to_result(label, probe, forced=False)]
 
-    def _get_gateway(
-        self, name: str, broker_service: BrokerService | None
-    ) -> Any | None:
+    def _get_gateway(self, name: str, broker_service: BrokerService | None) -> Any | None:
         # Prefer service gateways when available
         if broker_service is not None:
             # G1: use public active_broker_name instead of getattr(_active_name)
@@ -108,17 +102,15 @@ class AuthLiveProbeCheck(CheckStrategy):
                 except Exception:
                     pass
 
-        from interface.ui.services.connect import connect_analytics
         from interface.ui.services.broker_registry import resolve_env_path
+        from interface.ui.services.connect import connect_analytics
 
         env = self.env_path or resolve_env_path(name)
         result = connect_analytics(name, env_path=env, load_instruments=False)
         return result.gateway if result.ok else None
 
     @staticmethod
-    def _to_result(
-        label: str, probe: AuthProbeResult, *, forced: bool
-    ) -> CheckResult:
+    def _to_result(label: str, probe: AuthProbeResult, *, forced: bool) -> CheckResult:
         mode = "force-refresh" if forced else "probe-only"
         if probe.ok:
             detail = f"{mode} ok probe={probe.probe_name or 'ok'}"

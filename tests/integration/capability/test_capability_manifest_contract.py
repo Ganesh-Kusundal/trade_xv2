@@ -9,12 +9,6 @@ from typing import ClassVar
 
 import pytest
 
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from tests.component.ui.endpoint_manifest import (
-    LIVE_READONLY_ENDPOINTS,
-    SANDBOX_ENDPOINTS,
-    CliEndpoint,
-)
 from domain.capabilities import Capability
 from domain.capability_manifest import (
     CAPABILITY_SURFACES,
@@ -24,6 +18,12 @@ from domain.capability_manifest import (
     classify_exposure,
     mapped_capability_values,
     surface_by_id,
+)
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from tests.component.ui.endpoint_manifest import (
+    LIVE_READONLY_ENDPOINTS,
+    SANDBOX_ENDPOINTS,
+    CliEndpoint,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]

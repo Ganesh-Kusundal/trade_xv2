@@ -163,7 +163,9 @@ class TestInstrumentIdConvenience:
         assert fut.underlying == "RELIANCE"
 
     def test_with_strike(self):
-        iid = InstrumentId(exchange="NFO", underlying="NIFTY", expiry=date(2026, 7, 30), right="FUT")
+        iid = InstrumentId(
+            exchange="NFO", underlying="NIFTY", expiry=date(2026, 7, 30), right="FUT"
+        )
         with_strike = iid.with_strike(25000)
         assert with_strike.strike == Decimal("25000")
 

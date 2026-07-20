@@ -44,7 +44,9 @@ from infrastructure.metrics.registry import metrics_registry
 logger = logging.getLogger(__name__)
 
 _exceptions_total = metrics_registry.counter("exceptions_total", "Total exceptions by type")
-_exceptions_by_status = metrics_registry.counter("exceptions_by_status", "Total exceptions by HTTP status")
+_exceptions_by_status = metrics_registry.counter(
+    "exceptions_by_status", "Total exceptions by HTTP status"
+)
 
 
 class ErrorResponse:
@@ -100,7 +102,7 @@ def _map_exception_to_response(exc: TradeXV2Error) -> ErrorResponse:
         )
 
     # Service-unavailable (503) — circuit breaker / degraded broker
-    if isinstance(exc, (CircuitBreakerOpenError, BrokerDegradedError)):
+    if isinstance(exc, CircuitBreakerOpenError | BrokerDegradedError):
         return ErrorResponse(
             error_type="service_unavailable",
             message=str(exc),

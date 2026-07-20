@@ -19,9 +19,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 DEPENDENCY_GRAPH = REPO_ROOT / "docs" / "architecture" / "DEPENDENCY_GRAPH.md"
 
 _CONTRACT_NAME = "Application infrastructure separation"
-_EDGE_RE = re.compile(
-    r"^\s*\"(?P<source>[^\"]+)\s*->\s*(?P<target>[^\"]+)\"\s*,?\s*(?:#.*)?$"
-)
+_EDGE_RE = re.compile(r"^\s*\"(?P<source>[^\"]+)\s*->\s*(?P<target>[^\"]+)\"\s*,?\s*(?:#.*)?$")
 
 
 def _parse_application_infra_ignore_imports(pyproject_text: str) -> frozenset[tuple[str, str]]:
@@ -73,9 +71,7 @@ def _parse_application_infra_ignore_imports(pyproject_text: str) -> frozenset[tu
 
 @pytest.mark.architecture
 def test_approved_edges_match_pyproject_application_infra_contract() -> None:
-    pyproject_edges = _parse_application_infra_ignore_imports(
-        PYPROJECT.read_text(encoding="utf-8")
-    )
+    pyproject_edges = _parse_application_infra_ignore_imports(PYPROJECT.read_text(encoding="utf-8"))
     missing_in_pyproject = _APPROVED_EDGES - pyproject_edges
     extra_in_pyproject = pyproject_edges - _APPROVED_EDGES
     assert not missing_in_pyproject and not extra_in_pyproject, (

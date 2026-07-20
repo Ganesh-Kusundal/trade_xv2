@@ -87,10 +87,9 @@ def compute_daily_vwap(
     else:
         df["_day_key"] = df["_date"].astype(str)
 
-    df["vwap_daily"] = (
-        df.groupby("_day_key")["_tp_vol"].cumsum()
-        / df.groupby("_day_key")["volume"].cumsum().replace(0, float("nan"))
-    )
+    df["vwap_daily"] = df.groupby("_day_key")["_tp_vol"].cumsum() / df.groupby("_day_key")[
+        "volume"
+    ].cumsum().replace(0, float("nan"))
 
     df.drop(columns=["_date", "_tp_vol", "_day_key"], inplace=True)
     return df
@@ -108,7 +107,9 @@ def vwap_from_candles(
         VWAP value, or 0.0 if no volume.
     """
     if isinstance(candles, pd.DataFrame):
-        if candles.empty or not all(c in candles.columns for c in ["high", "low", "close", "volume"]):
+        if candles.empty or not all(
+            c in candles.columns for c in ["high", "low", "close", "volume"]
+        ):
             return 0.0
         typical = (candles["high"] + candles["low"] + candles["close"]) / 3.0
         total_vol = candles["volume"].sum()

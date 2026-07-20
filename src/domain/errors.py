@@ -44,16 +44,32 @@ class AuthenticationError(BrokerError):
     """Authentication or authorization failure."""
 
 
-class InstrumentNotFoundError(BrokerError):
+class InstrumentError(BrokerError):
+    """Instrument resolution or validation failure."""
+
+
+class InstrumentNotFoundError(InstrumentError):
     """Requested instrument not found."""
+
+
+class MappingError(BrokerError):
+    """Symbol or security-id mapping failure."""
+
+
+class NotSupportedError(BrokerError):
+    """Feature not supported by broker."""
 
 
 class OrderError(BrokerError):
     """Order placement, modification, or cancellation error."""
 
 
-class NotSupportedError(BrokerError):
-    """Feature not supported by broker."""
+class RejectedOrderError(OrderError):
+    """Order rejected by broker or exchange."""
+
+
+class CapabilityError(NotSupportedError):
+    """Broker capability unavailable or misconfigured."""
 
 
 class ExitAllError(NotSupportedError):

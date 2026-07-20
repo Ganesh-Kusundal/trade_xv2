@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from infrastructure.auth.totp_cooldown import TotpRateLimitError
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.totp_client import UpstoxTotpClient
+from infrastructure.auth.totp_cooldown import TotpRateLimitError
 
 
 def _make_settings(**kwargs) -> UpstoxConnectionSettings:

@@ -1,19 +1,18 @@
 """Integration tests: OMS state transitions must match across execution modes."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
 
-from application.execution.oms_backtest_adapter import create_execution_adapter
 from application.execution.gateway_submit import make_gateway_submit_fn
-from application.oms.factory import create_trading_context
+from application.execution.oms_backtest_adapter import create_execution_adapter
 from application.oms.order_manager import OmsOrderCommand
 from domain import OrderStatus, Side
 from domain.entities import OrderResponse
+from tests.conftest import build_test_trading_context
 
 
 def _command(correlation_id: str) -> OmsOrderCommand:
@@ -88,10 +87,7 @@ def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
     statuses: list[OrderStatus] = []
     for mode, adapter, engine in cases:
         cmd = _command(f"test:parity:status:{mode}")
-        if adapter is not None:
-            result = adapter.place_order(cmd)
-        else:
-            result = engine.place_order(cmd)
+        result = adapter.place_order(cmd) if adapter is not None else engine.place_order(cmd)
         assert result.success, mode
         statuses.append(result.order.status)
 

@@ -120,13 +120,15 @@ def _check_completeness(
         status=status,
         details=f"{avg_candles:.0f}/{expected} candles/day ({pct:.1f}%)",
     )
-    issue = f"Only {pct:.0f}% complete ({avg_candles:.0f}/{expected} candles/day)" if status != "PASS" else None
+    issue = (
+        f"Only {pct:.0f}% complete ({avg_candles:.0f}/{expected} candles/day)"
+        if status != "PASS"
+        else None
+    )
     return metric, issue
 
 
-def _check_zero_volume(
-    zero_vol: int, total: int
-) -> tuple[QualityMetric, str | None]:
+def _check_zero_volume(zero_vol: int, total: int) -> tuple[QualityMetric, str | None]:
     pct = (zero_vol / total * 100) if total > 0 else 0.0
     status = "PASS" if pct < 1 else "WARNING" if pct < 10 else "FAIL"
     metric = QualityMetric(
@@ -140,11 +142,11 @@ def _check_zero_volume(
     return metric, issue
 
 
-def _check_ohlc_integrity(
-    ohlc_err: int, total: int
-) -> tuple[QualityMetric, str | None]:
+def _check_ohlc_integrity(ohlc_err: int, total: int) -> tuple[QualityMetric, str | None]:
     if ohlc_err == 0:
-        return QualityMetric(name="ohlc_integrity", value=0, threshold=0, status="PASS", details="No errors"), None
+        return QualityMetric(
+            name="ohlc_integrity", value=0, threshold=0, status="PASS", details="No errors"
+        ), None
     error_pct = ohlc_err / total * 100
     return (
         QualityMetric(
@@ -199,6 +201,7 @@ class DataQualityMonitor:
     ) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog_path = self._root / "catalog.duckdb"
@@ -381,7 +384,11 @@ class DataQualityMonitor:
 
         for metric in report.summary_metrics:
             status_icon = (
-                "OK" if metric.status == "PASS" else "WARN" if metric.status == "WARNING" else "FAIL"
+                "OK"
+                if metric.status == "PASS"
+                else "WARN"
+                if metric.status == "WARNING"
+                else "FAIL"
             )
             logger.info("[%s] %s: %s", status_icon, metric.name, metric.details)
 

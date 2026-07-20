@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 import pandas as pd
@@ -27,6 +28,13 @@ import pandas as pd
 from analytics.replay.models import ReplayConfig, ReplayResult
 
 logger = logging.getLogger(__name__)
+
+
+class CapitalMetricsLabel(str, Enum):
+    """Whether PnL/equity metrics are OMS-backed (safe for capital decisions)."""
+
+    PARITY = "parity"
+    RESEARCH = "research"
 
 
 # ---------------------------------------------------------------------------
@@ -133,12 +141,20 @@ class BacktestResult:
     benchmark_data: pd.DataFrame | None = None
     equity_curve: list[tuple[datetime, float]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    capital_metrics_label: CapitalMetricsLabel = CapitalMetricsLabel.RESEARCH
+
+    @property
+    def capital_metrics_valid(self) -> bool:
+        """True only when fills routed through OMS parity spine."""
+        return self.capital_metrics_label is CapitalMetricsLabel.PARITY
 
     @property
     def summary(self) -> dict[str, Any]:
         m = self.metrics
         ta = m.trade_analysis
         return {
+            "capital_metrics_valid": self.capital_metrics_valid,
+            "capital_metrics_label": self.capital_metrics_label.value,
             "bars_processed": self.replay.bars_processed,
             "total_trades": ta.total_trades,
             "win_rate": round(ta.win_rate * 100, 1),

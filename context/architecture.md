@@ -3,7 +3,9 @@
 > Part of the **Six-File Context System**. This file summarizes the layering contract.
 > **Canonical architecture:** [`docs/constitution/`](../docs/constitution/) — start with
 > `01-architecture-constitution.md` (principles P1–P12) and `02a-runtime-execution-model.md`.
-> **Gap analysis:** `docs/constitution/07-gap-analysis.md`. Do not change invariants without an ADR.
+> **Gap analysis:** `docs/constitution/07-gap-analysis.md` (platform-wide);
+> `docs/constitution/09-broker-subsystem-gap-analysis.md` (broker plugins).
+> Do not change invariants without an ADR.
 
 ## 1. Stack Table (layer → technology → role)
 
@@ -76,18 +78,21 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 ## 7. Invariants (rules the codebase must NEVER violate)
 
 1. **Zero-parity rule** — backtest, replay, and live execution share identical logic.
-2. **Single composition root** — only `runtime/` imports concrete brokers/plugins.
-3. **No string broker branching** — broker selected by `broker_id` enum, once, at startup.
-4. **Domain purity** — `domain/` imports nothing inward (stdlib + itself only).
-5. **Risk gate is a port** — pre-trade approval/rejection flows through `RiskGate`,
+2. **Paper-only execution (ADR-0012)** — operator paths use `ExecutionTargetKind.PAPER`;
+   broker plugins supply market data only; OMS owns paper capital/orders/positions.
+   Only `runtime/execution_target.py` may branch on execution target kind.
+3. **Single composition root** — only `runtime/` imports concrete brokers/plugins.
+4. **No string broker branching** — broker selected by `broker_id` enum, once, at startup.
+5. **Domain purity** — `domain/` imports nothing inward (stdlib + itself only).
+6. **Risk gate is a port** — pre-trade approval/rejection flows through `RiskGate`,
    never a reflection `getattr` kill-switch.
-6. **Reconciliation on hot path** — local state heals against broker truth via
+7. **Reconciliation on hot path** — local state heals against broker truth via
    `ReconciliationPolicy`, not a detached service.
-7. **No orphaned shadow copies** — the repo-root `brokers/dhan/*` duplicates are
+8. **No orphaned shadow copies** — the repo-root `brokers/dhan/*` duplicates are
    deleted (ADR-001/G2); `src/brokers/_bootstrap.py` path hack is a stopgap, not a pattern.
-8. **No real-money mocks** — tests are integration tests against real components;
+9. **No real-money mocks** — tests are integration tests against real components;
    no mock data, stubs, or placeholders in production code.
-9. **Graphify stays current** — run `graphify update .` after modifying code files.
+10. **Graphify stays current** — run `graphify update src` after modifying code files under `src/` (graph lives in `src/graphify-out/`).
 
 ## 8. Known Architectural Violations (tracked, do not add more)
 
@@ -102,14 +107,17 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 | G7 | Reflection `getattr` kill-switch | ⚠️ | ✅ DONE — uses `RiskManagerPort` injection |
 | G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; config docs at `docs/config/README.md` |
 
-## Scanner ownership (Phase D)
+## Views vs pipeline ownership (OE-01)
 
-| Path | Role |
-|---|---|
-| `analytics/views/` (SQL) | Batch/API-facing scans — `v_top3_candidates`, materialized `m_intraday` |
-| `analytics/scanner/` (Python) | Replay-parity paths only — FeaturePipeline determinism for backtest==live |
+| Path | Role | Canonical for |
+|---|---|---|
+| `analytics/pipeline/` (`FeaturePipeline`) | In-process feature compute on DataFrames | Replay, backtest, live operator parity paths |
+| `analytics/views/` (SQL) | DuckDB views — `v_feature_*`, `v_top3_candidates`, materialized `m_intraday` | Batch/API/MCP datalake-at-scale queries |
+| `analytics/scanner/` (Python) | Scanner orchestration over pipeline | Replay-parity scanner paths |
 
-Domain indicators (`domain/indicators/`) are canonical; pipeline and datalake research adapters delegate there.
+**Parity gate:** `tests/integration/quant/test_views_pipeline_parity.py` — overlapping `v_feature_*` columns must match `FeaturePipeline` ± float tolerance on a fixed OHLCV window before either stack is deprecated for a use case (see `docs/architecture/OE-01-views-pipeline-ownership.md`).
+
+Domain indicators (`domain/indicators/`) are canonical; pipeline wraps domain; views SQL may lag (document equivalence gaps in `QualityViews` materialization notes).
 
 ## Architectural Migration Progress
 

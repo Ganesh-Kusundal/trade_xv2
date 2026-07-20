@@ -37,7 +37,7 @@ def _register_domain_runtime_hooks() -> None:
     # Ensure broker adapter classes are registered into infrastructure.adapter_factory.
     # Brokers self-register on package import; importing them here guarantees the
     # registry is populated for every test (idempotent).
-    import brokers.dhan  # noqa: F401
+    import brokers.dhan
     import brokers.upstox  # noqa: F401
 
 
@@ -195,7 +195,7 @@ def pytest_configure(config):
     )
 
 
-def build_test_trading_context(*, events_dir: Path | None = None, **kwargs: Any) -> "TradingContext":
+def build_test_trading_context(*, events_dir: Path | None = None, **kwargs: Any) -> TradingContext:
     """Build a TradingContext with default event infrastructure for tests.
 
     The OMS no longer constructs infrastructure objects itself (see D4 port
@@ -244,7 +244,23 @@ def build_test_trading_context(*, events_dir: Path | None = None, **kwargs: Any)
         from infrastructure.metrics import metrics_registry
 
         kwargs["metrics_registry"] = metrics_registry
-    return create_trading_context(**kwargs)
+    ctx = create_trading_context(**kwargs)
+    if ctx.risk_manager is not None:
+        rm = ctx.risk_manager
+        if getattr(rm, "_instrument_provider", None) is None:
+            from dataclasses import dataclass
+            from decimal import Decimal
+
+            @dataclass
+            class _TestInstrument:
+                tick_size: Decimal = Decimal("0.05")
+
+            class _TestInstrumentProvider:
+                def resolve(self, symbol: str, exchange: str):
+                    return _TestInstrument()
+
+            rm._instrument_provider = _TestInstrumentProvider()
+    return ctx
 
 
 @pytest.fixture

@@ -41,8 +41,7 @@ def get_market_surface(name: str = "NSE_INR") -> MarketSurface:
         return MARKET_SURFACES[name]
     except KeyError as exc:
         raise KeyError(
-            f"Unknown market surface '{name}'. "
-            f"Available: {sorted(MARKET_SURFACES)}"
+            f"Unknown market surface '{name}'. Available: {sorted(MARKET_SURFACES)}"
         ) from exc
 
 

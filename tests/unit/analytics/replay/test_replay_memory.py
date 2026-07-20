@@ -29,10 +29,14 @@ from analytics.strategy.models import Signal, SignalType
 class _MockOmsAdapter:
     """Minimal OMS adapter that always accepts orders (returns order IDs)."""
 
-    def open_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+    def open_long(
+        self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None
+    ):
         return f"MOCK-{symbol}-BUY-{timestamp}"
 
-    def close_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+    def close_long(
+        self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None
+    ):
         return f"MOCK-{symbol}-SELL-{timestamp}"
 
     def modify_order(self, order_id, *, price=None, quantity=None, trigger_price=None):
@@ -269,12 +273,16 @@ class TestReplayMemoryBounded:
 
         # Bounded window
         config_bounded = ReplayConfig(warmup_bars=50, window_size=100)
-        engine_bounded = ReplayEngine(pipeline, strategy, config_bounded, oms_adapter=_MockOmsAdapter())
+        engine_bounded = ReplayEngine(
+            pipeline, strategy, config_bounded, oms_adapter=_MockOmsAdapter()
+        )
         _, peak_bounded = _benchmark_memory(engine_bounded.run, df)
 
         # Unlimited window
         config_unlimited = ReplayConfig(warmup_bars=50, window_size=0)
-        engine_unlimited = ReplayEngine(pipeline, strategy, config_unlimited, oms_adapter=_MockOmsAdapter())
+        engine_unlimited = ReplayEngine(
+            pipeline, strategy, config_unlimited, oms_adapter=_MockOmsAdapter()
+        )
         _, peak_unlimited = _benchmark_memory(engine_unlimited.run, df)
 
         # Bounded should use less memory

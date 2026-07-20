@@ -12,10 +12,9 @@ import asyncio
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
-
-from infrastructure.resilience._metrics import DhanRateLimiterMetrics
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -406,9 +405,7 @@ def create_rate_limiter(
     # HTTP clients map unknown paths to "admin"; without this bucket they either
     # hard-fail (Upstox) or silently skip limiting (Dhan ValueError bypass).
     if "admin" not in configs:
-        configs["admin"] = RateLimitConfig(
-            rate_per_second=10.0, capacity=_DEFAULT_BUCKET_CAPACITY
-        )
+        configs["admin"] = RateLimitConfig(rate_per_second=10.0, capacity=_DEFAULT_BUCKET_CAPACITY)
 
     # Legacy aliases used by older Dhan bucket maps / Upstox "data" key.
     if "market_data" not in configs and "quotes" in configs:

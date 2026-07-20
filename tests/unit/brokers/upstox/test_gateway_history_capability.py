@@ -20,7 +20,6 @@ from brokers.common.capabilities_validator import (
 )
 from brokers.upstox.wire import UpstoxBrokerGateway
 
-
 # ── TASK B: history() surfaces errors ──
 
 

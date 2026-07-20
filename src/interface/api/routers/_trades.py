@@ -7,10 +7,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from interface.api.deps import get_order_manager, get_position_manager
-from interface.api.schemas import TradeResponse, TradesResponse
 from domain import OrderStatus
 from domain.ports.time_service import get_current_clock
+from interface.api.deps import get_order_manager, get_position_manager
+from interface.api.schemas import TradeResponse, TradesResponse
 
 logger = logging.getLogger(__name__)
 

@@ -30,7 +30,8 @@ Checks run fail-closed in this order:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from application.oms._internal.order_mutation_guard import MutationAction, OrderMutationGuard
 from domain.exceptions import LiveBrokerBlockedError, TradeXV2Error
@@ -109,9 +110,7 @@ def authorize_live_order(
         from runtime.production_config import is_production_environment
 
         if is_production_environment():
-            raise RiskRejectedError(
-                "OMS refused: risk manager unavailable in production"
-            )
+            raise RiskRejectedError("OMS refused: risk manager unavailable in production")
         return
 
     # 3. Kill switch (OrderMutationGuard — same policy as OMS lifecycle).

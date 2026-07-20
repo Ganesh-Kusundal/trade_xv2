@@ -57,6 +57,7 @@ _ENV_PATH = Path(__file__).resolve().parents[4] / ".env.local"
 # BrokerService
 # ---------------------------------------------------------------------------
 
+
 class BrokerService:
     """Resolves and manages the active broker (live Dhan gateway or mock).
 
@@ -330,7 +331,9 @@ class BrokerService:
                     self._gateway = result.gateway
                     if hasattr(self, "_oms_gateway_holder"):
                         self._oms_gateway_holder["gw"] = self._gateway
-                    if oms_capital_provider is not None:
+                    if oms_capital_provider is not None and hasattr(
+                        oms_capital_provider, "update_gateway"
+                    ):
                         oms_capital_provider.update_gateway(self._gateway)
                     self._build_and_register_oms_services(oms_risk_manager)
                     self._start_websocket_services()
@@ -339,6 +342,7 @@ class BrokerService:
                     from application.services.production_readiness import (
                         ProductionReadinessChecker,
                     )
+
                     self._readiness_report = ProductionReadinessChecker(self).run_or_raise()
                     self._live_actionable = compute_live_actionable(
                         live_intent=True,
@@ -472,8 +476,12 @@ class BrokerService:
     ) -> Order:
         """Place order via CLI facade → ExecutionService → PlaceOrderUseCase → OMS."""
         return self._facade.place_order(
-            symbol, exchange=exchange, side=side, quantity=quantity,
-            price=price, order_type=order_type,
+            symbol,
+            exchange=exchange,
+            side=side,
+            quantity=quantity,
+            price=price,
+            order_type=order_type,
         )
 
     def cancel_order(self, order_id: str) -> bool:

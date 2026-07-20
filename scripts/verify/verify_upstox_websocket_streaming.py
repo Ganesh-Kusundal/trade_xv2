@@ -23,6 +23,7 @@ async def main():
     except Exception as e:
         print(f"❌ Failed to create gateway: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -50,13 +51,14 @@ async def main():
             await asyncio.sleep(0.5)
 
         if tick_count > 0:
-            print(f"✅ Received {tick_count} LTP ticks in {time.time()-start_time:.1f}s")
+            print(f"✅ Received {tick_count} LTP ticks in {time.time() - start_time:.1f}s")
         else:
             print("⚠️  No LTP ticks received")
 
     except Exception as e:
         print(f"❌ LTP subscription failed: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         if handle and hasattr(handle, "stop"):
@@ -82,9 +84,11 @@ async def main():
             best_bid = depth.bids[0]
             best_ask = depth.asks[0]
             spread = float(best_ask.price - best_bid.price)
-            print(f"   ✓ Depth #{depth_count} @ {elapsed:5.1f}s: "
-                  f"Bid {best_bid.price}x{best_bid.quantity} | "
-                  f"Ask {best_ask.price}x{best_ask.quantity} | Spread: ₹{spread:.2f}")
+            print(
+                f"   ✓ Depth #{depth_count} @ {elapsed:5.1f}s: "
+                f"Bid {best_bid.price}x{best_bid.quantity} | "
+                f"Ask {best_ask.price}x{best_ask.quantity} | Spread: ₹{spread:.2f}"
+            )
 
     try:
         depth_handle = gateway.stream_depth(
@@ -97,13 +101,14 @@ async def main():
             await asyncio.sleep(0.5)
 
         if depth_count > 0:
-            print(f"✅ Received {depth_count} depth updates in {time.time()-start_time:.1f}s")
+            print(f"✅ Received {depth_count} depth updates in {time.time() - start_time:.1f}s")
         else:
             print("⚠️  No depth updates received")
 
     except Exception as e:
         print(f"❌ Depth subscription failed: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         if depth_handle and hasattr(depth_handle, "stop"):

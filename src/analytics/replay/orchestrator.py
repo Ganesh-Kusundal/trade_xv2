@@ -74,8 +74,8 @@ from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 # such as ``from analytics.replay.orchestrator import ReplayItem`` keep working).
 __all__ = [
     "ReplayItem",
-    "UnifiedReplayResult",
     "UnifiedReplayOrchestrator",
+    "UnifiedReplayResult",
 ]
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,5 @@
 """Task 6 (B2): Hot-path reconciliation inside ExecutionEngine."""
+
 from unittest.mock import MagicMock
 
 from application.execution.execution_engine import ExecutionEngine

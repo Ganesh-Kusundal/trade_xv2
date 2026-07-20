@@ -83,7 +83,10 @@ class DhanDataCapabilities:
         }
         sec_id = None
         seg = None
-        if normalize_symbol(underlying) in mcx_underlyings and normalize_exchange(exchange) == "MCX":
+        if (
+            normalize_symbol(underlying) in mcx_underlyings
+            and normalize_exchange(exchange) == "MCX"
+        ):
             seg = EXCHANGE_TO_SEGMENT.get("MCX", "MCX_COMM")
             futures = [
                 i

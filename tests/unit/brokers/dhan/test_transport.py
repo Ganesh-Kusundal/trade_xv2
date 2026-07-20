@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from decimal import Decimal
 
+from brokers.dhan.api.transport import _DHAN_CAPABILITIES, DhanTransport
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
 from domain.types import OrderType, ProductType, Side
-
-from brokers.dhan.api.transport import DhanTransport, _DHAN_CAPABILITIES
 
 
 class _FakeResponse:
@@ -26,10 +23,22 @@ class FakeGateway:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
 
-    def place_order(self, symbol, exchange="NSE", side="BUY", quantity=1, price=Decimal("0"),
-                   order_type="MARKET", product_type="INTRADAY", validity="DAY",
-                   trigger_price=Decimal("0"), correlation_id=None):
-        self.calls.append(("place_order", symbol, exchange, side, quantity, order_type, product_type))
+    def place_order(
+        self,
+        symbol,
+        exchange="NSE",
+        side="BUY",
+        quantity=1,
+        price=Decimal("0"),
+        order_type="MARKET",
+        product_type="INTRADAY",
+        validity="DAY",
+        trigger_price=Decimal("0"),
+        correlation_id=None,
+    ):
+        self.calls.append(
+            ("place_order", symbol, exchange, side, quantity, order_type, product_type)
+        )
         return _FakeResponse()
 
     def cancel_order(self, order_id):
@@ -107,8 +116,9 @@ def test_dhan_transport_close_tears_down_gateway():
 
 def test_dhan_transport_satisfies_shared_contract():
     # Reuse the domain's BrokerAdapter contract on the real plugin.
-    from tests.unit.domain.test_broker_transport_contract import _BrokerAdapterContract, FakeProvider
-    from domain.ports.protocols import DataProvider
+    from tests.unit.domain.test_broker_transport_contract import (
+        _BrokerAdapterContract,
+    )
 
     class _Contract(_BrokerAdapterContract):
         def build_transport(self):
@@ -124,4 +134,3 @@ def test_dhan_transport_satisfies_shared_contract():
     # execution port is the critical contract for OMS (Wave C).
     assert _transport().market_data is not None
     assert isinstance(_transport().execution, type(_transport().execution))
-

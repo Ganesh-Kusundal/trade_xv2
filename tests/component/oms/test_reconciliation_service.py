@@ -4,7 +4,6 @@ REF: Task 6.3 — Converted from MagicMock to FakeReconciliationService
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import time
 
@@ -14,6 +13,7 @@ from domain.events.types import DomainEvent
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import HealthState, LifecycleManager
 from infrastructure.observability.event_metrics import EventMetrics
+from tests.conftest import build_test_trading_context
 from tests.fakes import FakeReconciliationService
 
 

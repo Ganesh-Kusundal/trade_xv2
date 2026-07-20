@@ -6,8 +6,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from infrastructure.resilience.errors import ExitAllError
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
+from infrastructure.resilience.errors import ExitAllError
 
 logger = logging.getLogger(__name__)
 

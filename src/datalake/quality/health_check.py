@@ -28,7 +28,13 @@ import duckdb
 logger = logging.getLogger(__name__)
 
 
-def check_market_hours(conn: duckdb.DuckDBPyConnection, open_h: int = 9, open_m: int = 15, close_h: int = 15, close_m: int = 30) -> list[str]:
+def check_market_hours(
+    conn: duckdb.DuckDBPyConnection,
+    open_h: int = 9,
+    open_m: int = 15,
+    close_h: int = 15,
+    close_m: int = 30,
+) -> list[str]:
     """Check that all timestamps are within market hours for the active exchange."""
     issues = []
     # Build SQL dynamically from the open/close bounds
@@ -43,7 +49,9 @@ def check_market_hours(conn: duckdb.DuckDBPyConnection, open_h: int = 9, open_m:
     r = conn.execute(sql).fetchone()
     count = r[0]
     if count > 0:
-        issues.append(f"  {count:,} candles outside market hours ({open_h}:{open_m:02d}-{close_h}:{close_m:02d})")
+        issues.append(
+            f"  {count:,} candles outside market hours ({open_h}:{open_m:02d}-{close_h}:{close_m:02d})"
+        )
     return issues
 
 
@@ -125,6 +133,7 @@ def run_health_check(db_path: str | None = None, min_rows: int = 100000) -> int:
     """Run all health checks. Returns 0 if healthy, 1 if issues found."""
     if db_path is None:
         from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
         db_path = str(DEFAULT_DATA_PATHS.catalog_path)
     if not Path(db_path).exists():
         logger.error("Database not found: %s", db_path)
@@ -140,7 +149,8 @@ def run_health_check(db_path: str | None = None, min_rows: int = 100000) -> int:
         all_issues: list[str] = []
 
         try:
-            from datalake.exchange_registry import get_market_open_time, get_market_close_time
+            from datalake.exchange_registry import get_market_close_time, get_market_open_time
+
             open_t = get_market_open_time()
             close_t = get_market_close_time()
             open_h, open_m = open_t.hour, open_t.minute
@@ -181,7 +191,10 @@ def run_health_check(db_path: str | None = None, min_rows: int = 100000) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Data health check")
     from domain.ports.data_catalog import DEFAULT_DATA_PATHS
-    parser.add_argument("--db", default=str(DEFAULT_DATA_PATHS.catalog_path), help="Path to DuckDB catalog")
+
+    parser.add_argument(
+        "--db", default=str(DEFAULT_DATA_PATHS.catalog_path), help="Path to DuckDB catalog"
+    )
     parser.add_argument("--min-rows", type=int, default=100000, help="Minimum rows per symbol")
     args = parser.parse_args()
     return run_health_check(args.db, min_rows=args.min_rows)

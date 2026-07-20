@@ -49,6 +49,7 @@ class Runtime:
     event_bus: EventBus | None = None
     resilience: ResilienceConfig | None = None
     pattern_engine: Any | None = None
+    service_registry: Any | None = None
     extra: dict[str, Any] = field(default_factory=dict)
     _streams_started: bool = field(default=False, init=False, repr=False)
 
@@ -88,6 +89,29 @@ class BuildOptions:
 # ---------------------------------------------------------------------------
 
 
+def _quote_fn_from_gateway(gateway: MarketDataGateway | None):
+    """Resolve LTP for paper fills from the active market-data gateway."""
+    if gateway is None:
+        return None
+    from decimal import Decimal
+
+    from domain.exceptions import QuoteUnavailableError
+
+    def _quote(symbol: str, exchange: str) -> Decimal:
+        try:
+            q = gateway.quote(symbol, exchange)
+            return Decimal(str(q.ltp))
+        except Exception:
+            try:
+                return Decimal(str(gateway.ltp(symbol, exchange)))
+            except Exception as exc2:
+                raise QuoteUnavailableError(
+                    f"quote unavailable for {symbol}/{exchange}"
+                ) from exc2
+
+    return _quote
+
+
 def _both_brokers_available(broker_service: Any) -> bool:
     gateways = broker_service.gateways
     return gateways.get("dhan") is not None and gateways.get("upstox") is not None
@@ -103,6 +127,7 @@ def _wire_trading_orchestrator(
     from analytics.pipeline.features import ATR, RSI, SMA, CandlestickPattern
     from analytics.pipeline.pipeline import FeaturePipeline
     from analytics.scanner.patterns import PatternEngine, PatternStrategy
+    from analytics.strategy.evaluator_bridge import StrategyPipelineEvaluator
     from analytics.strategy.pipeline import StrategyPipeline
     from application.trading.feature_fetcher import PipelineFeatureFetcher
     from application.trading.trading_orchestrator import (
@@ -111,6 +136,7 @@ def _wire_trading_orchestrator(
     )
     from infrastructure.event_bus import EventType
 
+    from runtime.execution_config import resolve_execution_target_kind
     from runtime.execution_target import build_execution_engine
 
     pipeline = (
@@ -133,13 +159,16 @@ def _wire_trading_orchestrator(
         dry_run=orchestrator_dry_run,
     )
 
-    kind = "live" if gateway is not None else "paper"
-    execution_engine = build_execution_engine(tc, kind, gateway=gateway)
+    kind = resolve_execution_target_kind()
+    quote_fn = _quote_fn_from_gateway(gateway)
+    execution_engine = build_execution_engine(
+        tc, kind, gateway=None, quote_fn=quote_fn
+    )
 
     orchestrator = TradingOrchestrator(
         event_bus=tc.event_bus,
         order_manager=tc.order_manager,
-        strategy_evaluator=strategy_pipeline,
+        strategy_evaluator=StrategyPipelineEvaluator(strategy_pipeline),
         feature_fetcher=feature_fetcher,
         execution_engine=execution_engine,
         config=config,
@@ -259,12 +288,17 @@ def build_from_broker_service(
     broker_infrastructure = None
     if wire_intelligent_gateway or _both_brokers_available(broker_service):
         broker_infrastructure = _build_broker_infrastructure(broker_service)
+        if event_bus is not None:
+            from runtime.live_datalake_wiring import wire_stream_orchestrator_ticks
+
+            wire_stream_orchestrator_ticks(broker_infrastructure.streams, event_bus)
 
     orchestrator = None
     pattern_engine = None
     orchestrator_dry_run = opts.orchestrator_dry_run
     if orchestrator_dry_run is None:
-        orchestrator_dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "1") == "1"
+        # Paper-only: place OMS paper orders unless operator opts into dry-run.
+        orchestrator_dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "0") == "1"
 
     if opts.wire_orchestrator and tc is not None:
         orchestrator, pattern_engine = _wire_trading_orchestrator(
@@ -288,6 +322,19 @@ def build_from_broker_service(
         resilience=resilience,
         pattern_engine=pattern_engine,
     )
+    from runtime.service_registry import ServiceRegistry
+
+    registry = ServiceRegistry()
+    registry.register("lifecycle", broker_service.lifecycle)
+    if tc is not None:
+        registry.register("trading_context", tc)
+    if event_bus is not None:
+        registry.register("event_bus", event_bus)
+    if gateway is not None:
+        registry.register("gateway", gateway)
+    if orchestrator is not None:
+        registry.register("trading_orchestrator", orchestrator)
+    runtime.service_registry = registry
     if opts.extra:
         runtime.extra.update(opts.extra)
     return runtime

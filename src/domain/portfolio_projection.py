@@ -51,6 +51,4 @@ class PortfolioProjector:
             self.positions[key] = pos.with_ltp(Decimal(str(ltp)))
 
     def total_realized_pnl(self) -> float:
-        return float(
-            sum(p.realized_pnl.to_decimal() for p in self.positions.values())
-        )
+        return float(sum(p.realized_pnl.to_decimal() for p in self.positions.values()))

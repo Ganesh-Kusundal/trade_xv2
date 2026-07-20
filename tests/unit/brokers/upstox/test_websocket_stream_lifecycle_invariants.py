@@ -13,9 +13,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.wire import UpstoxBrokerGateway
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from brokers.upstox.wire import UpstoxBrokerGateway
 
 
 def _fake_authorizer() -> UpstoxFeedAuthorizer:

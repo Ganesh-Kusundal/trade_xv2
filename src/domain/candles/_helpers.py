@@ -28,9 +28,7 @@ def find_timestamp_column(columns) -> str:
     for candidate in _TIMESTAMP_COLUMNS:
         if candidate in columns:
             return candidate
-    raise ValueError(
-        f"DataFrame missing timestamp column (expected one of {_TIMESTAMP_COLUMNS})"
-    )
+    raise ValueError(f"DataFrame missing timestamp column (expected one of {_TIMESTAMP_COLUMNS})")
 
 
 def parse_broker_timestamp(value: object) -> datetime:
@@ -47,10 +45,7 @@ def parse_datalake_timestamp(value: object) -> datetime:
     import pandas as pd
 
     ts = value if isinstance(value, datetime) else pd.Timestamp(value).to_pydatetime()
-    if ts.tzinfo is None:
-        local = ts.replace(tzinfo=_IST)
-    else:
-        local = ts.astimezone(_IST)
+    local = ts.replace(tzinfo=_IST) if ts.tzinfo is None else ts.astimezone(_IST)
     return local.astimezone(timezone.utc)
 
 
@@ -85,7 +80,7 @@ def ohlcv_from_row(row) -> tuple[Decimal, Decimal, Decimal, Decimal, int, int]:
     )
 
 
-def coverage_from_bars(bars: list) -> "DateRange":
+def coverage_from_bars(bars: list) -> DateRange:
     from domain.candles.historical import DateRange
 
     if bars:

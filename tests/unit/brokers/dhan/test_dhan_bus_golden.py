@@ -12,9 +12,7 @@ import pytest
 from brokers.dhan.websocket.publish import MarketFeedPublisher
 from domain import Quote
 
-_FIXTURE = (
-    Path(__file__).resolve().parents[3] / "fixtures" / "golden" / "dhan_bus_ticks.json"
-)
+_FIXTURE = Path(__file__).resolve().parents[3] / "fixtures" / "golden" / "dhan_bus_ticks.json"
 
 
 def _load_cases() -> list[dict]:

@@ -72,7 +72,7 @@ class UpstoxDepth30Extension(Extension):
             on_depth=on_depth,
         )
 
-    def for_instrument(self, symbol: str, exchange: str = NSE) -> "UpstoxDepth30Extension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> UpstoxDepth30Extension:
         """Bind the extension to a specific instrument for method calls."""
         ext = UpstoxDepth30Extension(self._gw)
         ext._symbol = symbol  # type: ignore[attr-defined]

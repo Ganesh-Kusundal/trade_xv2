@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock
-
-import pytest
 
 from domain.entities.options import OptionChain as OptionChainVO
 from domain.entities.options import OptionLeg, OptionStrike
 from domain.instruments.instrument import Option
-from domain.options.greeks import Greeks
 from domain.options.option_chain import OptionChain
 
 

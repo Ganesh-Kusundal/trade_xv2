@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # Connection phases (UX design state machine)
 PHASE_READY_MARKET = "ReadyMarket"
 PHASE_READY_TRADE = "ReadyTrade"

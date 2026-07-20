@@ -45,7 +45,7 @@ def main() -> int:
     if args.live:
         try:
             # Best-effort live path; fall back stays in file if import fails.
-            from interface.ui.load_testing.runner import LoadTestRunner  # noqa: F401
+            from interface.ui.load_testing.runner import LoadTestRunner
         except Exception as exc:
             results.append({"live_error": str(exc)})
     payload = {

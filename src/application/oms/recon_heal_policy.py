@@ -35,16 +35,6 @@ logger = logging.getLogger(__name__)
 # Env flag — documented in .env.example / SAFE_TO_TRADE_GATE.md
 ENV_AUTO_REPAIR = "TRADEX_RECONCILIATION_AUTO_REPAIR"
 
-# Drift kinds that are safe to auto-heal (broker wins → local OMS).
-HEALABLE_KINDS: frozenset[str] = frozenset(
-    {
-        "missing_local_order",
-        "missing_local_position",
-        "position_quantity_mismatch",
-        "funds_mismatch",  # informational; adapters may only log
-    }
-)
-
 
 class HealMode(str, Enum):
     """Reconciliation heal mode."""
@@ -72,11 +62,6 @@ def should_auto_repair(*, env: dict[str, str] | None = None) -> bool:
     return resolve_heal_mode(env=env) is HealMode.HEAL
 
 
-def is_healable_kind(kind: str) -> bool:
-    """Return True if *kind* is eligible for auto-heal under correct-then-heal."""
-    return kind in HEALABLE_KINDS
-
-
 def log_heal_mode() -> HealMode:
     """Log and return the active heal mode (call once at composition root)."""
     mode = resolve_heal_mode()
@@ -88,8 +73,7 @@ def log_heal_mode() -> HealMode:
         )
     else:
         logger.info(
-            "reconciliation_heal_mode=report_only "
-            "(%s=0) — drift reported, not auto-healed",
+            "reconciliation_heal_mode=report_only (%s=0) — drift reported, not auto-healed",
             ENV_AUTO_REPAIR,
         )
     return mode

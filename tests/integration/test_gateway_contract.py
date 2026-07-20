@@ -15,8 +15,6 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
-from domain.capabilities.broker_capabilities import BrokerCapabilities
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain import (
     Balance,
     Holding,
@@ -27,6 +25,8 @@ from domain import (
     Quote,
     Trade,
 )
+from domain.capabilities.broker_capabilities import BrokerCapabilities
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 # ---------------------------------------------------------------------------
 # Fixtures

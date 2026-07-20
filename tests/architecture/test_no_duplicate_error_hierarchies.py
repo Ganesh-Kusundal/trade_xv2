@@ -4,6 +4,7 @@ Canonical home (post brokers.common → tradex.runtime migration):
 ``infrastructure.resilience.errors``. Thin shims under ``brokers.common`` may
 re-export but must not redefine ``BrokerError``.
 """
+
 from __future__ import annotations
 
 import ast
@@ -72,7 +73,7 @@ class TestNoDuplicateBrokerError:
 
     def test_runtime_errors_is_single_import_path(self) -> None:
         """BrokerError must only be imported from infrastructure.resilience.errors."""
-        from infrastructure.resilience.errors import BrokerError as CanonicalBrokerError
         from infrastructure.resilience import errors as resilience_errors
+        from infrastructure.resilience.errors import BrokerError as CanonicalBrokerError
 
         assert CanonicalBrokerError is resilience_errors.BrokerError

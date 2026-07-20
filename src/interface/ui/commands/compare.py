@@ -5,12 +5,12 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import get_history, get_quote
+from domain.enums import BrokerId
 from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_history, get_quote
 
 
 def _env_kwargs(broker_id: str) -> dict:

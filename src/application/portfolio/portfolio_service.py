@@ -136,21 +136,25 @@ class PortfolioService:
             current_price = float(p.ltp)
 
             pnl_pct = (
-                float((p.unrealized_pnl + p.realized_pnl) / (abs(p.avg_price) * abs(p.quantity)) * 100)
+                float(
+                    (p.unrealized_pnl + p.realized_pnl) / (abs(p.avg_price) * abs(p.quantity)) * 100
+                )
                 if p.avg_price and p.quantity
                 else 0.0
             )
 
-            summaries.append(PositionSummary(
-                symbol=p.symbol,
-                exchange=p.exchange,
-                quantity=p.quantity,
-                average_price=avg_price,
-                current_price=current_price,
-                unrealized_pnl=unrealized,
-                realized_pnl=realized,
-                pnl_pct=pnl_pct,
-            ))
+            summaries.append(
+                PositionSummary(
+                    symbol=p.symbol,
+                    exchange=p.exchange,
+                    quantity=p.quantity,
+                    average_price=avg_price,
+                    current_price=current_price,
+                    unrealized_pnl=unrealized,
+                    realized_pnl=realized,
+                    pnl_pct=pnl_pct,
+                )
+            )
 
             total_pnl += Decimal(str(pnl))
             if p.quantity != 0:
@@ -188,17 +192,19 @@ class PortfolioService:
                 current = quantity * current_price
                 pnl = current - invested
 
-                holdings.append(HoldingSummary(
-                    symbol=p.symbol,
-                    exchange=p.exchange,
-                    quantity=quantity,
-                    average_price=avg_price,
-                    current_price=current_price,
-                    invested_value=invested,
-                    current_value=current,
-                    pnl=pnl,
-                    pnl_percent=(pnl / invested * 100) if invested > 0 else 0.0,
-                ))
+                holdings.append(
+                    HoldingSummary(
+                        symbol=p.symbol,
+                        exchange=p.exchange,
+                        quantity=quantity,
+                        average_price=avg_price,
+                        current_price=current_price,
+                        invested_value=invested,
+                        current_value=current,
+                        pnl=pnl,
+                        pnl_percent=(pnl / invested * 100) if invested > 0 else 0.0,
+                    )
+                )
 
                 total_value += current
                 total_invested += invested
@@ -236,8 +242,11 @@ class PortfolioService:
         """
         if self._oms is None:
             return TradeSummary(
-                trades=[], total_pnl=0.0,
-                winning_trades=0, losing_trades=0, win_rate=0.0,
+                trades=[],
+                total_pnl=0.0,
+                winning_trades=0,
+                losing_trades=0,
+                win_rate=0.0,
             )
 
         trades: Sequence[Trade] = self._oms.get_trades(symbol=symbol)

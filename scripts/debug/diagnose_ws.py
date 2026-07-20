@@ -32,12 +32,13 @@ log = logging.getLogger("diag")
 
 
 def section(title: str) -> None:
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  {title}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
 
 # ── Test 1: SDK Direct ─────────────────────────────────────────────────────────
+
 
 def test_sdk_direct(client_id: str, access_token: str, security_id: str) -> bool:
     """Test Dhan SDK MarketFeed directly — bypass our wrapper entirely."""
@@ -73,7 +74,7 @@ def test_sdk_direct(client_id: str, access_token: str, security_id: str) -> bool
     feed = MarketFeed(
         dhan_context=_make_context(client_id, access_token),
         instruments=instruments,
-        version='v2',
+        version="v2",
         on_connect=on_connect,
         on_message=on_message,
         on_error=on_error,
@@ -96,8 +97,12 @@ def test_sdk_direct(client_id: str, access_token: str, security_id: str) -> bool
     feed.close_connection()
     t.join(timeout=3)
 
-    log.info("SDK Direct result: ticks=%d, connected=%s, errors=%d",
-             len(ticks_received), connect_called, len(error_msgs))
+    log.info(
+        "SDK Direct result: ticks=%d, connected=%s, errors=%d",
+        len(ticks_received),
+        connect_called,
+        len(error_msgs),
+    )
 
     if error_msgs:
         log.error("Errors: %s", error_msgs[:3])
@@ -106,6 +111,7 @@ def test_sdk_direct(client_id: str, access_token: str, security_id: str) -> bool
 
 
 # ── Test 2: Gateway stream() ───────────────────────────────────────────────────
+
 
 def test_gateway_stream(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     """Test gateway.stream() for TCS in LTP mode."""
@@ -133,8 +139,12 @@ def test_gateway_stream(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     # Check health
     try:
         health = feed.health()
-        log.info("Feed health: state=%s, detail=%s, metrics=%s",
-                 health.state.value, health.detail, health.metrics)
+        log.info(
+            "Feed health: state=%s, detail=%s, metrics=%s",
+            health.state.value,
+            health.detail,
+            health.metrics,
+        )
     except Exception as exc:
         log.warning("health() failed: %s", exc)
 
@@ -149,6 +159,7 @@ def test_gateway_stream(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
 
 # ── Test 3: Gateway depth_20() ─────────────────────────────────────────────────
 
+
 def test_gateway_depth_20(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     """Test gateway.depth_20() for TCS."""
     section(f"TEST 3: Gateway depth_20() — {symbol} on {exchange}")
@@ -156,8 +167,12 @@ def test_gateway_depth_20(gw, symbol: str = "TCS", exchange: str = "NSE") -> boo
     log.info("Calling gw.depth_20('%s', '%s')", symbol, exchange)
     try:
         depth = gw.depth_20(symbol, exchange)
-        log.info("depth_20 result: type=%s, bids=%d, asks=%d",
-                 depth.depth_type, len(depth.bids), len(depth.asks))
+        log.info(
+            "depth_20 result: type=%s, bids=%d, asks=%d",
+            depth.depth_type,
+            len(depth.bids),
+            len(depth.asks),
+        )
         if depth.bids:
             log.info("  Best bid: price=%s, qty=%s", depth.bids[0].price, depth.bids[0].quantity)
         if depth.asks:
@@ -170,6 +185,7 @@ def test_gateway_depth_20(gw, symbol: str = "TCS", exchange: str = "NSE") -> boo
 
 # ── Test 4: Depth-20 WebSocket feed directly ───────────────────────────────────
 
+
 def test_depth_20_feed(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     """Test depth-20 WebSocket feed directly for TCS."""
     section(f"TEST 4: Depth-20 WebSocket Feed — {symbol} on {exchange}")
@@ -179,14 +195,20 @@ def test_depth_20_feed(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     def on_depth(depth):
         depths.append(depth)
         if len(depths) <= 3:
-            log.info("Depth update #%d: bids=%d, asks=%d", len(depths), len(depth.bids), len(depth.asks))
+            log.info(
+                "Depth update #%d: bids=%d, asks=%d", len(depths), len(depth.bids), len(depth.asks)
+            )
 
     # Call depth_20 with callback
     log.info("Calling gw.depth_20('%s', '%s', on_depth=...)", symbol, exchange)
     try:
         depth = gw.depth_20(symbol, exchange, on_depth=on_depth)
-        log.info("Initial depth: type=%s, bids=%d, asks=%d",
-                 depth.depth_type, len(depth.bids), len(depth.asks))
+        log.info(
+            "Initial depth: type=%s, bids=%d, asks=%d",
+            depth.depth_type,
+            len(depth.bids),
+            len(depth.asks),
+        )
     except Exception as exc:
         log.error("depth_20 initial call failed: %s", exc)
         return False
@@ -214,9 +236,11 @@ def test_depth_20_feed(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def _make_context(client_id: str, access_token: str):
     """Create a minimal DhanContext for SDK."""
     from brokers.dhan.websocket._helpers import _DhanContext
+
     return _DhanContext(client_id, access_token=access_token)
 
 

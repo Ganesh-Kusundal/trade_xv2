@@ -10,8 +10,6 @@ Run with:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from analytics.replay.golden_dataset import GOLDEN_DIR, compare_results, load_expected

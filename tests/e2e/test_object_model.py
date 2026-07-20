@@ -44,9 +44,7 @@ def test_tradex_connect_paper_buy() -> None:
 def test_tradex_connect_paper_oms_idempotent() -> None:
     session = tradex.connect("paper")
     reliance = session.universe.equity("RELIANCE")
-    intent = session.intent(
-        reliance, "BUY", 1, price=Decimal("100"), correlation_id="e2e:idem-1"
-    )
+    intent = session.intent(reliance, "BUY", 1, price=Decimal("100"), correlation_id="e2e:idem-1")
     r1 = session.place(intent)
     r2 = session.place(intent)
     assert r1.success and r2.success

@@ -10,8 +10,6 @@ the capability is independently releasable.
 
 from __future__ import annotations
 
-import pytest
-
 from domain.capability_manifest.catalog import CAPABILITY_SURFACES
 
 
@@ -40,9 +38,7 @@ class TestCapabilityManifestIntegrity:
             if cap not in covered:
                 uncovered.append(cap.name)
         # Allow up to 5 uncovered (broker-specific extensions like DEPTH_200)
-        assert len(uncovered) <= 5, (
-            f"Too many uncovered capabilities: {uncovered}"
-        )
+        assert len(uncovered) <= 5, f"Too many uncovered capabilities: {uncovered}"
 
 
 class TestMarketDataCapability:
@@ -83,9 +79,7 @@ class TestTradingCapability:
     def test_order_surfaces_exist(self):
         """At least 3 order-related surfaces exist."""
         order_surfaces = [s for s in CAPABILITY_SURFACES if s.id.startswith("orders.")]
-        assert len(order_surfaces) >= 3, (
-            f"Expected >=3 order surfaces, got {len(order_surfaces)}"
-        )
+        assert len(order_surfaces) >= 3, f"Expected >=3 order surfaces, got {len(order_surfaces)}"
 
 
 class TestOptionsCapability:
@@ -163,9 +157,7 @@ class TestCapabilityParity:
         for surface in CAPABILITY_SURFACES:
             if surface.tier == "core":
                 has_exposure = len(surface.cli) >= 1 or len(surface.rest) >= 1
-                assert has_exposure, (
-                    f"Core surface {surface.id} has no CLI or REST exposure"
-                )
+                assert has_exposure, f"Core surface {surface.id} has no CLI or REST exposure"
 
     def test_all_surfaces_have_data_source(self):
         """Every REST endpoint specifies a data source."""

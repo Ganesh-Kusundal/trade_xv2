@@ -21,13 +21,12 @@ from typing import Any, Literal
 
 from fastapi import HTTPException, status
 
-from domain.exceptions import LiveBrokerBlockedError
-from domain.ports.event_publisher import EventBusPort
-from domain.ports.protocols import DataProvider
-from domain.ports.order_service import OrderServicePort
-from domain.ports.risk_manager import RiskManagerPort
 from application.oms.live_order_authority import RiskRejectedError, authorize_live_order
-from domain.exceptions import ServiceNotFoundError
+from domain.exceptions import LiveBrokerBlockedError, ServiceNotFoundError
+from domain.ports.event_publisher import EventBusPort
+from domain.ports.order_service import OrderServicePort
+from domain.ports.protocols import DataProvider
+from domain.ports.risk_manager import RiskManagerPort
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +100,12 @@ def set_container(services: ServiceContainer | SimpleNamespace | dict[str, Any])
         return
 
     if isinstance(services, dict):
-        ns = ServiceContainer(**{k: v for k, v in services.items() if k in ServiceContainer.__dataclass_fields__})
-        extra = {k: v for k, v in services.items() if k not in ServiceContainer.__dataclass_fields__}
+        ns = ServiceContainer(
+            **{k: v for k, v in services.items() if k in ServiceContainer.__dataclass_fields__}
+        )
+        extra = {
+            k: v for k, v in services.items() if k not in ServiceContainer.__dataclass_fields__
+        }
         ns.extra = extra
         _container = ns
     elif isinstance(services, ServiceContainer):
@@ -110,7 +113,9 @@ def set_container(services: ServiceContainer | SimpleNamespace | dict[str, Any])
     else:
         _container = services
 
-    initialized = [k for k in ServiceContainer.__dataclass_fields__ if getattr(services, k, None) is not None]
+    initialized = [
+        k for k in ServiceContainer.__dataclass_fields__ if getattr(services, k, None) is not None
+    ]
     logger.info("Service container initialized with: %s", initialized)
 
 
@@ -145,9 +150,13 @@ def _make_getter(attr: str, doc: str):
 get_datalake_gateway = _make_getter(
     "datalake_gateway", "Get DataLakeGateway instance for historical data queries."
 )
-get_view_manager = _make_getter("view_manager", "Get ViewManager instance for DuckDB analytics queries.")
+get_view_manager = _make_getter(
+    "view_manager", "Get ViewManager instance for DuckDB analytics queries."
+)
 get_data_catalog = _make_getter("data_catalog", "Get DataCatalog instance for symbol metadata.")
-get_broker_service = _make_getter("broker_service", "Get BrokerService instance for live broker connections.")
+get_broker_service = _make_getter(
+    "broker_service", "Get BrokerService instance for live broker connections."
+)
 
 
 def get_event_bus() -> EventBusPort:
@@ -459,10 +468,17 @@ def initialize_all_services(
 
     # Log initialization status
     all_named = [
-        "datalake_gateway", "view_manager", "data_catalog",
-        "event_bus", "broker_service", "trading_context",
-        "order_manager", "position_manager", "risk_manager",
-        "market_data_composer", "execution_composer",
+        "datalake_gateway",
+        "view_manager",
+        "data_catalog",
+        "event_bus",
+        "broker_service",
+        "trading_context",
+        "order_manager",
+        "position_manager",
+        "risk_manager",
+        "market_data_composer",
+        "execution_composer",
     ]
     missing = [n for n in all_named if getattr(services, n) is None]
     if missing:

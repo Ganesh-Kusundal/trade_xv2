@@ -50,17 +50,19 @@ def _make_ohlcv_df(
     for i in range(min(ohlc_errors, n)):
         high[i], low[i] = low[i], high[i]  # swap so high < low
 
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume.astype(np.int64),
-        "oi": np.zeros(n, dtype=np.int64),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume.astype(np.int64),
+            "oi": np.zeros(n, dtype=np.int64),
+        }
+    )
 
 
 class TestMonitorBasicStats:
@@ -86,8 +88,12 @@ class TestMonitorBasicStats:
         for sym, n in [("AAPL", 100), ("GOOG", 200)]:
             df = _make_ohlcv_df(n=n, symbol=sym)
             _write_parquet(
-                tmp_path / "equities" / "candles" / "timeframe=1m"
-                / f"symbol={sym}" / "data.parquet",
+                tmp_path
+                / "equities"
+                / "candles"
+                / "timeframe=1m"
+                / f"symbol={sym}"
+                / "data.parquet",
                 df,
             )
         _init_catalog(tmp_path / "catalog.duckdb")
@@ -279,8 +285,12 @@ class TestMonitorEdgeCases:
         for sym in ["AAA", "BBB", "CCC"]:
             df = _make_ohlcv_df(n=100, symbol=sym)
             _write_parquet(
-                tmp_path / "equities" / "candles" / "timeframe=1m"
-                / f"symbol={sym}" / "data.parquet",
+                tmp_path
+                / "equities"
+                / "candles"
+                / "timeframe=1m"
+                / f"symbol={sym}"
+                / "data.parquet",
                 df,
             )
         _init_catalog(tmp_path / "catalog.duckdb")

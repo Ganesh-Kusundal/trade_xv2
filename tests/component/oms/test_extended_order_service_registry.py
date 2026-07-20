@@ -7,9 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from application.oms.extended_order_service import (
-    ExtendedOrderResult,
-    ExtendedOrderService,
     ExtendedFeatureUnavailableError,
+    ExtendedOrderService,
 )
 
 
@@ -108,9 +107,7 @@ class TestExtendedOrderServiceExtensionRegistry:
         result = service_with_registry._executor()
 
         assert result is mock_executor
-        mock_extension_registry.require.assert_called_once_with(
-            "dhan", OrderCapabilityPort
-        )
+        mock_extension_registry.require.assert_called_once_with("dhan", OrderCapabilityPort)
 
     def test_constructor_accepts_extension_registry(
         self,

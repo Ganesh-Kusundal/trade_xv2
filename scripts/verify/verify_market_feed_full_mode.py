@@ -46,13 +46,16 @@ async def main():
                 await asyncio.sleep(0.5)
 
             if tick_count > 0:
-                print(f"✅ Received {tick_count} FULL-mode ticks for {symbol} in {time.time()-start_time:.1f}s")
+                print(
+                    f"✅ Received {tick_count} FULL-mode ticks for {symbol} in {time.time() - start_time:.1f}s"
+                )
             else:
                 print(f"⚠️  No ticks received for {symbol} ({exchange})")
 
         except Exception as e:
             print(f"❌ FULL mode subscription failed for {symbol}: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             if handle and hasattr(handle, "stop"):

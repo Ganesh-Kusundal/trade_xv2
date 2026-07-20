@@ -155,5 +155,3 @@ class FeatureViews:
             FROM v_candles_1m
         """)
         logger.debug("Created v_feature_momentum")
-
-

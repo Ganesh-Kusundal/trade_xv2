@@ -87,8 +87,7 @@ class InstrumentId:
         exch = normalize_exchange(self.exchange)
         if exch not in allowed_exchanges():
             raise ValueError(
-                f"Invalid exchange: {self.exchange!r}. "
-                f"Must be one of {sorted(allowed_exchanges())}"
+                f"Invalid exchange: {self.exchange!r}. Must be one of {sorted(allowed_exchanges())}"
             )
         # Validate right if provided
         if self.right and self.right.upper() not in self.VALID_RIGHTS:
@@ -222,7 +221,9 @@ class InstrumentId:
         """
         parts = s.strip().split(":")
         if len(parts) < 2:
-            raise ValueError(f"Invalid InstrumentId format: {s!r}. Expected at least 'EXCHANGE:UNDERLYING'")
+            raise ValueError(
+                f"Invalid InstrumentId format: {s!r}. Expected at least 'EXCHANGE:UNDERLYING'"
+            )
 
         exchange = parts[0].upper()
         underlying = parts[1].upper()
@@ -285,7 +286,11 @@ class InstrumentId:
 
     @property
     def is_equity(self) -> bool:
-        return self.asset_type in {AssetKind.EQUITY.value, AssetKind.ETF.value, AssetKind.BOND.value}
+        return self.asset_type in {
+            AssetKind.EQUITY.value,
+            AssetKind.ETF.value,
+            AssetKind.BOND.value,
+        }
 
     @property
     def is_index(self) -> bool:

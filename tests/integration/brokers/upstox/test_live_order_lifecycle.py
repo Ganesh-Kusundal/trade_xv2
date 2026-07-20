@@ -13,8 +13,8 @@ from decimal import Decimal
 
 import pytest
 
-from tests.integration.brokers.upstox.conftest import skip_live
 from domain import OrderStatus
+from tests.integration.brokers.upstox.conftest import skip_live
 
 
 @skip_live
@@ -73,6 +73,7 @@ class TestLiveOrderLifecycle:
         """Cancelling a non-existent order should return failure, not raise."""
         # Skip if live orders are disabled (safety guard)
         import os
+
         if not os.environ.get("UPSTOX_ALLOW_LIVE_ORDERS"):
             pytest.skip("Live orders disabled (UPSTOX_ALLOW_LIVE_ORDERS not set)")
 

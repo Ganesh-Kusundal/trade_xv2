@@ -31,17 +31,15 @@ logger = logging.getLogger(__name__)
 # Pattern: UNDERLYING_EXPIRY_KIND_EXPIRY_OFFSET_STRIKE_REF_RIGHT
 # Examples: NIFTY_WEEK_0_ATM_CE, BANKNIFTY_MONTH_1_ATM_PE, NIFTY_FUT_CURRENT
 _DSL_PATTERN = re.compile(
-    r"^([A-Z]+)"           # underlying
-    r"_(WEEK|MONTH)"       # expiry_kind
-    r"_(\d+)"              # expiry_offset (0, 1, 2, ...)
+    r"^([A-Z]+)"  # underlying
+    r"_(WEEK|MONTH)"  # expiry_kind
+    r"_(\d+)"  # expiry_offset (0, 1, 2, ...)
     r"_(ATM|OTM\d+|ITM\d+|[+-]?\d+)"  # strike_ref
     r"_(CE|PE|CALL|PUT)$"  # right
 )
 
 # Pattern for futures: UNDERLYING_FUT_CURRENT or UNDERLYING_FUT_0
-_FUT_PATTERN = re.compile(
-    r"^([A-Z]+)_FUT_(CURRENT|\d+)$"
-)
+_FUT_PATTERN = re.compile(r"^([A-Z]+)_FUT_(CURRENT|\d+)$")
 
 
 def resolve_selector(
@@ -103,7 +101,9 @@ def resolve_selector(
             strike = _round_to_nearest_strike(spot)
         elif re.match(r"^(OTM|ITM)\d+$", strike_ref):
             if spot is None:
-                raise ValueError(f"Spot price required for {strike_ref} strike resolution in '{selector}'")
+                raise ValueError(
+                    f"Spot price required for {strike_ref} strike resolution in '{selector}'"
+                )
             strike = _resolve_otm_itm_strike(spot, strike_ref)
         else:
             # Numeric strike

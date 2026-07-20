@@ -31,7 +31,7 @@ from domain.types import OrderStatus, OrderType, ProductType, Side
 
 logger = logging.getLogger(__name__)
 
-from domain.ports.data_catalog import DataPaths, DEFAULT_DATA_PATHS
+from domain.ports.data_catalog import DEFAULT_DATA_PATHS
 
 _DEFAULT_PATH = DEFAULT_DATA_PATHS.oms_orders_path
 

@@ -19,10 +19,10 @@ from domain import (
 )
 from tests.conftest import build_test_trading_context
 
-
 # ---------------------------------------------------------------------------
 # Mock OrderManager for paper tests (legacy _place_internal removed per spec I1)
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class _MockOrderResult:
@@ -201,9 +201,8 @@ class TestPaperGateway:
 class TestMockBroker:
     def test_placeholder(self) -> None:
         assert False
-    def test_trading_context_populates_oms(self):
-        from application.oms.context import TradingContext
 
+    def test_trading_context_populates_oms(self):
         ctx = build_test_trading_context()
         broker = MockBroker(trading_context=ctx)
         broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
@@ -215,8 +214,6 @@ class TestMockBroker:
         assert positions[0].symbol == "RELIANCE"
 
     def test_paper_gateway_shares_context(self):
-        from application.oms.context import TradingContext
-
         ctx = build_test_trading_context()
         gw = PaperGateway(trading_context=ctx)
         gw.place_order("RELIANCE", "NSE", "BUY", 5)
@@ -225,7 +222,6 @@ class TestMockBroker:
     def test_paper_gateway_risk_gate_rejects_excessive_order(self):
         from decimal import Decimal
 
-        from application.oms.context import TradingContext
         from application.oms._internal.risk_manager import RiskConfig
 
         ctx = build_test_trading_context(

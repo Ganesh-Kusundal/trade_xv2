@@ -89,9 +89,7 @@ class ReplayDataLoader:
 
         return items
 
-    def df_to_items(
-        self, df: pd.DataFrame, symbol: str, seq_start: int = 0
-    ) -> list[ReplayItem]:
+    def df_to_items(self, df: pd.DataFrame, symbol: str, seq_start: int = 0) -> list[ReplayItem]:
         """Convert a DataFrame of OHLCV data to ReplayItems (vectorized)."""
         ts_col = "timestamp" if "timestamp" in df.columns else "date"
         timestamps = pd.to_datetime(df[ts_col]).dt.tz_localize(timezone.utc)
@@ -112,14 +110,10 @@ class ReplayDataLoader:
                     "volume": float(row.get("volume", 0)),
                 },
             )
-            for i, (ts, row) in enumerate(
-                zip(timestamps, df.itertuples(index=False), strict=False)
-            )
+            for i, (ts, row) in enumerate(zip(timestamps, df.itertuples(index=False), strict=False))
         ]
 
-    def load_events(
-        self, day_start: datetime, day_end: datetime
-    ) -> list[ReplayItem]:
+    def load_events(self, day_start: datetime, day_end: datetime) -> list[ReplayItem]:
         """Load domain events from the event log for the target day."""
         if self._event_log is None:
             return []

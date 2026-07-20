@@ -11,7 +11,6 @@ TOTP-first: live tests bootstrap tokens via ``UpstoxBrokerFactory`` when
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 
 import pytest
@@ -105,8 +104,7 @@ skip_live = pytest.mark.skipif(
 skip_live_market_hours = pytest.mark.skipif(
     _should_skip_live_market_hours(),
     reason=(
-        "Live stream/depth tests require NSE market hours (09:15–15:30 IST) "
-        "or FORCE_MARKET_OPEN=1"
+        "Live stream/depth tests require NSE market hours (09:15–15:30 IST) or FORCE_MARKET_OPEN=1"
     ),
 )
 

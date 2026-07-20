@@ -6,11 +6,11 @@ import logging
 from collections.abc import Callable
 from decimal import Decimal
 
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from application.oms.protocols import IReconciliationService
-from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.ports import (
     DeadLetterQueuePort,

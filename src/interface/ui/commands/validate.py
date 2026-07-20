@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import time
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
+
+from domain.enums import BrokerId
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -37,8 +38,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     from pathlib import Path
 
-    from interface.ui.services.broker_ops import get_depth, get_history, get_quote
     from interface.ui.commands._broker import broker_id_from, history_as_df
+    from interface.ui.services.broker_ops import get_depth, get_history, get_quote
 
     env = {"env_path": str(Path(".env.local")), "load_instruments": True}
     broker = broker_id_from(broker_service, default=BrokerId.DHAN)
@@ -170,8 +171,8 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     console.print(f"\n[bold]Validating broker ({broker}) via run_verify...[/bold]\n")
     from pathlib import Path
 
-    from runtime.platform_bridge import run_verify
     from interface.ui.commands._broker import broker_id_from
+    from runtime.platform_bridge import run_verify
 
     env = {"env_path": str(Path(".env.local")), "load_instruments": True}
     if broker == BrokerId.UPSTOX:

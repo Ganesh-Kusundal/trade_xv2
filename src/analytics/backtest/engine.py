@@ -9,18 +9,14 @@ The BacktestEngine uses the ReplayEngine for the bar-by-bar loop
     - Trade analysis
 
 =============================================================================
-WARNING — ResearchMode.PURE_SIM (DEFAULT) IS NOT LIVE-PARITY
+WARNING — ResearchMode.PURE_SIM IS RESEARCH-ONLY (NOT LIVE-PARITY)
 =============================================================================
-Default ``mode=ResearchMode.PURE_SIM`` runs fills through ReplayEngine's
-direct simulation path (``oms_adapter=None``): **no** OMS risk gates,
-**no** idempotency ledger, **no** order-lifecycle events.
+``ResearchMode.PURE_SIM`` runs fills without OMS risk gates, idempotency,
+or order-lifecycle events. Default constructor mode is ``PARITY`` and
+**requires** ``trading_context`` or ``oms_adapter``.
 
+For standalone research without OMS, pass ``mode=ResearchMode.PURE_SIM`` explicitly.
 Do NOT treat PURE_SIM equity / trade counts as a live-trading guarantee.
-For zero-parity with paper/live, construct with::
-
-    BacktestEngine(..., mode=ResearchMode.PARITY, trading_context=ctx)
-
-or pass ``oms_adapter=...``. CI / release parity jobs must use PARITY.
 =============================================================================
 
 Usage:
@@ -47,6 +43,7 @@ import pandas as pd
 from analytics.backtest.models import (
     BacktestConfig,
     BacktestResult,
+    CapitalMetricsLabel,
     PerformanceMetrics,
     TradeAnalysis,
 )
@@ -62,14 +59,13 @@ logger = logging.getLogger(__name__)
 class ResearchMode(str, Enum):
     """ENG-012 / F2f: explicit research vs live-parity simulation modes.
 
-    !! PURE_SIM (default) IS RESEARCH-ONLY — NOT A LIVE GUARANTEE !!
+    !! PURE_SIM IS RESEARCH-ONLY — NOT A LIVE GUARANTEE !!
 
     pure_sim
         Fast research loop; may skip OMS risk / idempotency / order events.
-        Results must **never** be cited as proof the strategy is live-safe.
+        Must be passed explicitly. Results must **never** be cited as live-safe.
     parity
-        Requires OMS/trading_context wiring; risk gates and order path mirror
-        live as closely as the stack allows. Use this for CI parity jobs.
+        Default constructor mode. Requires OMS/trading_context wiring.
     """
 
     PURE_SIM = "pure_sim"
@@ -91,8 +87,8 @@ class BacktestEngine:
     config:
         BacktestConfig with capital, slippage, benchmark, etc.
     mode:
-        :class:`ResearchMode` — default ``pure_sim`` (standalone research).
-        Use ``parity`` only with OMS / trading_context supplied.
+        :class:`ResearchMode` — default ``parity`` (requires OMS context).
+        Pass ``pure_sim`` explicitly for standalone research only.
     """
 
     def __init__(
@@ -103,7 +99,7 @@ class BacktestEngine:
         trading_context=None,
         execution_adapter=None,
         oms_adapter=None,
-        mode: ResearchMode | str = ResearchMode.PURE_SIM,
+        mode: ResearchMode | str = ResearchMode.PARITY,
         allow_simulate_without_oms: bool | None = None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
@@ -122,9 +118,7 @@ class BacktestEngine:
             allow_sim = False
         else:
             allow_sim = True
-            logger.info(
-                "BacktestEngine mode=pure_sim — OMS optional; not live-parity (ENG-012)"
-            )
+            logger.info("BacktestEngine mode=pure_sim — OMS optional; not live-parity (ENG-012)")
         if allow_simulate_without_oms is not None:
             allow_sim = allow_simulate_without_oms
 
@@ -175,6 +169,15 @@ class BacktestEngine:
             metrics=metrics,
             benchmark_data=benchmark,
             equity_curve=replay_result.session.equity_curve,
+            capital_metrics_label=(
+                CapitalMetricsLabel.PARITY
+                if self._mode is ResearchMode.PARITY
+                else CapitalMetricsLabel.RESEARCH
+            ),
+            metadata={
+                "research_mode": self._mode.value,
+                "capital_metrics_valid": self._mode is ResearchMode.PARITY,
+            },
         )
 
     def _compute_metrics(

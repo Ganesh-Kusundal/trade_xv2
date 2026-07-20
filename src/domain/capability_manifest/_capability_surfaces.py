@@ -78,8 +78,18 @@ CAPABILITY_ENUM_SURFACES = (
         capability=Capability.OI_PCR_MAXPAIN,
         upstox="intelligence.get_pcr",
         rest=(
-            ("GET", "/api/v1/options/pcr/{underlying}", "src/interface/api/routers/options.py", "datalake"),
-            ("GET", "/api/v1/options/max-pain/{underlying}", "src/interface/api/routers/options.py", "datalake"),
+            (
+                "GET",
+                "/api/v1/options/pcr/{underlying}",
+                "src/interface/api/routers/options.py",
+                "datalake",
+            ),
+            (
+                "GET",
+                "/api/v1/options/max-pain/{underlying}",
+                "src/interface/api/routers/options.py",
+                "datalake",
+            ),
             (
                 "GET",
                 "/api/v1/options/volume-profile/{underlying}",

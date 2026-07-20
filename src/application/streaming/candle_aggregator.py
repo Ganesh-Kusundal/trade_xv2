@@ -19,11 +19,11 @@ is fully deterministic and independent of wall-clock time.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime, timezone
-from typing import Callable, Iterable, Mapping
 
 from domain.candles.historical import HistoricalBar
-from domain.entities.market import MarketTick  # noqa: F401  (type only)
+from domain.entities.market import MarketTick
 
 # --- timeframe parsing -------------------------------------------------------
 
@@ -113,7 +113,7 @@ class CandleAggregator:
 
     # -- public API -----------------------------------------------------------
 
-    def update(self, tick: "MarketTick") -> None:
+    def update(self, tick: MarketTick) -> None:
         """Feed one normalized tick into the aggregator.
 
         Late ticks that fall strictly before an already-closed bucket are
@@ -195,9 +195,7 @@ class CandleAggregator:
             exchange=bucket["exchange"],
             timeframe=tf,
             open_time=bucket["open_time"],
-            close_time=datetime.fromtimestamp(
-                bucket["open_epoch"] + dur, tz=timezone.utc
-            ),
+            close_time=datetime.fromtimestamp(bucket["open_epoch"] + dur, tz=timezone.utc),
             open=bucket["open"],
             high=bucket["high"],
             low=bucket["low"],

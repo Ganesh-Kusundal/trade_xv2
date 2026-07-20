@@ -88,9 +88,8 @@ def test_no_mocks_on_safety_path():
         for lineno, line in enumerate(_read(path).splitlines(), start=1):
             if any(tok in line for tok in _FORBIDDEN):
                 violations.append((rel, lineno, line.strip()))
-    assert not violations, (
-        "Mocks forbidden on the order/gate/parity safety path:\n"
-        + "\n".join(f"  {f}:{n}: {src}" for f, n, src in violations)
+    assert not violations, "Mocks forbidden on the order/gate/parity safety path:\n" + "\n".join(
+        f"  {f}:{n}: {src}" for f, n, src in violations
     )
 
 
@@ -117,6 +116,5 @@ def test_no_mocks_introduced_on_clean_safety_surface():
     assert not violations, (
         "Mocks introduced on a safety-critical (order/gate/parity/broker/oms) "
         "test surface that was previously clean (recorded in "
-        "_mock_safety_baseline.txt):\n"
-        + "\n".join(f"  {f}:{n}: {src}" for f, n, src in violations)
+        "_mock_safety_baseline.txt):\n" + "\n".join(f"  {f}:{n}: {src}" for f, n, src in violations)
     )

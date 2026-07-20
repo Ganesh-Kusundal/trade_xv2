@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
-from analytics.backtest import BacktestConfig
+from analytics.backtest import BacktestConfig, FastBacktestEngine
 from analytics.pipeline.features import (
     ATR,
     ROC,
@@ -17,7 +17,6 @@ from analytics.pipeline.features import (
 )
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.strategy import BreakoutStrategy, MomentumStrategy, StrategyPipeline
-from analytics.backtest import FastBacktestEngine
 from datalake.gateway import DataLakeGateway
 
 

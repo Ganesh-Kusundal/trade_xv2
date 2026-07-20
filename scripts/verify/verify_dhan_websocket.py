@@ -26,6 +26,7 @@ async def main():
         return False
 
     import sys
+
     test_symbol = sys.argv[1] if len(sys.argv) > 1 else "RELIANCE"
     test_exchange = sys.argv[2] if len(sys.argv) > 2 else "NSE"
     tick_count = 0
@@ -35,6 +36,7 @@ async def main():
     # Test 1: Subscribe to live market data (LTP updates)
     print(f"\n📡 Subscribing to {test_symbol} live market data...")
     try:
+
         def on_tick(tick):
             nonlocal tick_count, start_time
             if start_time is None:
@@ -71,6 +73,7 @@ async def main():
     except Exception as e:
         print(f"❌ LTP subscription failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -81,9 +84,12 @@ async def main():
         # Check support first to give a clean skip message
         nse_allowed = ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I")
         if test_exchange not in nse_allowed:
-            print(f"ℹ️ Skipping depth stream test (Dhan only supports WebSocket depth streaming for NSE segments, got: {test_exchange})")
+            print(
+                f"ℹ️ Skipping depth stream test (Dhan only supports WebSocket depth streaming for NSE segments, got: {test_exchange})"
+            )
             depth_handle = None
         else:
+
             def on_depth(depth):
                 nonlocal depth_updates, start_time
                 if start_time is None:
@@ -94,7 +100,9 @@ async def main():
                     best_bid = depth.bids[0]
                     best_ask = depth.asks[0]
                     spread = float(best_ask.price - best_bid.price)
-                    print(f"   Depth #{depth_updates} @ {elapsed:.1f}s: Bid {best_bid.price}x{best_bid.quantity} | Ask {best_ask.price}x{best_ask.quantity} | Spread: ₹{spread:.2f}")
+                    print(
+                        f"   Depth #{depth_updates} @ {elapsed:.1f}s: Bid {best_bid.price}x{best_bid.quantity} | Ask {best_ask.price}x{best_ask.quantity} | Spread: ₹{spread:.2f}"
+                    )
                 if depth_updates >= 5:  # Stop after 5 updates
                     return False
 
@@ -111,7 +119,9 @@ async def main():
                 await asyncio.sleep(0.1)
 
             if depth_updates > 0:
-                print(f"\n✅ Received {depth_updates} depth updates in {time.time() - start_time:.1f}s")
+                print(
+                    f"\n✅ Received {depth_updates} depth updates in {time.time() - start_time:.1f}s"
+                )
             else:
                 print(f"⚠️  No depth updates received (WebSocket may not be connected)")
 
@@ -126,6 +136,7 @@ async def main():
     except Exception as e:
         print(f"❌ Depth subscription failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -152,5 +163,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

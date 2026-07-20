@@ -9,7 +9,12 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
-from infrastructure.adapters.historical_mapper import dataframe_to_historical_bars
+from domain.candles.historical import InstrumentRef
+from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
@@ -17,14 +22,10 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.candles.historical import InstrumentRef
-from domain.orders.requests import ModifyOrderRequest, OrderRequest
+from infrastructure.adapters.historical_mapper import dataframe_to_historical_bars
 
 logger = logging.getLogger(__name__)
+
 
 def capabilities_for_gateway(gateway: MarketDataGateway, broker_id: str) -> BrokerCapabilities:
     get_capabilities = getattr(gateway, "capabilities", None)
@@ -288,9 +289,7 @@ class MarketDataGatewayAdapter:
 
         stream_order = getattr(self._gateway, "stream_order", None)
         if not callable(stream_order):
-            raise RuntimeError(
-                f"Gateway {self._broker_id!r} does not implement stream_order()"
-            )
+            raise RuntimeError(f"Gateway {self._broker_id!r} does not implement stream_order()")
 
         feed = await asyncio.to_thread(stream_order, _on_order)
         handle = _GatewayStreamHandle(

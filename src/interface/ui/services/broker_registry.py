@@ -10,10 +10,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain.enums import BrokerId
-from infrastructure.connection.authenticated_readiness import (  # noqa: F401
+from infrastructure.connection.authenticated_readiness import (
     authenticated_readiness_probe,
 )
-from infrastructure.gateway.factory import (  # noqa: F401
+from infrastructure.gateway.factory import (
     ENV_FILES,
     bootstrap_gateway,
     env_files,
@@ -21,7 +21,7 @@ from infrastructure.gateway.factory import (  # noqa: F401
     require_gateway,
     resolve_env_path,
 )
-from runtime.broker_accessors import (  # noqa: F401
+from runtime.broker_accessors import (
     create_seeded_mock_broker,
     get_dhan_account_registry_class,
     get_dhan_broker_gateway_class,
@@ -53,7 +53,7 @@ UpstoxDomainMapper = get_upstox_domain_mapper_class()
 create_demo_broker = create_seeded_mock_broker
 
 
-def get_market_provider(broker: str = "dhan") -> "DataProvider | None":
+def get_market_provider(broker: str = "dhan") -> DataProvider | None:
     """Return a domain ``DataProvider`` for *broker* (broker-as-plugin)."""
     result = bootstrap_gateway(broker, skip_auth_probe=True)
     if not result.ok or result.gateway is None:
@@ -61,7 +61,7 @@ def get_market_provider(broker: str = "dhan") -> "DataProvider | None":
     return result.gateway
 
 
-def get_broker_extensions(broker: str, gateway: object) -> "list[Extension]":
+def get_broker_extensions(broker: str, gateway: object) -> list[Extension]:
     if broker == BrokerId.DHAN:
         return get_dhan_extensions(gateway)
     return []
@@ -71,7 +71,7 @@ def create_instrument(
     broker: str,
     symbol: str,
     exchange: str = "NSE",
-) -> "Instrument | None":
+) -> Instrument | None:
     result = bootstrap_gateway(broker, skip_auth_probe=True)
     if not result.ok or result.gateway is None:
         return None

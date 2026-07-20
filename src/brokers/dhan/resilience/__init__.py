@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from infrastructure.resilience._metrics import DhanRateLimiterMetrics
-from infrastructure.resilience.rate_limiter import (
-    MultiBucketRateLimiter,
-    RateLimitConfig,
-    create_rate_limiter,
-)
 from brokers.dhan.resilience.circuit_breaker import (
     DhanCircuitBreakerFactory,
     create_circuit_breakers,
 )
 from brokers.dhan.resilience.retry_policies import (
-    DhanRetryExecutorFactory,
     DhanRetryPolicy,
     create_retry_executor,
+)
+from infrastructure.resilience._metrics import DhanRateLimiterMetrics
+from infrastructure.resilience.rate_limiter import (
+    MultiBucketRateLimiter,
+    RateLimitConfig,
+    create_rate_limiter,
 )
 
 
@@ -33,9 +32,7 @@ class DhanRateLimiterFactory:
         for profile in dhan_capabilities().rate_limit_profiles:
             if profile.endpoint_class == category:
                 capacity = (
-                    int(profile.burst_rps)
-                    if profile.burst_rps
-                    else int(profile.sustained_rps * 2)
+                    int(profile.burst_rps) if profile.burst_rps else int(profile.sustained_rps * 2)
                 )
                 return RateLimitConfig(
                     rate_per_second=float(profile.sustained_rps),
@@ -48,7 +45,6 @@ __all__ = [
     "DhanCircuitBreakerFactory",
     "DhanRateLimiterFactory",
     "DhanRateLimiterMetrics",
-    "DhanRetryExecutorFactory",
     "DhanRetryPolicy",
     "MultiBucketRateLimiter",
     "RateLimitConfig",

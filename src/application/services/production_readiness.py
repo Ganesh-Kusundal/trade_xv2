@@ -165,17 +165,19 @@ class ProductionReadinessChecker:
     # ── Individual checks ─────────────────────────────────────────────
 
     def _check_reconciliation(self) -> tuple[bool, str]:
-        ctx = self._svc.trading_context if hasattr(self._svc, 'trading_context') else None
+        ctx = self._svc.trading_context if hasattr(self._svc, "trading_context") else None
         if ctx is None:
             return False, "TradingContext was not constructed"
-        svc = ctx._reconciliation_service if hasattr(ctx, '_reconciliation_service') else None
+        svc = ctx._reconciliation_service if hasattr(ctx, "_reconciliation_service") else None
         if svc is None:
             return False, (
                 "ReconciliationService is None — drift detection is OFF. "
                 "create_trading_context() must be called with "
                 "reconciliation_service=<broker-specific reconciler>."
             )
-        broker_impl = svc._reconciliation_service if hasattr(svc, '_reconciliation_service') else None
+        broker_impl = (
+            svc._reconciliation_service if hasattr(svc, "_reconciliation_service") else None
+        )
         if broker_impl is None:
             return False, (
                 "ReconciliationService is built without a broker-specific "
@@ -184,7 +186,7 @@ class ProductionReadinessChecker:
         return True, "DhanReconciliationService is wired into the OMS timer"
 
     def _check_eventlog(self) -> tuple[bool, str]:
-        ctx = self._svc.trading_context if hasattr(self._svc, 'trading_context') else None
+        ctx = self._svc.trading_context if hasattr(self._svc, "trading_context") else None
         if ctx is None:
             return False, "TradingContext was not constructed"
         if ctx.event_log is None:
@@ -195,8 +197,8 @@ class ProductionReadinessChecker:
         return True, "EventLog is wired and replay will run on startup"
 
     def _check_market_feed(self) -> tuple[bool, str]:
-        gw = self._svc.dhan_gateway if hasattr(self._svc, 'dhan_gateway') else None
-        conn = gw._conn if gw is not None and hasattr(gw, '_conn') else None
+        gw = self._svc.dhan_gateway if hasattr(self._svc, "dhan_gateway") else None
+        conn = gw._conn if gw is not None and hasattr(gw, "_conn") else None
         if conn is None:
             return False, "BrokerGateway connection not constructed"
         if conn.market_feed is None:
@@ -208,8 +210,8 @@ class ProductionReadinessChecker:
         return True, "DhanMarketFeed exists"
 
     def _check_order_stream(self) -> tuple[bool, str]:
-        gw = self._svc.dhan_gateway if hasattr(self._svc, 'dhan_gateway') else None
-        conn = gw._conn if gw is not None and hasattr(gw, '_conn') else None
+        gw = self._svc.dhan_gateway if hasattr(self._svc, "dhan_gateway") else None
+        conn = gw._conn if gw is not None and hasattr(gw, "_conn") else None
         if conn is None:
             return False, "BrokerGateway connection not constructed"
         if conn.order_stream is None:
@@ -221,8 +223,8 @@ class ProductionReadinessChecker:
         return True, "DhanOrderStream exists"
 
     def _check_market_feed_lifecycle(self) -> tuple[bool, str]:
-        gw = self._svc.dhan_gateway if hasattr(self._svc, 'dhan_gateway') else None
-        conn = gw._conn if gw is not None and hasattr(gw, '_conn') else None
+        gw = self._svc.dhan_gateway if hasattr(self._svc, "dhan_gateway") else None
+        conn = gw._conn if gw is not None and hasattr(gw, "_conn") else None
         if conn is None or conn.market_feed is None:
             return False, "no market feed to register"
         lifecycle = self._svc.lifecycle
@@ -234,8 +236,8 @@ class ProductionReadinessChecker:
         return True, "DhanMarketFeed is lifecycle-owned"
 
     def _check_order_stream_lifecycle(self) -> tuple[bool, str]:
-        gw = self._svc.dhan_gateway if hasattr(self._svc, 'dhan_gateway') else None
-        conn = gw._conn if gw is not None and hasattr(gw, '_conn') else None
+        gw = self._svc.dhan_gateway if hasattr(self._svc, "dhan_gateway") else None
+        conn = gw._conn if gw is not None and hasattr(gw, "_conn") else None
         if conn is None or conn.order_stream is None:
             return False, "no order stream to register"
         lifecycle = self._svc.lifecycle
@@ -250,7 +252,7 @@ class ProductionReadinessChecker:
         # G7 (P5-8): no getattr reach-through. `_oms_risk_manager` is never set
         # on BrokerService, so the authoritative risk manager is the one owned
         # by the trading context; read it via the public property.
-        ctx = self._svc.trading_context if hasattr(self._svc, 'trading_context') else None
+        ctx = self._svc.trading_context if hasattr(self._svc, "trading_context") else None
         rm = ctx.risk_manager if ctx is not None else None
         if rm is None:
             return False, "RiskManager is not configured on the live OMS path"
@@ -326,13 +328,11 @@ class ProductionReadinessChecker:
             auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
             if auth_mode == "TOTP":
                 mobile = os.environ.get("UPSTOX_MOBILE", "").strip()
-                pin = (
-                    os.environ.get("UPSTOX_PIN", "").strip()
-                    or self._read_secret_file("UPSTOX_PIN_FILE")
+                pin = os.environ.get("UPSTOX_PIN", "").strip() or self._read_secret_file(
+                    "UPSTOX_PIN_FILE"
                 )
-                secret = (
-                    os.environ.get("UPSTOX_TOTP_SECRET", "").strip()
-                    or self._read_secret_file("UPSTOX_TOTP_SECRET_FILE")
+                secret = os.environ.get("UPSTOX_TOTP_SECRET", "").strip() or self._read_secret_file(
+                    "UPSTOX_TOTP_SECRET_FILE"
                 )
                 if mobile and pin and secret:
                     return True, ("UPSTOX_ACCESS_TOKEN unset but TOTP credentials present")
@@ -361,7 +361,7 @@ class ProductionReadinessChecker:
         return True, "Upstox WebSocket services are lifecycle-owned"
 
     def _check_http_observability(self) -> tuple[bool, str]:
-        http = self._svc.http_observability if hasattr(self._svc, 'http_observability') else None
+        http = self._svc.http_observability if hasattr(self._svc, "http_observability") else None
         if http is None:
             return False, (
                 "HTTP observability server is not started — /healthz, /readyz, /metrics are offline"
@@ -377,19 +377,14 @@ class ProductionReadinessChecker:
 
     def _check_secret_encryption(self) -> tuple[bool, str]:
         if not os.environ.get("SECRET_ENCRYPTION_KEY", "").strip():
-            return True, (
-                "SECRET_ENCRYPTION_KEY unset — using plaintext token stores (default)"
-            )
+            return True, ("SECRET_ENCRYPTION_KEY unset — using plaintext token stores (default)")
         return True, "SECRET_ENCRYPTION_KEY is configured"
-
 
     def _check_upstox_webhook_secret(self) -> tuple[bool, str]:
         if not _is_production_env():
             return True, "webhook secret check skipped outside production/staging"
         if not os.environ.get("UPSTOX_WEBHOOK_SECRET", "").strip():
-            return False, (
-                "UPSTOX_WEBHOOK_SECRET is required in production when Upstox is active"
-            )
+            return False, ("UPSTOX_WEBHOOK_SECRET is required in production when Upstox is active")
         return True, "UPSTOX_WEBHOOK_SECRET is configured"
 
     def _check_ssl_hardening(self) -> tuple[bool, str]:
@@ -408,7 +403,7 @@ class ProductionReadinessChecker:
         as a warning rather than a hard failure to avoid blocking
         dry-runs.
         """
-        sessions = self._svc.http_sessions if hasattr(self._svc, 'http_sessions') else None
+        sessions = self._svc.http_sessions if hasattr(self._svc, "http_sessions") else None
         if not sessions:
             return True, (
                 "no outbound sessions registered for SSL check (acceptable "
@@ -447,9 +442,7 @@ class ApiReadinessReport:
     def to_dict(self) -> dict[str, Any]:
         return {
             "ready": self.ready,
-            "checks": [
-                {"id": c.id, "status": c.status, "message": c.message} for c in self.checks
-            ],
+            "checks": [{"id": c.id, "status": c.status, "message": c.message} for c in self.checks],
             "checks_bool": self.as_bool_map(),
         }
 
@@ -500,7 +493,9 @@ def evaluate_api_readiness(container: Any) -> ApiReadinessReport:
     if broker_service is not None:
         gw = getattr(broker_service, "active_broker", None)
         live = bool(getattr(broker_service, "live_actionable", False))
-        live_intent = broker_service.live_intent if hasattr(broker_service, "live_intent") else False
+        live_intent = (
+            broker_service.live_intent if hasattr(broker_service, "live_intent") else False
+        )
         gates.append(
             _gate(
                 "broker_session",

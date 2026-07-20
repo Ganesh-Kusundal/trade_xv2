@@ -15,6 +15,7 @@ class TestAuthDefaultMode:
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AUTH_MODE", None)
             import interface.api.auth as auth_mod
+
             importlib.reload(auth_mod)
             assert auth_mod.is_auth_enabled() is True
 
@@ -22,6 +23,7 @@ class TestAuthDefaultMode:
         """When AUTH_MODE=none is explicitly set, auth is disabled."""
         with mock.patch.dict(os.environ, {"AUTH_MODE": "none"}, clear=False):
             import interface.api.auth as auth_mod
+
             importlib.reload(auth_mod)
             assert auth_mod.is_auth_enabled() is False
 
@@ -29,5 +31,6 @@ class TestAuthDefaultMode:
         """When AUTH_MODE=api_key, auth is enabled."""
         with mock.patch.dict(os.environ, {"AUTH_MODE": "api_key"}, clear=False):
             import interface.api.auth as auth_mod
+
             importlib.reload(auth_mod)
             assert auth_mod.is_auth_enabled() is True

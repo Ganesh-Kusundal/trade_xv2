@@ -47,6 +47,7 @@ SR_DIR = FEATURES_ROOT / "support_resistance"
 @dataclass(frozen=True)
 class PriceLevel:
     """A support or resistance price level."""
+
     price: float
     touches: int
     last_touch: date
@@ -101,9 +102,7 @@ class SupportResistance:
             return self._filter_levels(levels, days, top_n)
 
         # Fallback to on-the-fly computation
-        return self._compute_on_the_fly(
-            symbol, days, top_n, pivot_window, cluster_tolerance
-        )
+        return self._compute_on_the_fly(symbol, days, top_n, pivot_window, cluster_tolerance)
 
     def get_levels_batch(
         self,
@@ -147,7 +146,11 @@ class SupportResistance:
         distance_pct = None
         if nearest_support and nearest_resistance:
             (nearest_resistance.price - nearest_support.price) / current_price * 100
-            position = (current_price - nearest_support.price) / (nearest_resistance.price - nearest_support.price) * 100
+            position = (
+                (current_price - nearest_support.price)
+                / (nearest_resistance.price - nearest_support.price)
+                * 100
+            )
             distance_pct = round(position, 1)
 
         return {
@@ -227,7 +230,7 @@ class SupportResistance:
         cluster_tolerance: float,
     ) -> list[dict]:
         """Compute S/R levels for a single symbol."""
-        from datalake.analytics._sr_algorithms import find_pivots, cluster_levels
+        from datalake.analytics._sr_algorithms import cluster_levels, find_pivots
 
         with duckdb_connection(self._catalog_path, read_only=True) as conn:
             end_date = datetime.now().date()
@@ -238,28 +241,36 @@ class SupportResistance:
                 return []
 
             supports, resistances = find_pivots(daily, window=pivot_window)
-            support_levels = cluster_levels(supports, tolerance=cluster_tolerance, level_type="support")
-            resistance_levels = cluster_levels(resistances, tolerance=cluster_tolerance, level_type="resistance")
+            support_levels = cluster_levels(
+                supports, tolerance=cluster_tolerance, level_type="support"
+            )
+            resistance_levels = cluster_levels(
+                resistances, tolerance=cluster_tolerance, level_type="resistance"
+            )
 
             levels = []
             for lvl in support_levels:
-                levels.append({
-                    "symbol": symbol,
-                    "level_type": "support",
-                    "price": lvl.price,
-                    "touches": lvl.touches,
-                    "last_touch": lvl.last_touch,
-                    "computed_at": datetime.now(),
-                })
+                levels.append(
+                    {
+                        "symbol": symbol,
+                        "level_type": "support",
+                        "price": lvl.price,
+                        "touches": lvl.touches,
+                        "last_touch": lvl.last_touch,
+                        "computed_at": datetime.now(),
+                    }
+                )
             for lvl in resistance_levels:
-                levels.append({
-                    "symbol": symbol,
-                    "level_type": "resistance",
-                    "price": lvl.price,
-                    "touches": lvl.touches,
-                    "last_touch": lvl.last_touch,
-                    "computed_at": datetime.now(),
-                })
+                levels.append(
+                    {
+                        "symbol": symbol,
+                        "level_type": "resistance",
+                        "price": lvl.price,
+                        "touches": lvl.touches,
+                        "last_touch": lvl.last_touch,
+                        "computed_at": datetime.now(),
+                    }
+                )
 
             return levels
 
@@ -319,12 +330,14 @@ class SupportResistance:
                 lt = row["last_touch"]
                 if hasattr(lt, "date"):
                     lt = lt.date()
-                levels.append(PriceLevel(
-                    price=float(row["price"]),
-                    touches=int(row["touches"]),
-                    last_touch=lt,
-                    level_type=row["level_type"],
-                ))
+                levels.append(
+                    PriceLevel(
+                        price=float(row["price"]),
+                        touches=int(row["touches"]),
+                        last_touch=lt,
+                        level_type=row["level_type"],
+                    )
+                )
             return levels
         except Exception:
             return []
@@ -342,6 +355,7 @@ class SupportResistance:
             if hasattr(d, "date"):
                 return d.date()
             import numpy as np
+
             if isinstance(d, np.datetime64):
                 return pd.Timestamp(d).date()
             return d
@@ -351,7 +365,11 @@ class SupportResistance:
             key=lambda l: (-l.touches, -l.price),
         )
         resistances = sorted(
-            [l for l in levels if l.level_type == "resistance" and _to_date(l.last_touch) >= cutoff],
+            [
+                l
+                for l in levels
+                if l.level_type == "resistance" and _to_date(l.last_touch) >= cutoff
+            ],
             key=lambda l: (-l.touches, l.price),
         )
 
@@ -383,7 +401,7 @@ class SupportResistance:
         cluster_tolerance: float,
     ) -> dict[str, list[PriceLevel]]:
         """Compute S/R levels on-the-fly from daily candles."""
-        from datalake.analytics._sr_algorithms import find_pivots, cluster_levels
+        from datalake.analytics._sr_algorithms import cluster_levels, find_pivots
 
         with duckdb_connection(self._catalog_path, read_only=True) as conn:
             end_date = datetime.now().date()
@@ -394,8 +412,12 @@ class SupportResistance:
                 return {"support": [], "resistance": []}
 
             supports, resistances = find_pivots(daily, window=pivot_window)
-            support_levels = cluster_levels(supports, tolerance=cluster_tolerance, level_type="support")
-            resistance_levels = cluster_levels(resistances, tolerance=cluster_tolerance, level_type="resistance")
+            support_levels = cluster_levels(
+                supports, tolerance=cluster_tolerance, level_type="support"
+            )
+            resistance_levels = cluster_levels(
+                resistances, tolerance=cluster_tolerance, level_type="resistance"
+            )
 
             return {
                 "support": support_levels[:top_n],

@@ -67,7 +67,8 @@ def test_no_stale_exemptions() -> None:
 
 def test_exemptions_have_owner_and_phase() -> None:
     missing = sorted(
-        p for p in EXEMPTIONS
+        p
+        for p in EXEMPTIONS
         if not EXEMPTION_METADATA.get(p, {}).get("owner")
         or not EXEMPTION_METADATA.get(p, {}).get("phase")
     )

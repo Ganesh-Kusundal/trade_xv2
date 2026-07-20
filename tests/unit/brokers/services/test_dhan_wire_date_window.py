@@ -58,9 +58,9 @@ async def test_chunk_requests_carry_planned_window_not_lookback():
 
     # 365-day 1D request — far exceeds any single-broker lookback-as-lookback
     query = HistoricalQuery(
-        instrument=__import__("domain.candles.historical", fromlist=["InstrumentRef"]).InstrumentRef(
-            symbol="RELIANCE", exchange="NSE"
-        ),
+        instrument=__import__(
+            "domain.candles.historical", fromlist=["InstrumentRef"]
+        ).InstrumentRef(symbol="RELIANCE", exchange="NSE"),
         timeframe="1D",
         from_date=today - timedelta(days=365),
         to_date=today,

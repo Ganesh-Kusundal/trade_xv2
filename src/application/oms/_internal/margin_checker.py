@@ -19,17 +19,13 @@ import time
 from decimal import Decimal
 from typing import Any
 
-from domain import Order
-from domain.constants.market import DEFAULT_TICK_SIZE
-from domain.exchange_segments import is_derivative_segment
-from domain.ports.margin_provider import MarginProviderPort
-from domain.value_objects.price import is_tick_aligned
-
 from application.oms._internal.risk_types import (
     InstrumentProvider,
     RiskConfig,
     RiskResult,
 )
+from domain import Order
+from domain.ports.margin_provider import MarginProviderPort
 
 logger = logging.getLogger(__name__)
 

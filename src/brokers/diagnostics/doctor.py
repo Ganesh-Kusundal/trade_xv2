@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import platform
-import sys
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -81,14 +80,14 @@ def run_doctor(broker: str = "paper") -> DoctorReport:
     # 3. Connect + run the standard diagnostic checks
     try:
         session = BrokerSession(broker)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add("Broker Connect", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}")
         return report
 
     report.add("Broker Connect", CheckStatus.PASS, "session established")
 
     diag = DiagnosticReport(broker)
-    for res in diag.checks or []:
+    for _res in diag.checks or []:
         pass  # placeholder; real checks run below via BrokerDiagnostics
 
     from brokers.diagnostics.core import BrokerDiagnostics
@@ -107,7 +106,7 @@ def run_doctor(broker: str = "paper") -> DoctorReport:
             CheckStatus.PASS if fresh else CheckStatus.WARNING,
             "quote retrievable" if fresh else "no live quote (acceptable for paper)",
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add("Symbol Master", CheckStatus.WARNING, f"{type(exc).__name__}: {exc}")
 
     # 5. Order permissions (paper validates without real orders)
@@ -119,7 +118,7 @@ def run_doctor(broker: str = "paper") -> DoctorReport:
             CheckStatus.PASS,
             "orders enabled" if orders else "orders disabled (market mode)",
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add("Order Permissions", CheckStatus.WARNING, f"{type(exc).__name__}: {exc}")
 
     session.close()

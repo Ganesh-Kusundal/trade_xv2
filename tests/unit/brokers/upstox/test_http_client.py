@@ -118,9 +118,7 @@ def test_default_rate_limiter_is_multi_bucket():
 
     session = MagicMock()
     settings = UpstoxConnectionSettings(client_id="CID")
-    client = UpstoxHttpClient(
-        token_provider=lambda: "TOK", settings=settings, session=session
-    )
+    client = UpstoxHttpClient(token_provider=lambda: "TOK", settings=settings, session=session)
     assert isinstance(client.rate_limiter, MultiBucketRateLimiter)
     cats = set(client.rate_limiter.categories())
     # Capability profiles + admin catch-all + legacy aliases
@@ -145,8 +143,13 @@ def test_rate_limit_bucket_mapping():
     assert _rate_limit_bucket("https://api.upstox.com/v2/historical/candle") == "historical"
     assert _rate_limit_bucket("https://api.upstox.com/v2/order/place") == "orders"
     assert _rate_limit_bucket("https://api.upstox.com/v2/order/book") == "orders"
-    assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/long-term-holdings") == "holdings"
-    assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/short-term-positions") == "positions"
+    assert (
+        _rate_limit_bucket("https://api.upstox.com/v2/portfolio/long-term-holdings") == "holdings"
+    )
+    assert (
+        _rate_limit_bucket("https://api.upstox.com/v2/portfolio/short-term-positions")
+        == "positions"
+    )
     assert _rate_limit_bucket("https://api.upstox.com/v2/user/get-funds-and-margin") == "funds"
     assert _rate_limit_bucket("https://api.upstox.com/v3/user/get-funds-and-margin") == "funds"
     assert _rate_limit_bucket("https://api.upstox.com/v2/user/profile") == "admin"

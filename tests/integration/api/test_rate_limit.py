@@ -178,9 +178,7 @@ class TestRateLimitWithCreateApp:
             assert resp.status_code == 200
 
     def test_rate_limit_active_when_configured(self):
-        app = create_app(
-            config=APIConfig(auth_mode="none", rate_limit_per_minute=2)
-        )
+        app = create_app(config=APIConfig(auth_mode="none", rate_limit_per_minute=2))
         client = TestClient(app)
         # Use non-exempt endpoint (503 is fine, middleware still runs)
         resp = client.get("/api/v1/portfolio/positions")
@@ -192,9 +190,7 @@ class TestRateLimitWithCreateApp:
         assert resp.status_code == 429
 
     def test_retry_after_header_present(self):
-        app = create_app(
-            config=APIConfig(auth_mode="none", rate_limit_per_minute=1)
-        )
+        app = create_app(config=APIConfig(auth_mode="none", rate_limit_per_minute=1))
         client = TestClient(app)
         resp = client.get("/api/v1/portfolio/positions")
         assert resp.status_code == 503

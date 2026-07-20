@@ -10,6 +10,8 @@ import pytest
 
 from datalake.analytics._sr_algorithms import (
     cluster_levels as _cluster_levels,
+)
+from datalake.analytics._sr_algorithms import (
     find_pivots as _find_pivots,
 )
 from datalake.analytics.support_resistance import PriceLevel, SupportResistance
@@ -23,12 +25,14 @@ class TestFindPivots:
     def test_simple_pivot_high(self):
         """Bar 3 is higher than bars 0-2 and 4-6 → resistance at bar 3."""
         dates = pd.date_range("2026-01-01", periods=7)
-        daily = pd.DataFrame({
-            "date": dates,
-            "high": [100.0, 100.0, 100.0, 120.0, 100.0, 100.0, 100.0],
-            "low": [90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 90.0],
-            "close": [95.0, 95.0, 95.0, 95.0, 95.0, 95.0, 95.0],
-        })
+        daily = pd.DataFrame(
+            {
+                "date": dates,
+                "high": [100.0, 100.0, 100.0, 120.0, 100.0, 100.0, 100.0],
+                "low": [90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 90.0],
+                "close": [95.0, 95.0, 95.0, 95.0, 95.0, 95.0, 95.0],
+            }
+        )
         _supports, resistances = _find_pivots(daily, window=2)
         assert len(resistances) == 1
         assert resistances[0] == (dates[3], 120.0)
@@ -36,12 +40,14 @@ class TestFindPivots:
     def test_simple_pivot_low(self):
         """Bar 3 is lower than bars 0-2 and 4-6 → support at bar 3."""
         dates = pd.date_range("2026-01-01", periods=7)
-        daily = pd.DataFrame({
-            "date": dates,
-            "high": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
-            "low": [80.0, 80.0, 80.0, 60.0, 80.0, 80.0, 80.0],
-            "close": [90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 90.0],
-        })
+        daily = pd.DataFrame(
+            {
+                "date": dates,
+                "high": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+                "low": [80.0, 80.0, 80.0, 60.0, 80.0, 80.0, 80.0],
+                "close": [90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 90.0],
+            }
+        )
         supports, _resistances = _find_pivots(daily, window=2)
         assert len(supports) == 1
         assert supports[0] == (dates[3], 60.0)
@@ -49,12 +55,14 @@ class TestFindPivots:
     def test_no_pivots_in_small_data(self):
         """Less than 2*window+1 bars → no pivots."""
         dates = pd.date_range("2026-01-01", periods=3)
-        daily = pd.DataFrame({
-            "date": dates,
-            "high": [100.0, 110.0, 100.0],
-            "low": [90.0, 80.0, 90.0],
-            "close": [95.0, 95.0, 95.0],
-        })
+        daily = pd.DataFrame(
+            {
+                "date": dates,
+                "high": [100.0, 110.0, 100.0],
+                "low": [90.0, 80.0, 90.0],
+                "close": [95.0, 95.0, 95.0],
+            }
+        )
         supports, resistances = _find_pivots(daily, window=2)
         assert supports == []
         assert resistances == []
@@ -62,12 +70,14 @@ class TestFindPivots:
     def test_multiple_pivots(self):
         """Two distinct pivot highs and two pivot lows."""
         dates = pd.date_range("2026-01-01", periods=11)
-        daily = pd.DataFrame({
-            "date": dates,
-            "high": [100, 100, 100, 120, 100, 100, 130, 100, 100, 100, 100],
-            "low": [80, 80, 80, 80, 80, 60, 80, 80, 70, 80, 80],
-            "close": [90] * 11,
-        })
+        daily = pd.DataFrame(
+            {
+                "date": dates,
+                "high": [100, 100, 100, 120, 100, 100, 130, 100, 100, 100, 100],
+                "low": [80, 80, 80, 80, 80, 60, 80, 80, 70, 80, 80],
+                "close": [90] * 11,
+            }
+        )
         supports, resistances = _find_pivots(daily, window=2)
         assert len(resistances) >= 2
         assert len(supports) >= 2
@@ -75,12 +85,14 @@ class TestFindPivots:
     def test_monotonic_data_no_pivots(self):
         """Monotonically increasing data → no pivot lows, maybe pivot highs."""
         dates = pd.date_range("2026-01-01", periods=10)
-        daily = pd.DataFrame({
-            "date": dates,
-            "high": [100 + i * 5 for i in range(10)],
-            "low": [90 + i * 5 for i in range(10)],
-            "close": [95 + i * 5 for i in range(10)],
-        })
+        daily = pd.DataFrame(
+            {
+                "date": dates,
+                "high": [100 + i * 5 for i in range(10)],
+                "low": [90 + i * 5 for i in range(10)],
+                "close": [95 + i * 5 for i in range(10)],
+            }
+        )
         supports, _resistances = _find_pivots(daily, window=2)
         # Monotonically increasing → no pivot lows (each low > previous)
         assert len(supports) == 0
@@ -240,6 +252,7 @@ class TestPrecomputation:
 
         # Get from on-the-fly (clear precomputed)
         import shutil
+
         shutil.rmtree(tmp_path / "features" / "support_resistance")
         result_onthefly = sr.get_levels("RELIANCE", days=60, top_n=5)
 

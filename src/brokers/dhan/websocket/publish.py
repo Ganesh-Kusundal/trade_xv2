@@ -7,8 +7,9 @@ orchestration (connection + subscription + message routing).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from domain import DepthLevel, MarketDepth, Quote
 from domain.events import DomainEvent
@@ -38,6 +39,10 @@ class MarketFeedPublisher:
 
     def publish_tick(self, quote: dict, correlation_id: str | None = None) -> None:
         if self._event_bus is None:
+            return
+        from runtime.tick_authority import should_publish_tick_directly
+
+        if not should_publish_tick_directly():
             return
         try:
             ltp_raw = quote.get("ltp")

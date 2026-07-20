@@ -2,7 +2,8 @@
 
 **Status:** Code vs constitution (2026-07-20)  
 **Method:** graphify-first + targeted grep + architecture tests  
-**Authority:** Phases 0–F in `docs/constitution/`
+**Authority:** Phases 0–F in `docs/constitution/`  
+**Broker subsystem:** [09-broker-subsystem-gap-analysis.md](09-broker-subsystem-gap-analysis.md)
 
 ---
 

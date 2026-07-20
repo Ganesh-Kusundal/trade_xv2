@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from datalake.core.universe import UNIVERSE_DIR
 from interface.api.auth import require_auth
 from interface.api.deps import get_data_catalog
 from interface.api.schemas import (
@@ -14,7 +15,6 @@ from interface.api.schemas import (
     SymbolSearchResponse,
     UniverseResponse,
 )
-from datalake.core.universe import UNIVERSE_DIR
 
 logger = logging.getLogger(__name__)
 

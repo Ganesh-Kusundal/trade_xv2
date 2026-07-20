@@ -62,6 +62,7 @@ class DataQualityEngine:
     def __init__(self, root: str | None = None, catalog=None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog = catalog
@@ -142,18 +143,21 @@ class DataQualityEngine:
         elif report.min_date and report.max_date:
             try:
                 from datalake.exchange_registry import get_active_adapter
+
                 calendar = get_active_adapter().calendar
                 expected_trading_days = sum(
-                    1 for d in _date_range(report.min_date, report.max_date)
+                    1
+                    for d in _date_range(report.min_date, report.max_date)
                     if calendar.is_trading_day(d)
                 )
             except Exception:
                 total_days = (report.max_date - report.min_date).days
                 expected_trading_days = int(total_days * 5 / 7)
             if expected_trading_days > 0:
-                report.completeness_pct = max(
-                    0, 100 - (report.gap_days / expected_trading_days * 100)
-                )
+                from datalake.quality.contract import completeness_pct
+
+                actual_days = expected_trading_days - report.gap_days
+                report.completeness_pct = completeness_pct(actual_days, expected_trading_days)
 
         # Record in catalog
         if self._catalog:
@@ -225,9 +229,11 @@ class DataQualityEngine:
 
         try:
             from datalake.exchange_registry import get_active_adapter
+
             calendar = get_active_adapter().calendar
             expected = [
-                d for d in _date_range(dates_sorted[0], dates_sorted[-1])
+                d
+                for d in _date_range(dates_sorted[0], dates_sorted[-1])
                 if calendar.is_trading_day(d)
             ]
             expected_set = set(expected)

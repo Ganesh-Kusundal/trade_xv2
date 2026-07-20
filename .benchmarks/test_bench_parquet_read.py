@@ -21,15 +21,17 @@ def parquet_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Create a test parquet file with realistic candle data."""
     path = tmp_path_factory.mktemp("bench_parquet") / "candles.parquet"
     n = 50_000
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
-        "symbol": "TESTSYM",
-        "open": [100.0 + (i % 375) * 0.01 for i in range(n)],
-        "high": [101.0 + (i % 375) * 0.01 for i in range(n)],
-        "low": [99.0 + (i % 375) * 0.01 for i in range(n)],
-        "close": [100.5 + (i % 375) * 0.01 for i in range(n)],
-        "volume": [1000 + i for i in range(n)],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
+            "symbol": "TESTSYM",
+            "open": [100.0 + (i % 375) * 0.01 for i in range(n)],
+            "high": [101.0 + (i % 375) * 0.01 for i in range(n)],
+            "low": [99.0 + (i % 375) * 0.01 for i in range(n)],
+            "close": [100.5 + (i % 375) * 0.01 for i in range(n)],
+            "volume": [1000 + i for i in range(n)],
+        }
+    )
     atomic_parquet_write(path, pa.Table.from_pandas(df))
     return path
 

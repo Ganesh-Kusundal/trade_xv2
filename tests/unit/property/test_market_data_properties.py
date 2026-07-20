@@ -14,7 +14,6 @@ from decimal import Decimal
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-
 _PRICE = st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"))
 
 
@@ -49,12 +48,8 @@ class TestMarketDataProperties:
         assert low <= high, f"Low ({low}) must be <= high ({high})"
 
         # Invariant: ltp and open should be within [low, high] range
-        assert low <= ltp <= high, (
-            f"LTP ({ltp}) should be within [{low}, {high}] range"
-        )
-        assert low <= open_ <= high, (
-            f"Open ({open_}) should be within [{low}, {high}] range"
-        )
+        assert low <= ltp <= high, f"LTP ({ltp}) should be within [{low}, {high}] range"
+        assert low <= open_ <= high, f"Open ({open_}) should be within [{low}, {high}] range"
 
     @given(
         volume=st.integers(min_value=0, max_value=10000000),
@@ -88,7 +83,7 @@ class TestMarketDataProperties:
         prices=st.lists(
             st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000")),
             min_size=1,
-            max_size=100
+            max_size=100,
         ),
     )
     @settings(max_examples=50)

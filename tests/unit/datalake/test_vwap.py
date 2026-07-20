@@ -16,16 +16,18 @@ def sample_intraday():
     np.random.seed(42)
     base = 1000.0
     prices = base + np.cumsum(np.random.randn(375) * 2)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": "RELIANCE",
-        "exchange": "NSE",
-        "open": prices,
-        "high": prices + 5,
-        "low": prices - 5,
-        "close": prices + 1,
-        "volume": np.random.randint(100, 10000, 375),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "open": prices,
+            "high": prices + 5,
+            "low": prices - 5,
+            "close": prices + 1,
+            "volume": np.random.randint(100, 10000, 375),
+        }
+    )
 
 
 @pytest.fixture
@@ -36,15 +38,17 @@ def multi_day_data():
     dates = dates1.append(dates2)
     np.random.seed(42)
     prices = 1000.0 + np.cumsum(np.random.randn(len(dates)) * 2)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": "RELIANCE",
-        "open": prices,
-        "high": prices + 5,
-        "low": prices - 5,
-        "close": prices + 1,
-        "volume": np.random.randint(100, 10000, len(dates)),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": "RELIANCE",
+            "open": prices,
+            "high": prices + 5,
+            "low": prices - 5,
+            "close": prices + 1,
+            "volume": np.random.randint(100, 10000, len(dates)),
+        }
+    )
 
 
 class TestComputeVwap:
@@ -83,9 +87,7 @@ class TestDailyVwap:
         day1 = result[result["timestamp"].dt.date == pd.Timestamp("2024-01-15").date()]
         result[result["timestamp"].dt.date == pd.Timestamp("2024-01-16").date()]
 
-        assert day1["vwap_daily"].iloc[0] == pytest.approx(
-            day1["vwap_daily"].iloc[-1], rel=0.1
-        )
+        assert day1["vwap_daily"].iloc[0] == pytest.approx(day1["vwap_daily"].iloc[-1], rel=0.1)
 
     def test_daily_vwap_intraday_reset(self, sample_intraday):
         result = compute_daily_vwap(sample_intraday)

@@ -10,8 +10,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from interface.api.auth import require_auth
 from application.audit import audit_logger
+from interface.api.auth import require_auth
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 

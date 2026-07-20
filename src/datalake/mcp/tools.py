@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 
-import duckdb
 import pandas as pd
 
 from datalake.core.constants import SUPPORTED_TIMEFRAMES

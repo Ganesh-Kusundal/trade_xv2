@@ -14,12 +14,10 @@ from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
-import pytest
 
 from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
-from datalake.gateway import DataLakeGateway
 from datalake.core.io import atomic_parquet_write
-
+from datalake.gateway import DataLakeGateway
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -57,7 +55,15 @@ class TestMarketDataProviderCompliance:
 
     def test_has_all_required_methods(self, tmp_path: Path):
         provider = DataLakeMarketDataProvider(root=str(tmp_path))
-        required = {"history", "option_chain", "future_chain", "ltp", "history_batch", "list_symbols", "query"}
+        required = {
+            "history",
+            "option_chain",
+            "future_chain",
+            "ltp",
+            "history_batch",
+            "list_symbols",
+            "query",
+        }
         for method_name in required:
             assert hasattr(provider, method_name), f"Missing method: {method_name}"
             assert callable(getattr(provider, method_name))

@@ -9,12 +9,20 @@ from typing import Any, Protocol, runtime_checkable
 class MetricsRegistryPort(Protocol):
     """Protocol for metrics collection (counter, gauge, histogram)."""
 
-    def counter(self, name: str, description: str = "", labels: dict[str, str] | None = None) -> Any: ...
+    def counter(
+        self, name: str, description: str = "", labels: dict[str, str] | None = None
+    ) -> Any: ...
 
-    def gauge(self, name: str, description: str = "", labels: dict[str, str] | None = None) -> Any: ...
+    def gauge(
+        self, name: str, description: str = "", labels: dict[str, str] | None = None
+    ) -> Any: ...
 
     def histogram(
-        self, name: str, description: str = "", labels: dict[str, str] | None = None, buckets: list[float] | None = None
+        self,
+        name: str,
+        description: str = "",
+        labels: dict[str, str] | None = None,
+        buckets: list[float] | None = None,
     ) -> Any: ...
 
     def snapshot(self) -> dict[str, Any]: ...

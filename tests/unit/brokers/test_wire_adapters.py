@@ -6,11 +6,11 @@ from decimal import Decimal
 
 import pytest
 
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.wire import DhanWireAdapter, create_wire_adapter
 from brokers.paper.paper_gateway import PaperGateway
 from brokers.upstox.wire import UpstoxWireAdapter
-from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
-from brokers.dhan.streaming.connection import DhanConnection
+from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
 
 
 @pytest.fixture()

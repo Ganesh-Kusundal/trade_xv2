@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 from domain.errors import TradeXV2Error
 
 

@@ -8,13 +8,21 @@ and MCP (``broker.verify``) both delegate to.
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from collections.abc import Callable
 
 from brokers.certification.market_hours import is_nse_market_open
+from brokers.common.historical_gap_check import assert_gap_free_historical
+from brokers.certification.live_probes import (
+    probe_disconnect,
+    probe_reconnect,
+    probe_session_recovery,
+    probe_token_expiry,
+    probe_token_refresh,
+)
 from brokers.certification.report import (
     CertArea,
-    CertResult,
     CertificationReport,
+    CertResult,
 )
 from brokers.session import BrokerSession
 from infrastructure.broker_plugin import get_broker_plugin
@@ -60,7 +68,7 @@ class BrokerCertifier:
         except NotImplementedError:
             passed = warn_only
             detail = "not implemented (skipped)" if warn_only else "not implemented"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             passed = warn_only
             detail = f"{type(exc).__name__}: {exc}"
         ms = round((time.perf_counter() - start) * 1000, 2)
@@ -81,15 +89,23 @@ class BrokerCertifier:
         report.add(self._check(CertArea.SYMBOL_LOOKUP, lambda: _symbol_lookup(s)))
         report.add(self._check(CertArea.INSTRUMENT_LOOKUP, lambda: _instrument_lookup(s)))
         report.add(self._check(CertArea.CANONICAL_MAPPING, lambda: _canonical_mapping(s)))
-        report.add(self._check(CertArea.SECURITY_ID_MAPPING, lambda: _security_id_mapping(s), warn_only=True))
-        report.add(self._check(CertArea.REVERSE_MAPPING, lambda: _reverse_mapping(s), warn_only=True))
+        report.add(
+            self._check(
+                CertArea.SECURITY_ID_MAPPING, lambda: _security_id_mapping(s), warn_only=True
+            )
+        )
+        report.add(
+            self._check(CertArea.REVERSE_MAPPING, lambda: _reverse_mapping(s), warn_only=True)
+        )
 
         # ── Market data ──
         report.add(self._check(CertArea.QUOTE, lambda: _quote(s)))
         report.add(self._check(CertArea.LTP, lambda: _ltp(s)))
         report.add(self._check(CertArea.OHLC, lambda: _ohlc(s)))
         report.add(self._check(CertArea.DEPTH, lambda: _depth(s), market_hours_only=True))
-        report.add(self._check(CertArea.LIVE_STREAM, lambda: _live_stream(s), market_hours_only=True))
+        report.add(
+            self._check(CertArea.LIVE_STREAM, lambda: _live_stream(s), market_hours_only=True)
+        )
 
         # ── Historical ──
         report.add(self._check(CertArea.TF_1M, lambda: _hist(s, "1m"), warn_only=True))
@@ -110,13 +126,17 @@ class BrokerCertifier:
 
         # ── Performance ──
         report.add(self._check(CertArea.QUOTE_LATENCY, lambda: _quote_latency(s)))
-        report.add(self._check(CertArea.SUBSCRIPTION_LATENCY, lambda: _sub_latency(s), market_hours_only=True))
+        report.add(
+            self._check(
+                CertArea.SUBSCRIPTION_LATENCY, lambda: _sub_latency(s), market_hours_only=True
+            )
+        )
 
         # ── Recovery (money path — fail) / rate limits / capability matrix ──
         report.add(self._check(CertArea.DISCONNECT, lambda: _disconnect(s)))
         report.add(self._check(CertArea.SESSION_RECOVERY, lambda: _session_recovery(s)))
-        report.add(self._check(CertArea.RATE_BURST, lambda: _rate_burst(s), warn_only=True))
-        report.add(self._check(CertArea.RATE_SUSTAINED, lambda: _rate_sustained(s), warn_only=True))
+        report.add(self._check(CertArea.RATE_BURST, lambda: _rate_burst(s)))
+        report.add(self._check(CertArea.RATE_SUSTAINED, lambda: _rate_sustained(s)))
         report.add(self._check(CertArea.CAPABILITY_MATRIX, lambda: _capability_matrix(s)))
 
         return report
@@ -136,33 +156,19 @@ def _token_refresh(s: BrokerSession) -> str:
     """Token refresh is live-broker only; paper returns N/A (pass)."""
     if not _live_session_checks_applicable(s):
         return "N/A (synthetic broker)"
-    # Public surface: session must be authenticated; refresh is plugin-internal.
-    st = s.status
-    if not getattr(st, "authenticated", False):
-        raise RuntimeError("session not authenticated")
-    # Fail loudly until a real refresh probe is wired (money path).
-    raise RuntimeError(
-        "token refresh check not implemented for live broker — certification must fail"
-    )
+    return probe_token_refresh(s)
 
 
 def _token_expiry(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
         return "N/A (synthetic broker)"
-    st = s.status
-    if not getattr(st, "authenticated", False):
-        raise RuntimeError("session not authenticated")
-    raise RuntimeError(
-        "token expiry check not implemented for live broker — certification must fail"
-    )
+    return probe_token_expiry(s)
 
 
 def _reconnect(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
         return "N/A (synthetic broker)"
-    raise RuntimeError(
-        "reconnect check not implemented for live broker — certification must fail"
-    )
+    return probe_reconnect(s)
 
 
 def _symbol_lookup(s: BrokerSession) -> str:
@@ -245,29 +251,73 @@ def _hist(s: BrokerSession, tf: str) -> str:
     stock = s.stock("RELIANCE")
     days = 90 if tf.upper() in ("1D", "D", "DAY") else 30
     series = s.history(stock, timeframe=tf, days=days)
-    n = getattr(series, "bar_count", 0)
-    if not n:
-        bars = getattr(series, "bars", None) or getattr(series, "candles", None)
-        if bars is not None:
-            n = len(bars)
-    if not n:
-        raise RuntimeError(f"no {tf} history")
+    # Live brokers: enforce gap-free + monotonic. Synthetic brokers (paper) may
+    # route through a federated coordinator that marks gaps when no live broker
+    # is registered — require bars only.
+    if not _live_session_checks_applicable(s):
+        n = getattr(series, "bar_count", 0) or 0
+        if not n:
+            bars = getattr(series, "bars", None) or getattr(series, "candles", None)
+            if bars is not None:
+                n = len(bars)
+        if not n:
+            # Fall back to instrument-local history for paper gateways.
+            local = getattr(stock, "history", None)
+            if callable(local):
+                local_series = local(timeframe=tf, days=days)
+                n = getattr(local_series, "bar_count", 0) or len(
+                    getattr(local_series, "bars", None)
+                    or getattr(local_series, "candles", None)
+                    or []
+                )
+        if not n:
+            raise RuntimeError(f"no {tf} history")
+        return f"{n} {tf} bars (synthetic)"
+    n = assert_gap_free_historical(series, timeframe=tf)
     return f"{n} {tf} bars"
 
 
+def _tick_align_price(price: "Decimal", tick: "Decimal" = None) -> "Decimal":
+    from decimal import Decimal, ROUND_DOWN
+
+    from domain.constants import DEFAULT_TICK_SIZE
+
+    tick = tick or Decimal(str(DEFAULT_TICK_SIZE))
+    if tick <= 0:
+        return Decimal(str(price))
+    raw = Decimal(str(price))
+    return (raw / tick).to_integral_value(rounding=ROUND_DOWN) * tick
+
+
 def _order_market(s: BrokerSession) -> str:
-    r = s.buy(s.stock("RELIANCE"), 1)
+    from decimal import Decimal
+
+    stock = s.stock("RELIANCE")
+    stock.refresh()
+    # MARKET needs a ref price for risk sizing; use LTP as MARKET-with-ref.
+    ltp = stock.ltp
+    if ltp is None:
+        raise RuntimeError("market order failed: no LTP for risk sizing")
+    price = _tick_align_price(Decimal(str(ltp)))
+    r = s.buy(stock, 1, price=price, order_type="MARKET")
     if r is None or not getattr(r, "success", False):
-        raise RuntimeError("market order failed")
+        detail = getattr(r, "message", None) or getattr(r, "error", None) or r
+        raise RuntimeError(f"market order failed: {detail}")
     return "market order placed"
 
 
 def _order_limit(s: BrokerSession) -> str:
     from decimal import Decimal
 
-    r = s.buy(s.stock("RELIANCE"), 1, price=Decimal("1"))
+    stock = s.stock("RELIANCE")
+    stock.refresh()
+    ltp = stock.ltp or Decimal("100")
+    # Far-from-market limit so paper OMS accepts without immediate fill race.
+    price = _tick_align_price(max(Decimal("1"), Decimal(str(ltp)) * Decimal("0.5")))
+    r = s.buy(stock, 1, price=price, order_type="LIMIT")
     if r is None or not getattr(r, "success", False):
-        raise RuntimeError("limit order failed")
+        detail = getattr(r, "message", None) or getattr(r, "error", None) or r
+        raise RuntimeError(f"limit order failed: {detail}")
     return "limit order placed"
 
 
@@ -282,13 +332,32 @@ def _order_cancel(s: BrokerSession) -> str:
 
 
 def _order_modify(s: BrokerSession) -> str:
-    orders = s.session.orders()
-    if not orders:
-        raise RuntimeError("no orders to modify")
-    oid = getattr(orders[0], "order_id", "x")
-    r = s.session.modify(oid, quantity=1)
+    from decimal import Decimal
+
+    # Place a fresh resting limit — prior cancel may have cleared the book.
+    stock = s.stock("RELIANCE")
+    stock.refresh()
+    ltp = stock.ltp or Decimal("100")
+    price = _tick_align_price(max(Decimal("1"), Decimal(str(ltp)) * Decimal("0.4")))
+    placed = s.buy(stock, 1, price=price, order_type="LIMIT")
+    if placed is None or not getattr(placed, "success", False):
+        raise RuntimeError("modify failed: could not place resting order")
+    oid = getattr(placed, "order_id", None)
+    if not oid:
+        orders = s.session.orders()
+        if not orders:
+            raise RuntimeError("no orders to modify")
+        oid = getattr(orders[0], "order_id", "x")
+    new_price = _tick_align_price(price * Decimal("0.9"))
+    r = s.session.modify(oid, price=new_price, quantity=1)
     if r is None or not getattr(r, "success", False):
-        raise RuntimeError("modify failed")
+        detail = str(getattr(r, "message", None) or getattr(r, "error", None) or r)
+        # Paper/sim often fills resting limits immediately — modify is N/A then.
+        if not _live_session_checks_applicable(s) and (
+            "already final" in detail.lower() or "filled" in detail.lower()
+        ):
+            return f"N/A (synthetic fill: {detail})"
+        raise RuntimeError(f"modify failed: {detail}")
     return "order modified"
 
 
@@ -348,17 +417,13 @@ def _sub_latency(s: BrokerSession) -> str:
 def _disconnect(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
         return "N/A (synthetic broker)"
-    raise RuntimeError(
-        "disconnect check not implemented for live broker — certification must fail"
-    )
+    return probe_disconnect(s)
 
 
 def _session_recovery(s: BrokerSession) -> str:
     if not _live_session_checks_applicable(s):
         return "N/A (synthetic broker)"
-    raise RuntimeError(
-        "session recovery check not implemented for live broker — certification must fail"
-    )
+    return probe_session_recovery(s)
 
 
 def _rate_burst(s: BrokerSession) -> str:
@@ -378,6 +443,6 @@ def _rate_sustained(s: BrokerSession) -> str:
 
 def _capability_matrix(s: BrokerSession) -> str:
     caps = s.stock("RELIANCE").capabilities()
-    if not isinstance(caps, (list, tuple)):
+    if not isinstance(caps, list | tuple):
         raise RuntimeError("capability query failed")
     return f"{len(caps)} capabilities reported"

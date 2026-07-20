@@ -244,4 +244,3 @@ class UpstoxExtendedCapabilities:
     def get_ip(self) -> dict[str, str]:
         """Get configured IP addresses."""
         return self._broker.static_ip.get_static_ip()
-

@@ -46,8 +46,8 @@ class TestSchemaEnforcement:
         for field in required_fields:
             assert hasattr(quote, field), f"Quote missing field: {field}"
         # Type checks
-        assert isinstance(quote.ltp, (int, float, Decimal))
-        assert isinstance(quote.volume, (int, float))
+        assert isinstance(quote.ltp, int | float | Decimal)
+        assert isinstance(quote.volume, int | float)
 
     def test_market_depth_schema(self, gateway: DhanBrokerGateway):
         """MarketDepth must have: bids (list), asks (list)."""
@@ -70,7 +70,7 @@ class TestSchemaEnforcement:
         for field in required_fields:
             assert hasattr(balance, field), f"Balance missing field: {field}"
         # Type checks
-        assert isinstance(balance.available_balance, (int, float, Decimal))
+        assert isinstance(balance.available_balance, int | float | Decimal)
 
     def test_order_schema(self, gateway: DhanBrokerGateway):
         """Order must have: order_id, symbol, exchange, side, quantity, status."""
@@ -121,7 +121,7 @@ class TestSchemaEnforcement:
         assert hasattr(chain, "spot")
         assert hasattr(chain, "strikes")
         assert chain.spot > 0
-        assert isinstance(chain.strikes, (list, tuple))
+        assert isinstance(chain.strikes, list | tuple)
 
     def test_future_chain_schema(self, gateway: DhanBrokerGateway):
         """FutureChain must have: underlying, expiries, contracts."""
@@ -130,8 +130,8 @@ class TestSchemaEnforcement:
         assert hasattr(chain, "expiries")
         assert hasattr(chain, "contracts")
         assert chain.underlying
-        assert isinstance(chain.expiries, (list, tuple))
-        assert isinstance(chain.contracts, (list, tuple))
+        assert isinstance(chain.expiries, list | tuple)
+        assert isinstance(chain.contracts, list | tuple)
 
     def test_search_result_schema(self, gateway: DhanBrokerGateway):
         """Search results must have: symbol, exchange, type, security_id."""

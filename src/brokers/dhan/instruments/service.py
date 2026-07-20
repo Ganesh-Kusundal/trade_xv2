@@ -145,9 +145,7 @@ class DhanInstrumentService:
         expected_segment: str | None = None,
     ) -> BrokerWireRef:
         """Opaque wire ref for connection / adapters (not for gateways)."""
-        ref = self._identity.resolve_ref(
-            symbol, exchange, expected_segment=expected_segment
-        )
+        ref = self._identity.resolve_ref(symbol, exchange, expected_segment=expected_segment)
         return self._to_wire_ref(ref)
 
     def resolve_dhan_ref(
@@ -158,9 +156,7 @@ class DhanInstrumentService:
         expected_segment: str | None = None,
     ) -> DhanInstrumentRef:
         """Typed Dhan carrier — preferred inside brokers/dhan/**."""
-        return self._identity.resolve_ref(
-            symbol, exchange, expected_segment=expected_segment
-        )
+        return self._identity.resolve_ref(symbol, exchange, expected_segment=expected_segment)
 
     def search(self, query: str, *, limit: int = 20) -> list[dict]:
         """Search returning dicts for describe/debug tooling."""

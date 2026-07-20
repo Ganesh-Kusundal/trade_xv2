@@ -11,8 +11,8 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from interface.ui.services.broker_ops import get_depth, get_history, get_quote
 from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_depth, get_history, get_quote
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.utils.time_formatter import format_ist_time
 
@@ -228,9 +228,7 @@ def show_option_chain(
                 pe = entry.get("put", {}) or {}
 
                 # Determine ATM highlight
-                atm_dist = min(
-                    (abs(float(s["strike"]) - float(spot)) for s in strikes), default=0
-                )
+                atm_dist = min((abs(float(s["strike"]) - float(spot)) for s in strikes), default=0)
                 is_atm = abs(float(strike_val) - float(spot)) == atm_dist
                 strike_label = (
                     f"[bold yellow on blue] {float(strike_val):>10,.0f} [/bold yellow on blue]"
@@ -266,9 +264,7 @@ def show_option_chain(
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
-def show_futures(
-    broker_service: BrokerService, symbol: str, console: Console
-) -> None:
+def show_futures(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Display futures contract details."""
     gw = broker_service.active_broker
     sym = symbol.upper().strip()
@@ -310,9 +306,7 @@ def show_futures(
         console.print(f"[red]Error fetching futures details: {exc}[/red]")
 
 
-def show_historical(
-    broker_service: BrokerService, symbol: str, console: Console
-) -> None:
+def show_historical(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Display historical candles summary and preview."""
     exchange = resolve_exchange(symbol)
 
@@ -355,7 +349,9 @@ def show_historical(
                 ts_str = (
                     ts_val.strftime("%Y-%m-%d")
                     if isinstance(ts_val, datetime)
-                    else str(ts_val) if ts_val is not None else "N/A"
+                    else str(ts_val)
+                    if ts_val is not None
+                    else "N/A"
                 )
                 table.add_row(
                     ts_str,
@@ -369,8 +365,12 @@ def show_historical(
             console.print()
             first_ts = df["timestamp"].iloc[0]
             last_ts = df["timestamp"].iloc[-1]
-            first_str = first_ts.strftime("%Y-%m-%d") if isinstance(first_ts, datetime) else str(first_ts)
-            last_str = last_ts.strftime("%Y-%m-%d") if isinstance(last_ts, datetime) else str(last_ts)
+            first_str = (
+                first_ts.strftime("%Y-%m-%d") if isinstance(first_ts, datetime) else str(first_ts)
+            )
+            last_str = (
+                last_ts.strftime("%Y-%m-%d") if isinstance(last_ts, datetime) else str(last_ts)
+            )
             console.print(
                 f"Total Rows: [bold cyan]{len(df)}[/bold cyan] candles | First: {first_str} | Last: {last_str}"
             )
@@ -396,9 +396,7 @@ def _build_stream_table(symbol: str, rows: list[list[str]]) -> Table:
     return tbl
 
 
-def show_stream(
-    broker_service: BrokerService, symbol: str, console: Console
-) -> None:
+def show_stream(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Stream live ticks via the broker WebSocket and display as a rolling table.
 
     Uses ``gateway.stream()`` which subscribes to the broker WebSocket and
@@ -428,19 +426,19 @@ def show_stream(
         # Accept canonical Quote OR raw dict (fallback path)
         try:
             if hasattr(quote, "ltp"):
-                ltp   = quote.ltp       # type: ignore[attr-defined]
-                open_ = quote.open      # type: ignore[attr-defined]
-                high  = quote.high      # type: ignore[attr-defined]
-                low   = quote.low       # type: ignore[attr-defined]
-                vol   = quote.volume    # type: ignore[attr-defined]
-                chg   = quote.change    # type: ignore[attr-defined]
-                ts    = quote.timestamp # type: ignore[attr-defined]
+                ltp = quote.ltp  # type: ignore[attr-defined]
+                open_ = quote.open  # type: ignore[attr-defined]
+                high = quote.high  # type: ignore[attr-defined]
+                low = quote.low  # type: ignore[attr-defined]
+                vol = quote.volume  # type: ignore[attr-defined]
+                chg = quote.change  # type: ignore[attr-defined]
+                ts = quote.timestamp  # type: ignore[attr-defined]
             elif isinstance(quote, dict):
                 payload = quote.get("payload", quote)
-                ltp   = payload.get("last_price", 0) if isinstance(payload, dict) else 0
+                ltp = payload.get("last_price", 0) if isinstance(payload, dict) else 0
                 open_ = high = low = chg = 0
-                vol   = 0
-                ts    = None
+                vol = 0
+                ts = None
             else:
                 return
 
@@ -449,7 +447,11 @@ def show_stream(
             # is a live stream and the tick just arrived.
             ts = ts if ts and hasattr(ts, "strftime") else datetime.now(timezone.utc)
             ts_str = format_ist_time(ts)
-            chg_str = f"[green]+{float(chg):,.2f}[/green]" if float(chg) >= 0 else f"[red]{float(chg):,.2f}[/red]"
+            chg_str = (
+                f"[green]+{float(chg):,.2f}[/green]"
+                if float(chg) >= 0
+                else f"[red]{float(chg):,.2f}[/red]"
+            )
 
             row = [
                 ts_str,
@@ -475,7 +477,9 @@ def show_stream(
         try:
             ws_handle = gw.stream(symbol, exchange=exchange, mode="LTP", on_tick=on_tick)
         except Exception as exc:
-            console.print(f"[yellow]WebSocket unavailable ({exc}), falling back to REST polling.[/yellow]")
+            console.print(
+                f"[yellow]WebSocket unavailable ({exc}), falling back to REST polling.[/yellow]"
+            )
             use_ws = False
 
     with Live(_build_stream_table(symbol, rows), console=console, refresh_per_second=2) as live:

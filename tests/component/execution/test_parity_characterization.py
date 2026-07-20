@@ -6,7 +6,6 @@ objects. Live mode is tested separately via OrderManager directly.
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -16,10 +15,11 @@ from application.execution.oms_backtest_adapter import (
     SimulatedOMSAdapter,
     create_execution_adapter,
 )
+from application.oms._internal.risk_manager import RiskConfig
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderResult
-from application.oms._internal.risk_manager import RiskConfig
 from domain import OrderType, ProductType, Side
+from tests.conftest import build_test_trading_context
 
 # ---------------------------------------------------------------------------
 # Fixtures

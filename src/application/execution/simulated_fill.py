@@ -8,8 +8,7 @@ from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
-from application.oms.order_manager import OmsOrderCommand
-from application.oms.order_manager import OrderManager
+from application.oms.order_manager import OmsOrderCommand, OrderManager
 from domain import Order, OrderStatus, ProductType, Side, Trade
 from domain.ports.time_service import get_current_clock
 from domain.trading_costs import apply_slippage  # noqa: F401  (intentional re-export)

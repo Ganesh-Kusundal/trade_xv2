@@ -129,14 +129,14 @@ def implied_volatility(
             return None
 
     a, b = lo, hi
-    fa, fb = residual(a), residual(b)
+    fa, _fb = residual(a), residual(b)
     for _ in range(max_iter):
         mid = 0.5 * (a + b)
         fm = residual(mid)
         if abs(fm) < tol or abs(b - a) < tol:
             return Decimal(str(round(mid, 8)))
         if fa * fm <= 0:
-            b, fb = mid, fm
+            b, _fb = mid, fm
         else:
             a, fa = mid, fm
     return None

@@ -6,8 +6,8 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from analytics.backtest import BacktestConfig, BacktestEngine
-from analytics.paper import PaperConfig, PaperTradingEngine
+from analytics.backtest import BacktestConfig
+from analytics.paper import PaperConfig
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
 from analytics.strategy import MomentumStrategy, StrategyPipeline
 
@@ -18,10 +18,14 @@ def run_backtest(args: list[str], console: Console) -> None:
     benchmark_path = None
     capital = 100_000.0
     warmup = 20
+    research_only = False
     index = 0
     while index < len(args):
         arg = args[index]
-        if arg == "--file" and index + 1 < len(args):
+        if arg == "--research":
+            research_only = True
+            index += 1
+        elif arg == "--file" and index + 1 < len(args):
             file_path = args[index + 1]
             index += 2
         elif arg == "--benchmark" and index + 1 < len(args):
@@ -62,7 +66,17 @@ def run_backtest(args: list[str], console: Console) -> None:
     pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
     config = BacktestConfig(initial_capital=capital, warmup_bars=warmup)
 
-    engine = BacktestEngine(pipeline, config=config)
+    if research_only:
+        from runtime.paper_session import build_backtest_engine
+
+        engine = build_backtest_engine(pipeline, config=config, research_only=True)
+        label = "[dim]research-only (non-parity)[/dim]"
+    else:
+        from runtime.paper_session import build_backtest_engine
+
+        engine = build_backtest_engine(pipeline, config=config)
+        label = "[dim]OMS parity-backed[/dim]"
+    console.print(label)
     result = engine.run(data, symbol="BACKTEST", benchmark=benchmark)
 
     console.print("\n[bold cyan]=== BACKTEST RESULTS ===[/bold cyan]\n")
@@ -104,10 +118,14 @@ def run_paper(args: list[str], console: Console) -> None:
     slippage = 0.01
     commission = 0.0003
     stop_loss = 2.0
+    research_only = False
     index = 0
     while index < len(args):
         arg = args[index]
-        if arg == "--file" and index + 1 < len(args):
+        if arg == "--research":
+            research_only = True
+            index += 1
+        elif arg == "--file" and index + 1 < len(args):
             file_path = args[index + 1]
             index += 2
         elif arg == "--capital" and index + 1 < len(args):
@@ -164,9 +182,22 @@ def run_paper(args: list[str], console: Console) -> None:
     console.print(
         f"[dim]Running paper trading: ₹{capital:,.0f} capital, {max_positions} max positions, {slippage}% slippage[/dim]"
     )
-    engine = PaperTradingEngine(
-        pipeline, strategy, config, allow_simulate_without_oms=True
-    )
+    if research_only:
+        from runtime.paper_session import build_paper_trading_engine
+
+        engine = build_paper_trading_engine(pipeline, strategy, config, research_only=True)
+        console.print("[yellow]research-only — not OMS parity-backed[/yellow]")
+    else:
+        from runtime.paper_session import build_paper_trading_engine
+
+        engine = build_paper_trading_engine(
+            pipeline,
+            strategy,
+            config,
+            slippage_pct=slippage,
+            commission_flat=capital * commission,
+        )
+        console.print("[dim]OMS parity-backed paper session[/dim]")
     result = engine.run(data, symbol="PAPER")
 
     console.print("\n[bold cyan]=== PAPER TRADING RESULTS ===[/bold cyan]\n")

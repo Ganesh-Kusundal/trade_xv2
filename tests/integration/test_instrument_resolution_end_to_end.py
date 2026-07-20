@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
-from domain.instruments.instrument_id import InstrumentId
 from domain.instrument_resolver import resolve_selector
 
 
@@ -105,15 +102,17 @@ class TestInstrumentIdIntegration:
         from datalake.core.symbols import instrument_id_from_symbol
 
         # Create minimal universe with OHLCV data
-        universe = pd.DataFrame({
-            "symbol": ["RELIANCE", "INFY", "TCS"],
-            "timestamp": pd.to_datetime(["2026-06-10 09:30:00"] * 3),
-            "open": [2500.0, 1800.0, 3500.0],
-            "high": [2520.0, 1820.0, 3520.0],
-            "low": [2480.0, 1780.0, 3480.0],
-            "close": [2510.0, 1810.0, 3510.0],
-            "volume": [100000, 80000, 60000],
-        })
+        universe = pd.DataFrame(
+            {
+                "symbol": ["RELIANCE", "INFY", "TCS"],
+                "timestamp": pd.to_datetime(["2026-06-10 09:30:00"] * 3),
+                "open": [2500.0, 1800.0, 3500.0],
+                "high": [2520.0, 1820.0, 3520.0],
+                "low": [2480.0, 1780.0, 3480.0],
+                "close": [2510.0, 1810.0, 3510.0],
+                "volume": [100000, 80000, 60000],
+            }
+        )
 
         scanner = VolumeScanner(top_n=2)
         result = scanner.scan(universe)

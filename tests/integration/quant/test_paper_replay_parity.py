@@ -1,7 +1,6 @@
 """Paper vs replay execution parity (REF-9)."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import pandas as pd
 import pytest
@@ -13,8 +12,8 @@ from analytics.replay.engine import ReplayEngine
 from analytics.replay.models import ReplayConfig
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
-from application.oms.factory import create_trading_context
 from runtime.wire_runtime_hooks import wire_runtime_hooks
+from tests.conftest import build_test_trading_context
 
 
 def _norm_side(side: object) -> str:

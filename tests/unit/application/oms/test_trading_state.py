@@ -1,4 +1,3 @@
-import pytest
 from application.oms._internal.trading_state import TradingState, TradingStateEnum
 
 

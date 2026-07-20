@@ -45,15 +45,11 @@ class UpstoxRestOrderClient:
 
     def get_trades_by_order(self, order_id: str) -> list[dict[str, Any]]:
         """Get trades for a specific order."""
-        body = self._http.get_json(
-            self._urls.trades_for_day_url(), params={"order_id": order_id}
-        )
+        body = self._http.get_json(self._urls.trades_for_day_url(), params={"order_id": order_id})
         return _data_list(body)
 
     def get_order_history(self, order_id: str) -> list[dict[str, Any]]:
-        body = self._http.get_json(
-            self._urls.order_history_url(), params={"order_id": order_id}
-        )
+        body = self._http.get_json(self._urls.order_history_url(), params={"order_id": order_id})
         return _data_list(body)
 
     def place_multi_order(self, payloads: list[dict[str, Any]]) -> dict[str, Any]:

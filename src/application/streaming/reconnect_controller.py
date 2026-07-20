@@ -77,6 +77,19 @@ class ReconnectController:
         self._log_state_change = log_state_change
         self._notify_health_change = notify_health_change
 
+    async def _disconnect_handle(self, session_id: str) -> None:
+        """Close prior transport before reopen — prevents overlapping duplicate ticks."""
+        old = self._handles.get(session_id)
+        if old is None:
+            return
+        try:
+            await old.disconnect()
+        except Exception as exc:
+            logger.debug("reconnect_disconnect_failed session=%s: %s", session_id, exc)
+        async with self._lock:
+            if self._handles.get(session_id) is old:
+                del self._handles[session_id]
+
     # ------------------------------------------------------------------
     # Reconnect loop
     # ------------------------------------------------------------------
@@ -113,13 +126,12 @@ class ReconnectController:
                     session.reconnect_generation >= self._MAX_RECONNECT_ATTEMPTS
                     and original_request.allow_failover
                 ):
-                    failover_ok = await self._try_failover(
-                        session_id, session, original_request
-                    )
+                    failover_ok = await self._try_failover(session_id, session, original_request)
                     if failover_ok:
                         return
 
                 try:
+                    await self._disconnect_handle(session_id)
                     broker_id = session.broker_id
                     gw = self._registry.get_gateway(broker_id)
                     frame_cb = self._frame_handlers.get(session_id)
@@ -187,6 +199,7 @@ class ReconnectController:
             if fallback_broker == current_broker:
                 continue
             try:
+                await self._disconnect_handle(session_id)
                 gw = self._registry.get_gateway(fallback_broker)
                 frame_cb = self._frame_handlers.get(session_id)
                 plan = BrokerStreamPlan(

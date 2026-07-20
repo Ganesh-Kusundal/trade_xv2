@@ -8,7 +8,6 @@ cancellation.
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any  # Only for signal handler frame type
 
 from application.oms.context._types import CancellationResult
@@ -149,9 +148,7 @@ class TradingContextLifecycleMixin(ManagedServicePort):
             try:
                 from application.ports import run_coro_sync
 
-                run_coro_sync(
-                    self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway)
-                )
+                run_coro_sync(self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway))
             except RuntimeError:
                 self._sync_shutdown()
         except Exception as exc:

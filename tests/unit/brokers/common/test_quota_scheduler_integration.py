@@ -14,9 +14,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
+from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from domain.capabilities.broker_capabilities import RateLimitProfile
 from domain.errors import QuotaExhaustedError
-from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 
 
 @pytest.fixture

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -20,7 +19,7 @@ from domain.events.types import (
     canonical_event_types,
     make_payload,
 )
-from domain.types import OrderStatus, OrderType, Side
+from domain.types import OrderType, Side
 
 
 class TestEventType:

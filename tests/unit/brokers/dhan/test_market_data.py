@@ -4,8 +4,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.data.market_data import MarketDataAdapter
+from brokers.dhan.exceptions import InstrumentNotFoundError
 
 
 def test_get_ltp_success(fake_client, resolver):
@@ -102,7 +102,6 @@ def test_get_quote_carries_oi_for_derivatives(fake_client, resolver):
     adapter = MarketDataAdapter(fake_client, resolver)
     quote = adapter.get_quote("NIFTY 26 JUN FUT", "NFO")
     assert quote.oi == 182345
-
 
 
 def test_get_depth_success(fake_client, resolver):

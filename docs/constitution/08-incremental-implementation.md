@@ -172,3 +172,91 @@ graphify update .
 | Rename FillSource → ExecutionTarget fully | After all imports migrated |
 | Execution target entry-point group | When third-party simulators needed |
 | Live product surface enablement | Separate product milestone |
+
+---
+
+## Context 6 — Kernel Composition (COMPLETE)
+
+Thin `ServiceRegistry` + OMS bootstrap moved to `runtime/oms_composition.py`.
+`OmsBootstrap` delegates; `runtime.factory.build` registers services.
+
+### Exit criteria
+
+- [x] `runtime/service_registry.py` exists
+- [x] `runtime/oms_composition.py` owns TradingContext bootstrap
+- [x] `tests/architecture/test_service_registry.py` green
+
+---
+
+## Context 8 — OMS Acceptance + Weekly Hardening (COMPLETE)
+
+Real PaperFillSource acceptance tests; weekly chaos/memory blocking on `main`.
+
+### Exit criteria
+
+- [x] `tests/acceptance/oms/test_paper_fill_acceptance.py`
+- [x] `.github/workflows/weekly-hardening.yml`
+
+---
+
+## Context 10 — Research Mode Labeling (COMPLETE)
+
+`CapitalMetricsLabel` on `BacktestResult`; PARITY default on `BacktestEngine`;
+architecture ratchet `test_research_mode_gating.py`.
+
+### Exit criteria
+
+- [x] `capital_metrics_valid` in result summary
+- [x] FastBacktest always `RESEARCH`
+- [x] Architecture tests green
+
+---
+
+## Context 5 — Market Data (COMPLETE)
+
+Tick authority module + async drop metrics + DP-04 single tick source enforcement.
+
+### Exit criteria
+
+- [x] `runtime/tick_authority.py`
+- [x] `AsyncEventBus` drop → EventMetrics
+- [x] Single tick source enforcement under reconnect (DP-04): `should_publish_tick_directly()` gates broker-direct TICK publish; reconnect disconnect-before-reopen
+
+---
+
+## Context 7 — Strategy Evaluator Bridge (COMPLETE)
+
+Production `StrategyPipelineEvaluator` at `analytics/strategy/evaluator_bridge.py`; wired in
+`runtime/factory._wire_trading_orchestrator`; `coalesce_strategy_signals` centralized in
+`CandidateEvaluator`.
+
+### Exit criteria
+
+- [x] `src/analytics/strategy/evaluator_bridge.py`
+- [x] Orchestrator uses `StrategyPipelineEvaluator` (not raw pipeline)
+- [x] `tests/integration/quant/test_strategy_evaluator_bridge.py` green
+
+---
+
+## Context 11 — Live ADR Readiness (PARTIAL)
+
+Phases 0–5 of Live ADR Readiness Roadmap delivered 2026-07-20. ADR-0012 **not** lifted.
+
+### Exit criteria
+
+- [x] BrokerFillSource cancel/modify/capabilities + acceptance test
+- [x] Fail-open production ratchet (`test_production_fail_open_unbypassable.py`)
+- [x] `EventDispatchHook` (GC-01 partial)
+- [x] `ResilientHttpTransport` on Dhan sync + async + Upstox
+- [x] `OrderPlacementPort` + `brokers/services/order_port.py`
+- [x] OE-01 ownership decision doc
+- [x] ADR-0013 lift preconditions documented
+- [x] OE-01 golden parity test (`test_views_pipeline_parity.py`)
+- [x] SEC-004/005 metrics auth (profile-scoped)
+- [x] GC-01 alerting on EventBusAlertingService only
+- [x] Local weekly-hardening 243 tests green
+- [ ] Weekly chaos green × 4 weeks on `main` (0/4)
+- [ ] Live PRE-DEPLOY ≥ 8.5
+- [ ] Explicit ADR-0012 lift (governance)
+
+---

@@ -23,11 +23,7 @@ class TestOrderProperties:
 
     @given(
         quantity=st.integers(min_value=1, max_value=10000),
-        price=st.decimals(
-            min_value=Decimal("0.01"),
-            max_value=Decimal("100000"),
-            places=2
-        ),
+        price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=2),
     )
     @settings(max_examples=100)
     def test_order_quantity_and_price_invariants(self, quantity: int, price: Decimal):
@@ -64,7 +60,7 @@ class TestOrderProperties:
         assert isinstance(quantity, int)
 
     @given(
-        symbol=st.text(min_size=1, max_size=20).filter(lambda s: s.isalnum() or '_' in s),
+        symbol=st.text(min_size=1, max_size=20).filter(lambda s: s.isalnum() or "_" in s),
         exchange=st.sampled_from(["NSE", "BSE", "NSE_FO", "MCX"]),
         side=st.sampled_from(["BUY", "SELL"]),
         order_type=st.sampled_from(["MARKET", "LIMIT", "SL", "SL-M"]),
@@ -95,7 +91,9 @@ class TestOrderProperties:
                 transaction_type=side_enum,
                 quantity=100,
                 order_type=order_type_enum,
-                price=Decimal("1000.00") if order_type_enum in [OrderType.LIMIT, OrderType.SL] else Decimal("0"),
+                price=Decimal("1000.00")
+                if order_type_enum in [OrderType.LIMIT, OrderType.SL]
+                else Decimal("0"),
             )
 
             # Invariant: symbol should be preserved

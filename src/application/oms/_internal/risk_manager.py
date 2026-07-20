@@ -66,23 +66,23 @@ if TYPE_CHECKING:
     from domain.risk.policy import KillSwitch as DomainKillSwitch
 
 from application.oms._internal.daily_pnl_tracker import (
-    DailyPnlTracker,
     RISK_LIMIT_BREACH_THRESHOLD,
+    DailyPnlTracker,
 )
-from application.oms._internal.kill_switch import KillSwitch, KILL_SWITCH_MODE
+from application.oms._internal.kill_switch import KILL_SWITCH_MODE, KillSwitch
 from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
     LossCircuitBreakerConfig,
 )
 from application.oms._internal.margin_checker import MarginChecker
-from application.oms._internal.throttler import Throttler
-from application.oms._internal.trading_state import TradingState, TradingStateEnum
 from application.oms._internal.risk_types import (
     InstrumentProvider,
     RiskConfig,
     RiskResult,
     risk_result_from_domain,
 )
+from application.oms._internal.throttler import Throttler
+from application.oms._internal.trading_state import TradingState
 from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from application.oms.position_manager import PositionManager
 from domain import Order
@@ -139,7 +139,7 @@ class RiskManager:
         margin_provider: MarginProviderPort | None = None,
         instrument_provider: InstrumentProvider | None = None,
         on_risk_event: Callable[[str, dict], None] | None = None,
-        domain_kill_switch: "DomainKillSwitch | None" = None,
+        domain_kill_switch: DomainKillSwitch | None = None,
     ) -> None:
         self._position_manager = position_manager
         self._config = config
@@ -209,6 +209,78 @@ class RiskManager:
 
     # -- Public API --
 
+    def _pre_trade_policies(self):
+        """Ordered pre-trade gate policies (CODE-001)."""
+        rm = self
+
+        def _kill_switch(order, _ctx):
+            if rm._kill_switch.is_active():
+                return RiskResult(False, "Kill switch is active")
+            return None
+
+        def _domain_kill_switch(order, _ctx):
+            if rm._domain_kill_switch is None:
+                return None
+            domain_ks = risk_result_from_domain(rm._domain_kill_switch.check())
+            return domain_ks if not domain_ks.allowed else None
+
+        def _trading_state(order, _ctx):
+            if not rm._trading_state.allows_new_order():
+                return RiskResult(False, f"Trading halted: state={rm._trading_state.state.value}")
+            return None
+
+        def _loss_circuit(order, _ctx):
+            cb_allowed, cb_reason = rm._loss_cb.allow_trading()
+            return RiskResult(False, cb_reason) if not cb_allowed else None
+
+        def _throttle(order, _ctx):
+            return (
+                RiskResult(False, "Order submission rate limit exceeded")
+                if not rm._throttler.allow()
+                else None
+            )
+
+        def _tick_align(order, _ctx):
+            if order.price <= 0:
+                return None
+            # Fall back to DEFAULT_TICK_SIZE when no instrument master is wired
+            # (paper/sim standalone OMS). Still enforces alignment — never skip.
+            tick = Decimal(str(DEFAULT_TICK_SIZE))
+            if rm._instrument_provider is not None:
+                try:
+                    instrument = rm._instrument_provider.resolve(
+                        order.symbol, order.exchange
+                    )
+                    if instrument is not None:
+                        tick = Decimal(
+                            str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE))
+                        )
+                except Exception as exc:
+                    return RiskResult(
+                        False,
+                        f"Instrument lookup failed for {order.symbol}: {exc}",
+                    )
+            price_decimal = (
+                order.price.to_decimal()
+                if hasattr(order.price, "to_decimal")
+                else Decimal(str(order.price))
+            )
+            if tick > 0 and not is_tick_aligned(price_decimal, tick):
+                return RiskResult(
+                    False,
+                    f"Price {order.price} not aligned to tick size {tick}",
+                )
+            return None
+
+        return (
+            _kill_switch,
+            _domain_kill_switch,
+            _trading_state,
+            _loss_circuit,
+            _throttle,
+            _tick_align,
+        )
+
     def check_order(self, order: Order) -> RiskResult:
         """Check whether ``order`` passes all configured risk limits.
 
@@ -217,51 +289,12 @@ class RiskManager:
         config.
         """
         with self._lock:
-            if self._kill_switch.is_active():
-                return RiskResult(False, "Kill switch is active")
+            from application.oms._internal.risk_policies import RiskPolicyContext, run_policy_chain
 
-            # Domain KillSwitch bridge (REF-4): optional pure policy object.
-            if self._domain_kill_switch is not None:
-                domain_ks = risk_result_from_domain(self._domain_kill_switch.check())
-                if not domain_ks.allowed:
-                    return domain_ks
-
-            # TradingState gate (ACTIVE/REDUCING/HALTED)
-            if not self._trading_state.allows_new_order():
-                return RiskResult(False, f"Trading halted: state={self._trading_state.state.value}")
-
-            # Loss circuit breaker check (before capital check)
-            cb_allowed, cb_reason = self._loss_cb.allow_trading()
-            if not cb_allowed:
-                return RiskResult(False, cb_reason)
-
-            # Throttler (spec §2 step e: before tick alignment)
-            if not self._throttler.allow():
-                return RiskResult(False, "Order submission rate limit exceeded")
-
-            # Tick size alignment check (pre-trade) — fail closed when provider configured.
-            if self._instrument_provider is not None and order.price > 0:
-                try:
-                    instrument = self._instrument_provider.resolve(
-                        order.symbol, order.exchange
-                    )
-                    if instrument is None:
-                        return RiskResult(
-                            False,
-                            f"Instrument lookup failed for {order.symbol}: cannot validate tick size",
-                        )
-                    tick = Decimal(str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE)))
-                    price_decimal = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
-                    if tick > 0 and not is_tick_aligned(price_decimal, tick):
-                        return RiskResult(
-                            False,
-                            f"Price {order.price} not aligned to tick size {tick}",
-                        )
-                except Exception as exc:
-                    return RiskResult(
-                        False,
-                        f"Instrument lookup failed for {order.symbol}: {exc}",
-                    )
+            ctx = RiskPolicyContext(self)
+            early = run_policy_chain(order, ctx, self._pre_trade_policies())
+            if early is not None:
+                return early
 
             capital = self._capital_provider.get_available_balance()
             if capital <= 0:
@@ -289,7 +322,11 @@ class RiskManager:
                 )
                 if pos_ltp and pos_ltp > 0:
                     ref_price = pos_ltp
-            price_for_notional = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
+            price_for_notional = (
+                order.price.to_decimal()
+                if hasattr(order.price, "to_decimal")
+                else Decimal(str(order.price))
+            )
             notional = effective_notional(
                 order.quantity,
                 price_for_notional,
@@ -307,7 +344,11 @@ class RiskManager:
             # Per-symbol concentration (includes in-flight pending — R4)
             current_notional = (
                 Decimal(str(abs(int(current.quantity))))
-                * (current.avg_price.to_decimal() if hasattr(current.avg_price, "to_decimal") else Decimal(str(current.avg_price)))
+                * (
+                    current.avg_price.to_decimal()
+                    if hasattr(current.avg_price, "to_decimal")
+                    else Decimal(str(current.avg_price))
+                )
                 * (current.multiplier if getattr(current, "multiplier", None) else Decimal("1"))
                 if current
                 else Decimal("0")
@@ -315,7 +356,9 @@ class RiskManager:
             pending_symbol = self._margin_checker.pending_symbol_notional(
                 order.symbol, order.exchange
             )
-            if (current_notional + pending_symbol + notional) / capital * 100 > self._config.max_position_pct:
+            if (
+                current_notional + pending_symbol + notional
+            ) / capital * 100 > self._config.max_position_pct:
                 return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
 
             # Gross exposure
@@ -323,13 +366,19 @@ class RiskManager:
             gross = sum(
                 (
                     Decimal(str(abs(int(p.quantity))))
-                    * (p.avg_price.to_decimal() if hasattr(p.avg_price, "to_decimal") else Decimal(str(p.avg_price)))
+                    * (
+                        p.avg_price.to_decimal()
+                        if hasattr(p.avg_price, "to_decimal")
+                        else Decimal(str(p.avg_price))
+                    )
                     * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
                 )
                 for p in positions
             )
             pending_gross = self._margin_checker.pending_gross()
-            if (gross + pending_gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
+            if (
+                gross + pending_gross + notional
+            ) / capital * 100 > self._config.max_gross_exposure_pct:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
             # Daily loss
@@ -498,7 +547,7 @@ class RiskManager:
         base["loss_circuit_breaker"] = self._loss_cb.snapshot()
         return base
 
-    def get_risk_profile(self) -> "RiskProfile":
+    def get_risk_profile(self) -> RiskProfile:
         """Return a read-only domain.portfolio.risk_profile.RiskProfile snapshot.
 
         Implements domain.ports.risk_view.RiskViewPort so Session/AccountView

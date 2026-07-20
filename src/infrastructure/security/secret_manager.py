@@ -286,9 +286,7 @@ class EncryptedTokenStore:
             )
 
         except Exception as exc:
-            raise TokenRotationError(
-                f"Failed to rotate token for {self._path}: {exc}"
-            ) from exc
+            raise TokenRotationError(f"Failed to rotate token for {self._path}: {exc}") from exc
 
     def _is_encrypted_format(self, content: str) -> bool:
         """Detect if content is in encrypted format.

@@ -51,13 +51,13 @@
 - `pyproject.toml` import-linter contracts — adding `ignore_imports` must be justified.
 - Generated files: `web/src/api/generated.ts` (planned, not yet generated — the
   Web SPA under `web/` is not implemented; `web/` holds only `.env.example`).
-- `graphify-out/` — generated artifact.
+- `src/graphify-out/` — generated artifact (`graphify update src` only; no repo-root graph).
 
 ## 7. Documentation & Graph Sync
 
 - Keep `context/*.md` and `docs/architecture/*` in sync with implementation. If a change
   alters architecture/scope/standards, update the relevant file BEFORE continuing.
-- After modifying code files, run `graphify update .`.
+- After modifying code files under `src/`, run `graphify update src`.
 - Update `context/progress-tracker.md` after each meaningful change (see its template).
 
 ## 8. Verification Checklist (before declaring done / next unit)
@@ -68,7 +68,7 @@
 - [ ] `ruff`, `mypy`, `bandit` clean (per pre-commit).
 - [ ] Architecture/import-linter contracts still green.
 - [ ] Integration test added/updated verifying real behavior (no mocks).
-- [ ] `graphify update .` run; `progress-tracker.md` updated.
+- [ ] `graphify update src` run; `progress-tracker.md` updated.
 
 ## 9. Real-Money Safety (non-negotiable)
 

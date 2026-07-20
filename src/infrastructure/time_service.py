@@ -70,7 +70,9 @@ class TimeService:
             raise ValueError(f"Unknown exchange: {exchange}")
         return calendar.now()
 
-    def format_timestamp(self, dt: datetime | None = None, fmt: str = "%Y-%m-%dT%H:%M:%S.%fZ") -> str:
+    def format_timestamp(
+        self, dt: datetime | None = None, fmt: str = "%Y-%m-%dT%H:%M:%S.%fZ"
+    ) -> str:
         if dt is None:
             dt = self.now()
         return dt.strftime(fmt)

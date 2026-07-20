@@ -18,14 +18,10 @@ broker interface.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.candles.historical import HistoricalBar, InstrumentRef
-from domain.orders.requests import ModifyOrderRequest, OrderRequest
-
+from domain.candles.historical import InstrumentRef
+from domain.entities import OrderResponse
 
 # ---------------------------------------------------------------------------
 # OrderTransportPort — narrow order-execution protocol

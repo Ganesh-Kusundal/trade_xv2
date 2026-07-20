@@ -106,14 +106,12 @@ def test_au010_strategy_loop_on_session_history() -> None:
                     price=Decimal("1"),
                     strategy="sma_momentum_loop",
                 )
-                result = _execute_signal(
-                    session, signal, correlation_id=f"w3:au010:{symbol}"
-                )
+                result = _execute_signal(session, signal, correlation_id=f"w3:au010:{symbol}")
                 assert result.success is True
                 placed += 1
             else:
                 # Still prove history path even if no signal
-                assert stock.ltp is None or True
+                assert True
         # With paper RNG series, at least one symbol should usually signal;
         # if not, force one to keep the loop test meaningful.
         if placed == 0:

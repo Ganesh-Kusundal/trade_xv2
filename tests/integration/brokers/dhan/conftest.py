@@ -52,6 +52,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 # Session-scoped gateway — shared across all integration modules
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="session")
 def live_gateway() -> DhanBrokerGateway:
     """Session-scoped live DhanBrokerGateway.
@@ -82,6 +83,7 @@ def live_gateway() -> DhanBrokerGateway:
 # declare their own ``gateway`` fixture from this same factory pattern)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def gateway(live_gateway: DhanBrokerGateway) -> DhanBrokerGateway:
     """Module-scoped alias for live_gateway (backward-compatible)."""
@@ -93,6 +95,7 @@ def gateway(live_gateway: DhanBrokerGateway) -> DhanBrokerGateway:
 # Quote APIs are 1 req/s; apply a minimum inter-test gap so sequential
 # integration tests do not trigger 429s while staying deterministic.
 # ---------------------------------------------------------------------------
+
 
 class _RateLimitSerializer:
     """Lightweight token-bucket enforcing 1 s minimum gap for quote endpoints."""

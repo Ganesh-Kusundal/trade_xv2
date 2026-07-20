@@ -11,6 +11,11 @@ from collections.abc import Callable, Sequence
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
+from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
@@ -18,12 +23,7 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.provenance import DataProvenance
-from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 
 def _bar(

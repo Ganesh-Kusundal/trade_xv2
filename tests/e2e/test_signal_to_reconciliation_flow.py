@@ -19,8 +19,8 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from application.oms.order_manager import OmsOrderCommand
 from application.oms._internal.risk_manager import RiskConfig
+from application.oms.order_manager import OmsOrderCommand
 from domain import (
     Order,
     OrderStatus,
@@ -479,9 +479,7 @@ class TestConcurrentSignalsNoRace:
                     product_type=ProductType.INTRADAY,
                     correlation_id=unique_id,
                 )
-                result = trading_context.order_manager.place_order(
-                    cmd, submit_fn=_make_submit_fn()
-                )
+                result = trading_context.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
                 with lock:
                     results.append((idx, result))
             except Exception as e:

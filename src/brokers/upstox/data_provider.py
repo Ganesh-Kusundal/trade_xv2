@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -54,9 +55,7 @@ class UpstoxDataProvider(DataProvider):
         except Exception:
             return None
 
-    def get_quotes_batch(
-        self, instrument_ids: list[InstrumentId]
-    ) -> list[QuoteSnapshot | None]:
+    def get_quotes_batch(self, instrument_ids: list[InstrumentId]) -> list[QuoteSnapshot | None]:
         """Batch quotes via native multi-key API when gateway supports quote_batch."""
         if not instrument_ids:
             return []
@@ -140,9 +139,7 @@ class UpstoxDataProvider(DataProvider):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> HistoricalSeries:
-        ref = InstrumentRef(
-            symbol=instrument_id.underlying, exchange=instrument_id.exchange
-        )
+        ref = InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange)
         series_fn = getattr(self._gw, "get_history_series", None)
         if callable(series_fn):
             raw = series_fn(
@@ -193,7 +190,11 @@ class UpstoxDataProvider(DataProvider):
             exp_str = expiry.strftime("%Y-%m-%d") if expiry else None
             chain_fn = getattr(self._gw, "option_chain", None)
             if not callable(chain_fn):
-                return OptionChain(underlying=underlying.underlying, exchange=DEFAULT_DERIVATIVES_EXCHANGE, expiry="")
+                return OptionChain(
+                    underlying=underlying.underlying,
+                    exchange=DEFAULT_DERIVATIVES_EXCHANGE,
+                    expiry="",
+                )
             raw = chain_fn(underlying.underlying, DEFAULT_DERIVATIVES_EXCHANGE, exp_str)
             if isinstance(raw, OptionChain):
                 return raw
@@ -204,7 +205,9 @@ class UpstoxDataProvider(DataProvider):
                 return OptionChain.from_dict(data)
         except Exception:
             pass
-        return OptionChain(underlying=underlying.underlying, exchange=DEFAULT_DERIVATIVES_EXCHANGE, expiry="")
+        return OptionChain(
+            underlying=underlying.underlying, exchange=DEFAULT_DERIVATIVES_EXCHANGE, expiry=""
+        )
 
     def get_future_chain(self, underlying: InstrumentId) -> FutureChain:
         try:
@@ -269,10 +272,10 @@ class UpstoxDataProvider(DataProvider):
                 # "LTP" is NOT a valid mode and would be rejected upstream.
                 mode = "full" if depth else "ltpc"
                 handle = stream(
-                    symbol,                    # symbol
-                    instrument_id.exchange,    # exchange
-                    mode,                      # mode
-                    _on_tick,                  # on_tick
+                    symbol,  # symbol
+                    instrument_id.exchange,  # exchange
+                    mode,  # mode
+                    _on_tick,  # on_tick
                 )
                 return _UpstoxSubscriptionHandle(stop_fn=getattr(handle, "stop", None))
         except Exception:

@@ -77,9 +77,7 @@ class AppConfig(BaseModel):
         kwargs: dict[str, object] = {}
 
         # app_env: TRADEX_APP_ENV → APP_ENV
-        kwargs["app_env"] = os.environ.get(
-            "TRADEX_APP_ENV", os.environ.get("APP_ENV", "dev")
-        )
+        kwargs["app_env"] = os.environ.get("TRADEX_APP_ENV", os.environ.get("APP_ENV", "dev"))
 
         # log_level: TRADEX_LOG_LEVEL → XV2_LOG_LEVEL
         kwargs["log_level"] = os.environ.get(
@@ -87,15 +85,13 @@ class AppConfig(BaseModel):
         )
 
         # debug: TRADEX_DEBUG → TRADEXV2_DEBUG
-        debug_raw = os.environ.get(
-            "TRADEX_DEBUG", os.environ.get("TRADEXV2_DEBUG", "")
-        )
+        debug_raw = os.environ.get("TRADEX_DEBUG", os.environ.get("TRADEXV2_DEBUG", ""))
         kwargs["debug"] = debug_raw.lower() in ("1", "true", "yes") if debug_raw else False
 
         # redis_url: TRADEX_REDIS_URL → REDIS_URL
-        kwargs["redis_url"] = os.environ.get(
-            "TRADEX_REDIS_URL", os.environ.get("REDIS_URL")
-        ) or None
+        kwargs["redis_url"] = (
+            os.environ.get("TRADEX_REDIS_URL", os.environ.get("REDIS_URL")) or None
+        )
 
         # api_host: TRADEX_API_HOST → API_HOST
         kwargs["api_host"] = os.environ.get(
@@ -103,9 +99,7 @@ class AppConfig(BaseModel):
         )
 
         # api_port: TRADEX_API_PORT → API_PORT
-        api_port_raw = os.environ.get(
-            "TRADEX_API_PORT", os.environ.get("API_PORT", "8080")
-        )
+        api_port_raw = os.environ.get("TRADEX_API_PORT", os.environ.get("API_PORT", "8080"))
         kwargs["api_port"] = int(api_port_raw)
 
         # observability_port
@@ -143,7 +137,7 @@ class ApiConfig:
 class TradingConfig:
     """Trading runtime configuration."""
 
-    orchestrator_dry_run: bool = True
+    orchestrator_dry_run: bool = False
     orchestrator_min_confidence: float = 0.7
     enable_intelligent_gateway: bool = False
     skip_parity_gate: bool = False
@@ -189,7 +183,7 @@ def load_api_config() -> ApiConfig:
 def load_trading_config() -> TradingConfig:
     """Load trading runtime configuration from environment variables."""
     return TradingConfig(
-        orchestrator_dry_run=_get_bool("ORCHESTRATOR_DRY_RUN", True),
+        orchestrator_dry_run=_get_bool("ORCHESTRATOR_DRY_RUN", False),
         orchestrator_min_confidence=_get_float("ORCHESTRATOR_MIN_CONFIDENCE", 0.7),
         enable_intelligent_gateway=_get_bool("ENABLE_INTELLIGENT_GATEWAY"),
         skip_parity_gate=_get_bool("SKIP_PARITY_GATE"),

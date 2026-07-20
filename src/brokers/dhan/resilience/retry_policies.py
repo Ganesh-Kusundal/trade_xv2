@@ -136,21 +136,14 @@ def build_retry_executor(
     )
 
 
-# Backward-compatible aliases (TOS-P5-003)
-DhanRetryExecutorFactory = type(
-    "DhanRetryExecutorFactory",
-    (),
-    {"create": staticmethod(build_retry_executor)},
-)
 create_retry_executor = build_retry_executor
 
 __all__ = [
     "ADMIN_POLICY",
-    "DhanRetryExecutorFactory",
-    "DhanRetryPolicy",
     "MARKET_DATA_POLICY",
     "ORDERS_POLICY",
     "PORTFOLIO_POLICY",
+    "DhanRetryPolicy",
     "build_retry_executor",
     "create_retry_executor",
 ]

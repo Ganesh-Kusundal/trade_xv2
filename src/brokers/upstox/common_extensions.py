@@ -8,7 +8,6 @@ from decimal import Decimal
 from typing import Any
 
 from domain.constants import DEFAULT_EXCHANGE
-from domain.ports.broker_gateway import QuotaToken
 from domain.extensions.broker_bundle import ExtensionBundle
 from domain.extensions.extended_order import ExtendedOrderExecutor
 from domain.extensions.forever_order import (
@@ -23,6 +22,7 @@ from domain.extensions.fundamentals import (
 )
 from domain.extensions.news import NewsItem, NewsProvider
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_gateway import QuotaToken
 
 
 class UpstoxNewsExtension(NewsProvider):
@@ -150,7 +150,9 @@ class UpstoxGttForeverOrderStrategy(ForeverOrderProvider):
     async def cancel_forever_order(self, order_id: str, *, quota: object) -> ForeverOrderResult:
         cancel = getattr(self._gtt, "cancel_gtt", None) or getattr(self._gtt, "cancel", None)
         if cancel is None:
-            return ForeverOrderResult(success=False, message="GTT cancel not available", order_id=order_id)
+            return ForeverOrderResult(
+                success=False, message="GTT cancel not available", order_id=order_id
+            )
         cancel(order_id)
         return ForeverOrderResult(success=True, order_id=order_id)
 

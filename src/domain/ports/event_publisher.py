@@ -75,4 +75,4 @@ class EventBusPort(EventPublisher):
         ...
 
 
-__all__ = ["EventPublisher", "EventBusPort"]
+__all__ = ["EventBusPort", "EventPublisher"]

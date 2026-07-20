@@ -332,4 +332,3 @@ class NoopAdmission:
             "consecutive_rate_limits": 0,
             "admission_lock_path": "(noop)",
         }
-

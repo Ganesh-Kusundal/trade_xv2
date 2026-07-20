@@ -1,7 +1,6 @@
 """Live path: RiskManager gates place_order; capital is fail-closed by default."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -13,6 +12,7 @@ from application.oms import (
     RiskConfig,
     RiskManager,
 )
+from tests.conftest import build_test_trading_context
 from tests.support.assertion_helpers import assert_order_allowed, assert_order_rejected
 
 # ── Helper: enable fail-open for tests that expect the legacy
@@ -72,8 +72,8 @@ def test_oms_risk_manager_kill_switch_blocks_orders() -> None:
     """The OMS risk_manager's kill_switch is the canonical one.
     Setting it blocks all subsequent orders regardless of which
     caller (OrdersAdapter, OMS, CLI) checks them."""
-    from interface.ui.services.broker_service import BrokerService
     from domain import Order, OrderStatus, OrderType, ProductType, Side
+    from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService()
     rm, _cp = bs._build_oms_risk_manager()
@@ -203,8 +203,8 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     capital_provider closure captures the real gateway. Calling
     get_available_balance() reads gateway.funds().available_balance.
     """
-    from interface.ui.services.broker_service import BrokerService
     from domain import Balance
+    from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService()
 
@@ -278,8 +278,8 @@ def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
     """A zero or negative balance is a hard stop, even with
     RISK_FAIL_OPEN=1. Phantom capital would defeat the risk gate.
     """
-    from interface.ui.services.broker_service import BrokerService
     from domain import Balance
+    from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService()
     _rm, cp = bs._build_oms_risk_manager()
@@ -356,7 +356,6 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
     PRODUCTION UNSAFE when the OMS ReconciliationService has no
     broker-specific implementation.
     """
-    from application.oms.context import TradingContext
     from application.services.production_readiness import (
         ProductionReadinessChecker,
     )

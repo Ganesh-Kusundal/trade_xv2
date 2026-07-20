@@ -5,11 +5,9 @@ from __future__ import annotations
 from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities.snapshot import upstox_capabilities
 from domain.capabilities.market_surface import (
-    FUTURE_CHAIN,
     LTP,
     OPTION_CHAIN,
     QUOTE,
-    RESOLVE,
     MarketCoverage,
 )
 from domain.instruments.asset_kind import AssetKind

@@ -48,20 +48,22 @@ def test_upstox_news():
     print("=== News Endpoint (Extended) ===")
     try:
         ext = gw.extended
-        if hasattr(ext, 'get_news') or hasattr(ext, 'news'):
-            news_attr = getattr(ext, 'news', None) or getattr(ext, 'get_news', None)
+        if hasattr(ext, "get_news") or hasattr(ext, "news"):
+            news_attr = getattr(ext, "news", None) or getattr(ext, "get_news", None)
             if news_attr:
                 if callable(news_attr):
                     items = news_attr()
                 else:
-                    items = news_attr.get_news() if hasattr(news_attr, 'get_news') else []
+                    items = news_attr.get_news() if hasattr(news_attr, "get_news") else []
                 if isinstance(items, list):
                     record("extended.get_news", "holdings", PASS, f"{len(items)} items returned")
                     if items:
                         sample = items[0]
                         print(f"    Sample: {str(sample)[:100]}")
                 else:
-                    record("extended.get_news", "holdings", FAIL, f"Expected list, got {type(items)}")
+                    record(
+                        "extended.get_news", "holdings", FAIL, f"Expected list, got {type(items)}"
+                    )
             else:
                 record("extended.get_news", "holdings", SKIP, "No news method on extended")
         else:
@@ -73,19 +75,23 @@ def test_upstox_news():
     # ── 3. News via broker directly ─────────────────────────────────────
     print("=== News Endpoint (Direct Broker) ===")
     try:
-        broker = gw._conn._broker if hasattr(gw, '_conn') and hasattr(gw._conn, '_broker') else None
+        broker = gw._conn._broker if hasattr(gw, "_conn") and hasattr(gw._conn, "_broker") else None
         if broker is None:
-            broker = gw._broker if hasattr(gw, '_broker') else None
-        if broker and hasattr(broker, 'news'):
+            broker = gw._broker if hasattr(gw, "_broker") else None
+        if broker and hasattr(broker, "news"):
             news_client = broker.news
             items = news_client.get_news(category="holdings")
             if isinstance(items, list):
                 record("broker.news.get_news", "holdings", PASS, f"{len(items)} items")
                 if items:
                     sample = items[0]
-                    print(f"    Sample keys: {list(sample.keys()) if isinstance(sample, dict) else 'N/A'}")
+                    print(
+                        f"    Sample keys: {list(sample.keys()) if isinstance(sample, dict) else 'N/A'}"
+                    )
             else:
-                record("broker.news.get_news", "holdings", FAIL, f"Expected list, got {type(items)}")
+                record(
+                    "broker.news.get_news", "holdings", FAIL, f"Expected list, got {type(items)}"
+                )
         else:
             record("broker.news.get_news", "holdings", SKIP, "No news client on broker")
     except Exception as e:
@@ -95,16 +101,23 @@ def test_upstox_news():
     # ── 4. News with symbol filter ──────────────────────────────────────
     print("=== News with Symbol Filter ===")
     try:
-        broker = gw._conn._broker if hasattr(gw, '_conn') and hasattr(gw._conn, '_broker') else None
+        broker = gw._conn._broker if hasattr(gw, "_conn") and hasattr(gw._conn, "_broker") else None
         if broker is None:
-            broker = gw._broker if hasattr(gw, '_broker') else None
-        if broker and hasattr(broker, 'news'):
+            broker = gw._broker if hasattr(gw, "_broker") else None
+        if broker and hasattr(broker, "news"):
             news_client = broker.news
-            items = news_client.get_news(category="instrument_keys", instrument_keys=["NSE_EQ|INE002A01018"])
+            items = news_client.get_news(
+                category="instrument_keys", instrument_keys=["NSE_EQ|INE002A01018"]
+            )
             if isinstance(items, list):
                 record("broker.news.instrument_keys", "RELIANCE", PASS, f"{len(items)} items")
             else:
-                record("broker.news.instrument_keys", "RELIANCE", FAIL, f"Expected list, got {type(items)}")
+                record(
+                    "broker.news.instrument_keys",
+                    "RELIANCE",
+                    FAIL,
+                    f"Expected list, got {type(items)}",
+                )
         else:
             record("broker.news.instrument_keys", "RELIANCE", SKIP, "No news client")
     except Exception as e:
@@ -117,10 +130,11 @@ def test_upstox_news():
         from io import StringIO
 
         from interface.ui.commands.news import run
+
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         with contextlib.suppress(Exception):
-            run.__wrapped__() if hasattr(run, '__wrapped__') else None
+            run.__wrapped__() if hasattr(run, "__wrapped__") else None
         output = sys.stdout.getvalue()
         sys.stdout = old_stdout
         if "news" in output.lower() or "no broker" in output.lower() or "No news" in output:
@@ -146,6 +160,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n💥 FATAL: Gateway creation failed: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         if gw:

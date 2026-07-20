@@ -2,6 +2,7 @@
 
 Verify no FD leaks, thread leaks, or lock persistence.
 """
+
 import fcntl
 import resource
 import subprocess
@@ -20,7 +21,6 @@ class TestResourceLeaks:
 
         # Attempt to create multiple stores with lock contention
         from infrastructure.persistence.errors import OmsWriterLockError
-
         from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 
         for _i in range(50):
@@ -46,7 +46,9 @@ class TestResourceLeaks:
         broker_service = BrokerService(load_instruments=True)
 
         # Simulate readiness failure
-        with patch("application.services.production_readiness.ProductionReadinessChecker.run_or_raise") as mock:
+        with patch(
+            "application.services.production_readiness.ProductionReadinessChecker.run_or_raise"
+        ) as mock:
             mock.side_effect = ProductionReadinessError("Test")
             broker_service._ensure_dhan_initialized()
 
@@ -62,8 +64,7 @@ class TestResourceLeaks:
 
         # Run a command that acquires lock
         subprocess.run(
-            ["./venv/bin/python", "-m", "interface.ui.main", "holdings"],
-            capture_output=True
+            ["./venv/bin/python", "-m", "interface.ui.main", "holdings"], capture_output=True
         )
 
         # Give it a moment to clean up

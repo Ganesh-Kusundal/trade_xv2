@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
-from decimal import Decimal
 from typing import Any
 
 from domain.entities import Order, OrderResponse, Position, Trade

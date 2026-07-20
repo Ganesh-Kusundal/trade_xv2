@@ -75,9 +75,12 @@
 - Tests live under `tests/` mirroring `src/`; architecture tests under `tests/architecture/`.
 - New logic leaves one runnable check behind (assert-based demo/self-check or a small
   test file). Trivial one-liners need no test.
+- **Broker regression permanence:** every confirmed live-broker bug must add a permanent
+  regression case to the broker manifest (`tests/integration/brokers/{dhan,upstox}/regression/manifest.py`).
+  CI gates in `test_coverage_manifest.py` enforce P0 coverage — do not remove cases without an ADR.
 
 ## 7. Docs & Graph Sync
 
-- After modifying code files, run `graphify update .` to keep `graphify-out/` current.
+- After modifying code files under `src/`, run `graphify update src` to keep `src/graphify-out/` current.
 - Keep `context/*.md` and `docs/architecture/*` in sync with implementation. If a change
   alters architecture/scope/standards, update the relevant file before continuing.

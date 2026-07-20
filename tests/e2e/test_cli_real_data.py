@@ -6,6 +6,7 @@ Skip in CI - run manually with valid credentials in .env.local.
 Usage:
     ./venv/bin/python -m pytest tests/e2e/test_cli_real_data.py -v -k real_broker
 """
+
 import pytest
 from rich.console import Console
 

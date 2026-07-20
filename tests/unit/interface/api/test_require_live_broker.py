@@ -8,8 +8,6 @@ risk rejected), 503 when the broker service is unavailable.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from interface.api import deps
@@ -62,9 +60,7 @@ def test_blocks_when_allow_live_off(monkeypatch):
 
 
 def test_passes_when_authorized(monkeypatch):
-    svc = _BrokerServiceStub(
-        "dhan", live_actionable=True, allow_live=True, active_broker="GATEWAY"
-    )
+    svc = _BrokerServiceStub("dhan", live_actionable=True, allow_live=True, active_broker="GATEWAY")
     _patch_broker_service(monkeypatch, svc)
 
     captured = {}

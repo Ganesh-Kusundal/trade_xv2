@@ -10,6 +10,10 @@ from typing import Any
 
 import pytest
 
+from brokers.common.broker_capabilities import CapabilityDescriptor
+from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
 from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
@@ -18,10 +22,6 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from brokers.common.broker_capabilities import CapabilityDescriptor
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.candles.historical import HistoricalBar, InstrumentRef
 
 
 class BrokerAdapterContractSuite:
@@ -29,9 +29,7 @@ class BrokerAdapterContractSuite:
 
     @pytest.fixture
     def gateway(self) -> BrokerAdapter:
-        raise NotImplementedError(
-            "gateway fixture must return a BrokerAdapter implementation"
-        )
+        raise NotImplementedError("gateway fixture must return a BrokerAdapter implementation")
 
     @pytest.fixture
     def quota_token(self) -> QuotaToken:
@@ -64,7 +62,9 @@ class BrokerAdapterContractSuite:
 
     # ── Order execution ──────────────────────────────────────────────────
 
-    def test_place_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
+    def test_place_order_returns_order_response(
+        self, gateway: Any, quota_token: QuotaToken
+    ) -> None:
         from domain.orders.requests import OrderRequest
         from domain.types import Side
 
@@ -78,11 +78,15 @@ class BrokerAdapterContractSuite:
         result = gateway.place_order(request, quota=quota_token)
         assert isinstance(result, OrderResponse)
 
-    def test_cancel_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
+    def test_cancel_order_returns_order_response(
+        self, gateway: Any, quota_token: QuotaToken
+    ) -> None:
         result = gateway.cancel_order("ORD-123", quota=quota_token)
         assert isinstance(result, OrderResponse)
 
-    def test_modify_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
+    def test_modify_order_returns_order_response(
+        self, gateway: Any, quota_token: QuotaToken
+    ) -> None:
         from domain.orders.requests import ModifyOrderRequest
 
         request = ModifyOrderRequest(order_id="ORD-123", quantity=2)
@@ -109,9 +113,7 @@ class BrokerAdapterContractSuite:
 
     # ── Point-in-time market reads ───────────────────────────────────────
 
-    def test_get_quote_snapshot_returns_quote(
-        self, gateway: Any, quota_token: QuotaToken
-    ) -> None:
+    def test_get_quote_snapshot_returns_quote(self, gateway: Any, quota_token: QuotaToken) -> None:
         instrument = InstrumentRef(symbol="RELIANCE", exchange="NSE")
         result = gateway.get_quote_snapshot(instrument, quota=quota_token)
         assert isinstance(result, Quote)
@@ -188,9 +190,7 @@ class _MockBrokerAdapter(BrokerAdapter):
             broker_id="mock",
             capabilities=BrokerCapabilities(broker_id="mock"),
             extensions=frozenset(),
-            observed_at=__import__("datetime").datetime.now(
-                tz=__import__("datetime").timezone.utc
-            ),
+            observed_at=__import__("datetime").datetime.now(tz=__import__("datetime").timezone.utc),
         )
 
     def supports(self, feature: str) -> bool:
@@ -225,9 +225,7 @@ class _MockBrokerAdapter(BrokerAdapter):
     def get_trades(self, *, quota: QuotaToken) -> list[Trade]:
         return []
 
-    def get_quote_snapshot(
-        self, instrument: InstrumentRef, *, quota: QuotaToken
-    ) -> Quote:
+    def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
         return Quote(
             symbol=instrument.symbol,
             ltp=0,
@@ -242,9 +240,7 @@ class _MockBrokerAdapter(BrokerAdapter):
             timestamp=None,
         )
 
-    def get_depth_snapshot(
-        self, instrument: InstrumentRef, *, quota: QuotaToken
-    ) -> MarketDepth:
+    def get_depth_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> MarketDepth:
         return MarketDepth(symbol=instrument.symbol, bids=[], asks=[])
 
     def get_historical_bars(
@@ -309,9 +305,7 @@ class _MockBrokerAdapter(BrokerAdapter):
     def get_future_chain(self, underlying: Any) -> None:
         return None
 
-    def subscribe(
-        self, instrument_id: Any, callback: Any, *, depth: bool = False
-    ) -> None:
+    def subscribe(self, instrument_id: Any, callback: Any, *, depth: bool = False) -> None:
         return None
 
     def unsubscribe(self, subscription: Any) -> None:

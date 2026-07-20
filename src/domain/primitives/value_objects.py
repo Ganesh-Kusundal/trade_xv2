@@ -19,10 +19,11 @@ contains no direct call to the wall clock).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable, Union
+from typing import Any, Union
 
 from domain.exceptions import TradeXV2Error
 
@@ -77,9 +78,9 @@ class Money:
     @classmethod
     def coerce(
         cls,
-        value: "Money | Decimal | int | float | str | None",
+        value: Money | Decimal | int | float | str | None,
         currency: str = "INR",
-    ) -> "Money":
+    ) -> Money:
         """Build Money from loose scalars; prefer over ``Money == int`` coercion."""
         if value is None:
             return cls(0, currency)
@@ -102,59 +103,59 @@ class Money:
         return self.amount
 
     # -- arithmetic (same currency only; Decimal/number interoperable) --------
-    def __add__(self, other: object) -> "Money":
+    def __add__(self, other: object) -> Money:
         if isinstance(other, Money):
             if other.currency != self.currency:
                 raise DomainValueError(
                     f"cannot add {self.currency!r} and {other.currency!r}; currencies differ"
                 )
             return Money(self.amount + other.amount, self.currency)
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return Money(self.amount + _to_decimal(other, "addend"), self.currency)
         return NotImplemented
 
-    def __radd__(self, other: object) -> "Money":
+    def __radd__(self, other: object) -> Money:
         return self.__add__(other)
 
-    def __sub__(self, other: object) -> "Money":
+    def __sub__(self, other: object) -> Money:
         if isinstance(other, Money):
             if other.currency != self.currency:
                 raise DomainValueError(
                     f"cannot subtract {other.currency!r} from {self.currency!r}; currencies differ"
                 )
             return Money(self.amount - other.amount, self.currency)
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return Money(self.amount - _to_decimal(other, "subtrahend"), self.currency)
         return NotImplemented
 
-    def __rsub__(self, other: object) -> "Money":
-        if isinstance(other, (int, float, Decimal, str)):
+    def __rsub__(self, other: object) -> Money:
+        if isinstance(other, int | float | Decimal | str):
             return Money(_to_decimal(other, "minuend") - self.amount, self.currency)
         return NotImplemented
 
-    def __neg__(self) -> "Money":
+    def __neg__(self) -> Money:
         return Money(-self.amount, self.currency)
 
-    def __mul__(self, other: object) -> "Money":
+    def __mul__(self, other: object) -> Money:
         if isinstance(other, Quantity):
             return Money(self.amount * other.magnitude, self.currency)
-        if not isinstance(other, (int, float, Decimal, str)):
+        if not isinstance(other, int | float | Decimal | str):
             return NotImplemented
         factor = _to_decimal(other, "multiplier")
         _require_finite(factor, "multiplier")
         return Money(self.amount * factor, self.currency)
 
-    def __rmul__(self, other: object) -> "Money":
+    def __rmul__(self, other: object) -> Money:
         return self.__mul__(other)
 
-    def __truediv__(self, other: object) -> "Money | Decimal":
+    def __truediv__(self, other: object) -> Money | Decimal:
         if isinstance(other, Money):
             if other.currency != self.currency:
                 raise DomainValueError("cannot divide different currencies")
             if other.amount == 0:
                 raise DomainValueError("cannot divide Money by zero")
             return self.amount / other.amount  # ratio as Decimal
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             factor = _to_decimal(other, "divisor")
             _require_finite(factor, "divisor")
             if factor == 0:
@@ -170,7 +171,7 @@ class Money:
                     f"cannot compare {self.currency!r} and {other.currency!r}; currencies differ"
                 )
             return self.amount - other.amount
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return self.amount - _to_decimal(other, "other")
         raise TypeError(f"cannot compare Money with {type(other).__name__}")
 
@@ -204,13 +205,13 @@ class Money:
     def is_negative(self) -> bool:
         return self.amount < 0
 
-    def abs(self) -> "Money":
+    def abs(self) -> Money:
         return Money(abs(self.amount), self.currency)
 
-    def __abs__(self) -> "Money":
+    def __abs__(self) -> Money:
         return self.abs()
 
-    def scale(self, factor: Number) -> "Money":
+    def scale(self, factor: Number) -> Money:
         return self * factor
 
     def __str__(self) -> str:
@@ -266,40 +267,40 @@ class Quantity:
         return self.magnitude != 0
 
     # -- arithmetic (same unit only for add/sub; int interoperable) ----------
-    def __add__(self, other: object) -> "Quantity":
+    def __add__(self, other: object) -> Quantity:
         if isinstance(other, Quantity):
             if other.unit != self.unit:
                 raise DomainValueError(
                     f"cannot add unit {self.unit!r} and {other.unit!r}; units differ"
                 )
             return Quantity(self.magnitude + other.magnitude, self.unit)
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return Quantity(self.magnitude + _to_decimal(other, "addend"), self.unit)
         return NotImplemented
 
-    def __radd__(self, other: object) -> "Quantity":
+    def __radd__(self, other: object) -> Quantity:
         return self.__add__(other)
 
-    def __sub__(self, other: object) -> "Quantity":
+    def __sub__(self, other: object) -> Quantity:
         if isinstance(other, Quantity):
             if other.unit != self.unit:
                 raise DomainValueError(
                     f"cannot subtract unit {other.unit!r} from {self.unit!r}; units differ"
                 )
             return Quantity(self.magnitude - other.magnitude, self.unit)
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return Quantity(self.magnitude - _to_decimal(other, "subtrahend"), self.unit)
         return NotImplemented
 
-    def __rsub__(self, other: object) -> "Quantity":
-        if isinstance(other, (int, float, Decimal, str)):
+    def __rsub__(self, other: object) -> Quantity:
+        if isinstance(other, int | float | Decimal | str):
             return Quantity(_to_decimal(other, "minuend") - self.magnitude, self.unit)
         return NotImplemented
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Quantity):
             return self.unit == other.unit and self.magnitude == other.magnitude
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             try:
                 return self.magnitude == _to_decimal(other, "other")
             except DomainValueError:
@@ -314,7 +315,7 @@ class Quantity:
             if other.unit != self.unit:
                 raise DomainValueError("cannot compare different units")
             return self.magnitude < other.magnitude
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return self.magnitude < _to_decimal(other, "other")
         return NotImplemented
 
@@ -326,18 +327,18 @@ class Quantity:
             if other.unit != self.unit:
                 raise DomainValueError("cannot compare different units")
             return self.magnitude > other.magnitude
-        if isinstance(other, (int, float, Decimal, str)):
+        if isinstance(other, int | float | Decimal | str):
             return self.magnitude > _to_decimal(other, "other")
         return NotImplemented
 
     def __ge__(self, other: object) -> bool:
         return self == other or self > other
 
-    def __neg__(self) -> "Quantity":
+    def __neg__(self) -> Quantity:
         return Quantity(-self.magnitude, self.unit)
 
-    def __mul__(self, other: Number) -> "Quantity":
-        if not isinstance(other, (int, float, Decimal, str)):
+    def __mul__(self, other: Number) -> Quantity:
+        if not isinstance(other, int | float | Decimal | str):
             return NotImplemented
         factor = _to_decimal(other, "multiplier")
         _require_finite(factor, "multiplier")
@@ -345,12 +346,12 @@ class Quantity:
 
     __rmul__ = __mul__
 
-    def __truediv__(self, other: object) -> "Quantity | Decimal":
+    def __truediv__(self, other: object) -> Quantity | Decimal:
         if isinstance(other, Quantity):
             if other.magnitude == 0:
                 raise DomainValueError("cannot divide Quantity by zero")
             return self.magnitude / other.magnitude  # ratio
-        if not isinstance(other, (int, float, Decimal, str)):
+        if not isinstance(other, int | float | Decimal | str):
             return NotImplemented
         factor = _to_decimal(other, "divisor")
         _require_finite(factor, "divisor")
@@ -362,10 +363,10 @@ class Quantity:
     def is_zero(self) -> bool:
         return self.magnitude == 0
 
-    def abs(self) -> "Quantity":
+    def abs(self) -> Quantity:
         return Quantity(abs(self.magnitude), self.unit)
 
-    def __abs__(self) -> "Quantity":
+    def __abs__(self) -> Quantity:
         return self.abs()
 
     def notional(self, unit_price: Money) -> Money:

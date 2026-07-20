@@ -25,20 +25,20 @@ def build_runtime(
     from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
-    kwargs: dict = dict(
-        mode="trade",
-        broker=broker,
-        authorize_risk_fail_open=authorize_risk_fail_open,
-        env_path=env_path,
-        wire_orchestrator=wire_orchestrator,
-        wire_intelligent_gateway=wire_intelligent_gateway,
-    )
+    kwargs: dict = {
+        "mode": "trade",
+        "broker": broker,
+        "authorize_risk_fail_open": authorize_risk_fail_open,
+        "env_path": env_path,
+        "wire_orchestrator": wire_orchestrator,
+        "wire_intelligent_gateway": wire_intelligent_gateway,
+    }
     if skip_parity_gate is not None:
         kwargs["skip_parity_gate"] = skip_parity_gate
     return build(bs, **kwargs)
 
 
-__all__ = ["Runtime", "build_runtime", "build_for_api"]
+__all__ = ["Runtime", "build_for_api", "build_runtime"]
 
 
 def _ensure_wired() -> None:

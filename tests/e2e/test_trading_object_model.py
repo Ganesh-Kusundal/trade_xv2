@@ -191,11 +191,7 @@ def test_tr021_account_positions_after_market_fill() -> None:
         assert isinstance(positions, list)
         assert len(positions) >= 1
 
-        match = [
-            p
-            for p in positions
-            if str(getattr(p, "symbol", "")).upper() == "RELIANCE"
-        ]
+        match = [p for p in positions if str(getattr(p, "symbol", "")).upper() == "RELIANCE"]
         assert match, f"expected RELIANCE in positions, got {positions!r}"
         pos = match[0]
         assert int(getattr(pos, "quantity", 0)) >= qty

@@ -142,6 +142,7 @@ def optimize_grid(
 
         # Temporary fix for engine `int / Quantity` bug (profit_factor)
         import domain.entities.order
+
         if not hasattr(domain.entities.order.Quantity, "__rtruediv__"):
             domain.entities.order.Quantity.__rtruediv__ = lambda s, o: float(o) / float(s.magnitude)
 
@@ -161,9 +162,7 @@ def optimize_grid(
             config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
 
             # Grid search stays PURE_SIM — OMS overhead across N combos is real cost.
-            engine = BacktestEngine(
-                pipeline, strategy, config, allow_simulate_without_oms=True
-            )
+            engine = BacktestEngine(pipeline, strategy, config, allow_simulate_without_oms=Truemode=ResearchMode.PURE_SIM
             bt_result = engine.run(data, symbol=symbol)
 
             m = bt_result.metrics

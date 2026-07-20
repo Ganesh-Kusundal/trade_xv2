@@ -36,7 +36,7 @@ def _parse_exchange_time(ts_raw, now: datetime) -> datetime:
     if isinstance(ts_raw, datetime):
         return ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=now.tzinfo)
     try:
-        if isinstance(ts_raw, (int, float)):
+        if isinstance(ts_raw, int | float):
             if ts_raw <= 0:
                 return now
             if ts_raw > 1e11:
@@ -70,11 +70,13 @@ class TickRouter:
         sessions,
         lock: asyncio.Lock,
         candle_aggregator=None,
+        tick_hook=None,
     ) -> None:
         self._subscriptions = subscriptions
         self._sessions = sessions
         self._lock = lock
         self._candle_aggregator = candle_aggregator
+        self._tick_hook = tick_hook
         # Dedup cache: (instrument_key, event_time, sequence) -> wall-clock seen.
         self._dedup_seen: dict[tuple, float] = {}
 
@@ -111,6 +113,12 @@ class TickRouter:
                 self._candle_aggregator.update(tick)
             except Exception:
                 logger.exception("stream.candle_aggregator.error")
+
+        if self._tick_hook is not None:
+            try:
+                self._tick_hook(tick)
+            except Exception:
+                logger.exception("stream.tick_hook.error")
 
         # Update freshness on valid tick
         session = self._sessions.get(session_id)

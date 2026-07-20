@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.models.dtos import BrokerOrderPayload
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import (
     FundLimits,
@@ -20,6 +19,7 @@ from domain import (
     Trade,
     Validity,
 )
+from domain.models.dtos import BrokerOrderPayload
 
 
 def test_status_normalisation():

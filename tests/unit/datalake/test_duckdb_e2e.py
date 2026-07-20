@@ -19,7 +19,6 @@ TRADING_MINUTES_PER_DAY, TRADING_MINUTES_PARTIAL = _get_session_constants()
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.validator import VALID_VIEWS, PointInTimeValidator
-from datalake.storage.catalog import DataCatalog
 from datalake.core.duckdb_utils import connect_with_retry, get_pool
 from datalake.research.scan_store import (
     compare_scans,
@@ -28,6 +27,7 @@ from datalake.research.scan_store import (
     get_scan_symbols,
     save_scan_result,
 )
+from datalake.storage.catalog import DataCatalog
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 

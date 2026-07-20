@@ -142,7 +142,4 @@ def instrument_id_from_future(
     exp = expiry_date.replace("-", "")
     if len(exp) == 10:
         exp = exp.replace("-", "")
-    return (
-        f"{normalize_exchange(exchange)}:"
-        f"{normalize_symbol_for_storage(underlying)}:{exp}:FUT"
-    )
+    return f"{normalize_exchange(exchange)}:{normalize_symbol_for_storage(underlying)}:{exp}:FUT"

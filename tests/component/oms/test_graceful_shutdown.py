@@ -12,7 +12,6 @@ Covers:
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import asyncio
 from decimal import Decimal
@@ -27,6 +26,7 @@ from domain import Order, OrderStatus, Side, Trade
 from domain.events.types import DomainEvent, EventType
 from infrastructure.event_log import EventLog
 from infrastructure.lifecycle import LifecycleManager
+from tests.conftest import build_test_trading_context
 
 # -- Helpers ----------------------------------------------------------------
 

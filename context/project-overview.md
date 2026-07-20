@@ -16,6 +16,8 @@
    `strategy`, `backtest`, `report`), not order/position/portfolio.
 2. Broker-agnostic market data — no layer except `runtime/` knows which broker is
    live; broker capability is read-only (market data + lifecycle), never execution.
+   **Execution is paper-only** via OMS + `PaperFillSource` (ADR-0012); live is a
+   future plugin seam at `runtime/execution_target.py` only.
 3. Exchange-agnostic datalake — NSE/IST specifics live in a plugin, not `datalake/core`.
 4. Zero-parity between backtest, replay, and paper simulation paths (same OMS kernel,
    same code, same results) — this is internal correctness infrastructure for
@@ -94,7 +96,7 @@
 - An operator can scan a universe, inspect a symbol's analytics (trend/momentum/
   volume/support-resistance), and backtest a strategy end-to-end from the CLI —
   entirely from market data, with zero-parity fills for the simulation.
-- `graphify update .` stays current after every code change.
+- `graphify update src` stays current after every code change under `src/`.
 
 ## 8. Source of Truth
 

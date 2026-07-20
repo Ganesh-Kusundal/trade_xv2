@@ -34,6 +34,5 @@ def test_api_does_not_import_interface_ui() -> None:
             continue
         violations.extend(_ui_imports(path))
     assert not violations, (
-        "interface.api must not import interface.ui (Phase 3 / F9):\n"
-        + "\n".join(violations)
+        "interface.api must not import interface.ui (Phase 3 / F9):\n" + "\n".join(violations)
     )

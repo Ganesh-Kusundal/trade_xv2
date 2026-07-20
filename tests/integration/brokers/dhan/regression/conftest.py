@@ -41,9 +41,7 @@ def live_gateway() -> DhanBrokerGateway:
     Skipped automatically when .env.local is absent or has no DHAN_CLIENT_ID.
     """
     if not _live_env_loaded:
-        pytest.skip(
-            ".env.local with DHAN_CLIENT_ID required for Dhan regression tests"
-        )
+        pytest.skip(".env.local with DHAN_CLIENT_ID required for Dhan regression tests")
 
     result = bootstrap_gateway(
         "dhan",

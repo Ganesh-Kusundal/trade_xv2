@@ -18,10 +18,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from domain import Capability, ConnectionStatus
-from infrastructure.event_bus import EventBus
-from domain.ports.risk_manager import RiskManagerPort
-from infrastructure.historical_data import HistoricalDataService
+from brokers.common.idempotency import IdempotencyCache
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
@@ -38,7 +35,6 @@ from brokers.upstox.instruments.service import UpstoxInstrumentService
 from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
 from brokers.upstox.ipo.client import UpstoxIpoClient
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
-from brokers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
 from brokers.upstox.market_data.client_v2 import UpstoxMarketDataV2Client
 from brokers.upstox.market_data.client_v3 import UpstoxMarketDataV3Client
 from brokers.upstox.market_data.expired_options import UpstoxExpiredInstrumentsClient
@@ -64,9 +60,9 @@ from brokers.upstox.news.adapter import UpstoxNewsAdapter
 from brokers.upstox.news.client import UpstoxNewsClient
 from brokers.upstox.orders.alert_adapter import UpstoxAlertAdapter
 from brokers.upstox.orders.cover_order_adapter import UpstoxCoverOrderAdapter
+from brokers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
 from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
 from brokers.upstox.orders.gtt_client import UpstoxGttClient
-from brokers.common.idempotency import IdempotencyCache
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from brokers.upstox.orders.order_query_adapter import UpstoxOrderQueryAdapter
@@ -80,6 +76,10 @@ from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
+from domain import Capability, ConnectionStatus
+from domain.ports.risk_manager import RiskManagerPort
+from infrastructure.event_bus import EventBus
+from infrastructure.historical_data import HistoricalDataService
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +168,7 @@ class UpstoxBroker:
             )
 
         # Trade P&L Calculator
-        self.trade_pnl_calculator = TradePnLCalculator(
-            self.portfolio_client, self.market_data_v2
-        )
+        self.trade_pnl_calculator = TradePnLCalculator(self.portfolio_client, self.market_data_v2)
 
         self._register_all_capabilities()
 

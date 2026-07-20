@@ -72,9 +72,7 @@ class TokenRefresher:
                         and m._last_401_token != tok
                     ):
                         m._last_401_token = tok
-                        logger.info(
-                            "Upstox 401 soft-retry: reusing in-memory JWT once (no TOTP)"
-                        )
+                        logger.info("Upstox 401 soft-retry: reusing in-memory JWT once (no TOTP)")
                         return True
                     # Hard path: clear so we cannot reload the rejected JWT.
                     m._state = None
@@ -83,10 +81,29 @@ class TokenRefresher:
             elif m._state and m._state.refresh_token:
                 self._run_exclusive_refresh(self._do_oauth_refresh)
             else:
+                from brokers.common.auth.lifecycle import publish_token_lifecycle_event
+
+                publish_token_lifecycle_event(
+                    None, "TOKEN_EXPIRED", broker_id="upstox", reason="no_refresh_token"
+                )
                 return False
-            return bool(self._m.current_token())
+            ok = bool(self._m.current_token())
+            from brokers.common.auth.lifecycle import publish_token_lifecycle_event
+
+            if ok:
+                publish_token_lifecycle_event(None, "TOKEN_REFRESHED", broker_id="upstox")
+            else:
+                publish_token_lifecycle_event(
+                    None, "TOKEN_EXPIRED", broker_id="upstox", reason="refresh_empty"
+                )
+            return ok
         except Exception as exc:
             logger.warning("Upstox token refresh on 401 failed: %s", exc)
+            from brokers.common.auth.lifecycle import publish_token_lifecycle_event
+
+            publish_token_lifecycle_event(
+                None, "TOKEN_EXPIRED", broker_id="upstox", reason=str(exc)
+            )
             return False
 
     def force_refresh(self) -> TokenSnapshot | None:
@@ -128,9 +145,7 @@ class TokenRefresher:
             return JwtExpiry.parse_expiry_epoch_ms(token)
         return 0
 
-    def _run_exclusive_refresh(
-        self, action: Callable[[], TokenSnapshot]
-    ) -> TokenSnapshot | None:
+    def _run_exclusive_refresh(self, action: Callable[[], TokenSnapshot]) -> TokenSnapshot | None:
         m = self._m
         with m._refresh_lock:
             if m._refresh_done.is_set():

@@ -19,7 +19,9 @@ def validate_at_ingest(
     """Hard-fail ingest validation — drops invalid rows by default."""
     total = len(df)
     if df.empty:
-        return df, ValidationAudit(total_rows=0, valid_rows=0, dropped_rows=0, issues=["empty frame"])
+        return df, ValidationAudit(
+            total_rows=0, valid_rows=0, dropped_rows=0, issues=["empty frame"]
+        )
 
     validated, audit = validate_candles(
         df,

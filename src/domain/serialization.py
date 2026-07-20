@@ -16,7 +16,6 @@ from typing import Any
 
 from domain.entities.options import (
     OptionChain,
-    OptionContract,
     OptionLeg,
     OptionStrike,
 )
@@ -70,9 +69,7 @@ def option_chain_from_dict(data: dict | None) -> OptionChain:
     if not data:
         return OptionChain(underlying="", exchange="", expiry="")
     strikes = tuple(
-        option_strike_from_dict(row)
-        for row in data.get("strikes", [])
-        if isinstance(row, dict)
+        option_strike_from_dict(row) for row in data.get("strikes", []) if isinstance(row, dict)
     )
     return OptionChain(
         underlying=str(data.get("underlying", "")),

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING
 
 from domain.entities.options import FutureChain as FutureChainVO
 from domain.entities.options import FutureContract
-from domain.instruments.instrument_id import InstrumentId
 
 if TYPE_CHECKING:
     from domain.instruments.instrument import Future
@@ -27,9 +25,9 @@ class FutureChain:
         self,
         chain: FutureChainVO,
         *,
-        data_provider: "DataProvider | None" = None,
-        provider: "DataProvider | None" = None,
-        order_service: "OrderServicePort | None" = None,
+        data_provider: DataProvider | None = None,
+        provider: DataProvider | None = None,
+        order_service: OrderServicePort | None = None,
     ) -> None:
         self._chain = chain
         self._provider = data_provider or provider
@@ -66,7 +64,7 @@ class FutureChain:
                 continue
         return None
 
-    def _future_from_contract(self, contract: FutureContract) -> "Future | None":
+    def _future_from_contract(self, contract: FutureContract) -> Future | None:
         from domain.instruments.instrument import Future
 
         exp = self._parse_expiry(contract.expiry)
@@ -87,7 +85,7 @@ class FutureChain:
             )
         return fut
 
-    def all(self) -> list["Future"]:
+    def all(self) -> list[Future]:
         """All contracts as Future instruments."""
         out: list[Future] = []
         for c in self._chain.contracts:
@@ -96,14 +94,14 @@ class FutureChain:
                 out.append(f)
         return out
 
-    def front(self) -> "Future | None":
+    def front(self) -> Future | None:
         """Nearest expiry Future (front month)."""
         items = self.all()
         if not items:
             return None
         return min(items, key=lambda f: f.expiry or date.max)
 
-    def at_expiry(self, expiry: date | str) -> "Future | None":
+    def at_expiry(self, expiry: date | str) -> Future | None:
         target = self._parse_expiry(expiry)
         if target is None:
             return None
@@ -126,7 +124,7 @@ class FutureChain:
             raise ValueError(f"expiry offset {offs} out of range ({len(ordered)} expiries)")
         return ordered[offs]
 
-    def at_offset(self, offset: int = 0) -> "Future | None":
+    def at_offset(self, offset: int = 0) -> Future | None:
         exp = self.expiry_at(offset)
         return self.at_expiry(exp) if exp else None
 

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 _DATA_ADAPTERS: dict[str, type] = {}
 _EXECUTION_PROVIDERS: dict[str, type] = {}
 _BROKER_EXTENSION_CLASSES: dict[str, list[type]] = {}

@@ -9,7 +9,6 @@ from typing import Any
 
 import pandas as pd
 
-from domain.candles.historical import HistoricalSeries
 from domain.models.features import FeatureSet
 from domain.ports.protocols import DataProvider
 
@@ -71,4 +70,3 @@ class PipelineFeatureFetcher:
         except Exception as exc:
             logger.error("PipelineFeatureFetcher failed for %s: %s", symbol, exc)
             return FeatureSet.empty()
-

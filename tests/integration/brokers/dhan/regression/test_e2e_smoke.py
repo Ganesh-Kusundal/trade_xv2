@@ -44,20 +44,26 @@ NFO_INDEX = [("NIFTY", "NFO"), ("BANKNIFTY", "NFO")]
 # Off-market smoke (REST)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.off_market_safe
 class TestOffMarketSmoke:
     """REST-based smoke; safe to run anytime with live creds."""
 
-    @pytest.mark.parametrize("symbol,exchange", NSE_EQUITY, ids=lambda x: x if isinstance(x, str) else "")
+    @pytest.mark.parametrize(
+        "symbol,exchange", NSE_EQUITY, ids=lambda x: x if isinstance(x, str) else ""
+    )
     def test_ltp(self, live_gateway, symbol, exchange):
         """LTP must be a positive Decimal."""
         from decimal import Decimal
+
         ltp = live_gateway.ltp(symbol, exchange)
         assert isinstance(ltp, Decimal), f"{symbol} LTP type wrong: {type(ltp)}"
         assert ltp > 0, f"{symbol} LTP not positive: {ltp}"
         time.sleep(1.0)
 
-    @pytest.mark.parametrize("symbol,exchange", NSE_EQUITY, ids=lambda x: x if isinstance(x, str) else "")
+    @pytest.mark.parametrize(
+        "symbol,exchange", NSE_EQUITY, ids=lambda x: x if isinstance(x, str) else ""
+    )
     def test_quote(self, live_gateway, symbol, exchange):
         """Quote must have valid OHLCV and LTP > 0."""
         q = live_gateway.quote(symbol, exchange)
@@ -75,15 +81,20 @@ class TestOffMarketSmoke:
         assert depth.bids[0].price > 0
         assert depth.asks[0].price > 0
 
-    @pytest.mark.parametrize("symbol,exchange", INDEX, ids=lambda x: x if isinstance(x, str) else "")
+    @pytest.mark.parametrize(
+        "symbol,exchange", INDEX, ids=lambda x: x if isinstance(x, str) else ""
+    )
     def test_index_ltp(self, live_gateway, symbol, exchange):
         """Index LTP must be positive."""
         from decimal import Decimal
+
         ltp = live_gateway.ltp(symbol, exchange)
         assert isinstance(ltp, Decimal) and ltp > 0
         time.sleep(1.0)
 
-    @pytest.mark.parametrize("underlying,exchange", NFO_INDEX, ids=lambda x: x if isinstance(x, str) else "")
+    @pytest.mark.parametrize(
+        "underlying,exchange", NFO_INDEX, ids=lambda x: x if isinstance(x, str) else ""
+    )
     def test_option_chain(self, live_gateway, underlying, exchange):
         """Option chain must have strikes and valid spot."""
         chain = live_gateway.option_chain(underlying, exchange)
@@ -95,8 +106,11 @@ class TestOffMarketSmoke:
         assert len(expiries) >= 1, f"{underlying} extended expiries empty"
         time.sleep(1.5)
 
-    @pytest.mark.parametrize("underlying,exchange", [*NFO_INDEX, ("RELIANCE", "NFO")],
-                              ids=lambda x: x if isinstance(x, str) else "")
+    @pytest.mark.parametrize(
+        "underlying,exchange",
+        [*NFO_INDEX, ("RELIANCE", "NFO")],
+        ids=lambda x: x if isinstance(x, str) else "",
+    )
     def test_future_chain(self, live_gateway, underlying, exchange):
         """Futures chain must have at least 1 contract with expiry."""
         chain = live_gateway.future_chain(underlying, exchange)
@@ -147,6 +161,7 @@ class TestOffMarketSmoke:
 # ---------------------------------------------------------------------------
 # Market-hours smoke (WebSocket / streaming)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.market_hours
 @require_market_hours()

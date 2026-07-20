@@ -1,4 +1,5 @@
 """Dhan broker metrics for Prometheus exposition."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -6,7 +7,7 @@ from typing import TYPE_CHECKING
 from infrastructure.metrics.registry import metrics_registry
 
 if TYPE_CHECKING:
-    from domain.ports.metrics import MetricsRegistryPort
+    pass
 
 dhan_request_total = metrics_registry.counter(
     "dhan_request_total",

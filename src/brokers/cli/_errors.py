@@ -28,8 +28,9 @@ class _BrokerErrorsState:
     def get(cls) -> tuple[type[Exception], ...]:
         if cls._errors is None:
             from brokers.exceptions import BrokerError
-            from domain.exceptions import TradeXV2Error
             from brokers.services._session import LiveBrokerBlockedError
+            from domain.exceptions import TradeXV2Error
+
             cls._errors = (
                 BrokerError,
                 TradeXV2Error,
@@ -53,6 +54,7 @@ def _render_error(exc: Exception) -> None:
 
     if json_mode():
         import json as _json
+
         payload: dict[str, Any] = {"error": err_type, "message": err_msg}
         if remediation:
             payload["remediation"] = remediation

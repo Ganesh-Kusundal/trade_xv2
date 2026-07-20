@@ -147,11 +147,8 @@ class CliBrokerFacade:
                 "address every failing check before placing orders."
             )
         if self._svc._trading_context is not None:
-            import uuid
-
-            from application.oms.order_manager import OmsOrderCommand
+            from application.oms.order_command_mapper import cli_place_to_oms_command
             from domain import OrderType as Ot
-            from domain import ProductType as Pt
             from domain import Side
             from runtime.execution_target import build_execution_engine
 
@@ -165,15 +162,13 @@ class CliBrokerFacade:
                     "No broker gateway available. Configure .env.local with valid credentials."
                 )
 
-            command = OmsOrderCommand(
+            command = cli_place_to_oms_command(
                 symbol=symbol,
                 exchange=exchange,
                 side=Side(side) if isinstance(side, str) else side,
                 quantity=quantity,
                 price=price if price is not None else Decimal("0"),
                 order_type=ot,
-                product_type=Pt.INTRADAY,
-                correlation_id=f"cli:{uuid.uuid4().hex[:12]}",
             )
             engine = build_execution_engine(
                 self._svc._trading_context,

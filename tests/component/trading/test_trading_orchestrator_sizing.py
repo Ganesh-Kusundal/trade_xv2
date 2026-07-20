@@ -26,15 +26,15 @@ def _make_orchestrator(equity: Decimal = Decimal("100000")) -> TradingOrchestrat
 
 
 def _sig(**kwargs) -> SignalDTO:
-    base = dict(
-        symbol="RELIANCE",
-        exchange="NSE",
-        side="BUY",
-        signal_type="BUY",
-        confidence=Decimal("0.9"),
-        quantity=0,
-        entry_price=Decimal("100"),
-    )
+    base = {
+        "symbol": "RELIANCE",
+        "exchange": "NSE",
+        "side": "BUY",
+        "signal_type": "BUY",
+        "confidence": Decimal("0.9"),
+        "quantity": 0,
+        "entry_price": Decimal("100"),
+    }
     base.update(kwargs)
     return SignalDTO(**base)
 

@@ -12,12 +12,13 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
+from domain.enums import BrokerId
+
 if TYPE_CHECKING:
-    from interface.ui.services.broker_service import BrokerService
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env.local"
 
 def run(args: list[str], broker_service: Any, console: Console) -> None:
     """Entry point: tradex auth <status|refresh>."""
-    sub = (args[0].lower() if args else "status")
+    sub = args[0].lower() if args else "status"
     if sub == "refresh":
         _refresh(broker_service, console)
     else:
@@ -73,14 +74,10 @@ def _refresh(broker_service: Any, console: Console) -> None:
     try:
         from interface.ui.services.broker_registry import bootstrap_gateway
 
-        result = bootstrap_gateway(
-            BrokerId.DHAN, env_path=_ENV_PATH, load_instruments=True
-        )
+        result = bootstrap_gateway(BrokerId.DHAN, env_path=_ENV_PATH, load_instruments=True)
         if result.live_ready:
             console.print("[green]Token refreshed & live-ready.[/green]")
         else:
-            console.print(
-                f"[red]Refresh failed: {result.error or result.status.value}[/red]"
-            )
+            console.print(f"[red]Refresh failed: {result.error or result.status.value}[/red]")
     except Exception as exc:
         console.print(f"[red]Refresh failed: {exc}[/red]")

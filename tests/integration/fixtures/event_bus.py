@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.event_bus import EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.observability.event_metrics import EventMetrics
 from tests.e2e.fixtures.event_capturer import EventCapturer
 
 

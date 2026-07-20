@@ -30,8 +30,7 @@ class ExecutionTargetKind(str, Enum):
             if member.value == normalized:
                 return member
         raise ValueError(
-            f"Unknown execution target: {raw!r}. "
-            f"Expected one of: {', '.join(m.value for m in cls)}"
+            f"Unknown execution target: {raw!r}. Expected one of: {', '.join(m.value for m in cls)}"
         )
 
 

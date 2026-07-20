@@ -11,7 +11,6 @@ Does **not** own idempotency — that lives in
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Protocol
 
 from domain.events.types import DomainEvent, EventType

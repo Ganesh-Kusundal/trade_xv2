@@ -13,6 +13,7 @@ Run from the repo root:
 After running, update DataPaths defaults in domain/ports/data_catalog.py
 to point at data/lake and data/state.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,28 +21,27 @@ import shutil
 import sys
 from pathlib import Path
 
-
 # ── Source → destination mapping ──────────────────────────────────────
 
 # Files that move to data/lake/
 LAKE_MOVES: list[tuple[str, str]] = [
     ("market_data/catalog.duckdb", "data/lake/catalog.duckdb"),
-    ("market_data/equities",       "data/lake/equities"),
-    ("market_data/indices",        "data/lake/indices"),
-    ("market_data/options",        "data/lake/options"),
-    ("market_data/curated",        "data/lake/curated"),
-    ("market_data/materialized",   "data/lake/materialized"),
-    ("market_data/features",       "data/lake/features"),
+    ("market_data/equities", "data/lake/equities"),
+    ("market_data/indices", "data/lake/indices"),
+    ("market_data/options", "data/lake/options"),
+    ("market_data/curated", "data/lake/curated"),
+    ("market_data/materialized", "data/lake/materialized"),
+    ("market_data/features", "data/lake/features"),
 ]
 
 # Files that move to data/state/
 STATE_MOVES: list[tuple[str, str]] = [
-    ("market_data/oms_orders.sqlite",       "data/state/oms/orders.sqlite"),
-    ("market_data/execution_ledger.sqlite",  "data/state/oms/execution_ledger.sqlite"),
-    ("market_data/events",                   "data/state/events"),
-    ("market_data/live_snapshot.json",       "data/state/live_snapshot.json"),
-    ("market_data/backtest_results.sqlite",  "data/state/research/backtest_results.sqlite"),
-    ("market_data/journal.sqlite",           "data/state/research/journal.sqlite"),
+    ("market_data/oms_orders.sqlite", "data/state/oms/orders.sqlite"),
+    ("market_data/execution_ledger.sqlite", "data/state/oms/execution_ledger.sqlite"),
+    ("market_data/events", "data/state/events"),
+    ("market_data/live_snapshot.json", "data/state/live_snapshot.json"),
+    ("market_data/backtest_results.sqlite", "data/state/research/backtest_results.sqlite"),
+    ("market_data/journal.sqlite", "data/state/research/journal.sqlite"),
 ]
 
 
@@ -74,7 +74,9 @@ def main() -> None:
     args = parser.parse_args()
 
     if not args.dry_run and not args.force:
-        confirm = input("This will move files from market_data/ to data/lake/ + data/state/. Continue? [y/N] ")
+        confirm = input(
+            "This will move files from market_data/ to data/lake/ + data/state/. Continue? [y/N] "
+        )
         if confirm.lower() != "y":
             print("Aborted.")
             sys.exit(1)

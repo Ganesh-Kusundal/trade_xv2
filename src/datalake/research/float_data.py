@@ -26,8 +26,7 @@ class FloatDataProvider:
         """Load float data from a CSV written by scripts/sync_float_data.py."""
         df = pd.read_csv(path)
         data = {
-            str(row["symbol"]).upper(): row.drop("symbol").to_dict()
-            for _, row in df.iterrows()
+            str(row["symbol"]).upper(): row.drop("symbol").to_dict() for _, row in df.iterrows()
         }
         return cls(_data=data)
 

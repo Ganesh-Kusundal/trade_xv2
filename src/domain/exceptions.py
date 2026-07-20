@@ -38,6 +38,10 @@ class ValidationError(TradeXV2Error):
     """Input validation error."""
 
 
+class QuoteUnavailableError(DataError):
+    """Raised when market-data quote/LTP cannot be resolved for paper fills."""
+
+
 class LiveBrokerBlockedError(TradeXV2Error, RuntimeError):
     """Raised when a live broker order is blocked by the readiness gate.
 
@@ -58,6 +62,7 @@ __all__ = [
     "DataError",
     "ExchangeNotConfigured",
     "LiveBrokerBlockedError",
+    "QuoteUnavailableError",
     "ServiceNotFoundError",
     "TradeXV2Error",
     "ValidationError",

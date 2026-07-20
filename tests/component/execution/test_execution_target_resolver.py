@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import pytest
-from tests.conftest import build_test_trading_context
 
 from domain.ports.execution_target import ExecutionTarget, ExecutionTargetKind
 from runtime.execution_target import resolve_execution_target, resolve_simulated_oms_adapter
+from tests.conftest import build_test_trading_context
+
+
+@pytest.fixture(autouse=True)
+def _wire_runtime_execution_ports() -> None:
+    from runtime.composition import wire_domain_port_sinks
+
+    wire_domain_port_sinks()
 
 
 @pytest.fixture
@@ -15,8 +22,11 @@ def trading_context():
 
 
 def test_resolve_paper_target() -> None:
+    from application.execution.fill_source import PaperFillSource
+
     target = resolve_execution_target(ExecutionTargetKind.PAPER)
     assert isinstance(target, ExecutionTarget)
+    assert isinstance(target, PaperFillSource)
     assert target.kind is ExecutionTargetKind.PAPER
     assert callable(target.submit_fn())
 
@@ -52,7 +62,10 @@ def test_resolve_simulated_oms_adapter_live_raises(trading_context) -> None:
 
 def test_simulated_oms_adapter_uses_execution_engine(trading_context) -> None:
     from application.execution.execution_engine import ExecutionEngine
-    from application.execution.oms_backtest_adapter import SimulatedOMSAdapter, create_execution_adapter
+    from application.execution.oms_backtest_adapter import (
+        SimulatedOMSAdapter,
+        create_execution_adapter,
+    )
 
     adapter = create_execution_adapter("replay", trading_context)
     assert isinstance(adapter, SimulatedOMSAdapter)

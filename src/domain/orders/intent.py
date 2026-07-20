@@ -51,4 +51,3 @@ class OrderIntent:
             raise ValueError("symbol is required")
         if not (self.correlation_id or "").strip():
             object.__setattr__(self, "correlation_id", _new_correlation_id())
-

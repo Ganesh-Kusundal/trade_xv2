@@ -16,15 +16,14 @@ from decimal import Decimal
 
 import pytest
 
-from tests.support.wait_utils import wait_until
-
 from application.oms import PositionManager, RiskConfig, RiskManager
+from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
 )
-from infrastructure.event_bus import DomainEvent, EventBus
+from tests.support.wait_utils import wait_until
 
 # ── Priority 3.1: Thundering Herd on Reconnect ───────────────────────────
 
@@ -42,7 +41,7 @@ class TestThunderingHerdOnReconnect:
             base_delay = 0.01  # Fast for testing
             max_delay = 1.0
             jitter = random.uniform(0, base_delay * 0.5)
-            delay = min(base_delay * (2 ** client_id) + jitter, max_delay)
+            delay = min(base_delay * (2**client_id) + jitter, max_delay)
 
             time.sleep(delay)
             with lock:
@@ -78,7 +77,7 @@ class TestThunderingHerdOnReconnect:
 
             def reconnect(self):
                 # Simulate staggered reconnect
-                backoff = 0.01 * (2 ** self.client_id)
+                backoff = 0.01 * (2**self.client_id)
                 time.sleep(backoff)
                 with lock:
                     attempt_times.append(time.monotonic())
@@ -100,7 +99,7 @@ class TestThunderingHerdOnReconnect:
         attempt_times.sort()
         for i in range(1, len(attempt_times)):
             # Each attempt should be later than previous
-            assert attempt_times[i] >= attempt_times[i-1]
+            assert attempt_times[i] >= attempt_times[i - 1]
 
     def test_no_resource_exhaustion(self):
         """Reconnection doesn't exhaust system resources."""
@@ -139,6 +138,7 @@ class TestThunderingHerdOnReconnect:
 
         def thundering_herd_reconnect(num_clients):
             """Simulate thundering herd scenario."""
+
             def client_reconnect(client_id):
                 # Exponential backoff: 1s, 2s, 4s, 8s, ...
                 base_delay = 0.1  # Fast for testing
@@ -146,15 +146,17 @@ class TestThunderingHerdOnReconnect:
                 jitter = random.uniform(0, base_delay * 0.1)
 
                 for attempt in range(5):
-                    delay = min(base_delay * (2 ** attempt) + jitter, max_delay)
+                    delay = min(base_delay * (2**attempt) + jitter, max_delay)
                     time.sleep(delay)
 
                     with lock:
-                        reconnect_events.append({
-                            "client_id": client_id,
-                            "attempt": attempt,
-                            "time": time.monotonic(),
-                        })
+                        reconnect_events.append(
+                            {
+                                "client_id": client_id,
+                                "attempt": attempt,
+                                "time": time.monotonic(),
+                            }
+                        )
 
                     # Simulate successful reconnect
                     return True
@@ -257,13 +259,15 @@ class TestConcurrentStrategyExecutionConflicts:
         def update_position(position_id):
             try:
                 # Simulate concurrent position updates
-                pm.upsert_position({
-                    "symbol": "RELIANCE",
-                    "exchange": "NSE",
-                    "quantity": position_id,
-                    "avg_price": "2500.0",
-                    "ltp": "2505.0",
-                })
+                pm.upsert_position(
+                    {
+                        "symbol": "RELIANCE",
+                        "exchange": "NSE",
+                        "quantity": position_id,
+                        "avg_price": "2500.0",
+                        "ltp": "2505.0",
+                    }
+                )
             except Exception as e:
                 errors.append(e)
 
@@ -290,11 +294,13 @@ class TestConcurrentStrategyExecutionConflicts:
 
         # Publish events concurrently
         def publish_event(event_id):
-            bus.publish(DomainEvent.now(
-                "ORDER_PLACED",
-                {"order_id": f"ORD-{event_id}"},
-                symbol="RELIANCE",
-            ))
+            bus.publish(
+                DomainEvent.now(
+                    "ORDER_PLACED",
+                    {"order_id": f"ORD-{event_id}"},
+                    symbol="RELIANCE",
+                )
+            )
 
         with ThreadPoolExecutor(max_workers=10) as ex:
             futures = [ex.submit(publish_event, i) for i in range(10)]
@@ -391,6 +397,7 @@ class TestConcurrentStrategyExecutionConflicts:
         def check_risk(order_id):
             try:
                 from domain import Order, OrderStatus, OrderType, ProductType, Side
+
                 order = Order(
                     order_id=f"ORD-{order_id}",
                     symbol="RELIANCE",
@@ -485,11 +492,14 @@ class TestConcurrentStrategyExecutionConflicts:
 
     def test_thundering_herd_circuit_breaker_recovery(self):
         """Circuit breaker recovery handles thundering herd correctly."""
-        cb = CircuitBreaker("test", CircuitBreakerConfig(
-            failure_threshold=2,
-            open_duration_ms=200,
-            success_threshold=1,
-        ))
+        cb = CircuitBreaker(
+            "test",
+            CircuitBreakerConfig(
+                failure_threshold=2,
+                open_duration_ms=200,
+                success_threshold=1,
+            ),
+        )
 
         # Open circuit breaker
         cb.on_failure()

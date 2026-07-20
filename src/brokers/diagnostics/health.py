@@ -23,8 +23,10 @@ def run_health(broker: str = "paper") -> DiagnosticReport:
     report = DiagnosticReport(broker)
     try:
         session = BrokerSession(broker)
-    except Exception as exc:  # noqa: BLE001
-        report.add(CheckResult("Broker Reachable", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}"))
+    except Exception as exc:
+        report.add(
+            CheckResult("Broker Reachable", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}")
+        )
         return report
 
     report.add(CheckResult("Broker Reachable", CheckStatus.PASS, "session established"))
@@ -38,7 +40,7 @@ def run_health(broker: str = "paper") -> DiagnosticReport:
         stock.refresh()
         ms = round((time.perf_counter() - t0) * 1000, 2)
         report.add(CheckResult("API Latency", CheckStatus.PASS, f"quote {ms}ms"))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add(CheckResult("API Latency", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}"))
 
     # Historical working
@@ -52,8 +54,10 @@ def run_health(broker: str = "paper") -> DiagnosticReport:
                 f"{n} bars" if n else "no bars",
             )
         )
-    except Exception as exc:  # noqa: BLE001
-        report.add(CheckResult("Historical Working", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}"))
+    except Exception as exc:
+        report.add(
+            CheckResult("Historical Working", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}")
+        )
 
     # Subscription active
     try:
@@ -68,8 +72,10 @@ def run_health(broker: str = "paper") -> DiagnosticReport:
             )
         )
         session.unsubscribe(stock)
-    except Exception as exc:  # noqa: BLE001
-        report.add(CheckResult("Subscription Active", CheckStatus.WARNING, f"{type(exc).__name__}: {exc}"))
+    except Exception as exc:
+        report.add(
+            CheckResult("Subscription Active", CheckStatus.WARNING, f"{type(exc).__name__}: {exc}")
+        )
 
     # Session valid
     try:
@@ -81,14 +87,14 @@ def run_health(broker: str = "paper") -> DiagnosticReport:
                 f"mode={getattr(st, 'mode', '?')}, orders={getattr(st, 'orders_enabled', '?')}",
             )
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add(CheckResult("Session Valid", CheckStatus.FAIL, f"{type(exc).__name__}: {exc}"))
 
     # Capabilities
     try:
         caps = session.stock("RELIANCE").capabilities()
         report.add(CheckResult("Capabilities", CheckStatus.PASS, f"{len(caps)} capabilities"))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add(CheckResult("Capabilities", CheckStatus.WARNING, f"{type(exc).__name__}: {exc}"))
 
     # Configuration / version

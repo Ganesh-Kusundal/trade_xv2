@@ -18,16 +18,14 @@ Invariants (zero look-ahead, checked in tests):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import duckdb
 import pandas as pd
 
 from analytics.sector.mapping import SectorMapper
 from datalake.core.paths import timeframe_partition_dir
-from datalake.core.symbols import normalize_symbol_for_storage
 from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 # Lake 1m timestamps are stored as naive IST wall-clock (no UTC shift), so
@@ -127,7 +125,7 @@ def scan_afternoon_expansion(
         sum(volume) AS morning_vol,
         count(*) AS morning_bars
       FROM bars
-      WHERE tt BETWEEN TIME '{p['MORNING_START']}' AND TIME '{p['DECISION_END']}'
+      WHERE tt BETWEEN TIME '{p["MORNING_START"]}' AND TIME '{p["DECISION_END"]}'
       GROUP BY 1, 2
     ),
     aft AS (
@@ -137,7 +135,7 @@ def scan_afternoon_expansion(
         min(low) AS al,
         arg_max(close, timestamp) AS c_eod
       FROM bars
-      WHERE tt > TIME '{p['DECISION_END']}' AND tt <= TIME '{p['SESSION_END']}'
+      WHERE tt > TIME '{p["DECISION_END"]}' AND tt <= TIME '{p["SESSION_END"]}'
       GROUP BY 1, 2
     ),
     joined AS (
@@ -154,16 +152,16 @@ def scan_afternoon_expansion(
         abs(a.c_eod - m.c950) / NULLIF(m.c950, 0) * 100 AS rest_close_abs_pct
       FROM morn m
       LEFT JOIN aft a USING (symbol, td)
-      WHERE m.morning_bars >= {p['MIN_MORNING_BARS']}
+      WHERE m.morning_bars >= {p["MIN_MORNING_BARS"]}
     ),
     hist AS (
       SELECT
         symbol,
         count(*) AS sessions,
-        avg(CASE WHEN rest_mfe_pct >= {p['TARGET_MFE_LO']} THEN 1.0 ELSE 0.0 END) AS hit_ge5,
+        avg(CASE WHEN rest_mfe_pct >= {p["TARGET_MFE_LO"]} THEN 1.0 ELSE 0.0 END) AS hit_ge5,
         avg(
           CASE
-            WHEN rest_mfe_pct BETWEEN {p['TARGET_MFE_LO']} AND {p['TARGET_MFE_HI']}
+            WHEN rest_mfe_pct BETWEEN {p["TARGET_MFE_LO"]} AND {p["TARGET_MFE_HI"]}
             THEN 1.0 ELSE 0.0
           END
         ) AS hit_5_10,
@@ -172,7 +170,7 @@ def scan_afternoon_expansion(
       FROM joined
       WHERE td < DATE '{trade_date}'
       GROUP BY 1
-      HAVING count(*) >= {p['MIN_HIST_SESSIONS']}
+      HAVING count(*) >= {p["MIN_HIST_SESSIONS"]}
     ),
     mvol_base AS (
       SELECT symbol, avg(morning_vol) AS avg_morning_vol
@@ -204,9 +202,9 @@ def scan_afternoon_expansion(
       t.rest_range_pct AS realized_range_after_0950
     FROM today t
     JOIN hist h USING (symbol)
-    WHERE t.rvol > {p['MIN_RVOL']}
-      AND abs(t.morning_gain) > {p['MIN_ABS_MORNING_GAIN']}
-      AND h.hit_ge5 >= {p['MIN_HIT_GE5']}
+    WHERE t.rvol > {p["MIN_RVOL"]}
+      AND abs(t.morning_gain) > {p["MIN_ABS_MORNING_GAIN"]}
+      AND h.hit_ge5 >= {p["MIN_HIT_GE5"]}
     ORDER BY h.hit_ge5 DESC, t.rvol DESC, h.avg_mfe DESC
     """
     from datalake.core.duckdb_utils import get_memory_pool

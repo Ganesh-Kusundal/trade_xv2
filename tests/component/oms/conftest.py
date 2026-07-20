@@ -1,5 +1,7 @@
-import pytest
 from decimal import Decimal
+
+import pytest
+
 from application.oms import PositionManager, RiskConfig, RiskManager
 
 

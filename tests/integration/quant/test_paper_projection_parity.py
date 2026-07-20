@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
 
 from analytics.paper.engine import PaperTradingEngine
-from analytics.paper.models import PaperConfig, PaperSession, PositionSide
+from analytics.paper.models import PaperConfig, PaperSession
 from domain.candles.historical import HistoricalBar
-from domain import Side
 
 
 @pytest.fixture

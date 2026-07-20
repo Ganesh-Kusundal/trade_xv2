@@ -18,7 +18,7 @@ All imports are lazy inside each test so a missing module only skips that test
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 
 def _make_bar(ts: datetime, close: float = 100.0):
@@ -40,10 +40,10 @@ def _make_bar(ts: datetime, close: float = 100.0):
 def _make_fake_coordinator(captured: dict, bars: list):
     """Return a fake HistoricalDataCoordinator whose fetch records the query."""
 
-    class _Ledger:  # noqa: D401 - tiny stub
+    class _Ledger:
         degraded = False
 
-    class _Coord:  # noqa: D401 - tiny stub
+    class _Coord:
         async def fetch(self, query):
             captured["query"] = query
             captured["instrument"] = query.instrument
@@ -198,10 +198,10 @@ def test_m5_backfill_with_reconciler_triggers_reconcile():
 
     class _Coord:
         async def fetch(self, q):
-            class _S:  # noqa: D401
+            class _S:
                 bars = []
 
-            class _L:  # noqa: D401
+            class _L:
                 degraded = False
 
             return _S(), _L()

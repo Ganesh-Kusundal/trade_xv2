@@ -241,7 +241,9 @@ class TestReplayEngine:
         default_pipeline: FeaturePipeline,
         default_config: ReplayConfig,
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=default_config, oms_adapter=make_mock_oms_adapter())
+        engine = ReplayEngine(
+            default_pipeline, config=default_config, oms_adapter=make_mock_oms_adapter()
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert isinstance(result, ReplayResult)
         assert result.bars_processed == 120
@@ -268,7 +270,9 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=20),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.signals_generated >= 0  # May or may not generate signals
@@ -277,7 +281,9 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=20),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         # 1 initial entry + 101 post-warmup entries (bars 20-120 inclusive) = 102
@@ -292,7 +298,9 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=20),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         summary = result.summary
@@ -415,7 +423,9 @@ class TestReplayEngine:
                 )
         data = pd.DataFrame(rows)
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=15),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(data, symbol="MULTI")
         assert result.bars_processed == 120  # 60 bars x 2 symbols
@@ -424,7 +434,9 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=20),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Return should be a finite number
@@ -451,7 +463,9 @@ class TestReplayMomentum:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=20),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Should use default StrategyPipeline
@@ -482,7 +496,9 @@ class TestAnalyticsFacade:
         from analytics.replay import ReplayConfig, ReplayEngine
 
         engine = ReplayEngine(
-            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=make_mock_oms_adapter()
+            default_pipeline,
+            config=ReplayConfig(warmup_bars=20),
+            oms_adapter=make_mock_oms_adapter(),
         )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120

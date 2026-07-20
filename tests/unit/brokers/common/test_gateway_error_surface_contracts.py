@@ -138,9 +138,7 @@ class TestUpstoxNotImplementedErrors:
         result = upstox_gateway.option_chain("NIFTY", exchange="NFO")
         assert isinstance(result, OptionChain)
         assert result.underlying == "NIFTY"
-        upstox_gateway._data_gw.option_chain.assert_called_once_with(
-            "NIFTY", "NFO", None
-        )
+        upstox_gateway._data_gw.option_chain.assert_called_once_with("NIFTY", "NFO", None)
 
     def test_upstox_future_chain_returns_future_chain(self, upstox_gateway):
         """Upstox future_chain delegates to the data gateway's future chain."""
@@ -203,11 +201,11 @@ class TestDhanGatewaySegmentMapping:
     def dhan_gateway(self):
         from unittest.mock import MagicMock
 
-        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
         from brokers.dhan.resolver import SymbolResolver
+        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
 
         resolver = SymbolResolver()
-        from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType
+        from brokers.dhan.domain import DhanInstrument, Exchange, InstrumentType
         from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
         resolver._by_security_id = {
@@ -243,7 +241,7 @@ class TestGatewayTypeSafety:
     def _get_method_return_annotation(self, gateway_class, method_name: str) -> str | None:
         import ast
 
-        with open(_gw_source(gateway_class.__module__.split('.')[1])) as f:
+        with open(_gw_source(gateway_class.__module__.split(".")[1])) as f:
             tree = ast.parse(f.read())
 
         for node in ast.walk(tree):
@@ -355,4 +353,42 @@ class TestUpstoxQuoteLogging:
     The correct adapter (brokers.upstox.market_data.market_data_adapter)   # noqa: W291
     does not log warnings for empty quotes - it returns empty Quote objects.
     """
+
     pass
+
+
+class TestTransportErrorMapping:
+    """Order transport boundaries must map exceptions to canonical errors."""
+
+    def test_map_transport_exception_classifies_network(self) -> None:
+        from brokers.common.transport_errors import map_transport_exception
+        from domain.errors import NetworkError
+
+        try:
+            import requests
+
+            exc = requests.ConnectionError("reset")
+        except ImportError:
+            pytest.skip("requests not installed")
+        mapped = map_transport_exception(exc)
+        assert isinstance(mapped, NetworkError)
+
+    def test_dhan_order_transport_uses_mapper(self) -> None:
+        content = (GATEWAY_DIR / "dhan" / "api" / "transport.py").read_text()
+        assert "order_result_from_transport_error" in content
+        assert "OrderResult.fail(str(exc))" not in content
+
+
+class TestTransportBareExceptRatchet:
+    """Bare ``except Exception: OrderResult.fail(str(exc))`` is forbidden in transport."""
+
+    def test_no_unmapped_order_result_fail_in_dhan_transport(self) -> None:
+        path = GATEWAY_DIR / "dhan" / "api" / "transport.py"
+        content = path.read_text()
+        assert "OrderResult.fail(str(exc))" not in content
+
+    def test_upstox_order_gateway_uses_mapper(self) -> None:
+        content = (GATEWAY_DIR / "upstox" / "adapters" / "order_gateway.py").read_text()
+        assert "order_response_from_transport_error" in content
+        assert "OrderResponse.fail(str(e))" not in content
+        assert "OrderResponse.fail(str(exc))" not in content

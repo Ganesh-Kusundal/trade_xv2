@@ -125,6 +125,7 @@ def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
 
     # Add canonical instrument_id column
     from datalake.core.symbols import instrument_id_from_option
+
     out["instrument_id"] = [
         instrument_id_from_option(u, exp, s, ot)
         for u, exp, s, ot in zip(
@@ -152,7 +153,9 @@ def map_expiry_code_to_date(
     For WEEK code=2: next Thursday after that
     For MONTH code=1: last Thursday of the month containing reference
     """
-    ref = datetime.fromtimestamp(reference_ts_ms / 1000, tz=timezone.utc).astimezone(_get_exchange_tz())
+    ref = datetime.fromtimestamp(reference_ts_ms / 1000, tz=timezone.utc).astimezone(
+        _get_exchange_tz()
+    )
 
     if underlying not in ("NIFTY", "BANKNIFTY"):
         return ref.strftime("%Y-%m-%d")

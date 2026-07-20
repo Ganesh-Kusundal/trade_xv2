@@ -129,7 +129,7 @@ def test_paper_signal_processor_passes_unslipped_price_into_oms() -> None:
         recorded.append(float(kwargs["price"]))
         return True
 
-    processor = PaperSignalProcessor(config, adapter, record_fill)
+    processor = PaperSignalProcessor(config, record_fill, oms_adapter=adapter)
     session = PaperSession(capital=config.initial_capital)
     processor.process(_buy_signal(), _bar(close=100.0), session)
 

@@ -35,8 +35,8 @@ def _test_broker_options(
         console.print(f"[yellow]Skipping {name}: {env_filename} not found[/yellow]")
         return False
 
-    from infrastructure.io.environment_bootstrap import load_env_file
     from infrastructure.gateway.factory import bootstrap_gateway
+    from infrastructure.io.environment_bootstrap import load_env_file
 
     load_env_file(env_path)
 

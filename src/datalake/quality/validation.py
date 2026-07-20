@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ValidationAudit:
     """Audit trail for dropped/flagged rows during validation."""
+
     total_rows: int = 0
     valid_rows: int = 0
     dropped_rows: int = 0
@@ -203,13 +204,18 @@ def validate_candles(
                 df = df[is_bool].copy()
 
     # Check temporal causality: published_at >= event_time
-    if "published_at" in df.columns and "event_time" in df.columns and pd.api.types.is_datetime64_any_dtype(df.get("published_at")) and pd.api.types.is_datetime64_any_dtype(df.get("event_time")):
-            causality_violation = df["published_at"] < df["event_time"]
-            if causality_violation.any():
-                n = int(causality_violation.sum())
-                issues.append(f"{n} published_at < event_time (causality violation)")
-                if drop_invalid:
-                    df = df[~causality_violation].copy()
+    if (
+        "published_at" in df.columns
+        and "event_time" in df.columns
+        and pd.api.types.is_datetime64_any_dtype(df.get("published_at"))
+        and pd.api.types.is_datetime64_any_dtype(df.get("event_time"))
+    ):
+        causality_violation = df["published_at"] < df["event_time"]
+        if causality_violation.any():
+            n = int(causality_violation.sum())
+            issues.append(f"{n} published_at < event_time (causality violation)")
+            if drop_invalid:
+                df = df[~causality_violation].copy()
 
     audit.issues = issues
     audit.valid_rows = len(df)

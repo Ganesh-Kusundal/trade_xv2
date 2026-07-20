@@ -44,7 +44,9 @@ def main() -> int:
             n = len(result["sample"])
             if n:
                 had_issues = True
-                print(f"  FAIL thin_coverage: {n} symbol(s) below {result['min_rows_threshold']} rows")
+                print(
+                    f"  FAIL thin_coverage: {n} symbol(s) below {result['min_rows_threshold']} rows"
+                )
                 for row in result["sample"][:5]:
                     print(f"    {row}")
             else:

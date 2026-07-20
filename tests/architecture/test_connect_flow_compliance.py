@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Directories scanned for bypass patterns (production + verify scripts).
@@ -49,10 +47,7 @@ def _is_allowlisted(path: Path) -> bool:
     resolved = path.resolve()
     if resolved in _ALLOWLIST:
         return True
-    for prefix in _ALLOWLIST_PREFIXES:
-        if str(resolved).startswith(str(prefix.resolve())):
-            return True
-    return False
+    return any(str(resolved).startswith(str(prefix.resolve())) for prefix in _ALLOWLIST_PREFIXES)
 
 
 def _iter_py_files(root: Path):
@@ -80,12 +75,17 @@ class TestConnectFlowCompliance:
         violations: list[str] = []
         for path in _iter_py_files(_UI_COMMANDS):
             text = path.read_text(encoding="utf-8")
-            if "create_gateway" in text and "connect_live" not in text and "connect_analytics" not in text:
+            if (
+                "create_gateway" in text
+                and "connect_live" not in text
+                and "connect_analytics" not in text
+            ):
                 # Allow docstrings/comments referencing legacy name in doctor docs only
                 if path.name in {"__init__.py", "gateway_creation.py"}:
                     continue
                 if "create_gateway" in text and (
-                    "Uses ``create_gateway" in text or "create_gateway()" in text and "bootstrap_gateway" in text
+                    "Uses ``create_gateway" in text
+                    or ("create_gateway()" in text and "bootstrap_gateway" in text)
                 ):
                     continue
             for line in text.splitlines():

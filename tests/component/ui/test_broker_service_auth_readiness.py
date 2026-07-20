@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 from domain.errors import BrokerNotReadyError
+from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
 
 def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):
@@ -165,9 +165,9 @@ def test_active_broker_returns_upstox_oms_proxy_when_configured(monkeypatch, tmp
     monkeypatch.setattr("interface.ui.services.broker_service._ENV_PATH", env)
 
     upstox_gw = MagicMock()
-    upstox_proxy = MagicMock()
+    MagicMock()
     dhan_gw = MagicMock()
-    dhan_proxy = MagicMock()
+    MagicMock()
 
     from interface.ui.services.broker_service import BrokerService
 

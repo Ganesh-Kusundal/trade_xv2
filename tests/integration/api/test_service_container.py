@@ -9,7 +9,6 @@ Verifies that:
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -17,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
+from infrastructure.event_bus import EventBus
 from interface.api.deps import (
     get_broker_service,
     get_container,
@@ -29,11 +29,9 @@ from interface.api.deps import (
     get_trading_context,
     get_view_manager,
     initialize_all_services,
-    reset_container,
     set_container,
 )
-from application.oms.context import TradingContext
-from infrastructure.event_bus import EventBus
+from tests.conftest import build_test_trading_context
 
 
 class TestServiceContainerInitialization:
@@ -247,15 +245,16 @@ class TestDIDependencies:
 
     def test_get_order_manager_falls_back_to_trading_context(self):
         """get_order_manager should fall back to TradingContext when not directly registered."""
-        from tests.conftest import build_test_trading_context
         from infrastructure.event_bus import EventBus
+        from tests.conftest import build_test_trading_context
 
         event_bus = EventBus()
         ctx = build_test_trading_context(event_bus=event_bus)
 
         # Initialize with trading_context but explicitly set order_manager to None
-        import interface.api.deps as deps
         from types import SimpleNamespace
+
+        import interface.api.deps as deps
 
         ns = SimpleNamespace(
             datalake_gateway=None,

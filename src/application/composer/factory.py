@@ -13,14 +13,13 @@ Two creation paths:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Callable
-from datetime import date, datetime, timedelta as _TIMEDELTA
+from datetime import date, datetime
+from datetime import timedelta as _TIMEDELTA
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from application.data.historical_coordinator import HistoricalDataCoordinator
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.source_selection import SourceSelectionPolicy
     from domain.ports.broker_adapter import BrokerAdapter
@@ -154,7 +153,7 @@ def _build_default_backfill_callback(
         return None
 
     def _backfill(symbols: Any, from_dt: datetime, to_dt: datetime) -> list[dict]:
-        if isinstance(symbols, (list, tuple, set)):
+        if isinstance(symbols, list | tuple | set):
             keys = [str(k) for k in symbols]
         else:
             keys = [str(symbols)]
@@ -177,14 +176,12 @@ def _build_default_backfill_callback(
     if gap_reconciler is None:
         return _backfill
 
-    def _backfill_with_reconcile(
-        symbols: Any, from_dt: datetime, to_dt: datetime
-    ) -> list[dict]:
+    def _backfill_with_reconcile(symbols: Any, from_dt: datetime, to_dt: datetime) -> list[dict]:
         out = _backfill(symbols, from_dt, to_dt)
         try:
             keys = (
                 [str(k) for k in symbols]
-                if isinstance(symbols, (list, tuple, set))
+                if isinstance(symbols, list | tuple | set)
                 else [str(symbols)]
             )
             # Subtract the range the reconnect backfill just filled.
@@ -200,7 +197,9 @@ def _build_default_backfill_callback(
     return _backfill_with_reconcile
 
 
-def _default_gap_fill_callback(stream_orchestrator: Any | None) -> Callable[[str, list[dict]], None]:
+def _default_gap_fill_callback(
+    stream_orchestrator: Any | None,
+) -> Callable[[str, list[dict]], None]:
     """Best-effort publish sink for reconciled gap bars.
 
     Tries to push bars through the orchestrator's normal delivery path if it
@@ -395,8 +394,11 @@ def create_composers_from_infra(
     ``bootstrap_from_gateways``).
     """
     risk_manager, order_manager = _ensure_risk_and_order(
-        risk_manager, order_manager,
-        registry=infra.registry, router=infra.router, quota_scheduler=infra.quota,
+        risk_manager,
+        order_manager,
+        registry=infra.registry,
+        router=infra.router,
+        quota_scheduler=infra.quota,
     )
     return _build_composers(
         registry=infra.registry,
@@ -453,16 +455,23 @@ def create_composers(
     )
 
     historical_coordinator = HistoricalDataCoordinator(
-        registry=registry, router=router, quota_fn=quota_scheduler.acquire,
+        registry=registry,
+        router=router,
+        quota_fn=quota_scheduler.acquire,
     )
     batch_quote_coordinator = BatchQuoteCoordinator(
-        registry=registry, router=router, quota_fn=quota_scheduler.acquire,
+        registry=registry,
+        router=router,
+        quota_fn=quota_scheduler.acquire,
     )
     stream_orchestrator = StreamOrchestrator(registry=registry, router=router)
 
     risk_manager, order_manager = _ensure_risk_and_order(
-        risk_manager, None,
-        registry=registry, router=router, quota_scheduler=quota_scheduler,
+        risk_manager,
+        None,
+        registry=registry,
+        router=router,
+        quota_scheduler=quota_scheduler,
     )
     return _build_composers(
         registry=registry,

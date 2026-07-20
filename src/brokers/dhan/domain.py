@@ -13,8 +13,8 @@ from typing import Any
 import domain.entities.instrument_record
 
 # Canonical types — import from domain, not redefined here
-from domain.enums import OrderStatus  # noqa: F401
-from domain.market_enums import Exchange, InstrumentType, OptionType  # noqa: F401
+from domain.enums import OrderStatus
+from domain.market_enums import Exchange, InstrumentType, OptionType
 
 _CANONICAL = frozenset(
     {
@@ -101,7 +101,7 @@ class DhanInstrument:
     Uses composition to hold domain.entities.instrument_record.InstrumentRecord.
     """
 
-    domain_instrument: 'domain.entities.instrument_record.InstrumentRecord'
+    domain_instrument: domain.entities.instrument_record.InstrumentRecord
     exchange: Exchange
     instrument_type: InstrumentType
     option_type: OptionType | None = None

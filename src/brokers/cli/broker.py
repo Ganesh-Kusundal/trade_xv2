@@ -9,14 +9,13 @@ from brokers._bootstrap import ensure_repo_src
 
 ensure_repo_src()
 
+import contextlib
 import json
 
 import click
 
-from domain.enums import BrokerId
-
 from brokers.cli._errors import handle_cli_errors
-from brokers.cli._render import present, console
+from brokers.cli._render import console, present
 from brokers.platform_ops import (
     run_benchmark,
     run_certify,
@@ -44,6 +43,7 @@ from brokers.services import (
     status_from_session,
 )
 from brokers.session import BrokerSession, available_brokers
+from domain.enums import BrokerId
 
 
 def _default_broker() -> str:
@@ -54,7 +54,11 @@ def _default_broker() -> str:
 
 
 @click.group()
-@click.option("--broker", default=_default_broker, help="Broker id (paper/dhan/upstox). Defaults to the switched default (see `broker switch`).")
+@click.option(
+    "--broker",
+    default=_default_broker,
+    help="Broker id (paper/dhan/upstox). Defaults to the switched default (see `broker switch`).",
+)
 @click.option("--json", "as_json", is_flag=True, help="Emit raw JSON instead of Rich tables.")
 @click.option("--yaml", "as_yaml", is_flag=True, help="Emit YAML instead of Rich tables.")
 @click.option("--quiet", "-q", "quiet", is_flag=True, help="Suppress output (exit code only).")
@@ -128,14 +132,12 @@ def _session_extensions(ctx: click.Context, broker_id: str) -> list[str]:
 
 def _shell_invoke(ctx: click.Context, broker_id: str, name: str, args: list[str]) -> None:
     """Re-invoke a subcommand keeping the shell's broker selection."""
-    try:
+    with contextlib.suppress(SystemExit):
         broker.main(
             ["--broker", broker_id, name, *args],
             standalone_mode=False,
             obj=ctx.obj,
         )
-    except SystemExit:
-        pass
 
 
 @broker.command("shell")
@@ -143,11 +145,11 @@ def _shell_invoke(ctx: click.Context, broker_id: str, name: str, args: list[str]
 def shell_cmd(ctx: click.Context) -> None:
     """Interactive REPL for broker commands."""
     from brokers.cli._shell_nav import (
+        RECOVERY_MENU,
         Back,
         EnterSection,
         Help,
         Quit,
-        RECOVERY_MENU,
         RetryConnect,
         RunCommand,
         Unknown,
@@ -217,8 +219,12 @@ def shell_cmd(ctx: click.Context) -> None:
             if isinstance(action, RunCommand):
                 if action.name == "connect":
                     session = _reopen_shell_session(ctx, broker_id)
-                    declared_ext = _session_extensions(ctx, broker_id) if session.get("connected") else []
-                    main_menu = build_main_menu(broker, broker_id, declared_extensions=declared_ext or None)
+                    declared_ext = (
+                        _session_extensions(ctx, broker_id) if session.get("connected") else []
+                    )
+                    main_menu = build_main_menu(
+                        broker, broker_id, declared_extensions=declared_ext or None
+                    )
                     continue
                 args = list(action.args)
                 if not args and command_needs_args(broker, action.name):
@@ -310,7 +316,9 @@ def current(ctx: click.Context) -> None:
     """Show the configured default broker."""
     from brokers.cli._preferences import PreferencesStore
 
-    present(ctx, {"broker.default": PreferencesStore().get("broker.default")}, title="Current broker")
+    present(
+        ctx, {"broker.default": PreferencesStore().get("broker.default")}, title="Current broker"
+    )
 
 
 @broker.command()
@@ -377,7 +385,9 @@ def history(ctx: click.Context, symbol: str, tf: str, days: int) -> None:
 @click.option("--exchange", default="NSE", help="Exchange for all symbols.")
 @click.pass_context
 @handle_cli_errors
-def history_batch(ctx: click.Context, symbols: tuple[str, ...], tf: str, days: int, exchange: str) -> None:
+def history_batch(
+    ctx: click.Context, symbols: tuple[str, ...], tf: str, days: int, exchange: str
+) -> None:
     """Fetch history for multiple SYMBOLS in parallel.
 
     SYMBOLS is one or more space-separated trading symbols.
@@ -401,7 +411,11 @@ def history_batch(ctx: click.Context, symbols: tuple[str, ...], tf: str, days: i
 def subscribe(ctx: click.Context, symbol: str) -> None:
     """Subscribe to live data for SYMBOL (brief check)."""
     ok = run_subscribe_probe(_bid(ctx), symbol, **_svc_kw(ctx))
-    present(ctx, {"symbol": symbol, "handle": "active" if ok else "none", "subscribed": ok}, title=f"Subscribe — {symbol}")
+    present(
+        ctx,
+        {"symbol": symbol, "handle": "active" if ok else "none", "subscribed": ok},
+        title=f"Subscribe — {symbol}",
+    )
 
 
 @broker.command()
@@ -419,7 +433,11 @@ def depth(ctx: click.Context, symbol: str) -> None:
 @handle_cli_errors
 def option_chain(ctx: click.Context, underlying: str) -> None:
     """Fetch option chain for UNDERLYING."""
-    present(ctx, get_option_chain(_bid(ctx), underlying, **_svc_kw(ctx)), title=f"Option chain — {underlying}")
+    present(
+        ctx,
+        get_option_chain(_bid(ctx), underlying, **_svc_kw(ctx)),
+        title=f"Option chain — {underlying}",
+    )
 
 
 @broker.command()
@@ -434,7 +452,11 @@ def capability(ctx: click.Context) -> None:
 @click.pass_context
 def symbols(ctx: click.Context, symbol: str) -> None:
     """Resolve SYMBOL to canonical instrument id."""
-    present(ctx, {"symbol": symbol, "instrument_id": lookup_symbol(_bid(ctx), symbol, **_svc_kw(ctx))}, title=f"Symbol — {symbol}")
+    present(
+        ctx,
+        {"symbol": symbol, "instrument_id": lookup_symbol(_bid(ctx), symbol, **_svc_kw(ctx))},
+        title=f"Symbol — {symbol}",
+    )
 
 
 @broker.command()
@@ -445,7 +467,11 @@ def instrument(ctx: click.Context, symbol: str, exchange: str) -> None:
     """Resolve SYMBOL to public instrument metadata (no broker tokens)."""
     from brokers.services import lookup_instrument
 
-    present(ctx, lookup_instrument(_bid(ctx), symbol, exchange=exchange, **_svc_kw(ctx)), title=f"Instrument — {symbol}")
+    present(
+        ctx,
+        lookup_instrument(_bid(ctx), symbol, exchange=exchange, **_svc_kw(ctx)),
+        title=f"Instrument — {symbol}",
+    )
 
 
 @broker.command("security", hidden=True)
@@ -507,7 +533,11 @@ def market_hours(ctx: click.Context) -> None:
 @click.pass_context
 def depth20_cmd(ctx: click.Context, symbol: str) -> None:
     """Fetch 20-level WS depth for SYMBOL (Dhan)."""
-    present(ctx, probe_depth_ws(_bid(ctx), symbol, levels=20, **_svc_kw(ctx)), title=f"Depth20 — {symbol}")
+    present(
+        ctx,
+        probe_depth_ws(_bid(ctx), symbol, levels=20, **_svc_kw(ctx)),
+        title=f"Depth20 — {symbol}",
+    )
 
 
 @broker.command("depth200")
@@ -515,7 +545,11 @@ def depth20_cmd(ctx: click.Context, symbol: str) -> None:
 @click.pass_context
 def depth200_cmd(ctx: click.Context, symbol: str) -> None:
     """Fetch 200-level WS depth for SYMBOL (Dhan)."""
-    present(ctx, probe_depth_ws(_bid(ctx), symbol, levels=200, **_svc_kw(ctx)), title=f"Depth200 — {symbol}")
+    present(
+        ctx,
+        probe_depth_ws(_bid(ctx), symbol, levels=200, **_svc_kw(ctx)),
+        title=f"Depth200 — {symbol}",
+    )
 
 
 @broker.command("depth30")

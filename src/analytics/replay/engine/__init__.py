@@ -26,8 +26,8 @@ import pandas as pd
 
 from analytics.pipeline.errors import FeaturePipelineError
 from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.replay.engine.bar_loop import run_single as _run_single_fn
 from analytics.replay.engine.bar_loop import run_multi_symbol as _run_multi_symbol_fn
+from analytics.replay.engine.bar_loop import run_single as _run_single_fn
 from analytics.replay.fill_recorder import FillRecorder
 from analytics.replay.models import (
     FillModel,
@@ -141,7 +141,9 @@ class ReplayEngine:
         # Sub-modules extracted for focused responsibility.
         self._fill_recorder = FillRecorder(self._config)
         self._position_closer = PositionCloser(
-            self._fill_recorder, self._oms_adapter, self._portfolio_tracker,
+            self._fill_recorder,
+            self._oms_adapter,
+            self._portfolio_tracker,
         )
         self._signal_processor = SignalProcessor(
             self._fill_recorder,
@@ -193,7 +195,11 @@ class ReplayEngine:
     ) -> None:
         """Process a signal for order execution."""
         self._signal_processor.process(
-            signal, bar, session, config, fill_price=fill_price,
+            signal,
+            bar,
+            session,
+            config,
+            fill_price=fill_price,
         )
 
     def _process_signal_simulated(
@@ -206,7 +212,11 @@ class ReplayEngine:
     ) -> None:
         """Simulate fills directly without OMS routing (pure backtest mode)."""
         self._signal_processor._process_simulated(
-            signal, bar, session, config, fill_price=fill_price,
+            signal,
+            bar,
+            session,
+            config,
+            fill_price=fill_price,
         )
 
     def _process_signal_via_oms(
@@ -219,11 +229,18 @@ class ReplayEngine:
     ) -> None:
         """Route signal through OMS for backtest-live parity (P0-2)."""
         self._signal_processor._process_via_oms(
-            signal, bar, session, config, fill_price=fill_price,
+            signal,
+            bar,
+            session,
+            config,
+            fill_price=fill_price,
         )
 
     def _close_position(
-        self, session: ReplaySession, bar: HistoricalBar, reason: str,
+        self,
+        session: ReplaySession,
+        bar: HistoricalBar,
+        reason: str,
     ) -> None:
         """Close the symbol's open position and record the trade."""
         self._position_closer.close(session, bar, reason)
@@ -247,9 +264,7 @@ class ReplayEngine:
         from analytics.replay.parity_risk import feed_parity_risk_state
 
         open_eq = (
-            session.equity_curve[0][1]
-            if session.equity_curve
-            else self._config.initial_capital
+            session.equity_curve[0][1] if session.equity_curve else self._config.initial_capital
         )
         feed_parity_risk_state(
             self._trading_context,

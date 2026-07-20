@@ -52,7 +52,7 @@ class EncryptedTokenStateStore:
         try:
             plaintext = self._secrets.decrypt(ciphertext)
             return json.loads(plaintext)
-        except Exception as exc:  # noqa: BLE001 - fall back to plaintext on failure
+        except Exception as exc:
             logger.warning("Token decryption failed, using stored payload: %s", exc)
             return raw
 

@@ -76,11 +76,13 @@ def adx(
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, float("nan"))
     adx_val = dx.ewm(alpha=1.0 / period, min_periods=period).mean()
 
-    return pd.DataFrame({
-        "adx": adx_val,
-        "plus_di": plus_di,
-        "minus_di": minus_di,
-    })
+    return pd.DataFrame(
+        {
+            "adx": adx_val,
+            "plus_di": plus_di,
+            "minus_di": minus_di,
+        }
+    )
 
 
 def cci(
@@ -138,13 +140,15 @@ def bollinger_bands(
     lower = sma - num_std * std
     bandwidth = (upper - lower) / sma
     pct_b = (close - lower) / (upper - lower)
-    return pd.DataFrame({
-        "bb_upper": upper,
-        "bb_mid": sma,
-        "bb_lower": lower,
-        "bb_bandwidth": bandwidth,
-        "bb_pct_b": pct_b,
-    })
+    return pd.DataFrame(
+        {
+            "bb_upper": upper,
+            "bb_mid": sma,
+            "bb_lower": lower,
+            "bb_bandwidth": bandwidth,
+            "bb_pct_b": pct_b,
+        }
+    )
 
 
 def zscore(close: pd.Series, period: int = 20) -> pd.Series:
@@ -157,11 +161,13 @@ def zscore(close: pd.Series, period: int = 20) -> pd.Series:
 def rsi_extremes(close: pd.Series, period: int = 14) -> pd.DataFrame:
     """RSI with oversold/overbought signals."""
     rsi_val = rsi(close, period)
-    return pd.DataFrame({
-        "rsi": rsi_val,
-        "rsi_oversold": (rsi_val < 30).astype(float),
-        "rsi_overbought": (rsi_val > 70).astype(float),
-    })
+    return pd.DataFrame(
+        {
+            "rsi": rsi_val,
+            "rsi_oversold": (rsi_val < 30).astype(float),
+            "rsi_overbought": (rsi_val > 70).astype(float),
+        }
+    )
 
 
 # ── Volatility indicators ────────────────────────────────────────────────
@@ -215,9 +221,7 @@ def parkinson_vol(
 ) -> pd.Series:
     """Parkinson volatility estimator (high-low based)."""
     log_hl = np.log(high / low)
-    return (log_hl**2 / (4 * np.log(2))).rolling(period).mean().apply(
-        lambda x: np.sqrt(max(x, 0))
-    )
+    return (log_hl**2 / (4 * np.log(2))).rolling(period).mean().apply(lambda x: np.sqrt(max(x, 0)))
 
 
 def yang_zhang_vol(
@@ -272,10 +276,12 @@ def volume_profile(
     """Volume profile — volume distribution by price level."""
     price_bins = pd.cut(close, bins=bins)
     profile = volume.groupby(price_bins, observed=True).sum()
-    return pd.DataFrame({
-        "price_range": profile.index.astype(str),
-        "volume": profile.values,
-    })
+    return pd.DataFrame(
+        {
+            "price_range": profile.index.astype(str),
+            "volume": profile.values,
+        }
+    )
 
 
 # ── Convenience: compute all features ────────────────────────────────────

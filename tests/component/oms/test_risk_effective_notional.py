@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
 
@@ -55,13 +54,15 @@ def _order(
 def test_market_order_without_ref_price_rejected(rm: RiskManager) -> None:
     result = rm.check_order(_order(price=Decimal("0")))
     assert result.allowed is False
-    assert "ref price" in (result.reason or "").lower() or "no limit" in (result.reason or "").lower()
+    assert (
+        "ref price" in (result.reason or "").lower() or "no limit" in (result.reason or "").lower()
+    )
 
 
 @pytest.mark.unit
 def test_market_order_uses_position_ltp(pm: PositionManager, rm: RiskManager) -> None:
     # Seed position with LTP so MARKET can be sized
-    pm._positions["RELIANCE:NSE"] = Position(  # noqa: SLF001 — test seed
+    pm._positions["RELIANCE:NSE"] = Position(
         symbol="RELIANCE",
         exchange="NSE",
         quantity=0,
@@ -77,18 +78,14 @@ def test_market_order_uses_position_ltp(pm: PositionManager, rm: RiskManager) ->
 @pytest.mark.unit
 def test_limit_order_notional_blocks_large_size(rm: RiskManager) -> None:
     # 50 * 3000 = 150_000 > 10% of 100_000
-    result = rm.check_order(
-        _order(qty=50, price=Decimal("3000"), order_type=OrderType.LIMIT)
-    )
+    result = rm.check_order(_order(qty=50, price=Decimal("3000"), order_type=OrderType.LIMIT))
     assert result.allowed is False
 
 
 @pytest.mark.unit
 def test_small_limit_order_allowed(rm: RiskManager) -> None:
     # 1 * 1000 = 1000 = 1% of capital
-    result = rm.check_order(
-        _order(qty=1, price=Decimal("1000"), order_type=OrderType.LIMIT)
-    )
+    result = rm.check_order(_order(qty=1, price=Decimal("1000"), order_type=OrderType.LIMIT))
     assert result.allowed is True
 
 

@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 from domain.errors import BrokerNotReadyError
+from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 from interface.ui.services.broker_registry import require_gateway
 
 

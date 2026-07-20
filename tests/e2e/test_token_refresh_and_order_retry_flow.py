@@ -210,7 +210,7 @@ def test_retry_executor_backoff(fast_exp_backoff: ExponentialBackoff) -> None:
     for i in range(len(captured_delays) - 1):
         assert captured_delays[i + 1] > captured_delays[i], (
             f"Delay must increase: delay[{i}]={captured_delays[i]}, "
-            f"delay[{i+1}]={captured_delays[i+1]}"
+            f"delay[{i + 1}]={captured_delays[i + 1]}"
         )
 
 

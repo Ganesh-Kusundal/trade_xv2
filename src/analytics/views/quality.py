@@ -20,6 +20,7 @@ def _get_session_constants() -> tuple[int, int]:
     """Return (trading_minutes_per_day, trading_minutes_partial) from the active calendar."""
     try:
         from datalake.exchange_registry import get_session_minutes
+
         minutes = get_session_minutes()
     except Exception:
         minutes = 375  # fallback if no exchange configured

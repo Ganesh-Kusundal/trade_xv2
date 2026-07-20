@@ -63,8 +63,10 @@ class TestApplySlippage:
 
     def test_duck_typing_side_object(self):
         """apply_slippage uses hasattr(side, 'value') for duck-typing."""
+
         class FakeSide:
             value = "BUY"
+
         result = apply_slippage(Decimal("100"), side=FakeSide(), slippage_pct=0.1)
         assert result == Decimal("100.1000")
 
@@ -138,27 +140,19 @@ class TestComputeSlippagePct:
 
 class TestComputeCommission:
     def test_flat_model(self):
-        result = compute_commission(
-            100000, "BUY", model=CommissionModel.FLAT, flat_fee=20.0
-        )
+        result = compute_commission(100000, "BUY", model=CommissionModel.FLAT, flat_fee=20.0)
         assert result == 20.0
 
     def test_flat_model_zero_fee(self):
-        result = compute_commission(
-            100000, "BUY", model=CommissionModel.FLAT, flat_fee=0.0
-        )
+        result = compute_commission(100000, "BUY", model=CommissionModel.FLAT, flat_fee=0.0)
         assert result == 0.0
 
     def test_indian_equity_model_buy(self):
-        result = compute_commission(
-            100000, "BUY", model=CommissionModel.INDIAN_EQUITY
-        )
+        result = compute_commission(100000, "BUY", model=CommissionModel.INDIAN_EQUITY)
         assert result > 0
 
     def test_indian_equity_model_sell(self):
-        result = compute_commission(
-            100000, "SELL", model=CommissionModel.INDIAN_EQUITY
-        )
+        result = compute_commission(100000, "SELL", model=CommissionModel.INDIAN_EQUITY)
         assert result > 0
 
     def test_indian_equity_sell_higher_than_buy(self):
@@ -167,16 +161,12 @@ class TestComputeCommission:
         assert sell_fee > buy_fee
 
     def test_indian_fno_model(self):
-        result = compute_commission(
-            100000, "SELL", model=CommissionModel.INDIAN_FNO
-        )
+        result = compute_commission(100000, "SELL", model=CommissionModel.INDIAN_FNO)
         assert result > 0
 
     def test_custom_fees(self):
         fees = IndianMarketFees(brokerage_pct=0.1, brokerage_max=100.0)
-        result = compute_commission(
-            100000, "BUY", model=CommissionModel.INDIAN_EQUITY, fees=fees
-        )
+        result = compute_commission(100000, "BUY", model=CommissionModel.INDIAN_EQUITY, fees=fees)
         assert result > 0
 
     def test_default_model_is_flat(self):

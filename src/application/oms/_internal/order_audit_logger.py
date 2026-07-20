@@ -19,11 +19,11 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from domain.types import OrderStatus
 from domain.ports.time_service import get_current_clock
+from domain.types import OrderStatus
 
 logger = logging.getLogger(__name__)
 

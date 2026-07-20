@@ -46,7 +46,9 @@ class TestSimulatedTradePnlDecimal:
         ]
 
         decimal_total = sum(t.pnl for t in trades)
-        assert decimal_total == Decimal("1000.0"), f"Unexpected drift: {decimal_total - Decimal('1000.0')}"
+        assert decimal_total == Decimal("1000.0"), (
+            f"Unexpected drift: {decimal_total - Decimal('1000.0')}"
+        )
 
     def test_to_domain_trade_works_with_decimal_pnl(self):
         """to_domain_trade() should handle Decimal pnl correctly."""
@@ -63,15 +65,11 @@ class TestSimulatedTradePnlDecimal:
 
     def test_pnl_comparison_with_zero(self):
         """Decimal pnl should compare correctly with zero."""
-        positive = SimulatedTrade(
-            symbol="TEST", side="BUY", entry_price=100.0, pnl=Decimal("0.01")
-        )
+        positive = SimulatedTrade(symbol="TEST", side="BUY", entry_price=100.0, pnl=Decimal("0.01"))
         negative = SimulatedTrade(
             symbol="TEST", side="BUY", entry_price=100.0, pnl=Decimal("-0.01")
         )
-        zero = SimulatedTrade(
-            symbol="TEST", side="BUY", entry_price=100.0, pnl=Decimal("0")
-        )
+        zero = SimulatedTrade(symbol="TEST", side="BUY", entry_price=100.0, pnl=Decimal("0"))
 
         assert positive.pnl > 0
         assert negative.pnl < 0

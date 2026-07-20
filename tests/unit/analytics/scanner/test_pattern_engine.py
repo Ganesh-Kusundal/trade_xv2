@@ -27,8 +27,13 @@ def _universe() -> pd.DataFrame:
     ts = pd.date_range("2026-01-01", periods=10, freq="min")
     for i in range(8):
         sym00.append(
-            {"open": 100.0 + i * 0.1, "high": 101.0 + i * 0.1,
-             "low": 99.0 + i * 0.1, "close": 100.5 + i * 0.1, "volume": 1000}
+            {
+                "open": 100.0 + i * 0.1,
+                "high": 101.0 + i * 0.1,
+                "low": 99.0 + i * 0.1,
+                "close": 100.5 + i * 0.1,
+                "volume": 1000,
+            }
         )
     # bar 8: bearish (open > close)
     sym00.append({"open": 102.0, "high": 102.5, "low": 100.0, "close": 100.5, "volume": 1000})

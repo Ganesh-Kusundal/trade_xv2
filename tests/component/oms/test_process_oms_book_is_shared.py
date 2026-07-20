@@ -17,7 +17,7 @@ from application.oms import (
     register_oms_context,
     reset_oms_context,
 )
-from application.oms.session_bridge import build_paper_oms_service
+from application.oms.session_bridge import build_oms_service
 from domain.enums import OrderStatus, OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.ports.protocols import ExecutionProvider, OrderResult
@@ -66,21 +66,19 @@ def fresh_oms():
 
 def test_tradex_connect_resolves_registered_singleton(fresh_oms: TradingContext) -> None:
     """tradex.connect's OMS service must be backed by the registered context."""
-    import tradex
 
     exec_p = _FakeExec()
     # Build a session that shares the registered OMS by injecting its order_service.
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     # The build path resolves the singleton; both must point at the same manager.
     assert service.order_manager is fresh_oms.order_manager
 
 
 def test_place_updates_same_book_queried_by_get_orders(fresh_oms: TradingContext) -> None:
     """A placed order is visible in the queried book (no silent desync)."""
-    import tradex
 
     exec_p = _FakeExec()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",

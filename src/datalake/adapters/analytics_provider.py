@@ -135,8 +135,8 @@ class DataLakeMarketDataProvider:
 
         Uses a short-lived read-only connection from the sanctioned pool.
         """
-        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
         from datalake.core.duckdb_utils import duckdb_connection
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
 
         with duckdb_connection(DEFAULT_DATA_PATHS.catalog_path, read_only=True) as conn:
             if params:

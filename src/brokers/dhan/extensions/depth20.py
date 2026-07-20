@@ -71,7 +71,7 @@ class DhanDepth20Extension(Extension):
             on_depth=on_depth,
         )
 
-    def for_instrument(self, symbol: str, exchange: str = NSE) -> "DhanDepth20Extension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> DhanDepth20Extension:
         """Bind the extension to a specific instrument for method calls."""
         ext = DhanDepth20Extension(self._gw)
         ext._symbol = symbol  # type: ignore[attr-defined]

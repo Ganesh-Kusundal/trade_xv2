@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from application.oms import PositionManager, RiskConfig, RiskManager
-from interface.ui.services.oms_setup import register_oms_services
 from infrastructure.event_bus import EventBus, ProcessedTradeRepository
+from interface.ui.services.oms_setup import register_oms_services
 
 
 @pytest.fixture(autouse=True)

@@ -18,6 +18,6 @@ if TYPE_CHECKING:
 class RiskViewPort(Protocol):
     """Expose a read-only RiskProfile snapshot. Never mutates risk state."""
 
-    def get_risk_profile(self) -> "RiskProfile":
+    def get_risk_profile(self) -> RiskProfile:
         """Return the current risk limits and today's headroom."""
         ...

@@ -62,6 +62,7 @@ class TestCheckLiveActionable:
 
     def test_gate_exception_propagates(self):
         """If the gate callable raises, the exception propagates."""
+
         def bad_gate():
             raise OSError("bootstrap failed")
 

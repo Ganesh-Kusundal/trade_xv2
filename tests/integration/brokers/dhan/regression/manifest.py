@@ -41,6 +41,7 @@ class RegressionCase:
 # live gateway during a regression run.
 # ---------------------------------------------------------------------------
 
+
 def _assert_nse_depth(gw: DhanBrokerGateway) -> None:
     depth = gw.depth("RELIANCE", "NSE")
     assert len(depth.bids) >= 1, "NSE REST depth: no bids"
@@ -147,9 +148,11 @@ def _assert_nfo_banknifty_future(gw: DhanBrokerGateway) -> None:
 
 # Market-hours cases — WebSocket / streaming (skipped off-market)
 
+
 def _assert_depth_20_both_sides(gw: DhanBrokerGateway) -> None:
     """depth_20() initial return has both bids and asks (merged with REST)."""
     import time
+
     depth = gw.depth_20("RELIANCE", "NSE")
     # After the depth-merge fix the initial call must always have both sides
     assert len(depth.bids) >= 1, "depth_20() bids empty"
@@ -160,6 +163,7 @@ def _assert_depth_20_both_sides(gw: DhanBrokerGateway) -> None:
 def _assert_full_mode_tick(gw: DhanBrokerGateway) -> None:
     """FULL mode stream receives at least one tick within 15 s during market hours."""
     import threading
+
     received = threading.Event()
     ticks: list[object] = []
 

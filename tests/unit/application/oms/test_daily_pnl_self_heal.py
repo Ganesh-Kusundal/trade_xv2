@@ -2,7 +2,6 @@
 
 import time
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 from application.oms._internal.daily_pnl_tracker import DailyPnlTracker
 from application.oms._internal.loss_circuit_breaker import LossCircuitBreaker

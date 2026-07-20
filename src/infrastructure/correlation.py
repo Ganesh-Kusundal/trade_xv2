@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 from collections.abc import Generator
 
-from domain.correlation import (  # noqa: F401
+from domain.correlation import (
     generate_correlation_id,
     get_current_correlation_id,
     set_current_correlation_id,

@@ -37,7 +37,7 @@ class LiveTickBarPipeline:
         self._aggregator.flush()
 
 
-def market_tick_from_event(event: "DomainEvent") -> MarketTick | None:
+def market_tick_from_event(event: DomainEvent) -> MarketTick | None:
     """Map a TICK :class:`DomainEvent` to a normalized :class:`MarketTick`.
 
     Supports Dhan/Upstox publishers (``payload["quote"]``) and flat payloads.

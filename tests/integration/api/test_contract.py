@@ -27,7 +27,6 @@ from interface.api.routers import market as market_router
 from interface.api.routers.live import market as live_market
 from interface.api.schemas._market import QuoteResponse
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LAKE_ROOT = PROJECT_ROOT / DEFAULT_DATA_ROOT
 CATALOG_PATH = PROJECT_ROOT / DEFAULT_CATALOG_PATH
@@ -78,8 +77,8 @@ def contract_client(lake_ready: None):
 def _assert_candle_shape(candle: dict) -> None:
     assert set(candle.keys()) >= CANDLE_KEYS
     for k in ("o", "h", "l", "c", "v", "oi"):
-        assert isinstance(candle[k], (int, float))
-    assert isinstance(candle["t"], (int, float))
+        assert isinstance(candle[k], int | float)
+    assert isinstance(candle["t"], int | float)
 
 
 def test_market_candles_equity(contract_client: TestClient) -> None:
@@ -121,7 +120,7 @@ def test_options_chain_shape(contract_client: TestClient) -> None:
         assert c["option_type"] in {"CE", "PE", "CALL", "PUT"}
         for field in ("strike", "ltp", "volume", "oi"):
             assert field in c
-            assert isinstance(c[field], (int, float))
+            assert isinstance(c[field], int | float)
 
 
 def test_pcr_maxpain_ivsurface(contract_client: TestClient) -> None:
@@ -146,7 +145,7 @@ def test_pcr_maxpain_ivsurface(contract_client: TestClient) -> None:
         for key in required - {"underlying"}:
             val = body[key]
             if val is not None:
-                assert isinstance(val, (int, float)), f"{path}.{key}={val!r}"
+                assert isinstance(val, int | float), f"{path}.{key}={val!r}"
 
 
 def test_quote_no_bid_ask(contract_client: TestClient) -> None:
@@ -154,7 +153,7 @@ def test_quote_no_bid_ask(contract_client: TestClient) -> None:
     resp = contract_client.get("/api/v1/market/quote/RELIANCE")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert "ltp" in body and isinstance(body["ltp"], (int, float))
+    assert "ltp" in body and isinstance(body["ltp"], int | float)
     assert body.get("bid") is None
     assert body.get("ask") is None
     # Honest schema: fields exist as Optional on QuoteResponse but are live-only.
@@ -169,7 +168,7 @@ def test_live_quote_numeric(contract_client: TestClient) -> None:
     body = resp.json()
     for key in ("ltp", "open", "high", "low", "close", "volume"):
         assert key in body
-        assert isinstance(body[key], (int, float)), f"{key}={body[key]!r} not numeric"
+        assert isinstance(body[key], int | float), f"{key}={body[key]!r} not numeric"
 
 
 def test_cors_allows_api_key(contract_client: TestClient) -> None:

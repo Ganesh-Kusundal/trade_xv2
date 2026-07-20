@@ -13,7 +13,6 @@ Transport-only fields (``exchange_segment``, ``is_amo``, ``algo_name``,
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
 
 from domain.types import (

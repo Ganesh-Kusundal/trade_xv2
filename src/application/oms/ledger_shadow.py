@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from application.oms.ledger_authority import ledger_authority_enabled
 from application.oms.position_manager import PositionManager
 from domain.ledger_recovery import rebuild_projector_from_ledger
 from domain.ports.execution_ledger import ExecutionLedgerPort
-from application.oms.ledger_authority import ledger_authority_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +42,9 @@ def compare_ledger_vs_positions(
         return ShadowParityReport(enabled=False)
 
     projected = rebuild_projector_from_ledger(ledger)
-    live_by_key = {
-        (p.exchange, p.symbol): p for p in position_manager.get_positions()
-    }
+    live_by_key = {(p.exchange, p.symbol): p for p in position_manager.get_positions()}
     drifts: list[ShadowDrift] = []
-    keys = set(live_by_key) | {
-        (p.exchange, p.symbol) for p in projected.get_positions()
-    }
+    keys = set(live_by_key) | {(p.exchange, p.symbol) for p in projected.get_positions()}
 
     for exchange, symbol in sorted(keys):
         live = live_by_key.get((exchange, symbol))

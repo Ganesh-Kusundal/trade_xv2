@@ -6,9 +6,7 @@ resolve to the default surface — with NO change to their effective values.
 
 from __future__ import annotations
 
-from decimal import Decimal
-
-from domain.constants.market import DEFAULT_EXCHANGE, DEFAULT_TICK_SIZE
+from domain.constants.market import DEFAULT_EXCHANGE
 from domain.field_mapping import DefaultFieldMapping
 
 

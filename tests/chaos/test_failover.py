@@ -31,6 +31,9 @@ from decimal import Decimal
 from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
+from domain.ports.time_service import use_clock
+from domain.ports.time_service_impls import VirtualClock
+
 import pytest
 
 from application.oms import (
@@ -203,8 +206,13 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
 
     # The trade event is then processed exactly once. Simulate a
     # second delivery of the same trade.
+    from infrastructure.event_bus import ProcessedTradeRepository
+
     bus = EventBus()
-    om = OrderManager(event_bus=bus)
+    om = OrderManager(
+        event_bus=bus,
+        processed_trade_repository=ProcessedTradeRepository(),
+    )
     # The OrderManager does NOT auto-subscribe to TRADE on
     # construction — that wiring is done by TradingContext. The
     # caller (the websocket adapter in production) is responsible
@@ -243,7 +251,7 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
     # ledger's duplicates_observed stays at 0). The contract we care
     # about is: the OMS saw the duplicate and the order book was
     # applied exactly once.
-    assert om._trades_duplicated == 1
+    assert om.trade_recorder.trades_duplicated == 1
 
 
 def test_dhan_token_refresh_does_not_replay_under_cooldown() -> None:
@@ -322,31 +330,22 @@ def test_daily_pnl_reset_scheduler_under_clock_skew() -> None:
     ist_today_rollover = datetime(2026, 6, 15, 0, 0, tzinfo=_IST)
     s._last_reset_unix = ist_today_rollover.timestamp()
 
-    # First call: still before tomorrow's midnight IST — must NOT fire.
     pre_midnight_utc = datetime(2026, 6, 15, 17, 30, tzinfo=timezone.utc)  # 23:00 IST
-    with patch(
-        "application.oms.daily_pnl_reset_scheduler._time.time",
-        return_value=pre_midnight_utc.timestamp(),
-    ):
+    virtual = VirtualClock(initial=pre_midnight_utc)
+    with use_clock(virtual):
         s._maybe_reset()
     assert rm.daily_pnl == Decimal("-5000"), "must not fire before boundary"
     assert s._reset_count == 0
 
-    # Second call: just after IST midnight — must fire exactly once.
     post_midnight_utc = datetime(2026, 6, 15, 18, 31, tzinfo=timezone.utc)  # 00:01 IST
-    with patch(
-        "application.oms.daily_pnl_reset_scheduler._time.time",
-        return_value=post_midnight_utc.timestamp(),
-    ):
+    virtual.set(post_midnight_utc)
+    with use_clock(virtual):
         s._maybe_reset()
     assert rm.daily_pnl == Decimal("0"), "must fire after boundary"
     assert s._reset_count == 1
 
-    # Third call: an hour later, same rollover window — must NOT fire again.
     later = datetime(2026, 6, 15, 19, 30, tzinfo=timezone.utc)  # 01:00 IST
-    with patch(
-        "application.oms.daily_pnl_reset_scheduler._time.time",
-        return_value=later.timestamp(),
-    ):
+    virtual.set(later)
+    with use_clock(virtual):
         s._maybe_reset()
     assert s._reset_count == 1, "must not double-fire within same window"

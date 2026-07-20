@@ -14,7 +14,8 @@ import pandas as pd
 
 from domain.candles.historical import InstrumentRef
 from domain.entities.market import DepthLevel, MarketDepth, QuoteSnapshot
-from domain.entities.options import FutureChain, OptionChain as OptionChainVO
+from domain.entities.options import FutureChain
+from domain.entities.options import OptionChain as OptionChainVO
 from domain.provenance import DataProvenance
 
 
@@ -96,8 +97,9 @@ class FakeProvider:
     def get_quote(self, instrument_id):
         return self._quotes.get((instrument_id.underlying, instrument_id.exchange))
 
-    def get_history(self, instrument_id, *, timeframe="1D", lookback_days=120,
-                    from_date=None, to_date=None):
+    def get_history(
+        self, instrument_id, *, timeframe="1D", lookback_days=120, from_date=None, to_date=None
+    ):
         # Prefer domain bars (list); export to DataFrame only at boundary.
         return self.get_history_series(
             instrument_id,
@@ -119,9 +121,7 @@ class FakeProvider:
         from domain.candles.historical import HistoricalBar, HistoricalSeries
         from domain.provenance import DataProvenance
 
-        ref = InstrumentRef(
-            symbol=instrument_id.underlying, exchange=instrument_id.exchange
-        )
+        ref = InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange)
         now = datetime.now(timezone.utc)
         bars = [
             HistoricalBar(
@@ -159,8 +159,12 @@ class FakeProvider:
 
     def get_option_chain(self, underlying, *, expiry=None):
         key = (underlying.underlying, underlying.exchange)
-        return self._chains.get(key, OptionChainVO(underlying=underlying.underlying,
-                                                     exchange=underlying.exchange, expiry=expiry or ""))
+        return self._chains.get(
+            key,
+            OptionChainVO(
+                underlying=underlying.underlying, exchange=underlying.exchange, expiry=expiry or ""
+            ),
+        )
 
     def get_future_chain(self, underlying):
         return FutureChain(underlying=underlying.underlying, exchange=underlying.exchange)
@@ -187,4 +191,5 @@ class FakeProvider:
         cb = self._callbacks.get((symbol, exchange))
         if cb is not None:
             from domain.instruments.instrument_id import InstrumentId
+
             cb(InstrumentId.equity(exchange, symbol), payload)

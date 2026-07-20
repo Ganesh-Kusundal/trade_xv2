@@ -13,7 +13,6 @@ from brokers.upstox.market_data.client_v3 import UPSTOX_QUOTE_MAX_KEYS, UpstoxMa
 from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter, _chunked
 from domain import Quote
 
-
 # ---------------------------------------------------------------------------
 # Mapper: multi-instrument + V3 LTP fields
 # ---------------------------------------------------------------------------
@@ -182,9 +181,7 @@ class TestMarketDataAdapterBatch:
         }
         v2, v3, hist = _v2_v3_pair(full_body=body)
         adapter = UpstoxMarketDataAdapter(v2, v3, hist)
-        result = adapter.quotes_batch(
-            ["NSE_EQ|INE002A01018", "NSE_EQ|INE467B01029"]
-        )
+        result = adapter.quotes_batch(["NSE_EQ|INE002A01018", "NSE_EQ|INE467B01029"])
         v2.get_quote.assert_called_once()
         args = v2.get_quote.call_args[0][0]
         assert len(args) == 2

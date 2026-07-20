@@ -78,10 +78,10 @@ def test_compare_orders_detects_avg_price_mismatch_when_filled():
 
 def test_compare_orders_ignores_avg_price_within_tolerance():
     engine = ReconciliationEngine()
-    base = dict(
-        filled_quantity=10,
-        status=OrderStatus.FILLED,
-    )
+    base = {
+        "filled_quantity": 10,
+        "status": OrderStatus.FILLED,
+    }
     local = [_make_order(**base, avg_price=Decimal("2500.00"))]
     broker = [_make_order(**base, avg_price=Decimal("2500.005"))]
 

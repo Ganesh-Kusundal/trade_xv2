@@ -16,8 +16,8 @@ from domain.entities.trade import Trade
 from domain.events.types import DomainEvent, EventType
 
 if TYPE_CHECKING:
-    from domain.ports.event_publisher import EventBusPort
     from domain.instruments.instrument_id import InstrumentId
+    from domain.ports.event_publisher import EventBusPort
     from domain.types import Side
 
 
@@ -27,11 +27,11 @@ class Execution:
     def __init__(
         self,
         order_id: str,
-        instrument_id: "InstrumentId",
-        side: "Side",
+        instrument_id: InstrumentId,
+        side: Side,
         order_quantity: int,
         *,
-        event_bus: "EventBusPort | None" = None,
+        event_bus: EventBusPort | None = None,
     ) -> None:
         self._order_id = order_id
         self._instrument_id = instrument_id
@@ -48,11 +48,11 @@ class Execution:
         return self._order_id
 
     @property
-    def instrument_id(self) -> "InstrumentId":
+    def instrument_id(self) -> InstrumentId:
         return self._instrument_id
 
     @property
-    def side(self) -> "Side":
+    def side(self) -> Side:
         return self._side
 
     @property

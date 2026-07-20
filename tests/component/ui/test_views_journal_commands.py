@@ -226,7 +226,24 @@ class TestJournalRecord:
             mock_journal.record_trade.return_value = "12345"
             mock_journal_cls.return_value = mock_journal
 
-            cmd_journal.run_journal(["record", "--id", "T001", "--symbol", "RELIANCE", "--strategy", "momentum", "--entry-price", "2450.00", "--quantity", "10", "--side", "BUY"], console)
+            cmd_journal.run_journal(
+                [
+                    "record",
+                    "--id",
+                    "T001",
+                    "--symbol",
+                    "RELIANCE",
+                    "--strategy",
+                    "momentum",
+                    "--entry-price",
+                    "2450.00",
+                    "--quantity",
+                    "10",
+                    "--side",
+                    "BUY",
+                ],
+                console,
+            )
 
             console.export_text()
             mock_journal.record_trade.assert_called_once()
@@ -310,8 +327,11 @@ class TestJournalRouter:
         assert "Unknown" in output
 
     def test_journal_exception_handling(self, console):
-        with pytest.raises(Exception, match="DB error"), patch(
-            "interface.ui.commands.journal.TradeJournal",
-            side_effect=Exception("DB error"),
+        with (
+            pytest.raises(Exception, match="DB error"),
+            patch(
+                "interface.ui.commands.journal.TradeJournal",
+                side_effect=Exception("DB error"),
+            ),
         ):
             cmd_journal.run_journal(["list"], console)

@@ -14,13 +14,13 @@ from typing import Any
 
 from analytics.replay.models import FillModel
 from domain import Side as DomainSide
-from domain.enums import OrderStatus, Side
 from domain.entities import Trade
+from domain.enums import OrderStatus, Side
 from domain.portfolio_projection import PortfolioProjector
+from domain.ports.time_service import get_current_clock
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
 from domain.trading_costs import CommissionModel, IndianMarketFees
-from domain.ports.time_service import get_current_clock
 
 OrderSide = Side  # backward-compat alias (canonical Side)
 
@@ -259,11 +259,7 @@ class PaperSession:
         return pos is not None and pos.quantity != 0
 
     def open_symbols(self) -> list[str]:
-        return [
-            p.symbol
-            for p in self.fill_pipeline.projector.get_positions()
-            if p.quantity != 0
-        ]
+        return [p.symbol for p in self.fill_pipeline.projector.get_positions() if p.quantity != 0]
 
     def mark_symbol(self, symbol: str, price: float, exchange: str = "NSE") -> None:
         self.fill_pipeline.projector.mark_ltp(symbol, exchange, Decimal(str(price)))

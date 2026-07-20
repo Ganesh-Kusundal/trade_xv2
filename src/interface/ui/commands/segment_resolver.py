@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from domain.universe import Session
     from domain.instruments.instrument import Instrument
+    from domain.universe import Session
 
 # segment -> (Universe factory attr, default exchange)
 _SEGMENTS: dict[str, dict[str, str]] = {
@@ -43,7 +43,7 @@ def default_exchange(segment: str) -> str:
 
 
 def resolve_instrument(
-    session: "Session",
+    session: Session,
     segment: str,
     symbol: str,
     *,
@@ -51,7 +51,7 @@ def resolve_instrument(
     strike: Decimal | float | int | None = None,
     right: str | None = None,
     exchange: str | None = None,
-) -> "Instrument":
+) -> Instrument:
     """Resolve a broker-bound :class:`Instrument` for *segment* + *symbol*.
 
     Segments needing extra args:

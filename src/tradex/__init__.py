@@ -41,10 +41,10 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
 
 from domain.instruments.asset_kind import AssetKind
 from domain.instruments.instrument import (
+    ETF,
     Commodity,
     Currency,
     Equity,
-    ETF,
     Future,
     Index,
     Instrument,
@@ -64,11 +64,11 @@ Session = open_session
 # This is intentional, not an internal leak.  See docs/OBJECT_MODEL.md.
 
 __all__ = [
+    "ETF",
     "AssetKind",
     "Commodity",
     "Currency",
     "DomainSession",
-    "ETF",
     "Equity",
     "Future",
     "Index",

@@ -9,11 +9,10 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from application.oms.capital_provider import FixedCapitalProvider
+from application.oms._internal.risk_manager import RiskConfig
+from application.oms.order_command_mapper import order_intent_to_oms_command
 from application.oms.order_manager import OmsOrderCommand, OrderManager
 from application.oms.order_manager import OrderResult as OmsOrderResult
-from application.oms.position_manager import PositionManager
-from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from domain.entities.order import Order, OrderResponse
 from domain.enums import OrderStatus
 from domain.orders.intent import OrderIntent
@@ -21,7 +20,6 @@ from domain.orders.requests import OrderRequest
 from domain.ports.protocols import ExecutionProvider, OrderResult
 
 
-from application.oms.order_command_mapper import order_intent_to_oms_command
 def _execution_result_to_order(cmd: OmsOrderCommand, result: OrderResult) -> Order:
     """Normalize ExecutionProvider payload into a domain Order for the OMS book."""
     payload = result.order
@@ -39,7 +37,9 @@ def _execution_result_to_order(cmd: OmsOrderCommand, result: OrderResult) -> Ord
             trigger_price=payload.trigger_price,
             status=payload.status,
             timestamp=payload.timestamp,
-            product_type=payload.product_type if payload.product_type is not None else cmd.product_type,
+            product_type=payload.product_type
+            if payload.product_type is not None
+            else cmd.product_type,
             validity=payload.validity,
             avg_price=payload.avg_price,
             reject_reason=payload.reject_reason,
@@ -282,4 +282,3 @@ def build_oms_service(
 
 
 # Backward-compatible alias (paper-oriented name; same function)
-build_paper_oms_service = build_oms_service

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 
@@ -54,10 +55,8 @@ class ReplayConnectionManager:
         sender = self._send_tasks.pop(connection_id, None)
         if sender is not None:
             sender.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await sender
-            except asyncio.CancelledError:
-                pass
         self.active_connections.pop(connection_id, None)
         self.session_map.pop(connection_id, None)
         self._send_queues.pop(connection_id, None)

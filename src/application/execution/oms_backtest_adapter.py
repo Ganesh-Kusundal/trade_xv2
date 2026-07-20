@@ -45,9 +45,7 @@ class SimulatedOMSAdapter:
         self._ctx = trading_context
         self._prefix = order_id_prefix
         resolved_kind = kind or (
-            ExecutionTargetKind.PAPER
-            if order_id_prefix == "paper"
-            else ExecutionTargetKind.REPLAY
+            ExecutionTargetKind.PAPER if order_id_prefix == "paper" else ExecutionTargetKind.REPLAY
         )
         target = resolve_execution_target(
             resolved_kind,
@@ -79,7 +77,7 @@ def create_oms_backtest_adapter(
     slippage_pct: float = 0.0,
     commission_flat: float = 0.0,
     execution_adapter: SimulatedOMSAdapter | None = None,
-) -> "OmsBacktestAdapter":
+) -> OmsBacktestAdapter:
     adapter = execution_adapter or create_execution_adapter(mode, trading_context)
     return OmsBacktestAdapter(
         trading_context=trading_context,
@@ -183,14 +181,14 @@ class OmsBacktestAdapter:
         reasons: list[str] | None,
     ) -> str | None:
         correlation_id = build_backtest_correlation_id(symbol, side)
-        command = OmsOrderCommand(
+        from application.oms.order_command_mapper import backtest_market_command
+
+        command = backtest_market_command(
             symbol=symbol,
             exchange=exchange,
             side=side,
             quantity=quantity,
             price=price,
-            order_type=OrderType.MARKET,
-            product_type=ProductType.INTRADAY,
             correlation_id=correlation_id,
         )
         ts = timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=timezone.utc)

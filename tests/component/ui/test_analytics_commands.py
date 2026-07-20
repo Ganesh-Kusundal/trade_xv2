@@ -279,7 +279,9 @@ class TestPaperTradingCommand:
     """Tests for analytics paper command."""
 
     def test_paper_with_file(self, csv_file, console):
-        with patch("interface.ui.commands.analytics_backtest.PaperTradingEngine") as mock_engine_cls:
+        with patch(
+            "interface.ui.commands.analytics_backtest.PaperTradingEngine"
+        ) as mock_engine_cls:
             mock_engine = MagicMock()
             mock_result = MagicMock()
             mock_result.summary = {"total_return": "10.0%", "sharpe": 1.0}

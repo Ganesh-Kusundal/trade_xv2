@@ -212,7 +212,9 @@ class TestPositionWithFill:
         result = p.with_fill(5, Decimal("2600"))
         assert result.quantity == 15
         # avg = (10*2500 + 5*2600) / 15 = 38000/15 = 2533.33...
-        assert result.avg_price.to_decimal() == (Decimal("25000") + Decimal("13000")) / Decimal("15")
+        assert result.avg_price.to_decimal() == (Decimal("25000") + Decimal("13000")) / Decimal(
+            "15"
+        )
 
     def test_close_long_partially(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"))

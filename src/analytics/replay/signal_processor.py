@@ -155,9 +155,7 @@ class SignalProcessor:
             commission_d = Decimal(str(commission))
             pnl = (exit_price_d - entry_price_d) * view.quantity - commission_d
             pnl_pct = (
-                float(((exit_price_d / entry_price_d) - 1) * 100)
-                if entry_price_d > 0
-                else 0.0
+                float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
             )
 
             session.trades.append(

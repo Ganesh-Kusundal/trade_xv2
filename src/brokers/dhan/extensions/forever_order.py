@@ -36,7 +36,7 @@ class DhanForeverOrderExtension(Extension):
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True
 
-    def for_instrument(self, symbol: str, exchange: str = "NSE") -> "DhanForeverOrderExtension":
+    def for_instrument(self, symbol: str, exchange: str = "NSE") -> DhanForeverOrderExtension:
         ext = DhanForeverOrderExtension(self._gw)
         ext._symbol = symbol
         ext._exchange = exchange

@@ -15,8 +15,8 @@ from domain.capabilities import Capability
 from domain.instruments.instrument_id import InstrumentId
 from domain.orders.requests import OrderRequest
 from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult
-from tests.unit.domain._fakes import FakeProvider
 from domain.types import OrderType, ProductType, Side
+from tests.unit.domain._fakes import FakeProvider
 
 
 class FakeExecutionProvider:

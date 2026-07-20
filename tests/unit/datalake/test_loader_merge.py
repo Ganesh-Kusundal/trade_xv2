@@ -57,15 +57,15 @@ class FakeGateway:
 
 
 class TestWriteParquetMerges:
-    def test_second_shorter_fetch_does_not_truncate_existing_history(
-        self, tmp_path: Path
-    ) -> None:
+    def test_second_shorter_fetch_does_not_truncate_existing_history(self, tmp_path: Path) -> None:
         loader = HistoricalDataLoader(root=str(tmp_path))
 
         # Simulate an initial 3-year bulk load.
-        old_dates = [f"2022-{m:02d}-01 09:15:00" for m in range(1, 13)] + [
-            f"2023-{m:02d}-01 09:15:00" for m in range(1, 13)
-        ] + [f"2024-{m:02d}-01 09:15:00" for m in range(1, 13)]
+        old_dates = (
+            [f"2022-{m:02d}-01 09:15:00" for m in range(1, 13)]
+            + [f"2023-{m:02d}-01 09:15:00" for m in range(1, 13)]
+            + [f"2024-{m:02d}-01 09:15:00" for m in range(1, 13)]
+        )
         gw1 = FakeGateway(_candles(old_dates))
         result1 = loader.download_symbol("RELIANCE", gw1, years=3, timeframe="1d", exchange="NSE")
         assert result1["rows"] == len(old_dates)
@@ -97,9 +97,7 @@ class TestWriteParquetMerges:
         assert len(written) == 1
         assert written["open"].iloc[0] == pytest.approx(999.0)
 
-    def test_catalog_reflects_merged_totals_not_just_latest_fetch(
-        self, tmp_path: Path
-    ) -> None:
+    def test_catalog_reflects_merged_totals_not_just_latest_fetch(self, tmp_path: Path) -> None:
         """register_symbol() must describe the merged on-disk file, or
         catalog metadata silently drifts from reality after any
         incremental (shorter-window) sync."""

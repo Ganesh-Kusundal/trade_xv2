@@ -161,9 +161,7 @@ class ConnectionTokenManager:
     def receiver_count(self) -> int:
         """Return the number of live receivers."""
         # Clean up dead references first
-        self._token_receivers = [
-            ref for ref in self._token_receivers if ref.deref() is not None
-        ]
+        self._token_receivers = [ref for ref in self._token_receivers if ref.deref() is not None]
         return len(self._token_receivers)
 
     # ── Observability ───────────────────────────────────────────────────

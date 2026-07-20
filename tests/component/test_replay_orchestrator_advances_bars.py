@@ -56,10 +56,18 @@ class TestReplayItemOrdering:
     def test_sort_produces_deterministic_order(self) -> None:
         """Sorted ReplayItems should produce a total order."""
         items = [
-            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 2, tzinfo=timezone.utc), sequence=0, kind="bar"),
-            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), sequence=5, kind="event"),
-            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), sequence=3, kind="bar"),
-            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc), sequence=0, kind="event"),
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 2, tzinfo=timezone.utc), sequence=0, kind="bar"
+            ),
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), sequence=5, kind="event"
+            ),
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), sequence=3, kind="bar"
+            ),
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc), sequence=0, kind="event"
+            ),
         ]
         sorted_items = sorted(items)
         assert sorted_items[0].sequence == 3
@@ -230,9 +238,7 @@ class TestStateAssertion:
                 pnl=1000.0,
             )
         )
-        session.equity_curve.append(
-            (datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), 100_000.0)
-        )
+        session.equity_curve.append((datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), 100_000.0))
         # Build a real ReplayResult so _assert_state can access .session
         from analytics.replay.models import ReplayConfig, ReplayResult
 

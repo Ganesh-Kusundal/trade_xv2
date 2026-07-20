@@ -19,6 +19,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
+from infrastructure.metrics.registry import metrics_registry
 from infrastructure.observability.alerting import (
     Alert,
     AlertingEngine,
@@ -27,9 +30,6 @@ from infrastructure.observability.alerting import (
     create_default_alert_rules,
 )
 from infrastructure.observability.event_metrics import EventMetrics
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
-from infrastructure.metrics.registry import metrics_registry
 
 
 @pytest.fixture(autouse=True)
@@ -695,10 +695,11 @@ class TestEventBusIntegration:
 
         # Create bus with alerting engine.
         bus = EventBus(
-    metrics=metrics,
-    alerting_engine=engine,
-    config=EventBusConfig(alerting_interval_seconds=0.2),
-)
+            metrics=metrics,
+            alerting_engine=engine,
+            config=EventBusConfig(alerting_interval_seconds=0.2),
+        )
+        bus.as_managed_service().start()
 
         # Add metric to trigger alert.
         metrics.add_timestamped_counter("TICK", "error", by=1)
@@ -717,8 +718,10 @@ class TestEventBusIntegration:
         metrics = EventMetrics()
         engine = AlertingEngine(metrics, cooldown_seconds=1.0)
         bus = EventBus(metrics=metrics, alerting_engine=engine)
-        assert bus._alerting_thread is not None
-        assert bus._alerting_thread.daemon is True
+        svc = bus.as_managed_service()
+        svc.start()
+        assert svc._thread is not None
+        assert svc._thread.daemon is True
         bus.stop_alerting()
 
 

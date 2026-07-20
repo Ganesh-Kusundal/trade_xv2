@@ -39,9 +39,7 @@ def test_daily_pnl_reset_scheduler_fires_at_virtual_time() -> None:
 
     with use_clock(virtual):
         # Pretend the last reset happened at the previous IST midnight.
-        scheduler._last_reset_unix = scheduler._last_rollover_unix(
-            virtual.timestamp() - 86400.0
-        )
+        scheduler._last_reset_unix = scheduler._last_rollover_unix(virtual.timestamp() - 86400.0)
         scheduler._maybe_reset()
 
     assert risk.reset_calls == 1

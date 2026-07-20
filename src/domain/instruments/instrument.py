@@ -41,15 +41,15 @@ if TYPE_CHECKING:
 
 
 __all__ = [
-    "Instrument",
-    "Equity",
     "ETF",
-    "Spot",
-    "Currency",
-    "Index",
-    "Future",
     "Commodity",
+    "Currency",
+    "Equity",
+    "Future",
+    "Index",
+    "Instrument",
     "Option",
+    "Spot",
 ]
 
 # Lazy re-exports to avoid circular import with _specialized/_derivatives.
@@ -257,8 +257,8 @@ class Instrument(
     def future_chain(self):
         provider = self._resolve_provider()
         vo = provider.get_future_chain(self._id)
-        from domain.futures.future_chain import FutureChain as FutureChainAgg
         from domain.entities.options import FutureChain as FutureChainVO
+        from domain.futures.future_chain import FutureChain as FutureChainAgg
 
         if not isinstance(vo, FutureChainVO):
             if isinstance(vo, dict):
@@ -325,7 +325,11 @@ class Instrument(
                     return bind(self)
             return ext
         b = self.broker
-        catalog = b.catalog if hasattr(b, "catalog") else (getattr(b, "_catalog", None) if b is not None else None)
+        catalog = (
+            b.catalog
+            if hasattr(b, "catalog")
+            else (getattr(b, "_catalog", None) if b is not None else None)
+        )
         if catalog is not None:
             found = catalog.get_extension(name)
             if found is not None:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def test_broker_gateways_importable() -> None:
-    import brokers.dhan.wire  # noqa: F401
+    import brokers.dhan.wire
     import brokers.upstox.wire  # noqa: F401
 
 

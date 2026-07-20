@@ -6,8 +6,6 @@ predicate-pushdown path (Phase 3.2) vs full Parquet scan.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import duckdb
 import pandas as pd
 import pyarrow as pa
@@ -24,19 +22,23 @@ def candle_db(tmp_path_factory: pytest.TempPathFactory) -> duckdb.DuckDBPyConnec
     candles_dir.mkdir(parents=True)
 
     n = 20_000
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
-        "symbol": "TESTSYM",
-        "open": [100.0 + (i % 375) * 0.01 for i in range(n)],
-        "high": [101.0 + (i % 375) * 0.01 for i in range(n)],
-        "low": [99.0 + (i % 375) * 0.01 for i in range(n)],
-        "close": [100.5 + (i % 375) * 0.01 for i in range(n)],
-        "volume": [1000 + i for i in range(n)],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
+            "symbol": "TESTSYM",
+            "open": [100.0 + (i % 375) * 0.01 for i in range(n)],
+            "high": [101.0 + (i % 375) * 0.01 for i in range(n)],
+            "low": [99.0 + (i % 375) * 0.01 for i in range(n)],
+            "close": [100.5 + (i % 375) * 0.01 for i in range(n)],
+            "volume": [1000 + i for i in range(n)],
+        }
+    )
     atomic_parquet_write(candles_dir / "data_000.parquet", pa.Table.from_pandas(df))
 
     conn = duckdb.connect(":memory:")
-    pattern = str(root / "curated" / "equities" / "candles" / "year=*" / "month=*" / "data_*.parquet")
+    pattern = str(
+        root / "curated" / "equities" / "candles" / "year=*" / "month=*" / "data_*.parquet"
+    )
     conn.execute(f"""
         CREATE VIEW v_candles AS
         SELECT * FROM read_parquet('{pattern}', hive_partitioning=true)

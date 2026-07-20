@@ -5,7 +5,9 @@ from __future__ import annotations
 import threading
 import time
 
-from datalake.core.duckdb_utils import InMemoryDuckDBPool as DuckDBPool, get_memory_pool as get_pool, reset_memory_pool as shutdown_pool
+from datalake.core.duckdb_utils import InMemoryDuckDBPool as DuckDBPool
+from datalake.core.duckdb_utils import get_memory_pool as get_pool
+from datalake.core.duckdb_utils import reset_memory_pool as shutdown_pool
 
 
 class TestDuckDBPool:

@@ -7,12 +7,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from domain.enums import BrokerId
 from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
             get_quote(broker_id_from(None, default=BrokerId.DHAN), "TCS", **env)
             checks["Login Status"] = ("Connected", "green")
         except Exception as exc:
-            logger.debug("dashboard_check_failed", extra={"check": "Login Status", "error": str(exc)})
+            logger.debug(
+                "dashboard_check_failed", extra={"check": "Login Status", "error": str(exc)}
+            )
             checks["Login Status"] = ("Disconnected", "red")
 
         try:
@@ -49,7 +51,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
             latency = (time.time() - t0) * 1000
             checks["Quote Status"] = (f"Healthy ({latency:.0f}ms)", "green")
         except Exception as exc:
-            logger.debug("dashboard_check_failed", extra={"check": "Quote Status", "error": str(exc)})
+            logger.debug(
+                "dashboard_check_failed", extra={"check": "Quote Status", "error": str(exc)}
+            )
             checks["Quote Status"] = ("Error", "red")
 
         try:
@@ -59,7 +63,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
             strikes = len(getattr(chain, "strikes", []) or [])
             checks["Option Chain"] = (f"Healthy ({strikes} strikes, {latency:.0f}ms)", "green")
         except Exception as exc:
-            logger.debug("dashboard_check_failed", extra={"check": "Option Chain", "error": str(exc)})
+            logger.debug(
+                "dashboard_check_failed", extra={"check": "Option Chain", "error": str(exc)}
+            )
             checks["Option Chain"] = ("Error", "red")
 
         checks["Future Chain"] = ("Skipped (use tradex futures)", "cyan")

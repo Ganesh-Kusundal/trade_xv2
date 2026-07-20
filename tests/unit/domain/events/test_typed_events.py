@@ -212,9 +212,7 @@ class TestPositionClosedEventFromDomainEvent:
         assert isinstance(typed.realized_pnl, Decimal)
 
     def test_raises_on_missing_symbol(self):
-        event = _raw_event(
-            EventType.POSITION_CLOSED.value, {"realized_pnl": Decimal("1")}
-        )
+        event = _raw_event(EventType.POSITION_CLOSED.value, {"realized_pnl": Decimal("1")})
         try:
             PositionClosedEvent.from_domain_event(event)
         except ValueError as exc:
@@ -266,9 +264,7 @@ class TestToTypedEventDispatch:
 
     def test_returns_original_when_payload_invalid(self):
         # QUOTE_UPDATED whose payload fails validation -> fall back to raw.
-        event = _raw_event(
-            EventType.QUOTE_UPDATED.value, {"symbol": "RELIANCE"}
-        )
+        event = _raw_event(EventType.QUOTE_UPDATED.value, {"symbol": "RELIANCE"})
         result = to_typed_event(event)
         assert result is event
 

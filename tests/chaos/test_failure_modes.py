@@ -40,6 +40,7 @@ real network calls. They are intended to run in CI on every PR.
 from __future__ import annotations
 
 import threading
+import uuid
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -54,7 +55,6 @@ from application.oms import (
     RiskConfig,
     RiskManager,
 )
-from infrastructure.observability.event_metrics import EventMetrics
 from domain import (
     Order,
     OrderStatus,
@@ -69,6 +69,7 @@ from infrastructure.lifecycle.lifecycle import (
     LifecycleManager,
     ManagedService,
 )
+from infrastructure.observability.event_metrics import EventMetrics
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ def test_concurrent_place_order_with_same_correlation_id_posts_once() -> None:
     cached response)."""
     from brokers.dhan.execution.orders import IdempotencyCache
 
-    cache = IdempotencyCache(max_size=1000, ttl_seconds=3600)
+    cache = IdempotencyCache(max_size=1000, ttl=3600.0)
     post_call_count = 0
     post_lock = threading.Lock()
 
@@ -143,14 +144,16 @@ def test_concurrent_place_order_with_same_correlation_id_posts_once() -> None:
 
     def attempt(_):
         nonlocal post_call_count
-        with cache.lock("corr-1"):
-            cached = cache.get("corr-1")
-            if cached is not None:
-                return cached
-            with post_lock:
-                post_call_count += 1
-            cache.put("corr-1", sentinel)
-            return sentinel
+        if not cache.reserve("corr-1"):
+            return cache.get("corr-1")
+        cached = cache.get("corr-1")
+        if cached is not None:
+            cache.clear_reservation("corr-1")
+            return cached
+        with post_lock:
+            post_call_count += 1
+        cache.commit("corr-1", sentinel)
+        return sentinel
 
     # Pre-populate so the first attempt succeeds and posts.
     attempt(0)
@@ -169,12 +172,12 @@ def test_concurrent_place_order_with_same_correlation_id_posts_once() -> None:
 def test_read_circuit_breaker_opens_under_load_does_not_block_writes() -> None:
     """From A1/B1: a 5xx storm on a read endpoint opens the read CB
     but does not block order placement (write CB is independent)."""
+    from brokers.dhan.api.http_client import DhanHttpClient
     from infrastructure.resilience.circuit_breaker import (
         CircuitBreaker,
         CircuitBreakerConfig,
         CircuitState,
     )
-    from brokers.dhan.api.http_client import DhanHttpClient
 
     cb_read = CircuitBreaker(
         "r", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
@@ -412,12 +415,13 @@ def test_event_metrics_snapshot_is_consistent_under_concurrent_increments() -> N
     """20 threads each increment the same (event, outcome) 500 times.
     The final snapshot must show exactly 10,000 (no lost increments)."""
     em = EventMetrics()
+    event_type = f"TICK_snapshot_{uuid.uuid4().hex[:8]}"
     n_threads = 20
     increments = 500
 
     def hammer():
         for _ in range(increments):
-            em.inc("TICK", "published")
+            em.inc(event_type, "published")
 
     threads = [threading.Thread(target=hammer) for _ in range(n_threads)]
     for t in threads:
@@ -425,4 +429,4 @@ def test_event_metrics_snapshot_is_consistent_under_concurrent_increments() -> N
     for t in threads:
         t.join()
     snap = em.snapshot()
-    assert snap["TICK"]["published"] == n_threads * increments
+    assert snap[event_type]["published"] == n_threads * increments

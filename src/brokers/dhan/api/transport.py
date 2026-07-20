@@ -7,13 +7,14 @@ gateway class. The gateway remains as ops transport (Wave C — evolutionary).
 
 from __future__ import annotations
 
-from decimal import Decimal
+import contextlib
 from typing import Any
 
+from brokers.common.transport_errors import order_result_from_transport_error
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
+from domain.ports.order_placement import OrderPlacementPort, invoke_place_order
 from domain.ports.protocols import ExecutionProvider, OrderResult
-
 
 _DHAN_CAPABILITIES: tuple[Capability, ...] = (
     Capability.MARKET_DATA,
@@ -37,7 +38,7 @@ _DHAN_CAPABILITIES: tuple[Capability, ...] = (
 class DhanOrderTransport(ExecutionProvider):
     """Adapts DhanWireAdapter order methods to the domain ExecutionProvider port."""
 
-    def __init__(self, gateway: Any) -> None:
+    def __init__(self, gateway: OrderPlacementPort) -> None:
         self._gateway = gateway
 
     @property
@@ -56,35 +57,26 @@ class DhanOrderTransport(ExecutionProvider):
 
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:
-            response = self._gateway.place_order(
-                symbol=request.symbol,
-                exchange=request.exchange,
-                side=request.transaction_type.value,
-                quantity=request.quantity,
-                price=request.price,
-                order_type=request.order_type.value,
-                product_type=request.product_type.value,
-                validity=request.validity.value,
-                trigger_price=request.trigger_price or Decimal("0"),
-                correlation_id=request.correlation_id,
-            )
+            response = invoke_place_order(self._gateway, request)
         except Exception as exc:  # transport boundary: never raise into domain
-            return OrderResult.fail(str(exc))
+            return order_result_from_transport_error(exc)
         return self._wrap(response)
 
     def cancel_order(self, order_id: str) -> OrderResult:
         try:
             return self._wrap(self._gateway.cancel_order(order_id))
         except Exception as exc:
-            return OrderResult.fail(str(exc))
+            return order_result_from_transport_error(exc)
 
     def modify_order(self, request) -> OrderResult:
         try:
             return self._wrap(
-                self._gateway.modify_order(request.order_id, price=request.price, quantity=request.quantity)
+                self._gateway.modify_order(
+                    request.order_id, price=request.price, quantity=request.quantity
+                )
             )
         except Exception as exc:
-            return OrderResult.fail(str(exc))
+            return order_result_from_transport_error(exc)
 
     def get_order_book(self):
         return self._gateway.get_orderbook()
@@ -126,7 +118,5 @@ class DhanTransport:
         return cap in _DHAN_CAPABILITIES
 
     def close(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self._gateway.close()
-        except Exception:
-            pass

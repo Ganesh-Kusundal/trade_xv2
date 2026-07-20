@@ -1,7 +1,6 @@
 """Tests for the central OMS (OrderManager + PositionManager + RiskManager)."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import contextlib
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +18,7 @@ from application.oms import (
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from domain.events.types import DomainEvent, EventType
 from infrastructure.event_bus import EventBus
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture
@@ -235,14 +235,20 @@ def test_order_manager_risk_gate_blocks_order(
     risk = RiskManager(
         position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000")
     )
-    om = OrderManager(event_bus=event_bus, risk_manager=risk, processed_trade_repository=processed_trade_repository)
+    om = OrderManager(
+        event_bus=event_bus,
+        risk_manager=risk,
+        processed_trade_repository=processed_trade_repository,
+    )
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1000, Decimal("100"))
     result = om.place_order(req)
     assert not result.success
     assert result.error is not None
 
 
-def test_order_manager_risk_gate_allows_order(event_bus: EventBus, processed_trade_repository) -> None:
+def test_order_manager_risk_gate_allows_order(
+    event_bus: EventBus, processed_trade_repository
+) -> None:
     om = OrderManager(event_bus=event_bus, processed_trade_repository=processed_trade_repository)
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1, Decimal("100"))
     result = om.place_order(req)
@@ -250,7 +256,6 @@ def test_order_manager_risk_gate_allows_order(event_bus: EventBus, processed_tra
 
 
 def test_trading_context_replays_event_log(tmp_path) -> None:
-    from application.oms.context import TradingContext
     from infrastructure.event_log import EventLog
 
     log = EventLog(events_dir=tmp_path / "events")
@@ -279,12 +284,8 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
         quantity=10,
         price=Decimal("100"),
     )
-    bus.publish(
-        DomainEvent.now(EventType.ORDER_UPDATED.value, {"order": order}, symbol="RELIANCE")
-    )
-    bus.publish(
-        DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE")
-    )
+    bus.publish(DomainEvent.now(EventType.ORDER_UPDATED.value, {"order": order}, symbol="RELIANCE"))
+    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))
     log.close()
 
     # New context replays the log.
@@ -393,7 +394,6 @@ def test_upsert_position_missing_symbol_raises(position_manager: PositionManager
 
 def test_replay_mode_restored_after_exception(tmp_path) -> None:
     """Verify _replay_mode is restored even if replay loop raises an exception."""
-    from application.oms.context import TradingContext
     from infrastructure.event_log import EventLog
 
     log = EventLog(events_dir=tmp_path / "events_replay_exception")
@@ -431,7 +431,6 @@ def test_replay_mode_restored_after_exception(tmp_path) -> None:
 
 def test_replay_does_not_double_count_positions(tmp_path) -> None:
     """Verify replaying events does not cause PositionManager to double-count trades."""
-    from application.oms.context import TradingContext
     from infrastructure.event_log import EventLog
 
     log = EventLog(events_dir=tmp_path / "events_no_double_count")

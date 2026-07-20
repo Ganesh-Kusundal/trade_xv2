@@ -60,7 +60,7 @@ class SessionRecorder:
 
     def __init__(
         self,
-        event_bus: "EventBus",
+        event_bus: EventBus,
         session_id: str | None = None,
         output_dir: Path | None = None,
     ) -> None:
@@ -115,7 +115,7 @@ class SessionRecorder:
             },
         )
 
-    def _on_event(self, event: "DomainEvent") -> None:
+    def _on_event(self, event: DomainEvent) -> None:
         """Fire-and-forget capture. Never let a recording failure surface
         to the caller publishing the event."""
         try:
@@ -135,7 +135,7 @@ class SessionRecorder:
             logger.warning("session_recorder_write_failed", exc_info=True)
 
     @staticmethod
-    def _serialize(event: "DomainEvent") -> str:
+    def _serialize(event: DomainEvent) -> str:
         # Deliberately NOT dataclasses.asdict(): it recursively deep-copies
         # every field, and DomainEvent.payload is a MappingProxyType
         # (shallow-frozen in __post_init__) -- mappingproxy cannot be

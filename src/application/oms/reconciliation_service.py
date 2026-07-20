@@ -23,10 +23,10 @@ from domain.constants import (
     MIN_SLEEP_SECONDS,
     RECONCILIATION_INTERVAL_SECONDS,
 )
-from domain.reconciliation import ReconciliationReport
-from domain.ports import EventBusPort
 from domain.lifecycle_health import HealthState, build_health
+from domain.ports import EventBusPort
 from domain.ports.lifecycle import ManagedServicePort
+from domain.reconciliation import ReconciliationReport
 
 logger = logging.getLogger(__name__)
 
@@ -173,11 +173,25 @@ class ReconciliationService(ManagedServicePort):
                 logger.error("Reconciliation loop error: %s", exc)
 
     def _run_ledger_shadow_compare(self) -> None:
-        lifecycle = self._order_manager.lifecycle if hasattr(self._order_manager, 'lifecycle') else None
-        ledger = lifecycle.execution_ledger if lifecycle is not None and hasattr(lifecycle, 'execution_ledger') else None
+        lifecycle = (
+            self._order_manager.lifecycle if hasattr(self._order_manager, "lifecycle") else None
+        )
+        ledger = (
+            lifecycle.execution_ledger
+            if lifecycle is not None and hasattr(lifecycle, "execution_ledger")
+            else None
+        )
         if ledger is None:
-            recorder = self._order_manager.trade_recorder if hasattr(self._order_manager, 'trade_recorder') else None
-            ledger = recorder.execution_ledger if recorder is not None and hasattr(recorder, 'execution_ledger') else None
+            recorder = (
+                self._order_manager.trade_recorder
+                if hasattr(self._order_manager, "trade_recorder")
+                else None
+            )
+            ledger = (
+                recorder.execution_ledger
+                if recorder is not None and hasattr(recorder, "execution_ledger")
+                else None
+            )
         try:
             from application.oms.ledger_shadow import compare_ledger_vs_positions
 
@@ -285,9 +299,7 @@ class ReconciliationService(ManagedServicePort):
             return False
         if getattr(report, "has_drift", False):
             return False
-        if getattr(report, "high_severity_count", 0) > 0:
-            return False
-        return True
+        return not getattr(report, "high_severity_count", 0) > 0
 
     def _notify_first_success(self) -> None:
         if self._first_success_notified or self._on_first_success is None:

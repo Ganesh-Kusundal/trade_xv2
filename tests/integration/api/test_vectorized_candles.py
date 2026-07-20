@@ -55,9 +55,7 @@ class TestCandleMapperConversion:
             self._mapper_conversion(df)
 
     def test_mapper_empty_dataframe(self) -> None:
-        df = pd.DataFrame(
-            columns=["timestamp", "open", "high", "low", "close", "volume", "oi"]
-        )
+        df = pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "oi"])
         candles = self._mapper_conversion(df)
         assert candles == []
 

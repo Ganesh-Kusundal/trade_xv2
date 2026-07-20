@@ -34,12 +34,13 @@ from domain import DepthLevel, MarketDepth
 # Fix 1 — _complete_depth_snapshot: REST merge for missing ask/bid sides
 # ---------------------------------------------------------------------------
 
+
 class TestCompleteDepthSnapshot:
     """gateway._complete_depth_snapshot merges REST fallback when a side is empty."""
 
     def _make_gateway(self):
-        from brokers.dhan.wire import DhanBrokerGateway
         from brokers.dhan.resolver import SymbolResolver
+        from brokers.dhan.wire import DhanBrokerGateway
 
         resolver = SymbolResolver()
         resolver.load_from_rows(
@@ -118,6 +119,7 @@ class TestCompleteDepthSnapshot:
 # Fix 2 — _send_subscription uses _ws_loop
 # ---------------------------------------------------------------------------
 
+
 class TestSendSubscriptionUsesWsLoop:
     """_send_subscription uses self._ws_loop (not asyncio.get_running_loop)."""
 
@@ -136,6 +138,7 @@ class TestSendSubscriptionUsesWsLoop:
 
     def test_non_running_loop_drops(self):
         import asyncio
+
         feed = self._make_feed()
         feed._ws = mock.MagicMock()
         loop = asyncio.new_event_loop()
@@ -170,6 +173,7 @@ class TestSendSubscriptionUsesWsLoop:
 # Fix 3 — Rate-limit buckets align with capability endpoint_class names
 # ---------------------------------------------------------------------------
 
+
 class TestRateLimitBucketMap:
     """_rate_limit_bucket maps paths to capability MultiBucket names."""
 
@@ -197,8 +201,8 @@ class TestRateLimitBucketMap:
 
     def test_acquire_does_not_raise_for_known_endpoints(self):
         """_acquire_rate_limit_token must not raise for standard endpoints."""
-        from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
         from brokers.dhan.api.http_client import DhanHttpClient
+        from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
 
         limiter = MultiBucketRateLimiter(
             {
@@ -222,6 +226,7 @@ class TestRateLimitBucketMap:
 # Fix 4 — SDK depth list normalisation
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeSdkDepth:
     """DhanMarketFeed._normalize_sdk_depth handles both SDK shapes."""
 
@@ -239,9 +244,14 @@ class TestNormalizeSdkDepth:
         """SDK list with bid_price/ask_price per row → {bids, asks}."""
         feed = self._feed()
         raw = [
-            {"bid_quantity": 100, "ask_quantity": 50,
-             "bid_price": "2450.00", "ask_price": "2451.00",
-             "bid_orders": 3, "ask_orders": 2},
+            {
+                "bid_quantity": 100,
+                "ask_quantity": 50,
+                "bid_price": "2450.00",
+                "ask_price": "2451.00",
+                "bid_orders": 3,
+                "ask_orders": 2,
+            },
         ]
         result = feed._normalize_sdk_depth(raw)
         assert len(result["bids"]) == 1
@@ -252,8 +262,9 @@ class TestNormalizeSdkDepth:
     def test_list_zero_qty_rows_filtered(self):
         """Rows with quantity=0 are not included in bids or asks."""
         feed = self._feed()
-        raw = [{"bid_quantity": 0, "ask_quantity": 0,
-                "bid_price": "2450.00", "ask_price": "2451.00"}]
+        raw = [
+            {"bid_quantity": 0, "ask_quantity": 0, "bid_price": "2450.00", "ask_price": "2451.00"}
+        ]
         result = feed._normalize_sdk_depth(raw)
         assert result["bids"] == []
         assert result["asks"] == []
@@ -271,8 +282,12 @@ class TestNormalizeSdkDepth:
             "security_id": 2885,
             "LTP": "2450.50",
             "depth": [
-                {"bid_quantity": 100, "ask_quantity": 50,
-                 "bid_price": "2450.00", "ask_price": "2451.00"},
+                {
+                    "bid_quantity": 100,
+                    "ask_quantity": 50,
+                    "bid_price": "2450.00",
+                    "ask_price": "2451.00",
+                },
             ],
         }
         result = feed._transform_depth(raw)
@@ -286,11 +301,13 @@ class TestNormalizeSdkDepth:
 # Fix 5 — Bridge DEPTH_20: symbol fallback + Decimal serialisation
 # ---------------------------------------------------------------------------
 
+
 class TestBridgeDepth20:
     """MarketBridge._format_message handles DEPTH_20 events correctly."""
 
     def _make_bridge(self):
         from interface.api.ws.bridge import MarketBridge
+
         bus = mock.MagicMock()
         mgr = mock.MagicMock()
         return MarketBridge(bus, mgr)
@@ -298,6 +315,7 @@ class TestBridgeDepth20:
     def test_depth_20_type_normalised_to_depth(self):
         """DEPTH_20 event must produce type='depth' in the output message."""
         from infrastructure.event_bus import DomainEvent
+
         bridge = self._make_bridge()
         depth = MarketDepth(
             symbol="RELIANCE",
@@ -320,6 +338,7 @@ class TestBridgeDepth20:
     def test_depth_20_symbol_from_payload_when_event_symbol_none(self):
         """When event.symbol is None, symbol is extracted from depth.symbol."""
         from infrastructure.event_bus import DomainEvent
+
         bridge = self._make_bridge()
         depth = MarketDepth(
             symbol="TCS",
@@ -342,6 +361,7 @@ class TestBridgeDepth20:
         import json
 
         from infrastructure.event_bus import DomainEvent
+
         bridge = self._make_bridge()
         depth = MarketDepth(
             symbol="RELIANCE",
@@ -365,6 +385,7 @@ class TestBridgeDepth20:
 # Fix 6 — Quote endpoint interval is 1.0 s
 # ---------------------------------------------------------------------------
 
+
 class TestQuoteRateLimit:
     """/marketfeed/quote must use 1.0 s minimum interval (Dhan documented limit)."""
 
@@ -382,7 +403,6 @@ class TestQuoteRateLimit:
 # ---------------------------------------------------------------------------
 # Audit Fixes — Memory/Callback Leaks and Multiplexing refcount
 # ---------------------------------------------------------------------------
-
 
 
 class TestAuditLeakAndMultiplexingFixes:
@@ -416,8 +436,8 @@ class TestAuditLeakAndMultiplexingFixes:
 
     def test_broker_gateway_callback_leak_prevention(self):
         """DhanBrokerGateway unstream removes wrapper callback from feed."""
-        from brokers.dhan.wire import DhanBrokerGateway
         from brokers.dhan.data.subscription_engine import SubscriptionEngine
+        from brokers.dhan.wire import DhanBrokerGateway
 
         feed = mock.MagicMock()
         feed.is_connected = False
@@ -445,17 +465,22 @@ class TestAuditLeakAndMultiplexingFixes:
         """MarketDataGatewayAdapter tracks active handles and prevents premature stop."""
         import asyncio
 
-        from infrastructure.adapters.market_data_gateway_adapter import wrap_market_gateway
         from domain.ports.broker_gateway import BrokerStreamPlan
+        from infrastructure.adapters.market_data_gateway_adapter import wrap_market_gateway
 
         legacy_gw = mock.MagicMock()
         adapter = wrap_market_gateway(legacy_gw, "dhan")
 
-        plan1 = BrokerStreamPlan(frozenset(["RELIANCE:NSE"]), frozenset(["LTP"]), on_raw_frame=mock.MagicMock())
-        plan2 = BrokerStreamPlan(frozenset(["SBIN:NSE"]), frozenset(["LTP"]), on_raw_frame=mock.MagicMock())
+        plan1 = BrokerStreamPlan(
+            frozenset(["RELIANCE:NSE"]), frozenset(["LTP"]), on_raw_frame=mock.MagicMock()
+        )
+        plan2 = BrokerStreamPlan(
+            frozenset(["SBIN:NSE"]), frozenset(["LTP"]), on_raw_frame=mock.MagicMock()
+        )
 
         loop = asyncio.new_event_loop()
         try:
+
             async def run_test():
                 # Open two sessions
                 h1 = await adapter.open_market_stream(plan1)

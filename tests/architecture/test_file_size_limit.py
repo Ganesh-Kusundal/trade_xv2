@@ -1,8 +1,10 @@
 """GOV-2: ADR-011 LOC limit enforcement."""
+
 from pathlib import Path
 
 MAX_LOC = 650
 SRC = Path("src")
+
 
 def test_no_files_exceed_loc_limit():
     violations = []

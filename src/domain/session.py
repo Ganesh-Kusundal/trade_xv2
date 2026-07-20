@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -18,8 +19,7 @@ from domain.ports.session_context import (
 if TYPE_CHECKING:
     from domain.ports.event_publisher import EventBusPort
     from domain.ports.order_service import OrderServicePort
-    from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult
-    from domain.universe import Universe
+    from domain.ports.protocols import DataProvider, ExecutionProvider
 
 
 class Session(SessionTradingMixin, SessionInstrumentMixin):
@@ -146,10 +146,8 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
                     stop()
             except Exception:
                 pass
-            try:
+            with contextlib.suppress(Exception):
                 self._lifecycle = None
-            except Exception:
-                pass
         recorder = self._session_recorder if hasattr(self, "_session_recorder") else None
         if recorder is not None:
             try:
@@ -158,10 +156,8 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
                     stop()
             except Exception:
                 pass
-            try:
+            with contextlib.suppress(Exception):
                 self._session_recorder = None
-            except Exception:
-                pass
         if get_default_provider() is self._provider:
             set_default_provider(None)
         clear_ambient_session_if_current(self)
@@ -173,16 +169,12 @@ class SessionDx:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def get_ltp_data(
-        self, names: str | list[str] | tuple[str, ...]
-    ) -> dict[str, Decimal | None]:
+    def get_ltp_data(self, names: str | list[str] | tuple[str, ...]) -> dict[str, Decimal | None]:
         if isinstance(names, str):
             names = [names]
         return self._session.ltp_many(list(names))
 
-    def get_quote_data(
-        self, names: str | list[str] | tuple[str, ...]
-    ) -> dict[str, Any]:
+    def get_quote_data(self, names: str | list[str] | tuple[str, ...]) -> dict[str, Any]:
         if isinstance(names, str):
             names = [names]
         return self._session.quote_many(list(names))
@@ -192,16 +184,12 @@ class SessionDx:
         sel = chain.select_strikes("ATM")
         return sel.ce, sel.pe, sel.strike
 
-    def otm_strikes(
-        self, underlying: str, expiry: int | date | str = 0, steps: int = 1
-    ):
+    def otm_strikes(self, underlying: str, expiry: int | date | str = 0, steps: int = 1):
         chain = self._session.option_chain(underlying, expiry=expiry)
         sel = chain.select_strikes("OTM", steps=steps)
         return sel.ce, sel.pe, sel.ce_strike, sel.pe_strike
 
-    def itm_strikes(
-        self, underlying: str, expiry: int | date | str = 0, steps: int = 1
-    ):
+    def itm_strikes(self, underlying: str, expiry: int | date | str = 0, steps: int = 1):
         chain = self._session.option_chain(underlying, expiry=expiry)
         sel = chain.select_strikes("ITM", steps=steps)
         return sel.ce, sel.pe, sel.ce_strike, sel.pe_strike

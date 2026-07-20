@@ -7,13 +7,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from domain.constants.resilience import MAX_RETRY_ATTEMPTS, RETRY_BASE_DELAY_MS
 from interface.ui.utils.error_formatter import (
     display_error,
     format_error,
     get_error_severity,
     is_retryable_error,
 )
-from domain.constants.resilience import MAX_RETRY_ATTEMPTS, RETRY_BASE_DELAY_MS
 from interface.ui.utils.retry_handler import (
     DEFAULT_BACKOFF_FACTOR,
     retry_with_backoff,

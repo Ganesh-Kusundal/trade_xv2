@@ -11,8 +11,8 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from interface.ui.services.broker_service import BrokerService
 from domain.entities import OrderResponse
+from interface.ui.services.broker_service import BrokerService
 
 
 def test_place_order_routes_through_gateway_with_oms_context() -> None:

@@ -6,11 +6,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-from tests.conftest import build_test_trading_context
 
 from application.execution.oms_backtest_adapter import create_oms_backtest_adapter
 from domain import Side
-from domain.ports.time_service import get_current_clock
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture

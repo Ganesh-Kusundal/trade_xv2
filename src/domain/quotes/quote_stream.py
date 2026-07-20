@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from typing import Iterator
+from collections.abc import Iterator
 
 from domain.entities.market import QuoteSnapshot
 

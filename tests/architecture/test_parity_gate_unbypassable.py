@@ -12,7 +12,6 @@ live env) and that the factory refuses a disabled gate in a live env.
 
 from __future__ import annotations
 
-import os
 import pytest
 
 from runtime import parity_gate
@@ -24,6 +23,8 @@ class _FakeResult:
     returncode = 0
     stderr = ""
     stdout = ""
+
+
 from runtime.production_config import is_production_environment
 from runtime.resilience import ResilienceConfig
 

@@ -1,4 +1,5 @@
 """Canonical observability — audit, health checks, EventMetrics, HTTP probes."""
+
 from infrastructure.observability.audit import (
     emit_historical_chunk,
     emit_merge_conflict,

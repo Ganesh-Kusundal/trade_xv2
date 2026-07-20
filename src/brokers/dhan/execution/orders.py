@@ -18,13 +18,11 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
-from domain.models.dtos import BrokerOrderPayload
-
 from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
-from brokers.dhan.execution.order_validator import OrderValidator
-from brokers.dhan.execution.order_placement import IdempotencyCache, OrderPlacer
 from brokers.dhan.execution.order_cancellation import OrderCanceller
+from brokers.dhan.execution.order_placement import IdempotencyCache, OrderPlacer
+from brokers.dhan.execution.order_validator import OrderValidator
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.segments import DEFAULT_SEGMENT, segment_to_exchange
 from domain import (
     Order,
@@ -36,6 +34,7 @@ from domain import (
 )
 from domain import Side as OrderSide
 from domain.field_mapping import DefaultFieldMapping
+from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 
@@ -122,7 +121,9 @@ class OrdersAdapter:
         price: Decimal | None = None,
     ) -> list[str]:
         """Validate an order before submission. Returns list of error strings (empty = valid)."""
-        return self._validator.validate_order(symbol, exchange, quantity, order_type, product_type, price)
+        return self._validator.validate_order(
+            symbol, exchange, quantity, order_type, product_type, price
+        )
 
     def validate_order_warnings(
         self,

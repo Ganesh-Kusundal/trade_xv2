@@ -67,9 +67,15 @@ def test_memory_store_append_and_count() -> None:
     assert store.count() == 0
 
     evt = AuditEvent(
-        event_id="m1", timestamp="t", event_type="t1",
-        actor="a", action="act", resource_type="r",
-        resource_id="r1", details={}, correlation_id="c",
+        event_id="m1",
+        timestamp="t",
+        event_type="t1",
+        actor="a",
+        action="act",
+        resource_type="r",
+        resource_id="r1",
+        details={},
+        correlation_id="c",
     )
     store.append(evt)
     assert store.count() == 1
@@ -80,9 +86,15 @@ def test_memory_store_append_and_count() -> None:
 def test_memory_store_get() -> None:
     store = MemoryAuditStore()
     evt = AuditEvent(
-        event_id="m2", timestamp="t", event_type="t1",
-        actor="a", action="act", resource_type="r",
-        resource_id="r1", details={}, correlation_id="c",
+        event_id="m2",
+        timestamp="t",
+        event_type="t1",
+        actor="a",
+        action="act",
+        resource_type="r",
+        resource_id="r1",
+        details={},
+        correlation_id="c",
     )
     store.append(evt)
     assert store.get("m2") == evt
@@ -92,13 +104,19 @@ def test_memory_store_get() -> None:
 def test_memory_store_query_filters() -> None:
     store = MemoryAuditStore()
     for i in range(5):
-        store.append(AuditEvent(
-            event_id=f"q{i}", timestamp=f"2025-01-0{i+1}T00:00:00+00:00",
-            event_type="type_a" if i % 2 == 0 else "type_b",
-            actor="alice" if i < 3 else "bob",
-            action="act", resource_type="r", resource_id=f"r{i}",
-            details={}, correlation_id="c",
-        ))
+        store.append(
+            AuditEvent(
+                event_id=f"q{i}",
+                timestamp=f"2025-01-0{i + 1}T00:00:00+00:00",
+                event_type="type_a" if i % 2 == 0 else "type_b",
+                actor="alice" if i < 3 else "bob",
+                action="act",
+                resource_type="r",
+                resource_id=f"r{i}",
+                details={},
+                correlation_id="c",
+            )
+        )
 
     # Filter by event_type
     a_events = store.query(event_type="type_a")
@@ -125,11 +143,19 @@ def test_memory_store_query_filters() -> None:
 def test_memory_store_clear() -> None:
     store = MemoryAuditStore()
     for i in range(3):
-        store.append(AuditEvent(
-            event_id=f"c{i}", timestamp="t", event_type="t",
-            actor="a", action="a", resource_type="r",
-            resource_id="r", details={}, correlation_id="c",
-        ))
+        store.append(
+            AuditEvent(
+                event_id=f"c{i}",
+                timestamp="t",
+                event_type="t",
+                actor="a",
+                action="a",
+                resource_type="r",
+                resource_id="r",
+                details={},
+                correlation_id="c",
+            )
+        )
     assert store.count() == 3
     store.clear()
     assert store.count() == 0
@@ -147,12 +173,19 @@ def test_file_store_persistence() -> None:
         # Write events with first store instance
         store1 = FileAuditStore(path)
         for i in range(3):
-            store1.append(AuditEvent(
-                event_id=f"f{i}", timestamp=f"2025-01-0{i+1}T00:00:00+00:00",
-                event_type="persist", actor="svc", action="write",
-                resource_type="file", resource_id=f"f{i}",
-                details={"seq": i}, correlation_id="c",
-            ))
+            store1.append(
+                AuditEvent(
+                    event_id=f"f{i}",
+                    timestamp=f"2025-01-0{i + 1}T00:00:00+00:00",
+                    event_type="persist",
+                    actor="svc",
+                    action="write",
+                    resource_type="file",
+                    resource_id=f"f{i}",
+                    details={"seq": i},
+                    correlation_id="c",
+                )
+            )
 
         # Read events with a fresh store instance
         store2 = FileAuditStore(path)
@@ -167,13 +200,19 @@ def test_file_store_query() -> None:
         path = Path(tmp) / "audit_query.jsonl"
         store = FileAuditStore(path)
         for i in range(4):
-            store.append(AuditEvent(
-                event_id=f"fq{i}", timestamp=f"2025-01-0{i+1}T00:00:00+00:00",
-                event_type="e" if i % 2 == 0 else "o",
-                actor="alice" if i < 2 else "bob",
-                action="q", resource_type="r", resource_id="r",
-                details={}, correlation_id="c",
-            ))
+            store.append(
+                AuditEvent(
+                    event_id=f"fq{i}",
+                    timestamp=f"2025-01-0{i + 1}T00:00:00+00:00",
+                    event_type="e" if i % 2 == 0 else "o",
+                    actor="alice" if i < 2 else "bob",
+                    action="q",
+                    resource_type="r",
+                    resource_id="r",
+                    details={},
+                    correlation_id="c",
+                )
+            )
 
         assert len(store.query(event_type="e")) == 2
         assert len(store.query(actor="alice")) == 2
@@ -184,11 +223,19 @@ def test_file_store_clear() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "audit_clear.jsonl"
         store = FileAuditStore(path)
-        store.append(AuditEvent(
-            event_id="fc", timestamp="t", event_type="t",
-            actor="a", action="a", resource_type="r",
-            resource_id="r", details={}, correlation_id="c",
-        ))
+        store.append(
+            AuditEvent(
+                event_id="fc",
+                timestamp="t",
+                event_type="t",
+                actor="a",
+                action="a",
+                resource_type="r",
+                resource_id="r",
+                details={},
+                correlation_id="c",
+            )
+        )
         assert store.count() == 1
         store.clear()
         assert store.count() == 0
@@ -291,17 +338,19 @@ def test_memory_store_thread_safety() -> None:
     def writer(n: int) -> None:
         try:
             for i in range(50):
-                store.append(AuditEvent(
-                    event_id=f"t-{n}-{i}",
-                    timestamp="t",
-                    event_type="thread_test",
-                    actor=f"actor-{n}",
-                    action="write",
-                    resource_type="r",
-                    resource_id=f"r-{n}-{i}",
-                    details={},
-                    correlation_id="c",
-                ))
+                store.append(
+                    AuditEvent(
+                        event_id=f"t-{n}-{i}",
+                        timestamp="t",
+                        event_type="thread_test",
+                        actor=f"actor-{n}",
+                        action="write",
+                        resource_type="r",
+                        resource_id=f"r-{n}-{i}",
+                        details={},
+                        correlation_id="c",
+                    )
+                )
         except Exception as exc:
             errors.append(exc)
 
@@ -325,17 +374,19 @@ def test_file_store_thread_safety() -> None:
         def writer(n: int) -> None:
             try:
                 for i in range(20):
-                    store.append(AuditEvent(
-                        event_id=f"ft-{n}-{i}",
-                        timestamp="t",
-                        event_type="ft",
-                        actor=f"a{n}",
-                        action="w",
-                        resource_type="r",
-                        resource_id="r",
-                        details={},
-                        correlation_id="c",
-                    ))
+                    store.append(
+                        AuditEvent(
+                            event_id=f"ft-{n}-{i}",
+                            timestamp="t",
+                            event_type="ft",
+                            actor=f"a{n}",
+                            action="w",
+                            resource_type="r",
+                            resource_id="r",
+                            details={},
+                            correlation_id="c",
+                        )
+                    )
             except Exception as exc:
                 errors.append(exc)
 

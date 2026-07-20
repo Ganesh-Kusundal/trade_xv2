@@ -35,7 +35,9 @@ class MarketConnectionManager:
         self.active_connections: dict[str, WebSocket] = {}
         self.subscriptions: dict[str, set[str]] = {}  # connection_id -> symbols
         self._symbol_index: dict[str, set[str]] = {}  # symbol -> connection_ids (reverse index)
-        self._wildcard_connections: set[str] = set()  # connections with empty subscription (get all events)
+        self._wildcard_connections: set[str] = (
+            set()
+        )  # connections with empty subscription (get all events)
         self._send_queues: dict[str, asyncio.Queue] = {}  # connection_id -> message queue
         self._send_tasks: dict[str, asyncio.Task] = {}  # connection_id -> sender task
         self._seq_counters: dict[str, int] = {}  # connection_id -> sequence number

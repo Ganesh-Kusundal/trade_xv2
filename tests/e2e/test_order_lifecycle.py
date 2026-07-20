@@ -8,12 +8,13 @@ RiskManager, and ProcessedTradeRepository.
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import threading
 from decimal import Decimal
 
 import pytest
+
+from tests.conftest import build_test_trading_context
 
 pytestmark = pytest.mark.e2e
 
@@ -21,9 +22,7 @@ from application.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
-    create_trading_context,
 )
-from infrastructure.observability.event_metrics import EventMetrics
 from domain import (
     Order,
     OrderStatus,
@@ -35,6 +34,7 @@ from domain import (
 from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_log import EventLog
+from infrastructure.observability.event_metrics import EventMetrics
 
 
 @pytest.fixture

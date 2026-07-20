@@ -17,6 +17,7 @@ from brokers.dhan.config.settings import DhanSettingsLoader
 
 # ── Fixture to isolate tests from workspace .env.local ─────────────────
 
+
 @pytest.fixture(autouse=True)
 def _isolate_dhan_env():
     """Save and restore DHAN_* env vars to prevent workspace .env.local leakage."""
@@ -36,6 +37,7 @@ def _isolate_dhan_env():
 
 
 # ── Test 1: Valid config passes validation ──────────────────────────────
+
 
 class TestValidConfig:
     """Verify valid config passes validation."""
@@ -77,15 +79,14 @@ class TestValidConfig:
 
 # ── Test 2: Missing required fields raise error ─────────────────────────
 
+
 class TestMissingRequiredFields:
     """Verify missing required fields raise ValidationError."""
 
     def test_validate_config_fails_missing_client_id(self, tmp_path: Path) -> None:
         """Missing DHAN_CLIENT_ID must raise ValueError."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_ACCESS_TOKEN=some_token\n"
-        )
+        env_file.write_text("DHAN_ACCESS_TOKEN=some_token\n")
 
         with pytest.raises(ValueError, match="DHAN_CLIENT_ID is required"):
             DhanSettingsLoader.from_env(env_path=env_file)
@@ -93,10 +94,7 @@ class TestMissingRequiredFields:
     def test_validate_config_fails_invalid_environment(self, tmp_path: Path) -> None:
         """Invalid DHAN_ENVIRONMENT must raise ValueError."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=test_client\n"
-            "DHAN_ENVIRONMENT=INVALID_ENV\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=test_client\nDHAN_ENVIRONMENT=INVALID_ENV\n")
 
         with pytest.raises(ValueError, match="DHAN_ENVIRONMENT must be one of"):
             DhanSettingsLoader.from_env(env_path=env_file)
@@ -104,16 +102,14 @@ class TestMissingRequiredFields:
 
 # ── Test 3: Invalid values behavior ─────────────────────────────────────
 
+
 class TestInvalidValues:
     """Verify invalid values behavior."""
 
     def test_validate_config_accepts_negative_http_timeout(self, tmp_path: Path) -> None:
         """Negative http_timeout is parsed as float (loader uses _get_float which returns default on error)."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=test_client\n"
-            "DHAN_HTTP_TIMEOUT=-5.0\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=test_client\nDHAN_HTTP_TIMEOUT=-5.0\n")
 
         settings = DhanSettingsLoader.from_env(env_path=env_file)
         assert isinstance(settings.http_timeout, float)
@@ -122,10 +118,7 @@ class TestInvalidValues:
     def test_validate_config_fails_empty_client_id(self, tmp_path: Path) -> None:
         """Empty DHAN_CLIENT_ID must raise ValueError."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=\n"
-            "DHAN_ACCESS_TOKEN=token\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=\nDHAN_ACCESS_TOKEN=token\n")
 
         with pytest.raises(ValueError, match="DHAN_CLIENT_ID is required"):
             DhanSettingsLoader.from_env(env_path=env_file)
@@ -133,16 +126,14 @@ class TestInvalidValues:
     def test_validate_config_defaults_on_non_numeric_timeout(self, tmp_path: Path) -> None:
         """Non-numeric HTTP_TIMEOUT defaults to 15.0 (_get_float returns default on parse error)."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=test_client\n"
-            "DHAN_HTTP_TIMEOUT=not_a_number\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=test_client\nDHAN_HTTP_TIMEOUT=not_a_number\n")
 
         settings = DhanSettingsLoader.from_env(env_path=env_file)
         assert settings.http_timeout == 15.0  # default
 
 
 # ── Test 4: Bootstrap uses validation on create ─────────────────────────
+
 
 class TestBootstrapValidationIntegration:
     """Verify bootstrap_gateway validates config before creating gateway."""
@@ -175,10 +166,7 @@ class TestBootstrapValidationIntegration:
     def test_bootstrap_creates_gateway_with_valid_config(self, tmp_path: Path) -> None:
         """bootstrap_gateway must succeed with valid config (transport-only, fake token)."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=test_client\n"
-            "DHAN_ACCESS_TOKEN=test_token\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=test_client\nDHAN_ACCESS_TOKEN=test_token\n")
 
         from infrastructure.gateway.factory import bootstrap_gateway
 
@@ -194,6 +182,7 @@ class TestBootstrapValidationIntegration:
 
 # ── Test 5: Validation error messages clear ─────────────────────────────
 
+
 class TestValidationErrorMessageClarity:
     """Verify ValidationError messages are human-readable and indicate which field failed."""
 
@@ -208,15 +197,14 @@ class TestValidationErrorMessageClarity:
         except ValueError as e:
             error_msg = str(e)
             assert "DHAN_CLIENT_ID" in error_msg, f"Error message should mention field: {error_msg}"
-            assert "required" in error_msg.lower(), f"Error message should say 'required': {error_msg}"
+            assert "required" in error_msg.lower(), (
+                f"Error message should say 'required': {error_msg}"
+            )
 
     def test_validation_error_message_clear_invalid_env(self, tmp_path: Path) -> None:
         """Error message must list valid environments."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=test\n"
-            "DHAN_ENVIRONMENT=BAD\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=test\nDHAN_ENVIRONMENT=BAD\n")
 
         try:
             DhanSettingsLoader.from_env(env_path=env_file)
@@ -230,16 +218,14 @@ class TestValidationErrorMessageClarity:
 
 # ── Test 6: Config defaults applied correctly ───────────────────────────
 
+
 class TestConfigDefaults:
     """Verify default values are applied when optional fields missing."""
 
     def test_config_defaults_applied_correctly(self, tmp_path: Path) -> None:
         """Minimal config must have sensible defaults."""
         env_file = tmp_path / ".env.test"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=minimal_client\n"
-            "DHAN_ACCESS_TOKEN=minimal_token\n"
-        )
+        env_file.write_text("DHAN_CLIENT_ID=minimal_client\nDHAN_ACCESS_TOKEN=minimal_token\n")
 
         settings = DhanSettingsLoader.from_env(env_path=env_file)
 

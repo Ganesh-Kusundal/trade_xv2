@@ -55,9 +55,7 @@ class SessionInstrumentMixin:
         default_year: int | None = None,
     ) -> Instrument:
         """Alias for :meth:`resolve` — instrument-first entry by friendly name."""
-        return self.resolve(
-            name, default_exchange=default_exchange, default_year=default_year
-        )
+        return self.resolve(name, default_exchange=default_exchange, default_year=default_year)
 
     def quote_many(
         self,
@@ -68,9 +66,7 @@ class SessionInstrumentMixin:
         """Refresh quotes for many display names → ``{name: QuoteSnapshot|None}``."""
         instruments: list[tuple[str, Instrument]] = []
         for name in names:
-            instruments.append(
-                (name, self.resolve(name, default_exchange=default_exchange))
-            )
+            instruments.append((name, self.resolve(name, default_exchange=default_exchange)))
 
         ids = [inst.id for _, inst in instruments]
         batch_fn = getattr(self._provider, "get_quotes_batch", None)

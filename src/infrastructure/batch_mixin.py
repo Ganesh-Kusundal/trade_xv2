@@ -7,9 +7,9 @@ from decimal import Decimal
 
 import pandas as pd
 
-from infrastructure.batch_executor import batch_execute
-from domain.entities import Quote
 from domain.constants import BATCH_MAX_WORKERS
+from domain.entities import Quote
+from infrastructure.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
 

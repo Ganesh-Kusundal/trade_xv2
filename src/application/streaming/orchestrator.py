@@ -42,7 +42,6 @@ from application.streaming.session_manager import SessionManager
 from application.streaming.tick_router import (
     TickRouter,
 )
-from domain.candles.historical import InstrumentRef
 from domain.entities.market import MarketTick
 from domain.ports.broker_gateway import BrokerStreamHandle
 from domain.ports.time_service import get_current_clock
@@ -153,6 +152,7 @@ class StreamOrchestrator:
         *,
         max_consumer_queue: int = 1000,
         candle_aggregator=None,
+        tick_hook=None,
     ) -> None:
         self._registry = registry
         self._router = router
@@ -171,6 +171,7 @@ class StreamOrchestrator:
 
         # Optional live tick→candle aggregator
         self._candle_aggregator = candle_aggregator
+        self._tick_hook = tick_hook
 
         # Build collaborators (has-a composition)
         self._broker_selector = BrokerSelector(registry, router)
@@ -180,6 +181,7 @@ class StreamOrchestrator:
             sessions=self._sessions,
             lock=self._lock,
             candle_aggregator=self._candle_aggregator,
+            tick_hook=self._tick_hook,
         )
 
         self._session_manager = SessionManager(
@@ -251,7 +253,9 @@ class StreamOrchestrator:
                 await self._session_manager.merge_instruments(existing, request)
             else:
                 session_id = await self._session_manager.open_session(
-                    broker_id, request, trace_id,
+                    broker_id,
+                    request,
+                    trace_id,
                     reconnect_coro=self._reconnect.reconnect_loop,
                 )
 

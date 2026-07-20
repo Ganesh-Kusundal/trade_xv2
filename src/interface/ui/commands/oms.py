@@ -33,7 +33,9 @@ def _parse_place_order_args(args: list[str]) -> dict | None:
         positional.append(a)
         i += 1
     if len(positional) < 4:
-        return {"_error": "Usage: tradex oms place SYMBOL EXCHANGE SIDE QUANTITY [PRICE] [--type MKT|LMT] [--product MIS|NRML|CNC]"}
+        return {
+            "_error": "Usage: tradex oms place SYMBOL EXCHANGE SIDE QUANTITY [PRICE] [--type MKT|LMT] [--product MIS|NRML|CNC]"
+        }
     try:
         quantity = int(positional[3])
     except ValueError:

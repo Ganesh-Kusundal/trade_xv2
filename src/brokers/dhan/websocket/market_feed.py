@@ -15,15 +15,15 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.websocket._helpers import (
     _DhanContext,
     _normalize_sdk_depth,
-    _sdk_market_feed_class,
     _to_decimal,
     _transform_depth,
     _transform_quote,
@@ -325,7 +325,9 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             if thread and thread.is_alive():
                 return
             self._stop_event.clear()
-            thread = threading.Thread(target=self._run, name=getattr(self, "name", "dhan.market_feed"), daemon=True)
+            thread = threading.Thread(
+                target=self._run, name=getattr(self, "name", "dhan.market_feed"), daemon=True
+            )
             object.__setattr__(self, "__thread_fallback", thread)
             thread.start()
 

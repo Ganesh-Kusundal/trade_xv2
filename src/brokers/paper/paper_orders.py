@@ -313,7 +313,9 @@ class PaperOrders:
                 order_type=order_type if order_type is not None else original_order.order_type,
                 quantity=quantity if quantity is not None else original_order.quantity,
                 price=price if price is not None else original_order.price,
-                trigger_price=trigger_price if trigger_price is not None else original_order.trigger_price,
+                trigger_price=trigger_price
+                if trigger_price is not None
+                else original_order.trigger_price,
                 validity=validity if validity is not None else original_order.validity,
                 product_type=original_order.product_type,
                 correlation_id=original_order.correlation_id,

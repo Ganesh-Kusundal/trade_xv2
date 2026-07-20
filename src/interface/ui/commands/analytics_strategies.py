@@ -28,9 +28,7 @@ def run_strategies(args: list[str], console: Console) -> None:
             )
             return
         runtime = build_multi_strategy_runtime(names)
-        console.print(
-            f"[green]Pipeline ready with {len(runtime.strategies)} strategies[/green]"
-        )
+        console.print(f"[green]Pipeline ready with {len(runtime.strategies)} strategies[/green]")
         return
 
     console.print("[yellow]Usage: tradex analytics strategies list | run <name>...[/yellow]")

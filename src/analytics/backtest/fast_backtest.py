@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -25,6 +24,7 @@ import pandas as pd
 from analytics.backtest.models import (
     BacktestConfig,
     BacktestResult,
+    CapitalMetricsLabel,
     PerformanceMetrics,
     TradeAnalysis,
 )
@@ -109,13 +109,16 @@ class FastBacktestEngine:
             replay=replay,
             metrics=metrics,
             equity_curve=equity_curve,
+            capital_metrics_label=CapitalMetricsLabel.RESEARCH,
             metadata={
                 "engine": "FastBacktestEngine",
+                "capital_metrics_valid": False,
+                "capital_metrics_label": CapitalMetricsLabel.RESEARCH.value,
                 "bias_warning": (
                     "This backtest uses pre-computed features on the full dataset. "
                     "Features at bar N may use data from bar N+1 (look-ahead in feature computation). "
                     "For research scanning this is acceptable. "
-                    "For production backtesting, use the standard BacktestEngine."
+                    "For production backtesting, use BacktestEngine with ResearchMode.PARITY."
                 ),
             },
         )
@@ -156,7 +159,11 @@ class FastBacktestEngine:
                 ):
                     qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
                     if qty > 0:
-                        entry_price = float(_apply_slippage(Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct))
+                        entry_price = float(
+                            _apply_slippage(
+                                Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct
+                            )
+                        )
                         commission = config.commission_flat
                         position = {
                             "side": "LONG",
@@ -174,11 +181,15 @@ class FastBacktestEngine:
                     and position is not None
                 ):
                     price = float(row["close"])
-                    exit_price = float(_apply_slippage(Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct))
+                    exit_price = float(
+                        _apply_slippage(
+                            Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct
+                        )
+                    )
                     commission = config.commission_flat
 
                     pnl = (exit_price - position["entry_price"]) * position["quantity"]
-                    pnl_pct = (exit_price / position["entry_price"] - 1) * 100
+                    (exit_price / position["entry_price"] - 1) * 100
 
                     trade = Trade(
                         trade_id=f"backtest:{symbol}:{len(trades)}",

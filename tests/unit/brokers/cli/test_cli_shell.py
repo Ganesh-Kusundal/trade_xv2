@@ -19,7 +19,16 @@ class _FakeSession:
 
     @property
     def status(self):
-        return type("S", (), {"mode": "paper", "orders_enabled": False, "authenticated": True, "instruments_loaded": True})()
+        return type(
+            "S",
+            (),
+            {
+                "mode": "paper",
+                "orders_enabled": False,
+                "authenticated": True,
+                "instruments_loaded": True,
+            },
+        )()
 
     @property
     def runtime(self):
@@ -173,7 +182,13 @@ def test_shell_quote_passes_broker_id_and_session(monkeypatch) -> None:
     monkeypatch.setattr("brokers.cli.broker.BrokerSession", lambda *_a, **_k: sess)
     monkeypatch.setattr(
         "brokers.cli.broker.status_from_session",
-        lambda _s: {"broker_id": "dhan", "connected": True, "mode": "live", "orders_enabled": True, "checkpoints": []},
+        lambda _s: {
+            "broker_id": "dhan",
+            "connected": True,
+            "mode": "live",
+            "orders_enabled": True,
+            "checkpoints": [],
+        },
     )
     monkeypatch.setattr("brokers.cli.broker.extensions_from_session", lambda _s: [])
     monkeypatch.setattr("brokers.cli.broker.get_quote", _quote)
@@ -196,7 +211,13 @@ def test_shell_opens_one_session_for_startup_and_command(monkeypatch) -> None:
     monkeypatch.setattr("brokers.cli.broker.BrokerSession", _counting_session)
     monkeypatch.setattr(
         "brokers.cli.broker.status_from_session",
-        lambda _s: {"broker_id": "paper", "connected": True, "mode": "paper", "orders_enabled": False, "checkpoints": []},
+        lambda _s: {
+            "broker_id": "paper",
+            "connected": True,
+            "mode": "paper",
+            "orders_enabled": False,
+            "checkpoints": [],
+        },
     )
     monkeypatch.setattr("brokers.cli.broker.extensions_from_session", lambda _s: [])
     monkeypatch.setattr(

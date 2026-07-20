@@ -7,8 +7,9 @@ and API tests. ``build_for_api`` lives in :mod:`runtime.api_compose` (not UI).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from runtime.factory import Runtime
 
@@ -26,8 +27,8 @@ def initialize_api_services(
     root = project_root or Path(__file__).resolve().parent.parent.parent.parent
 
     from analytics.views.manager import ViewManager
-    from datalake.storage.catalog import DataCatalog
     from datalake.gateway import DataLakeGateway
+    from datalake.storage.catalog import DataCatalog
     from runtime.api_compose import build_for_api, register_broker_service_factory
 
     if broker_service_factory is not None:
@@ -56,9 +57,7 @@ def initialize_api_services(
     trading_context = runtime.trading_context
     event_bus = runtime.event_bus
     if trading_context is not None and event_bus is not trading_context.event_bus:
-        logger.warning(
-            "Runtime event_bus differs from TradingContext event_bus; using context bus"
-        )
+        logger.warning("Runtime event_bus differs from TradingContext event_bus; using context bus")
         event_bus = trading_context.event_bus
 
     # Create composers from broker infrastructure (if available)

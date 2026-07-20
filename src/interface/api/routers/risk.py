@@ -6,9 +6,9 @@ import logging
 
 from fastapi import APIRouter, Depends
 
+from application.oms._internal.risk_manager import RiskManager
 from interface.api.auth import require_admin, require_auth
 from interface.api.deps import get_risk_manager
-from application.oms._internal.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 

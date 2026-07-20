@@ -5,8 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 DOMAIN = ROOT / "src" / "domain"
 
@@ -37,9 +35,7 @@ def _top_level_pandas_imports(path: Path) -> list[int]:
 
 def test_domain_prod_has_no_toplevel_pandas() -> None:
     files = [
-        f
-        for f in DOMAIN.rglob("*.py")
-        if "__pycache__" not in f.parts and "tests" not in f.parts
+        f for f in DOMAIN.rglob("*.py") if "__pycache__" not in f.parts and "tests" not in f.parts
     ]
     assert files, f"no domain files under {DOMAIN}"
     violations: list[str] = []
@@ -62,9 +58,7 @@ def test_core_domain_modules_import_without_prior_pandas() -> None:
     saved = {
         name: mod
         for name, mod in sys.modules.items()
-        if name == "pandas"
-        or name.startswith("pandas.")
-        or name.startswith("domain")
+        if name == "pandas" or name.startswith("pandas.") or name.startswith("domain")
     }
 
     try:

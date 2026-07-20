@@ -6,12 +6,12 @@ from decimal import Decimal
 import pytest
 
 from brokers.dhan.domain import (
-    Exchange,
     DhanInstrument,
+    Exchange,
     InstrumentType,
     OptionType,
 )
-from domain import Balance, Quote, Side
+from domain import Balance, Quote
 from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
 

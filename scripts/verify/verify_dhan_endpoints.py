@@ -160,9 +160,9 @@ def test_gateway():
             # OptionChain is a domain entity with strikes dict or contracts list
             if chain:
                 # Check for domain entity attributes
-                if hasattr(chain, 'strikes'):
+                if hasattr(chain, "strikes"):
                     count = len(chain.strikes) if chain.strikes else 0
-                elif hasattr(chain, 'contracts'):
+                elif hasattr(chain, "contracts"):
                     count = len(chain.contracts) if chain.contracts else 0
                 elif isinstance(chain, dict):
                     data = chain.get("data", chain.get("contracts", []))
@@ -186,7 +186,9 @@ def test_gateway():
     try:
         chain = gw.option_chain("GOLD", "MCX")
         if chain:
-            record("option_chain", "MCX(GOLD)", PASS, f"got chain data (type={type(chain).__name__})")
+            record(
+                "option_chain", "MCX(GOLD)", PASS, f"got chain data (type={type(chain).__name__})"
+            )
         else:
             record("option_chain", "MCX(GOLD)", FAIL, f"got {type(chain)}")
     except Exception as e:
@@ -199,7 +201,7 @@ def test_gateway():
         try:
             chain = gw.future_chain(underlying, exchange)
             # FutureChain is a domain entity, check if it has data
-            if chain and hasattr(chain, 'contracts'):
+            if chain and hasattr(chain, "contracts"):
                 contracts = chain.contracts if chain.contracts else []
                 expiries = chain.expiries if chain.expiries else []
                 record(

@@ -11,7 +11,6 @@ import pytest
 from domain.candles.historical import HistoricalBar, HistoricalSeries, InstrumentRef
 from domain.candles.instrument_history import InstrumentHistory
 from domain.errors import NotConfiguredError
-from domain.instruments.instrument import Equity
 from domain.orders.intent import OrderIntent
 from domain.ports.protocols import OrderResult
 from domain.provenance import DataProvenance, SourceIdentity

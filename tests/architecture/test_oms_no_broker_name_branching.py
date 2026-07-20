@@ -17,8 +17,6 @@ import ast
 import glob
 import os
 
-import pytest
-
 OMS_DIR = os.path.join("src", "application", "oms")
 
 # Live broker ids that must never be hard-coded / compared in the OMS.
@@ -42,7 +40,7 @@ def _literal_string_compares(tree: ast.Module) -> list[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Compare) and len(node.ops) == 1:
             op = node.ops[0]
-            if isinstance(op, (ast.Eq, ast.NotEq)):
+            if isinstance(op, ast.Eq | ast.NotEq):
                 for side in (node.left, *node.comparators):
                     if isinstance(side, ast.Constant) and isinstance(side.value, str):
                         if side.value in LIVE_BROKER_NAMES:

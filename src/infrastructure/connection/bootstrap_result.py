@@ -56,8 +56,7 @@ def _check_upstox(gateway: Any) -> tuple[bool, str | None]:
         return False, "Upstox token manager has no valid token"
     settings = getattr(broker_obj, "settings", None)
     if settings and (
-        getattr(settings, "access_token", None)
-        or getattr(settings, "analytics_token", None)
+        getattr(settings, "access_token", None) or getattr(settings, "analytics_token", None)
     ):
         return True, None
     return False, "no Upstox token in settings or manager"

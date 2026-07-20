@@ -100,9 +100,7 @@ def test_main_module_populates_registry_on_import() -> None:
     import interface.ui.main  # noqa: F401 — side effect: populates DISPATCH_TABLE
 
     missing = [name for name in TOP_LEVEL_COMMANDS if name not in registry.DISPATCH_TABLE]
-    assert not missing, (
-        f"cli/main.py does not register these commands: {missing}"
-    )
+    assert not missing, f"cli/main.py does not register these commands: {missing}"
 
 
 def test_no_unexpected_commands_in_dispatch() -> None:

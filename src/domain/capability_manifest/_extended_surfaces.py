@@ -12,7 +12,14 @@ EXTENDED_SURFACES = (
         dhan="user_profile.get_profile",
         upstox="portfolio.get_profile",
         cli=(("profile", "src/interface/ui/commands/extended_orders.py"),),
-        rest=(("GET", "/api/v1/live/profile", "src/interface/api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            (
+                "GET",
+                "/api/v1/live/profile",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         tier="extended",
         severity_if_gap="P3",
     ),
@@ -24,7 +31,12 @@ EXTENDED_SURFACES = (
         cli=(("super-order", "src/interface/ui/commands/extended_orders.py"),),
         notes="services: list_super_orders; MCP: via broker extended when wired",
         rest=(
-            ("POST", "/api/v1/live/orders/super", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/orders/super",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P1",
@@ -38,7 +50,12 @@ EXTENDED_SURFACES = (
         cli=(("forever-order", "src/interface/ui/commands/extended_orders.py"),),
         notes="services: list_forever_orders",
         rest=(
-            ("POST", "/api/v1/live/orders/forever", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/orders/forever",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P1",
@@ -52,7 +69,12 @@ EXTENDED_SURFACES = (
         upstox="gtt.place_alert",
         cli=(("trigger", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("POST", "/api/v1/live/alerts/trigger", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/alerts/trigger",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P1",
@@ -84,8 +106,18 @@ EXTENDED_SURFACES = (
         upstox="exit_all.exit_all",
         cli=(("exit-all", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("POST", "/api/v1/live/orders/exit-all", "src/interface/api/routers/live/extended.py", "live_broker"),
-            ("POST", "/api/v1/portfolio/square-off", "src/interface/api/routers/portfolio.py", "oms"),
+            (
+                "POST",
+                "/api/v1/live/orders/exit-all",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
+            (
+                "POST",
+                "/api/v1/portfolio/square-off",
+                "src/interface/api/routers/portfolio.py",
+                "oms",
+            ),
         ),
         severity_if_gap="P1",
     ),
@@ -96,7 +128,14 @@ EXTENDED_SURFACES = (
         dhan="ledger.get_ledger",
         upstox="portfolio.get_ledger",
         cli=(("ledger", "src/interface/ui/commands/extended_orders.py"),),
-        rest=(("GET", "/api/v1/live/ledger", "src/interface/api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            (
+                "GET",
+                "/api/v1/live/ledger",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         tier="extended",
         severity_if_gap="P3",
     ),
@@ -107,7 +146,12 @@ EXTENDED_SURFACES = (
         dhan="edis.authorize_edis",
         cli=(("edis", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("POST", "/api/v1/live/edis/authorize", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/edis/authorize",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -122,7 +166,12 @@ EXTENDED_SURFACES = (
         cli=(("ip", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
             ("GET", "/api/v1/live/ip", "src/interface/api/routers/live/extended.py", "live_broker"),
-            ("POST", "/api/v1/live/ip", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/ip",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -133,7 +182,14 @@ EXTENDED_SURFACES = (
         extended_only=True,
         upstox="gtt.place_gtt_order",
         cli=(("gtt-order", "src/interface/ui/commands/extended_orders.py"),),
-        rest=(("POST", "/api/v1/live/orders/gtt", "src/interface/api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            (
+                "POST",
+                "/api/v1/live/orders/gtt",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         tier="extended",
         severity_if_gap="P1",
     ),
@@ -144,7 +200,12 @@ EXTENDED_SURFACES = (
         upstox="cover.place_cover_order",
         cli=(("cover-order", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("POST", "/api/v1/live/orders/cover", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/orders/cover",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P1",
@@ -157,7 +218,12 @@ EXTENDED_SURFACES = (
         upstox="slice.place_slice_order",
         cli=(("slice-order", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("POST", "/api/v1/live/orders/slice", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/orders/slice",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P1",
@@ -181,7 +247,14 @@ EXTENDED_SURFACES = (
         extended_only=True,
         upstox="ipo.get_ipos",
         cli=(("ipo", "src/interface/ui/commands/extended_orders.py"),),
-        rest=(("GET", "/api/v1/live/ipo", "src/interface/api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            (
+                "GET",
+                "/api/v1/live/ipo",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         tier="extended",
         severity_if_gap="P3",
     ),
@@ -193,8 +266,18 @@ EXTENDED_SURFACES = (
         upstox="mutual_funds.place_order",
         cli=(("mf", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("GET", "/api/v1/live/mutual-funds", "src/interface/api/routers/live/extended.py", "live_broker"),
-            ("POST", "/api/v1/live/mutual-funds", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/live/mutual-funds",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
+            (
+                "POST",
+                "/api/v1/live/mutual-funds",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -207,7 +290,12 @@ EXTENDED_SURFACES = (
         upstox="payments.initiate_payout",
         cli=(("payout", "src/interface/ui/commands/extended_orders.py"),),
         rest=(
-            ("POST", "/api/v1/live/payments/payout", "src/interface/api/routers/live/extended.py", "live_broker"),
+            (
+                "POST",
+                "/api/v1/live/payments/payout",
+                "src/interface/api/routers/live/extended.py",
+                "live_broker",
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",

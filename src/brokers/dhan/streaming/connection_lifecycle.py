@@ -27,15 +27,14 @@ Created by ``DhanConnection`` at init time::
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from brokers.dhan.data.depth_20 import DhanDepth20Feed
-from brokers.dhan.data.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
 from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.data.depth_20 import DhanDepth20Feed
+from brokers.dhan.data.depth_200 import Depth200ConnectionPool, DhanDepth200Feed
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
@@ -170,7 +169,7 @@ class ConnectionLifecycle:
             try:
                 if not scheduler.refresh_now():
                     return None
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("order_stream_token_refresh_error: %s", exc)
                 return None
             client = getattr(connection_owner, "client", None)
@@ -184,15 +183,15 @@ class ConnectionLifecycle:
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth20Feed:
         """Create and return a DhanDepth20Feed for 20-level depth.
-        
+
         Enforces singleton pattern: returns existing feed if already created.
         This ensures exactly one Market Depth WebSocket connection per broker
         instance, preventing rate limit violations.
-        
+
         Args:
             access_token: Optional access token override
             instrument: Optional instrument tuple (segment, security_id)
-            
+
         Returns:
             The singleton DhanDepth20Feed instance
         """
@@ -203,7 +202,7 @@ class ConnectionLifecycle:
                 extra={"existing_feed": id(self._depth_20_feed)},
             )
             return self._depth_20_feed
-        
+
         feed = DhanDepth20Feed(
             client_id=self._client.client_id,
             access_token=access_token or self._client.access_token,
@@ -214,7 +213,7 @@ class ConnectionLifecycle:
         if hasattr(feed, "update_token"):
             self._register_token_receiver(feed.update_token)
         self._register_with_lifecycle(feed, feed.name)
-        
+
         logger.info(
             "depth_20_feed_singleton_created",
             extra={"feed_id": id(feed), "client_id": self._client.client_id},
@@ -227,16 +226,16 @@ class ConnectionLifecycle:
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth200Feed:
         """Create and return a DhanDepth200Feed for 200-level depth.
-        
+
         Uses Depth200ConnectionPool to manage multiple connections since Dhan's
         depth-200 API only supports 1 instrument per connection. This allows
         multiple instruments to be subscribed to depth-200 data without
         violating broker rate limits.
-        
+
         Args:
             access_token: Optional access token override
             instrument: Optional instrument tuple (segment, security_id)
-            
+
         Returns:
             DhanDepth200Feed instance from the connection pool
         """
@@ -251,7 +250,7 @@ class ConnectionLifecycle:
                 "depth_200_connection_pool_created",
                 extra={"client_id": self._client.client_id},
             )
-        
+
         # If no instrument specified, return a placeholder feed
         # (this maintains backward compatibility with existing code)
         if instrument is None:
@@ -269,15 +268,15 @@ class ConnectionLifecycle:
                     self._register_token_receiver(self._depth_200_feed.update_token)
                 self._register_with_lifecycle(self._depth_200_feed, self._depth_200_feed.name)
             return self._depth_200_feed
-        
+
         # Get or create a feed for the specific instrument from the pool
         feed = self._depth_200_pool.get_feed(instrument)
-        
+
         # For backward compatibility, also store as the "current" feed
         # This ensures existing code that accesses conn.depth_200_feed still works
         if self._depth_200_feed is None:
             self._depth_200_feed = feed
-        
+
         return feed
 
     def create_polling_feed(

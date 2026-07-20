@@ -2,7 +2,9 @@
 
 from interface.ui.commands.doctor.strategies.active_broker import ActiveBrokerCheck
 from interface.ui.commands.doctor.strategies.auth_live_probe import AuthLiveProbeCheck
-from interface.ui.commands.doctor.strategies.authenticated_readiness import AuthenticatedReadinessCheck
+from interface.ui.commands.doctor.strategies.authenticated_readiness import (
+    AuthenticatedReadinessCheck,
+)
 from interface.ui.commands.doctor.strategies.broker_registry import BrokerRegistryCheck
 from interface.ui.commands.doctor.strategies.gateway_creation import GatewayCreationCheck
 from interface.ui.commands.doctor.strategies.http_observability import HTTPObservabilityCheck

@@ -27,9 +27,7 @@ def test_create_future():
 
 
 def test_create_option():
-    agg = InstrumentFactory.create_option(
-        "NIFTY", "NSE", date(2026, 7, 31), Decimal("25000"), "CE"
-    )
+    agg = InstrumentFactory.create_option("NIFTY", "NSE", date(2026, 7, 31), Decimal("25000"), "CE")
     assert agg.asset_type == "OPTIONS"
 
 

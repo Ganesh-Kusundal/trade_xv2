@@ -51,10 +51,21 @@ _TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b([A-Za-z0-9_\-]{32,})\b"),
 )
 
-_SENSITIVE_EXTRA_KEYS: frozenset[str] = frozenset({
-    "token", "access_token", "refresh_token", "api_key", "api_secret",
-    "password", "pin", "totp", "totp_secret", "authorization", "bearer_token",
-})
+_SENSITIVE_EXTRA_KEYS: frozenset[str] = frozenset(
+    {
+        "token",
+        "access_token",
+        "refresh_token",
+        "api_key",
+        "api_secret",
+        "password",
+        "pin",
+        "totp",
+        "totp_secret",
+        "authorization",
+        "bearer_token",
+    }
+)
 
 
 class TokenRedactionFilter(logging.Filter):
@@ -113,6 +124,7 @@ class CorrelationFilter(logging.Filter):
     def __init__(self, service_name: str | None = None) -> None:
         super().__init__()
         import os
+
         self.service_name = service_name or os.getenv("TRADING_SERVICE_NAME", "trading-platform")
 
     def filter(self, record: logging.LogRecord) -> bool:
@@ -165,8 +177,11 @@ class HumanReadableFormatter(logging.Formatter):
     """Human-readable log formatter for development use."""
 
     COLORS = {
-        "DEBUG": "\033[36m", "INFO": "\033[32m", "WARNING": "\033[33m",
-        "ERROR": "\033[31m", "CRITICAL": "\033[41m",
+        "DEBUG": "\033[36m",
+        "INFO": "\033[32m",
+        "WARNING": "\033[33m",
+        "ERROR": "\033[31m",
+        "CRITICAL": "\033[41m",
     }
     RESET = "\033[0m"
 
@@ -181,7 +196,10 @@ class HumanReadableFormatter(logging.Formatter):
             message += f" | {record.exc_info[0].__name__}: {record.exc_info[1]}"
         extra_parts = []
         for key, value in record.__dict__.items():
-            if key not in _LOG_RECORD_BUILTIN_KEYS and key not in ("correlation_id", "service_name"):
+            if key not in _LOG_RECORD_BUILTIN_KEYS and key not in (
+                "correlation_id",
+                "service_name",
+            ):
                 extra_parts.append(f"{key}={value}")
         extra_str = " ".join(extra_parts)
         if extra_str:

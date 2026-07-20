@@ -99,9 +99,7 @@ class Commodity(Future):
         expiry: date,
         **kwargs: Any,
     ) -> None:
-        Future.__init__(
-            self, symbol, exchange, expiry=expiry, kind="COMMODITY", **kwargs
-        )
+        Future.__init__(self, symbol, exchange, expiry=expiry, kind="COMMODITY", **kwargs)
 
     @property
     def expiry(self) -> date:
@@ -168,6 +166,7 @@ class Commodity(Future):
                 for fmt in ("%Y-%m-%d", "%Y%m%d"):
                     try:
                         from datetime import datetime as _dt
+
                         exp = _dt.strptime(exp, fmt).date()
                         break
                     except ValueError:

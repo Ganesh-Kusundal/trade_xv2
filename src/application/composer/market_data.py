@@ -8,7 +8,7 @@ proper routing, quota management, and provenance tracking.
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from application.data.batch_quote_coordinator import (

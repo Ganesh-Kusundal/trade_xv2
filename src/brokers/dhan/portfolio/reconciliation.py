@@ -145,9 +145,7 @@ class DhanReconciliationService:
         # 3. Correct-then-heal (policy-gated): broker is authoritative for local OMS
         # I6: auto_repair disabled — apply goes through ExecutionEngine, not broker adapter
         if self._auto_repair and self._oms is not None:
-            repaired_o, repaired_p = self._repair_local_oms(
-                broker_orders, broker_positions, drift
-            )
+            repaired_o, repaired_p = self._repair_local_oms(broker_orders, broker_positions, drift)
             report.orders_repaired = repaired_o
             report.positions_repaired = repaired_p
 
@@ -182,7 +180,7 @@ class DhanReconciliationService:
             for attr in ("available_balance", "available", "withdrawable_balance"):
                 if hasattr(bal, attr):
                     return getattr(bal, attr)
-            if isinstance(bal, (int, float, str)):
+            if isinstance(bal, int | float | str):
                 return bal
         return None
 
@@ -227,8 +225,15 @@ class DhanReconciliationService:
             upsert_position = getattr(pm, "upsert_position", None) if pm else None
 
         for item in drift:
-            if item.kind in ("missing_local_order", "order_status_mismatch", "fill_quantity_mismatch", "avg_price_mismatch"):
-                order_id = getattr(item, "payload", {}).get("order_id") or getattr(item, "details", "")
+            if item.kind in (
+                "missing_local_order",
+                "order_status_mismatch",
+                "fill_quantity_mismatch",
+                "avg_price_mismatch",
+            ):
+                order_id = getattr(item, "payload", {}).get("order_id") or getattr(
+                    item, "details", ""
+                )
                 # Extract order_id from details if not in payload
                 if not order_id or order_id.startswith("Broker"):
                     continue
@@ -241,7 +246,11 @@ class DhanReconciliationService:
                     except Exception as exc:
                         logger.warning("Failed to repair order %s: %s", order_id, exc)
 
-            elif item.kind in ("missing_local_position", "position_quantity_mismatch", "position_avg_price_mismatch"):
+            elif item.kind in (
+                "missing_local_position",
+                "position_quantity_mismatch",
+                "position_avg_price_mismatch",
+            ):
                 symbol = item.symbol
                 exchange = getattr(item, "payload", {}).get("exchange", "NSE")
                 key = _pos_key(exchange, symbol)
@@ -249,9 +258,7 @@ class DhanReconciliationService:
                 if broker_pos is None:
                     # No matching broker position — previously a silent drop.
                     # Surface it so persisted drift does not go unnoticed.
-                    logger.warning(
-                        "reconciliation_repair_miss kind=%s key=%s", item.kind, key
-                    )
+                    logger.warning("reconciliation_repair_miss kind=%s key=%s", item.kind, key)
                     continue
                 if upsert_position is not None:
                     try:

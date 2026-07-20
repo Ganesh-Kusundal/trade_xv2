@@ -10,11 +10,13 @@ re-implements broker connectivity logic.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from brokers.session import BrokerSession
 
@@ -61,7 +63,7 @@ class DiagnosticReport:
         except NotImplementedError:
             status = CheckStatus.WARNING if warn_only else CheckStatus.FAIL
             detail = "Not implemented for this broker"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             status = CheckStatus.WARNING if warn_only else CheckStatus.FAIL
             detail = f"{type(exc).__name__}: {exc}"
         latency = (time.perf_counter() - start) * 1000.0
@@ -133,7 +135,7 @@ def _safe_balance(funds: Any) -> str:
         val = funds.get("available_balance", funds.get("available_margin", "n/a"))
     else:
         val = getattr(funds, "available_balance", getattr(funds, "available_margin", "n/a"))
-    return f"{float(val):,.2f}" if isinstance(val, (int, float)) else str(val)
+    return f"{float(val):,.2f}" if isinstance(val, int | float) else str(val)
 
 
 def _detail_quote(s: BrokerSession) -> str:
@@ -177,8 +179,6 @@ def _detail_subscribe(s: BrokerSession) -> str:
     handle = s.subscribe(stock)
     if handle is None:
         raise RuntimeError("subscription returned no handle")
-    try:
+    with contextlib.suppress(Exception):
         s.unsubscribe(stock)
-    except Exception:
-        pass
     return "subscription active"

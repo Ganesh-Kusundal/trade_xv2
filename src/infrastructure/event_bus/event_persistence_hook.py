@@ -60,7 +60,9 @@ class EventPersistenceHook:
                 self._metrics.add_timestamped_counter(
                     event.event_type, f"log_error:{type(exc).__name__}"
                 )
-            logger.exception("EventPersistenceHook: failed to persist %s: %s", event.event_type, exc)
+            logger.exception(
+                "EventPersistenceHook: failed to persist %s: %s", event.event_type, exc
+            )
             if self._dead_letter_queue is not None:
                 self._dead_letter_queue.push_failure(
                     event=event,

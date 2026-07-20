@@ -30,7 +30,7 @@ def test_concurrent_apply_trade_is_thread_safe():
                         price=Decimal("100"),
                     )
                 )
-        except BaseException as exc:  # noqa: BLE001 — collect for assert
+        except BaseException as exc:
             errors.append(exc)
 
     threads = [threading.Thread(target=_worker, args=(i,)) for i in range(8)]

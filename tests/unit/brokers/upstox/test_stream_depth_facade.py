@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.unit.brokers.upstox.test_gateway_stream import _make_gateway
 from brokers.common.streaming import DepthStreamHandle
+from tests.unit.brokers.upstox.test_gateway_stream import _make_gateway
 
 
 def test_stream_depth_levels_5_uses_full_mode():

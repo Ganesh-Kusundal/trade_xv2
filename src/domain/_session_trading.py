@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any
 from domain.enums import OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.orders.placement import build_order_intent, place_via_order_service
+
 if TYPE_CHECKING:
     from domain.instruments.instrument import Instrument
-    from domain.ports.order_service import OrderServicePort
     from domain.ports.protocols import OrderResult
 
 
@@ -117,7 +117,11 @@ class SessionTradingMixin:
             raise RuntimeError("OrderServicePort does not implement modify()")
         ot = None
         if order_type is not None:
-            ot = order_type if isinstance(order_type, OrderType) else OrderType(str(order_type).upper())
+            ot = (
+                order_type
+                if isinstance(order_type, OrderType)
+                else OrderType(str(order_type).upper())
+            )
         return modify(
             ModifyOrderRequest(
                 order_id=order_id,
@@ -159,9 +163,7 @@ class SessionTradingMixin:
         product_type: str | ProductType = ProductType.INTRADAY,
     ) -> Any:
         """Place a buy order (OrderIntent → OMS when wired)."""
-        return self._place_order(
-            instrument, Side.BUY, quantity, price, order_type, product_type
-        )
+        return self._place_order(instrument, Side.BUY, quantity, price, order_type, product_type)
 
     def sell(
         self,
@@ -172,9 +174,7 @@ class SessionTradingMixin:
         product_type: str | ProductType = ProductType.INTRADAY,
     ) -> Any:
         """Place a sell order (OrderIntent → OMS when wired)."""
-        return self._place_order(
-            instrument, Side.SELL, quantity, price, order_type, product_type
-        )
+        return self._place_order(instrument, Side.SELL, quantity, price, order_type, product_type)
 
     def market(
         self,
@@ -184,9 +184,7 @@ class SessionTradingMixin:
     ) -> Any:
         """Place a market order for the given instrument."""
         resolved = _as_side(side)
-        return self._place_order(
-            instrument, resolved, quantity, order_type=OrderType.MARKET
-        )
+        return self._place_order(instrument, resolved, quantity, order_type=OrderType.MARKET)
 
     def limit(
         self,

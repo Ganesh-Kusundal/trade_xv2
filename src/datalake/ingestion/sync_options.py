@@ -41,12 +41,12 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
-from datalake.core.schema import enforce_canonical_schema
 from datalake.core.option_format import (
     CANONICAL_COLUMNS,
     convert_format,
     map_expiry_code_to_date,
 )
+from datalake.core.schema import enforce_canonical_schema
 from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.quality.validation import validate_candles
 from infrastructure.paths import project_root_from

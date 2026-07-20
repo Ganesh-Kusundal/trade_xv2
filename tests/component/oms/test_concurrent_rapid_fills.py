@@ -10,10 +10,7 @@ from __future__ import annotations
 import threading
 from decimal import Decimal
 
-import pytest
-
 from application.oms.order_manager import OrderManager
-from infrastructure.event_bus import ProcessedTradeRepository
 from domain import Order, OrderStatus, Side, Trade
 from tests.fixtures.domain_helpers import make_order as _make_order_shared
 from tests.support.assertion_helpers import assert_order_state

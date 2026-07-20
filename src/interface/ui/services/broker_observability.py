@@ -35,14 +35,18 @@ def collect_broker_statuses(
         upstox_gateway: Upstox MarketDataGateway (or None if unavailable).
     """
     statuses: list[dict[str, str]] = []
-    statuses.append({
-        "broker": "Dhan",
-        "status": "Connected" if gateway is not None else "Unavailable",
-    })
-    statuses.append({
-        "broker": "Upstox",
-        "status": "Connected" if upstox_gateway is not None else "Unavailable",
-    })
+    statuses.append(
+        {
+            "broker": "Dhan",
+            "status": "Connected" if gateway is not None else "Unavailable",
+        }
+    )
+    statuses.append(
+        {
+            "broker": "Upstox",
+            "status": "Connected" if upstox_gateway is not None else "Unavailable",
+        }
+    )
     statuses.append({"broker": "Paper", "status": "Available"})
     return statuses
 

@@ -15,9 +15,9 @@ extensions constructed at ``tradex.connect`` time.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable
-
+from typing import Any
 
 # Public aliases → extension.name / method used by product code
 _CAPABILITY_ALIASES: dict[str, tuple[str, ...]] = {
@@ -90,7 +90,7 @@ class BrokerFacade:
                 return ext
         return None
 
-    def for_instrument(self, instrument: Any) -> "BoundBrokerFacade":
+    def for_instrument(self, instrument: Any) -> BoundBrokerFacade:
         """Bind this catalog to a concrete instrument (symbol/exchange)."""
         return BoundBrokerFacade(self, instrument)
 

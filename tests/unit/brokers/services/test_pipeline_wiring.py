@@ -15,11 +15,11 @@ import pandas as pd
 import pytest
 
 from brokers.session.broker_session import BrokerSession
+from domain.candles.historical import HistoricalSeries
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     HistoricalWindowConstraint,
 )
-from domain.candles.historical import HistoricalSeries, InstrumentRef
 from infrastructure.adapters.market_data_gateway_adapter import (
     MarketDataGatewayAdapter,
 )
@@ -30,12 +30,8 @@ def _make_caps() -> BrokerCapabilities:
         broker_id="dhan",
         supports_historical_data=True,
         historical_windows=(
-            HistoricalWindowConstraint(
-                timeframe="1D", max_lookback_days=3650, max_chunk_days=365
-            ),
-            HistoricalWindowConstraint(
-                timeframe="1m", max_lookback_days=3650, max_chunk_days=90
-            ),
+            HistoricalWindowConstraint(timeframe="1D", max_lookback_days=3650, max_chunk_days=365),
+            HistoricalWindowConstraint(timeframe="1m", max_lookback_days=3650, max_chunk_days=90),
         ),
     )
 
@@ -49,29 +45,32 @@ class _RealGateway:
     def capabilities(self) -> BrokerCapabilities:
         return self._caps
 
-    def history(self, symbol, exchange="NSE", timeframe="1D", lookback_days=90,
-                from_date=None, to_date=None):
+    def history(
+        self, symbol, exchange="NSE", timeframe="1D", lookback_days=90, from_date=None, to_date=None
+    ):
         start = date.fromisoformat(from_date) if from_date else date.today()
         end = date.fromisoformat(to_date) if to_date else date.today()
         n = (end - start).days + 1
         dates = [start + timedelta(days=i) for i in range(n)]
-        return pd.DataFrame({
-            "timestamp": dates,
-            "open": [100.0] * n,
-            "high": [101.0] * n,
-            "low": [99.0] * n,
-            "close": [100.5] * n,
-            "volume": [1000] * n,
-            "symbol": symbol,
-            "exchange": exchange,
-            "timeframe": timeframe,
-        })
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": [100.0] * n,
+                "high": [101.0] * n,
+                "low": [99.0] * n,
+                "close": [100.5] * n,
+                "volume": [1000] * n,
+                "symbol": symbol,
+                "exchange": exchange,
+                "timeframe": timeframe,
+            }
+        )
 
 
 @pytest.fixture
 def session(monkeypatch):
     gw = _RealGateway(_make_caps())
-    adapter = MarketDataGatewayAdapter(gw, broker_id="dhan", capabilities=_make_caps())
+    MarketDataGatewayAdapter(gw, broker_id="dhan", capabilities=_make_caps())
 
     sess = BrokerSession.__new__(BrokerSession)
     sess._broker_id = "dhan"

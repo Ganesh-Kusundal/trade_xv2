@@ -56,6 +56,18 @@ class LiveBarSink:
         if df.empty:
             return WriteResult(0, 0, 0, None, None)
         result = self._loader.merge_live_bar(bar, df)
+        catalog = getattr(self._loader, "_catalog", None)
+        if catalog is not None and result.last_ts is not None:
+            last_date = pd.Timestamp(result.last_ts).date()
+            path = self._loader._parquet_path(bar.symbol, bar.timeframe)
+            catalog.register_symbol(
+                bar.symbol,
+                exchange=bar.exchange,
+                last_date=last_date,
+                total_rows=result.total_rows,
+                timeframe=bar.timeframe,
+                parquet_path=str(path),
+            )
         logger.debug(
             "live_bar_sink.wrote symbol=%s tf=%s rows=%d total=%d",
             bar.symbol,

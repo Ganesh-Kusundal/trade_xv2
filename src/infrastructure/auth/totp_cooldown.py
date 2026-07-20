@@ -50,17 +50,14 @@ class TotpCooldownGuard:
             else BROKER_COOLDOWN_SECONDS.get(self._broker, DEFAULT_COOLDOWN_SECONDS)
         )
         self._state_path = (
-            state_path
-            or _REPO_ROOT / "runtime" / f"{self._broker}-totp-cooldown.json"
+            state_path or _REPO_ROOT / "runtime" / f"{self._broker}-totp-cooldown.json"
         )
         self._last_attempt_at: float | None = None
         self._last_success_at: float | None = None
         self._load_state()
 
     @classmethod
-    def for_broker(
-        cls, broker: str, cooldown_seconds: float | None = None
-    ) -> TotpCooldownGuard:
+    def for_broker(cls, broker: str, cooldown_seconds: float | None = None) -> TotpCooldownGuard:
         key = broker.lower()
         with cls._lock:
             if key not in cls._instances:

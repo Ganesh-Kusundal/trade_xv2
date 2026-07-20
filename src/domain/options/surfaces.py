@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Tuple
 
 from domain.options.greeks import Greeks
 
@@ -50,9 +49,9 @@ class IVSurface:
     underlying: str
     expiry: str
     spot: Decimal | None
-    data: dict[Decimal, Tuple[Decimal | None, Decimal | None]]
+    data: dict[Decimal, tuple[Decimal | None, Decimal | None]]
 
-    def at(self, strike) -> Tuple[Decimal | None, Decimal | None]:
+    def at(self, strike) -> tuple[Decimal | None, Decimal | None]:
         """Return ``(call_iv, put_iv)`` for ``strike`` (``(None, None)`` if absent)."""
         return self.data.get(Decimal(str(strike)), (None, None))
 
@@ -103,9 +102,9 @@ class VolatilitySurface:
     underlying: str
     surfaces: dict[str, IVSurface]
 
-    def term_structure(self, strike) -> list[Tuple[str, Decimal | None]]:
+    def term_structure(self, strike) -> list[tuple[str, Decimal | None]]:
         """Call IV at ``strike`` for each expiry, ordered by expiry date."""
-        result: list[Tuple[str, Decimal | None]] = []
+        result: list[tuple[str, Decimal | None]] = []
         for expiry in sorted(self.surfaces):
             call_iv, _ = self.surfaces[expiry].at(strike)
             result.append((expiry, call_iv))

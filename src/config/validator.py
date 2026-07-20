@@ -195,9 +195,7 @@ class ConfigValidator:
             try:
                 self.profile = ValidationProfile(profile_str)
             except ValueError:
-                logger.warning(
-                    "Unknown APP_ENV '%s', defaulting to 'dev'", profile_str
-                )
+                logger.warning("Unknown APP_ENV '%s', defaulting to 'dev'", profile_str)
                 self.profile = ValidationProfile.DEV
         elif isinstance(profile, str):
             self.profile = ValidationProfile(profile)
@@ -297,9 +295,7 @@ class ConfigValidator:
             result.validated_vars[spec.name] = value
 
             if spec.name not in self._env and spec.default:
-                logger.debug(
-                    "Using default value for %s: %s", spec.name, spec.default
-                )
+                logger.debug("Using default value for %s: %s", spec.name, spec.default)
 
     def _validate_profile_specific(self, result: ValidationResult) -> None:
         """Run profile-specific validation checks."""
@@ -313,16 +309,12 @@ class ConfigValidator:
         # Ensure live orders are explicitly configured
         allow_live = self._env.get("DHAN_ALLOW_LIVE_ORDERS", "0")
         if allow_live not in ("0", "1", "true", "false", "yes", "no"):
-            result.add_error(
-                "DHAN_ALLOW_LIVE_ORDERS must be 0 or 1 in production"
-            )
+            result.add_error("DHAN_ALLOW_LIVE_ORDERS must be 0 or 1 in production")
 
         # Ensure API auth is enabled
         auth_mode = self._env.get("AUTH_MODE", "none")
         if auth_mode == "none":
-            result.add_warning(
-                "AUTH_MODE=none in production - API endpoints are unprotected"
-            )
+            result.add_warning("AUTH_MODE=none in production - API endpoints are unprotected")
 
         if "SECRET_ENCRYPTION_KEY" not in self._env:
             result.add_warning(
@@ -334,9 +326,7 @@ class ConfigValidator:
         # Similar to prod but allow some debug features
         auth_mode = self._env.get("AUTH_MODE", "none")
         if auth_mode == "none":
-            result.add_warning(
-                "AUTH_MODE=none in staging - consider enabling API auth"
-            )
+            result.add_warning("AUTH_MODE=none in staging - consider enabling API auth")
 
     def _validate_value_constraints(self, result: ValidationResult) -> None:
         """Validate value constraints for known variables."""
@@ -353,9 +343,7 @@ class ConfigValidator:
         log_level = result.validated_vars.get("XV2_LOG_LEVEL", "INFO")
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if log_level.upper() not in valid_levels:
-            result.add_error(
-                f"XV2_LOG_LEVEL must be one of {valid_levels}, got '{log_level}'"
-            )
+            result.add_error(f"XV2_LOG_LEVEL must be one of {valid_levels}, got '{log_level}'")
 
         # Validate CACHE_TTL is a positive integer
         ttl_str = result.validated_vars.get("CACHE_TTL", "300")

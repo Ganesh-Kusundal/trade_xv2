@@ -6,9 +6,9 @@ import logging
 
 from rich.console import Console
 
+from interface.ui.commands._broker import broker_id_from
 from interface.ui.commands.registry import CommandResult
 from interface.ui.services.broker_ops import get_holdings, get_positions
-from interface.ui.commands._broker import broker_id_from
 from interface.ui.services.renderers import render_holdings, render_positions
 
 logger = logging.getLogger(__name__)

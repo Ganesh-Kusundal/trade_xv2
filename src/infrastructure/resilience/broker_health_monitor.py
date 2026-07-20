@@ -78,9 +78,7 @@ class BrokerHealthMonitor:
         computation. Default is 100.
     """
 
-    def __init__(
-        self, failure_threshold: int = 5, window_size: int = 100
-    ) -> None:
+    def __init__(self, failure_threshold: int = 5, window_size: int = 100) -> None:
         if failure_threshold <= 0:
             raise ValueError(f"failure_threshold must be positive, got {failure_threshold}")
         self._failure_threshold = failure_threshold

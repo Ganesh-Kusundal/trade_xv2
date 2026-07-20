@@ -61,6 +61,21 @@ behavior, would I keep this test?* If no, rewrite the test or delete it.
 
 See `pyproject.toml` `[tool.pytest.ini_options] markers`.
 
+Broker-focused markers stand in for dedicated top-level dirs (`property/`, `stress/`,
+`resilience/`, `acceptance/`, `live/`):
+
+| Marker | Role |
+|---|---|
+| `live_readonly` | Live broker read-only integration |
+| `market_hours` | Requires NSE market open |
+| `dhan` / `upstox` | Broker-specific live paths |
+| `regression` | Permanent broker bug guards (manifest-backed) |
+| `certification` | `BrokerCertifier` / mapping / golden suites |
+
+**Canonical broker contract pair:** `BrokerContractSuite` (market + lifecycle) and
+`MarketCoverageContract` (declared `market_surfaces`). Legacy `GatewayContractSuite` is
+deprecated.
+
 Common filters:
 
 ```bash

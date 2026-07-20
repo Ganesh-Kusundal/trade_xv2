@@ -10,28 +10,21 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import date
-from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
-from domain.entities.options import FutureChain, OptionChain
 from domain.entities.market import MarketDepth, Quote
+from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import SubscriptionHandle
+from infrastructure.providers.null.stubs import NullSubscription
 
 logger = logging.getLogger(__name__)
 
 
-class _NullSubscription:
-    """No-op subscription for in-memory data."""
-
-    @property
-    def is_active(self) -> bool:
-        return False
-
-    def unsubscribe(self) -> None:
-        pass
+class _NullSubscription(NullSubscription):
+    """Backward-compatible alias for in-memory provider."""
 
 
 class DataFrameDataProvider:
@@ -106,7 +99,9 @@ class DataFrameDataProvider:
         chain = self._option_chains.get(key)
         if chain is not None:
             return chain
-        return OptionChain(underlying=underlying.underlying, exchange=underlying.exchange, expiry="")
+        return OptionChain(
+            underlying=underlying.underlying, exchange=underlying.exchange, expiry=""
+        )
 
     def get_future_chain(self, underlying: InstrumentId) -> FutureChain:
         key = underlying.underlying.upper()

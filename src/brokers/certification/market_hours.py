@@ -113,8 +113,13 @@ class MarketHoursReport:
             mark = "PASS" if r.expectations_met else "WARN"
             logger.info(
                 "  [%s] %s: quote=%s sub=%s hist=%s orders=%s (%s)",
-                mark, r.phase, r.quote_available, r.subscription_ok,
-                r.history_available, r.orders_allowed, r.detail,
+                mark,
+                r.phase,
+                r.quote_available,
+                r.subscription_ok,
+                r.history_available,
+                r.orders_allowed,
+                r.detail,
             )
 
 

@@ -6,6 +6,25 @@
 
 ## Current Phase
 
+- **Next Maturity Contexts — complete** (2026-07-20): DP-04 tick authority, quote-zero fail-closed, deploy-profile auth (SEC-009 profile-scoped), Context 7 StrategyEvaluator bridge
+- **Architecture Maturity Program — Contexts 5–7, 8, 10 complete** (2026-07-20)
+- Constitution addendum: [`docs/constitution/10-architecture-maturity-program.md`](../docs/constitution/10-architecture-maturity-program.md)
+- **Live ADR Sprint — complete** (2026-07-20): OE-01 parity, SEC metrics auth, GC-01, SS-02 invoke_place_order, 243 local hardening tests green
+- **PRE-DEPLOY revision:** paper **8.1/10** Conditional GO, live **6.8/10** NO-GO — [`PRE-DEPLOYMENT-REVIEW-2026-07-20-REVISION.md`](../docs/architecture/PRE-DEPLOYMENT-REVIEW-2026-07-20-REVISION.md)
+- Delivered: `should_publish_tick_directly`, `QuoteUnavailableError`, `evaluator_bridge.py`, deploy-profile auth ratchet, reconnect disconnect-before-reopen
+- **Live ADR blocked:** 4× weekly chaos green (0/4 on `main`); live score < 8.5; ADR-0012 lift per [`adr/0013-live-adr-lift-preconditions.md`](../docs/architecture/adr/0013-live-adr-lift-preconditions.md)
+
+### Weekly chaos clock (Live ADR gate)
+
+| Week | Date (Mon 03:00 UTC) | Status | Notes |
+|------|----------------------|--------|-------|
+| 1/4 | — | pending | `.github/workflows/weekly-hardening.yml` active |
+| 2/4 | — | pending | |
+| 3/4 | — | pending | |
+| 4/4 | — | pending | Requires 4 consecutive green on `main` |
+
+Jobs: `oms-acceptance`, `chaos-memory`, `architecture-maturity`.
+
 - **Kernel Constitution Program (C+) — Phase H Contexts 1–4 complete** — spine + clock purity. `place_order_spine`, `VirtualClock` on backtest path, extended clock ratchet. 43+ execution/arch tests green via `venv/bin/pytest`.
 - Next: **Context 5** Market Data (datalake duckdb pool) or **G-P1-5** Composer merge.
 - **Phase A + B + D-Phase1 (E2E spec gap closure) complete** — clock injection (I2), PaperOrders legacy bypass retired (I1), ExecutionEngine promoted to production (I1 structural), DataPaths config spine (D-Phase1).
@@ -15,11 +34,34 @@
 - Next: **Phase D-Phase2** — physical split (create `data/lake` + `data/state`, move files).
 - Parallel: remaining `ExecutionService`/`SimulatedOMSAdapter` can be deleted once backtest path is migrated to `ExecutionEngine`.
 
+### Graphify scope — src-only (2026-07-20)
+
+- Deleted repo-root `graphify-out/` (~838 MB); canonical graph is `src/graphify-out/` via `graphify update src`.
+- Updated `.cursor/rules/graphify.mdc`, six-file context, `context/*.md`, `.gitignore`, `.agents/skills/graphify/SKILL.md`.
+
+### Pre-Deployment Review — 2026-07-20
+
+Reconciled today's CODE-QUALITY and COMPREHENSIVE platform reviews against current git (through `d9b3aac7`); safe dead-code pass + final report.
+
+- **Report:** [`docs/architecture/PRE-DEPLOYMENT-REVIEW-2026-07-20.md`](../docs/architecture/PRE-DEPLOYMENT-REVIEW-2026-07-20.md)
+- **Decision:** **Conditional GO (paper/research only)** — **NO-GO live money** (~5.0/10 revised from 4.2/10)
+- **Deleted:** `TradingContext.run_reconciliation()` shim; `is_healable_kind()` + `HEALABLE_KINDS`; `_leg_greeks()` in Upstox options_mapper; unreachable return in `streaming_gateway.py`; `DhanRetryExecutorFactory`; `UpstoxAdapterContext.make_retry_executor()`; `build_paper_oms_service` alias (tests use `build_oms_service`)
+- **Fixed:** `infrastructure/observability/audit.py` re-exports `ALERTING_RULES` / `FAILURE_TAXONOMY` / `METRICS_CATALOG` from `_catalog.py` (broken since catalog extraction)
+- **P0 resolved since audits:** ARCH-001, BROKER-008, REL-003, SEC-001/002/003 (prod), TEST-001, UE-01/02/03, MD-001, DP-03
+- **DC-01/DC-03 safe pass complete** (2026-07-20 follow-up)
+- **MERGE pass (partial)** — DP-02/08/09/10, SS-03, QUANT-001/004, UE-05, MD-002 order-stream; see PRE-DEPLOYMENT report MERGE table
+- **Still open (Live ADR):** weekly chaos 0/4, live PRE-DEPLOY ≥8.5, ADR-0012 lift (see [`adr/0013-live-adr-lift-preconditions.md`](../docs/architecture/adr/0013-live-adr-lift-preconditions.md))
+- **Still open (large redesign):** OE-01 views deletion (decision recorded), full broker stack dedup
+- **Closed (2026-07-20 GC-01/SS-02 remnants):** EventBus alerting loop owned by `EventBusAlertingService`; `invoke_place_order` in `domain/ports/order_placement.py` wired through Dhan/paper transport adapters
+- **Closed (2026-07-20 Live ADR follow-up):** Dhan async ResilientHttpTransport, SS-02 `order_port_from_session` in broker services, ADR-0013
+- **Restored (2026-07-20):** SEC-004/005 metrics auth — profile-scoped via `require_metrics_auth` (prod/staging only; dev `AUTH_MODE=none` unchanged)
+- **Brokers wire-adapter consolidation (2026-07-20):** added `brokers/common/wire_base.py` with `BaseWireAdapter`. `DhanWireAdapter` and `UpstoxWireAdapter` now inherit it; unified `is_connected` liveness contract (authenticated + primary transport alive) via `_transport_connected()` hook; `trades()` de-duplicated into base. Dhan REST-only sessions now report `is_connected is True` (was `False`); Upstox no longer reports connected with an expired/missing token. Purely additive — `BrokerSession` API and `BrokerAdapter` Protocol unchanged. New tests: `tests/unit/brokers/common/test_wire_base.py`, `tests/unit/brokers/upstox/test_wire_is_connected.py`, + `is_connected` cases in `test_gateway.py`. 44 tests green.
+
 ### SEC remediation cycle 1 (Agent-SEC) — 2026-07-20
 
 - **SEC-009 (reverted 2026-07-20)**: Default `AUTH_MODE=none`; no mandatory `API_KEY`. Optional `api_key` mode if API is exposed.
-- **SEC-004/SEC-005**: `/api/v1/health/metrics` and `/metrics/prometheus` require `X-API-Key`; liveness/readiness probes unchanged.
-- Tests: `test_auth_production.py`, metrics auth + probe public tests in `test_health.py`; fixed `api.auth` alias bugs in auth test modules.
+- **SEC-004/SEC-005 (restored 2026-07-20)**: `/api/v1/health/metrics` and `/api/v1/health/metrics/prometheus` require `X-API-Key` in production/staging only; liveness/readiness probes unchanged; dev default `AUTH_MODE=none` preserved.
+- Tests: `tests/architecture/test_metrics_auth_profile_scoped.py`, probe public tests in `test_health.py`.
 
 
 - Deleted FeatureFlags subsystem + `/flags` API; toggles remain in `config.schema` env vars.
@@ -78,7 +120,21 @@
 - **RiskManager** — fail-closed tick validation when instrument provider configured.
 - Tests: `tests/component/oms/test_phase_a_money_safety.py` (13 green in Phase A batch).
 
-### Remediation Cycle 1 — Orchestration — 2026-07-20
+### Paper-Only OMS Boundary — Principal Engineering Plan — 2026-07-20
+
+ADR: [`docs/architecture/adr/0012-paper-only-oms-boundary.md`](../docs/architecture/adr/0012-paper-only-oms-boundary.md)
+
+| Workstream | Status | Key deliverables |
+|------------|--------|------------------|
+| 0 Architecture ratification | **Done** | ADR-0012, `test_paper_oms_boundary.py`, context updates |
+| 1 OMS paper capital + PaperFillSource | **Done** | `PaperFillSource`, `FixedCapitalProvider` in OMS bootstrap, `TRADEX_EXECUTION_TARGET=paper`, factory removes gateway→live heuristic |
+| 2 Paper session composer + PARITY defaults | **Done** | `runtime/paper_session.py` builders (`build_backtest_engine`, `build_replay_engine`, `build_paper_trading_engine`); API/CLI/facade/replay router default PARITY; `research_only` / `--research` for PURE_SIM |
+| 3 Orchestration + sizing + signals | **Done** | Kill-switch in planner, OMS position notional, `coalesce_strategy_signals` wired in replay/paper bar loops, orchestrator dry-run default off |
+| 4 MD-001 live→lake | **Done** | Live bar sink default-on (`TRADEX_LIVE_BAR_SINK=0` kill switch), stream→EventBus TICK, catalog refresh on write |
+| 5 Correctness gates | **Done** | Risk policy chain (CODE-001), integration tests `test_paper_oms_target.py`, `test_risk_policy_chain.py` |
+
+Tests: `tests/architecture/test_paper_oms_boundary.py`, `tests/integration/runtime/test_paper_oms_target.py`, `tests/unit/application/oms/test_risk_policy_chain.py`, `tests/unit/application/trading/test_signal_coordinator.py` green.
+
 
 Checkpoint: `350bcff0` → merged lanes on `main` (`16e9a1d7` after Tier 2).
 
@@ -88,7 +144,7 @@ Checkpoint: `350bcff0` → merged lanes on `main` (`16e9a1d7` after Tier 2).
 | BROKER-008 Upstox idempotency race | **Resolved** | `75fa025a` → main |
 | MD-002 Dhan wall-clock timestamps | **Resolved** | `75fa025a` → main |
 | SEC-009 mandatory API_KEY | **Reverted** | Default `AUTH_MODE=none`; optional `api_key` mode only |
-| SEC-004/005 metrics auth | **Reverted** | Metrics public; core trading fixes retained |
+| SEC-004/005 metrics auth | **Restored** | Profile-scoped `require_metrics_auth`; prod/staging gated, dev public |
 | REL-003 / ARCH-006 capital event drops | **Resolved** | `e6215ca4` → main |
 | TEST-001 (4 collection errors) | **Resolved** | `054ea0bb` → main |
 | MD-001 live→lake (partial) | **Partial** | `16e9a1d7` — opt-in `TRADEX_LIVE_BAR_SINK=1` |
@@ -969,7 +1025,7 @@ day, earlier — now marked superseded) and today's own
 
 - Context files are the agent's pre-flight. If a task seems ambiguous, the answer is
   usually already in `architecture.md` or `project-overview.md` — read before asking.
-- `graphify update .` after any code change keeps `graphify-out/` aligned with `context/`.
+- `graphify update src` after any code change keeps `src/graphify-out/` aligned with `context/`.
 
 ### Architectural Findings Remediation — Multi-Agent Parallel (2026-07-17)
 
@@ -1282,3 +1338,38 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
 - Typed `ServiceContainer` dataclass in `interface/api/deps.py`.
 - Architecture ratchet `test_no_interface_broker_imports.py`.
 - `run_analytics_command` + `parse_common_args` wrapper in analytics_utils.
+
+---
+
+## 2026-07-20 — Broker subsystem remediation (Contexts 1–9)
+
+**Completed (see `docs/constitution/09-broker-subsystem-gap-analysis.md`):**
+- **Context 1:** `BrokerSessionState` FSM + `BrokerSessionStatus` in `domain/ports/broker_session_state.py`; wired through `BrokerSession.status`.
+- **Context 2:** Live cert probes in `brokers/certification/live_probes.py`; rate-limit checks promoted to hard fail.
+- **Context 3:** Canonical errors (`InstrumentError`, `MappingError`, `RejectedOrderError`, `CapabilityError`); `brokers/common/transport_errors.py`; Dhan transport mapping.
+- **Context 4:** Auth + order lifecycle tests merged into `BrokerContractSuite`; Upstox inherits shared suite; `GatewayContractSuite` deprecated.
+- **Context 5:** `BROKER_CONNECTED` / `BROKER_DISCONNECTED` published from `BrokerSession`.
+- **Context 6:** Gap-free historical cert via `brokers/common/historical_gap_check.py`.
+- **Context 7:** Shared regression manifest types; Upstox P0 manifest + CI gate; policy in `context/code-standards.md`.
+- **Context 8:** `BrokerStreamGateway` port; `DepthStreamHandle` accepts stream gateway.
+- **Context 9:** Glossary aliases, error taxonomy, test pyramid docs, FLOWS scheduler/cache ownership, legacy SPI deprecation note.
+
+**Tests:** unit/architecture/component/integration additions under `tests/unit/brokers/`, `tests/component/brokers/`, `tests/integration/brokers/upstox/regression/`.
+
+**Follow-up close-out (same day):**
+- `TOKEN_EXPIRED` / `TOKEN_REFRESHED` published from Dhan HTTP refresh + Upstox `try_refresh_on_401` + Dhan `broadcast_token`
+- Upstox `OrderGateway` uses `order_response_from_transport_error`
+- `BrokerStreamGateway` methods on `DhanConnection` + Upstox `StreamingGateway`
+- Upstox regression manifest expanded (quote/ltp/history/depth/option_chain/portfolio/search)
+- Session recovery asserts subscription restore
+- Certification conftest wires `wire_domain_port_sinks` + session opener
+- Gap-analysis conformance/quality/cert tables refreshed to post-remediation state
+
+**Upstox live-cert unblockers (same day):**
+- Quote path: `MarketDataGateway._resolve_instrument_key` now delegates to
+  `UpstoxInstrumentService.resolve_instrument_key` (was calling `resolve(exchange_segment=…)` → TypeError → silent empty LTP)
+- WS lifecycle: `UpstoxWebSocketService.start` / stream subscribe paths call
+  `ensure_runtime_loop_running()` so the read loop is not killed by
+  `run_coro_sync`'s ephemeral loop; dead-loop reconnect in `StreamManagerAdapter`
+- Cert disconnect probes are FSM-soft (hard `gateway.disconnect` left to chaos tests)
+- Verified: Dhan/Upstox live token+reconnect probes, paper certifier, unit live probes — green

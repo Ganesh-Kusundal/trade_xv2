@@ -74,10 +74,10 @@ async def lifespan(app: FastAPI):
     logger.info("OpenAPI docs available at %s%s", app.docs_url or "/docs", "")
 
     # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
-    from interface.api.ws.bridge import MarketBridge
-    from interface.api.ws.market import market_manager
     from infrastructure.lifecycle import LifecycleManager
     from infrastructure.resource_manager import ResourceManager
+    from interface.api.ws.bridge import MarketBridge
+    from interface.api.ws.market import market_manager
 
     resource_manager = ResourceManager()
     lifecycle: LifecycleManager | None = None
@@ -295,11 +295,11 @@ def create_app(
     from application.execution.oms_backtest_adapter import create_oms_backtest_adapter
     from application.oms.factory import create_trading_context
     from domain.runtime_hooks import (
+        create_domain_event,
         register_domain_event_factory,
         register_oms_backtest_factory,
         register_trading_context_factory,
     )
-    from domain.runtime_hooks import create_domain_event
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)

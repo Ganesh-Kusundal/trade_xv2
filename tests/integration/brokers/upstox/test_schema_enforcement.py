@@ -25,8 +25,8 @@ class TestSchemaEnforcement:
         for field in required_fields:
             assert hasattr(quote, field), f"Quote missing field: {field}"
         # Type checks
-        assert isinstance(quote.ltp, (int, float, Decimal))
-        assert isinstance(quote.volume, (int, float))
+        assert isinstance(quote.ltp, int | float | Decimal)
+        assert isinstance(quote.volume, int | float)
 
     def test_market_depth_schema(self, gateway):
         """MarketDepth must have: bids (list), asks (list)."""
@@ -49,7 +49,7 @@ class TestSchemaEnforcement:
         for field in required_fields:
             assert hasattr(balance, field), f"Balance missing field: {field}"
         # Type checks
-        assert isinstance(balance.available_balance, (int, float, Decimal))
+        assert isinstance(balance.available_balance, int | float | Decimal)
 
     def test_order_schema(self, gateway):
         """Order must have: order_id, symbol, exchange, side, quantity, status."""
@@ -112,8 +112,8 @@ class TestSchemaEnforcement:
         assert hasattr(chain, "expiries")
         assert hasattr(chain, "contracts")
         assert chain.underlying
-        assert isinstance(chain.expiries, (list, tuple))
-        assert isinstance(chain.contracts, (list, tuple))
+        assert isinstance(chain.expiries, list | tuple)
+        assert isinstance(chain.contracts, list | tuple)
 
     def test_search_result_schema(self, gateway):
         """Search results must have: symbol, exchange."""

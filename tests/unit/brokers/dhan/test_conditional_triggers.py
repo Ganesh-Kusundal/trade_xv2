@@ -4,8 +4,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.execution.conditional_triggers import ConditionalTriggersAdapter
 from brokers.dhan.domain import ConditionalTriggerRequest
+from brokers.dhan.execution.conditional_triggers import ConditionalTriggersAdapter
 
 
 def test_place_conditional_trigger_price_above(fake_client, resolver):

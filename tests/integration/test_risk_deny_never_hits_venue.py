@@ -2,20 +2,19 @@
 
 Kill-switch on must produce zero submit calls to the FillSource.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
+from application.oms._internal.risk_manager import RiskManager
+from application.oms._internal.risk_types import RiskConfig
+from application.oms.position_manager import PositionManager
 from domain import Order
 from domain.enums import OrderStatus
-from domain.types import Side, OrderType, ProductType, Validity
-from application.oms._internal.risk_manager import RiskManager
-from application.oms._internal.risk_types import RiskConfig, RiskResult
-from application.oms.position_manager import PositionManager
+from domain.types import OrderType, ProductType, Side, Validity
 
 
 def _make_order() -> Order:
@@ -64,7 +63,6 @@ def test_risk_deny_does_not_call_fill_source():
     """When risk denies, the FillSource.submit_fn must never be invoked."""
     from application.execution.execution_engine import ExecutionEngine
     from application.execution.fill_source import FillSource
-    from application.oms.order_manager import OmsOrderCommand
 
     position_manager = MagicMock(spec=PositionManager)
     position_manager.get_position.return_value = None
@@ -95,7 +93,7 @@ def test_risk_deny_does_not_call_fill_source():
     mock_ctx.order_manager = mock_oms
     mock_ctx.risk_manager = risk
 
-    engine = ExecutionEngine(fill_source=mock_fill_source, trading_context=mock_ctx)
+    ExecutionEngine(fill_source=mock_fill_source, trading_context=mock_ctx)
 
     result = risk.check_order(_make_order())
     assert not result.allowed

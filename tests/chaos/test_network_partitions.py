@@ -20,12 +20,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.resilience.broker_health_monitor import (
     BrokerHealthMonitor,
 )
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 
 # ──────────────────────────────────────────────────────────────────────
 # Chaos injection helpers
@@ -126,10 +126,6 @@ class TestBrokerAPIMidOrderFailure:
         )
 
 
-
-
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Section 2: WebSocket Disconnects During Subscription
 # ──────────────────────────────────────────────────────────────────────
@@ -184,10 +180,10 @@ class TestWebSocketDisconnectChaos:
         metrics = EventMetrics()
         dlq = DeadLetterQueue(max_size=100)
         bus = EventBus(
-    metrics=metrics,
-    dead_letter_queue=dlq,
-    config=EventBusConfig(fail_fast=False),
-)
+            metrics=metrics,
+            dead_letter_queue=dlq,
+            config=EventBusConfig(fail_fast=False),
+        )
 
         def failing_handler(event):
             raise ValueError("Bad handler")
@@ -266,10 +262,10 @@ class TestConnectionLostDuringWrite:
         event_log.append.side_effect = ConnectionError("DB connection lost")
         dlq = DeadLetterQueue(max_size=100)
         bus = EventBus(
-    event_log=event_log,
-    dead_letter_queue=dlq,
-    config=EventBusConfig(fail_fast=False),
-)
+            event_log=event_log,
+            dead_letter_queue=dlq,
+            config=EventBusConfig(fail_fast=False),
+        )
 
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
@@ -300,11 +296,11 @@ class TestConnectionLostDuringWrite:
         metrics = EventMetrics()
         dlq = DeadLetterQueue(max_size=100)
         bus = EventBus(
-    event_log=event_log,
-    dead_letter_queue=dlq,
-    metrics=metrics,
-    config=EventBusConfig(fail_fast=False),
-)
+            event_log=event_log,
+            dead_letter_queue=dlq,
+            metrics=metrics,
+            config=EventBusConfig(fail_fast=False),
+        )
 
         event = DomainEvent.now("ORDER", {"id": "1"})
         bus.publish(event)
@@ -399,7 +395,6 @@ class TestNetworkLatencySpikes:
             "Both handlers should be dispatched regardless of latency"
         )
 
-
     def test_event_bus_publish_latency_does_not_block_subscribers(self):
         """Multiple publishes with varying latency should not block subscribers."""
         bus = EventBus(config=EventBusConfig(fail_fast=False))
@@ -438,12 +433,10 @@ class TestPartialFailures:
         assert not monitor.is_healthy("dhan"), "Dhan should be unhealthy"
         assert monitor.is_healthy("upstox"), "Upstox should be healthy"
 
-
     def test_event_bus_handles_mixed_handler_results(self):
         """Some handlers succeed, some fail — all should be attempted."""
-        bus = EventBus(config=EventBusConfig(fail_fast=False))
         dlq = DeadLetterQueue(max_size=100)
-        bus._dead_letter_queue = dlq
+        bus = EventBus(config=EventBusConfig(fail_fast=False), dead_letter_queue=dlq)
 
         results = {"success": [], "failure": []}
 
@@ -477,7 +470,6 @@ class TestPartialFailures:
         assert current["dhan"].consecutive_failures == 1, (
             "Mutating snapshot should not affect internal state"
         )
-
 
     def test_repeated_publishes_do_not_corrupt_subscription_state(self):
         """Rapid publishes should not corrupt internal subscriber dict."""

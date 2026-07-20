@@ -13,10 +13,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from domain import Balance, Quote
 from interface.api.config import APIConfig
 from interface.api.deps import reset_container
 from interface.api.main import create_app
-from domain import Balance, Quote
 
 
 class MockDuckDBConnection:

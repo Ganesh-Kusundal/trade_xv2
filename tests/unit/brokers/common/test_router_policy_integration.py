@@ -14,6 +14,10 @@ from unittest.mock import Mock
 
 import pytest
 
+from application.composer.registry import BrokerRegistry
+from application.composer.router import BrokerRouter
+from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.upstox.capabilities import upstox_capabilities
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
@@ -21,10 +25,6 @@ from domain.capabilities.broker_capabilities import (
 from domain.errors import RoutingError
 from domain.models.routing import BrokerHealthSnapshot, OperationKind, RoutingRequest
 from domain.policies.source_selection import RoutingPolicy, SourceSelectionPolicy
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.upstox.capabilities import upstox_capabilities
-from application.composer.registry import BrokerRegistry
-from application.composer.router import BrokerRouter
 
 
 @pytest.fixture

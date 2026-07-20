@@ -168,12 +168,8 @@ class BreakoutStrategy:
 
         last = features.iloc[-1]
         close = float(last.get("close", 0.0))
-        swing_high = float(
-            last.get("last_swing_high", last.get("swing_high", close))
-        )
-        swing_low = float(
-            last.get("last_swing_low", last.get("swing_low", close))
-        )
+        swing_high = float(last.get("last_swing_high", last.get("swing_high", close)))
+        swing_low = float(last.get("last_swing_low", last.get("swing_low", close)))
         sma20 = float(last.get("sma_20", close))
         volume = float(last.get("volume", 0.0))
         volume_sma = float(last.get("volume_sma", volume))

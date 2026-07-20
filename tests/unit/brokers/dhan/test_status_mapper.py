@@ -1,6 +1,5 @@
-from domain import OrderStatus
-
 from brokers.dhan.status_mapper import DHAN_STATUS_MAP
+from domain import OrderStatus
 
 
 def test_partially_cancelled_maps_to_partially_cancelled():

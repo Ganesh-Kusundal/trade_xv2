@@ -2,6 +2,7 @@
 
 Verify complete trading flow from CLI to broker to data return.
 """
+
 import pytest
 
 
@@ -40,21 +41,23 @@ class TestTradingFlow:
         WARNING: This test should be run in sandbox/paper mode only!
         Set TRADING_MODE=paper in .env.local before running.
         """
-        from interface.ui.services.broker_service import BrokerService
         from domain import OrderRequest
+        from interface.ui.services.broker_service import BrokerService
 
         broker_service = BrokerService(load_instruments=True)
         broker_service._ensure_dhan_initialized()
 
         # Place paper order
         oms = broker_service.oms_proxy
-        order_id = oms.place_order(OrderRequest(
-            symbol="RELIANCE",
-            exchange="NSE",
-            transaction_type="BUY",
-            quantity=1,
-            order_type="MARKET"
-        ))
+        order_id = oms.place_order(
+            OrderRequest(
+                symbol="RELIANCE",
+                exchange="NSE",
+                transaction_type="BUY",
+                quantity=1,
+                order_type="MARKET",
+            )
+        )
 
         assert order_id is not None
         assert len(order_id) > 0

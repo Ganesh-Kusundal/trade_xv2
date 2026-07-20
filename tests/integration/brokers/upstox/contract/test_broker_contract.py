@@ -14,11 +14,28 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
+from brokers.common.contracts.broker_contract import BrokerContractSuite
 from brokers.upstox.wire import UpstoxBrokerGateway
-from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live, skip_live_market_hours
 from domain import MarketDepth, Quote
+from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live, skip_live_market_hours
 
 pytestmark = pytest.mark.live_readonly
+
+
+@pytest.fixture(scope="module")
+def mock_gateway():
+    """Return a PaperGateway for contract testing without live credentials."""
+    from brokers.paper.paper_gateway import PaperGateway
+
+    return PaperGateway()
+
+
+class TestUpstoxSharedBrokerContract(BrokerContractSuite):
+    """Canonical shared contract suite — offline mock gateway."""
+
+    @pytest.fixture
+    def gateway(self, mock_gateway):
+        return mock_gateway
 
 
 @pytest.fixture(scope="module")
@@ -36,14 +53,6 @@ def live_gateway() -> UpstoxBrokerGateway:
     gw = result.gateway
     yield gw
     gw.close()
-
-
-@pytest.fixture(scope="module")
-def mock_gateway():
-    """Return a PaperGateway for contract testing without live credentials."""
-    from brokers.paper.paper_gateway import PaperGateway
-
-    return PaperGateway()
 
 
 # ===========================================================================

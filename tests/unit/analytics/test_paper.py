@@ -241,6 +241,7 @@ class TestEngineSingle:
 
     def test_no_signals_preserves_capital(self):
         from analytics.strategy.pipeline import StrategyPipeline
+
         r = PaperTradingEngine(
             _pipeline(),
             strategy_pipeline=StrategyPipeline([]),

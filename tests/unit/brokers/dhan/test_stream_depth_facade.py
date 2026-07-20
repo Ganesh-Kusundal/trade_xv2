@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
+from brokers.common.streaming import DepthStreamHandle
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.wire import DhanBrokerGateway
-from brokers.common.streaming import DepthStreamHandle
 from domain import MarketDepth
 from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
@@ -42,7 +42,9 @@ def test_stream_depth_levels_5_with_on_depth_uses_live_full_mode_feed(monkeypatc
 
     stream_calls = []
     monkeypatch.setattr(
-        gw, "stream", lambda symbol, exchange, mode, on_tick: stream_calls.append((symbol, exchange, mode))
+        gw,
+        "stream",
+        lambda symbol, exchange, mode, on_tick: stream_calls.append((symbol, exchange, mode)),
     )
 
     depth_callbacks = []
@@ -95,7 +97,9 @@ def test_stream_depth_levels_20_delegates_to_depth_20(monkeypatch):
     snapshot = MarketDepth(symbol="RELIANCE", depth_type="DEPTH_20")
     calls = []
     monkeypatch.setattr(
-        gw, "depth_20", lambda symbol, exchange, on_depth=None: (calls.append((symbol, exchange)), snapshot)[1]
+        gw,
+        "depth_20",
+        lambda symbol, exchange, on_depth=None: (calls.append((symbol, exchange)), snapshot)[1],
     )
     monkeypatch.setattr(gw._conn, "depth_20_feed", None)
 
@@ -110,7 +114,9 @@ def test_stream_depth_levels_200_delegates_to_depth_200(monkeypatch):
     snapshot = MarketDepth(symbol="RELIANCE", depth_type="DEPTH_200")
     calls = []
     monkeypatch.setattr(
-        gw, "depth_200", lambda symbol, exchange, on_depth=None: (calls.append((symbol, exchange)), snapshot)[1]
+        gw,
+        "depth_200",
+        lambda symbol, exchange, on_depth=None: (calls.append((symbol, exchange)), snapshot)[1],
     )
     monkeypatch.setattr(gw._conn, "depth_200_feed", None)
 

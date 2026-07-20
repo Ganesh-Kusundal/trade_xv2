@@ -9,17 +9,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from domain.candles.historical import InstrumentRef
-from domain.entities.market import MarketDepth, QuoteSnapshot
+from domain.entities.market import QuoteSnapshot
 from domain.instruments.instrument import (
     Equity,
     Future,
     Index,
-    Instrument,
     Option,
 )
 from domain.instruments.instrument_id import InstrumentId
 from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
-from domain.value_objects.state import InstrumentState
 
 
 @pytest.fixture(autouse=True)

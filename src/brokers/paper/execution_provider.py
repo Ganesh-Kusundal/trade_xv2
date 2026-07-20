@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
+from domain.ports.order_placement import OrderPlacementPort, invoke_place_order
 from domain.ports.protocols import ExecutionProvider, OrderResult
 
 
@@ -16,7 +17,7 @@ class PaperExecutionProvider(ExecutionProvider):
     paper orders through the same domain ExecutionProvider port (Wave C spine).
     """
 
-    def __init__(self, gateway: Any) -> None:
+    def __init__(self, gateway: OrderPlacementPort) -> None:
         self._gateway = gateway
 
     @property
@@ -27,7 +28,11 @@ class PaperExecutionProvider(ExecutionProvider):
     def _wrap(response: Any) -> OrderResult:
         if getattr(response, "success", True):
             return OrderResult.ok(response)
-        return OrderResult.fail(getattr(response, "message", None) or getattr(response, "error", "paper rejected order") or "paper rejected order")
+        return OrderResult.fail(
+            getattr(response, "message", None)
+            or getattr(response, "error", "paper rejected order")
+            or "paper rejected order"
+        )
 
     @staticmethod
     def _enum_value(value: Any) -> Any:
@@ -35,18 +40,7 @@ class PaperExecutionProvider(ExecutionProvider):
 
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:
-            response = self._gateway.place_order(
-                symbol=request.symbol,
-                exchange=request.exchange,
-                side=self._enum_value(request.transaction_type),
-                quantity=request.quantity,
-                price=request.price,
-                order_type=self._enum_value(request.order_type),
-                product_type=self._enum_value(request.product_type),
-                validity=self._enum_value(request.validity),
-                trigger_price=request.trigger_price or Decimal("0"),
-                correlation_id=request.correlation_id,
-            )
+            response = invoke_place_order(self._gateway, request)
         except Exception as exc:  # transport boundary: never raise into domain
             return OrderResult.fail(str(exc))
         return self._wrap(response)

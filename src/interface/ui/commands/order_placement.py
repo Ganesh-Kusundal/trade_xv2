@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
+from domain import OrderType, ProductType, Side
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from infrastructure.io.async_compat import run_async_compat
 from interface.ui.commands.argparse_helpers import parse_flag
 from interface.ui.commands.registry import CommandResult
 from interface.ui.composer_helpers import get_execution_composer
 from interface.ui.services.broker_service import BrokerService
-from domain import OrderType, ProductType, Side
-from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
@@ -301,7 +301,9 @@ def modify_order(
             )
         else:
             console.print(f"[red]❌ Failed to modify order {order_id}[/red]")
-            return CommandResult(success=False, error=f"Failed to modify order {order_id}: {response.error}")
+            return CommandResult(
+                success=False, error=f"Failed to modify order {order_id}: {response.error}"
+            )
 
     except Exception as exc:
         logger.exception("Order modification failed")

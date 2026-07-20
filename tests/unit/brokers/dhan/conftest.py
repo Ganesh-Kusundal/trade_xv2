@@ -18,7 +18,7 @@ import pytest
 
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.streaming.connection_admission import NoopAdmission
-from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
+from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
 
 
 @pytest.fixture
@@ -48,12 +48,14 @@ def noop_admission_patch():
     """
     import unittest.mock as mock
 
-    with mock.patch(
-        "brokers.dhan.websocket.connection.MarketFeedConnectionAdmission",
-        side_effect=lambda *args, **kwargs: NoopAdmission(),
-    ), mock.patch(
-        "brokers.dhan.websocket.market_feed.MarketFeedConnectionAdmission",
-        side_effect=lambda *args, **kwargs: NoopAdmission(),
+    with (
+        mock.patch(
+            "brokers.dhan.websocket.connection.MarketFeedConnectionAdmission",
+            side_effect=lambda *args, **kwargs: NoopAdmission(),
+        ),
+        mock.patch(
+            "brokers.dhan.websocket.market_feed.MarketFeedConnectionAdmission",
+            side_effect=lambda *args, **kwargs: NoopAdmission(),
+        ),
     ):
         yield
-

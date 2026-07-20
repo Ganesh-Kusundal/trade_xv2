@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 # Filenames that encode sprint/phase/ticket history instead of behavior.
 _FORBIDDEN_SUBSTRINGS = (
     "phase0",
@@ -103,9 +101,7 @@ def test_no_package_local_tests_under_src() -> None:
             if "__pycache__" in path.parts:
                 continue
             offenders.append(str(path.relative_to(_ROOT)))
-    assert not offenders, "Move package-local tests into tests/ pyramid:\n" + "\n".join(
-        offenders
-    )
+    assert not offenders, "Move package-local tests into tests/ pyramid:\n" + "\n".join(offenders)
     for name in ("analytics", "datalake", "infrastructure", "config"):
         assert (_ROOT / "tests" / "unit" / name).is_dir(), f"missing tests/unit/{name}"
     assert (_ROOT / "tests" / "component" / "ui").is_dir()

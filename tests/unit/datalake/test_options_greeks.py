@@ -63,8 +63,10 @@ class TestBlackScholesGreeks:
         spot, strike, t, r, iv = 100, 100, 1.0, 0.06, 0.2
         d1 = self.bs_d1(spot, strike, t, r, iv)
         d2 = d1 - iv * math.sqrt(t)
-        theta = (-(spot * self.norm_pdf(d1) * iv) / (2 * math.sqrt(t))
-                 - r * strike * math.exp(-r * t) * self.norm_cdf(d2)) / 365.0
+        theta = (
+            -(spot * self.norm_pdf(d1) * iv) / (2 * math.sqrt(t))
+            - r * strike * math.exp(-r * t) * self.norm_cdf(d2)
+        ) / 365.0
         assert theta < 0
 
     def test_vega_positive(self):
@@ -90,13 +92,15 @@ class TestFeatureConsistency:
         np.random.seed(42)
         n = 200
         close = 1000 + np.cumsum(np.random.randn(n) * 5)
-        return pd.DataFrame({
-            "open": close - 1,
-            "high": close + 3,
-            "low": close - 3,
-            "close": close,
-            "volume": np.random.randint(1000, 50000, n),
-        })
+        return pd.DataFrame(
+            {
+                "open": close - 1,
+                "high": close + 3,
+                "low": close - 3,
+                "close": close,
+                "volume": np.random.randint(1000, 50000, n),
+            }
+        )
 
     def test_rsi_bounded(self, ohlcv):
         result = rsi(ohlcv["close"], 14).dropna()

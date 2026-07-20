@@ -17,11 +17,13 @@ from infrastructure.event_bus import EventBus
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _make_event(event_type: str = "TICK", symbol: str = "RELIANCE") -> DomainEvent:
     return DomainEvent.now(event_type, {"ltp": 100.0}, symbol=symbol)
 
 
 # ── Thread-safety: sequence numbers are unique & monotonic ───────────────────
+
 
 def test_concurrent_publish_sequence_numbers_are_unique():
     """Concurrent publishes must produce unique sequence numbers (captured via handler).
@@ -53,7 +55,9 @@ def test_concurrent_publish_sequence_numbers_are_unique():
         t.join()
 
     total = num_threads * events_per_thread
-    assert len(collected_sequences) == total, f"Expected {total} sequences, got {len(collected_sequences)}"
+    assert len(collected_sequences) == total, (
+        f"Expected {total} sequences, got {len(collected_sequences)}"
+    )
     # All unique
     assert len(set(collected_sequences)) == total, (
         f"Duplicate sequence numbers detected! "
@@ -78,7 +82,9 @@ def test_concurrent_publish_all_handlers_receive_all_events():
     bus.subscribe("TICK", handler)
 
     threads = [
-        threading.Thread(target=lambda: [bus.publish(_make_event()) for _ in range(events_per_thread)])
+        threading.Thread(
+            target=lambda: [bus.publish(_make_event()) for _ in range(events_per_thread)]
+        )
         for _ in range(num_threads)
     ]
     for t in threads:
@@ -133,6 +139,7 @@ def test_concurrent_subscribe_and_publish():
 
 # ── Throughput benchmark ─────────────────────────────────────────────────────
 
+
 def test_concurrent_publish_throughput():
     """Measure publish throughput under concurrent access.
 
@@ -167,16 +174,16 @@ def test_concurrent_publish_throughput():
     total_events = num_threads * events_per_thread
     throughput = total_events / elapsed
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Task 4.4 — Concurrent Publish Throughput (pre-constructed events)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Threads:            {num_threads}")
     print(f"  Events/thread:      {events_per_thread:,}")
     print(f"  Total events:       {total_events:,}")
     print(f"  Elapsed:            {elapsed:.3f}s")
     print(f"  Throughput:         {throughput:,.0f} events/sec")
     print(f"  Per-event latency:  {(elapsed / total_events) * 1e6:.1f} µs")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # With pre-constructed events, bus throughput should be well above 30k/sec.
     # The lock-free sequence counter eliminates the main contention point.
@@ -187,11 +194,15 @@ def test_sequence_counter_lock_free_verification():
     """Verify the sequence counter uses itertools.count (no lock)."""
     bus = EventBus()
     # Confirm internal implementation
-    assert isinstance(bus._sequence, itertools.count), \
+    assert isinstance(bus._sequence, itertools.count), (
         "Sequence counter should be itertools.count for lock-free operation"
-    assert not hasattr(bus, '_lock'), \
+    )
+    assert not hasattr(bus, "_lock"), (
         "Old _lock attribute should be removed (replaced by _subscribers_lock)"
-    assert hasattr(bus, '_subscribers_lock'), \
+    )
+    assert hasattr(bus, "_subscribers_lock"), (
         "_subscribers_lock should exist for subscriber management"
-    assert isinstance(bus._subscribers_lock, type(threading.Lock())), \
+    )
+    assert isinstance(bus._subscribers_lock, type(threading.Lock())), (
         "_subscribers_lock should be a Lock (not RLock)"
+    )

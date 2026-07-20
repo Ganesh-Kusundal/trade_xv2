@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-
 # ── Risk / capital ──────────────────────────────────────────────────────────
 
 RISK_FALLBACK_CAPITAL: Decimal = Decimal("100000")

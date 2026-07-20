@@ -20,12 +20,10 @@ _FORBIDDEN_DIRECT_IMPORTS = frozenset({"BrokerCertifier"})
 def _imports_symbol(path: Path, symbol: str) -> bool:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            if symbol in {a.name for a in node.names}:
-                return True
-        if isinstance(node, ast.Import):
-            if symbol in {a.name for a in node.names}:
-                return True
+        if isinstance(node, ast.ImportFrom) and symbol in {a.name for a in node.names}:
+            return True
+        if isinstance(node, ast.Import) and symbol in {a.name for a in node.names}:
+            return True
     return False
 
 

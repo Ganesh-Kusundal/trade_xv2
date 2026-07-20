@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
-from typing import Any
 
 from application.oms.lifecycle import (
     register_daily_pnl_reset as _register_daily_pnl_reset_fn,
+)
+from application.oms.lifecycle import (
     register_dlq_monitor as _register_dlq_monitor_fn,
+)
+from application.oms.lifecycle import (
     register_processed_trade_cleanup as _register_processed_trade_cleanup_fn,
 )
 from application.oms.protocols import IReconciliationService
@@ -107,12 +109,17 @@ class TradingContextWiringMixin:
         self._order_manager.set_placement_gate(self._reconciliation_placement_gate)
         # Mirror __init__: orders stay gated until the first clean reconciliation.
         self._reconciliation_ready = False
+
         # G6: hot-path reconciliation — wake the loop on order lifecycle events.
         # The bus invokes handlers with the event arg, so wrap the no-arg
         # request_reconciliation (same fix as the __init__ wiring). Store the
         # lambda handles so a re-attach can unsubscribe exactly these.
-        _on_trade = lambda *_a: self._reconciliation_service.request_reconciliation()
-        _on_order = lambda *_a: self._reconciliation_service.request_reconciliation()
+        def _on_trade(*_a):
+            return self._reconciliation_service.request_reconciliation()
+
+        def _on_order(*_a):
+            return self._reconciliation_service.request_reconciliation()
+
         _trade_token = self._event_bus.subscribe(EventType.TRADE_APPLIED.value, _on_trade)
         _order_token = self._event_bus.subscribe(EventType.ORDER_UPDATED.value, _on_order)
         self._recon_handlers = [_trade_token, _order_token]

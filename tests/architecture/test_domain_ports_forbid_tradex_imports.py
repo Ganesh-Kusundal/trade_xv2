@@ -3,23 +3,18 @@
 from __future__ import annotations
 
 import ast
-import inspect
 from pathlib import Path
 
 import pytest
 
-from domain.events.types import DomainEvent, EventType, canonical_event_types
+from domain.events.types import DomainEvent, canonical_event_types
 from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
 
 def test_domain_broker_adapter_port_does_not_import_tradex() -> None:
     """Domain broker port must not depend upward on tradex."""
     port_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "domain"
-        / "ports"
-        / "broker_adapter.py"
+        Path(__file__).resolve().parents[2] / "src" / "domain" / "ports" / "broker_adapter.py"
     )
     tree = ast.parse(port_path.read_text())
     for node in ast.walk(tree):

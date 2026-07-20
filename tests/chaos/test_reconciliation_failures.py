@@ -15,8 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from domain.reconciliation_engine import ReconciliationEngine
 from domain import DriftItem, ReconciliationReport
+from domain.reconciliation_engine import ReconciliationEngine
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,9 @@ def _make_order(order_id: str, symbol: str = "RELIANCE", status: str = "OPEN") -
     return order
 
 
-def _make_position(symbol: str = "RELIANCE", quantity: int = 10, avg_price: str = "2500.0") -> MagicMock:
+def _make_position(
+    symbol: str = "RELIANCE", quantity: int = 10, avg_price: str = "2500.0"
+) -> MagicMock:
     """Create a mock position for testing."""
     position = MagicMock()
     position.symbol = symbol
@@ -95,7 +97,7 @@ class TestPositionMismatchDetection:
         drift = engine.compare_positions(local_positions, broker_positions)
 
         # May or may not detect price mismatch depending on tolerance
-        #但至少应该有某种drift
+        # 但至少应该有某种drift
         assert isinstance(drift, list)
 
     def test_alert_raised_on_mismatch(self):
@@ -128,13 +130,15 @@ class TestPositionMismatchDetection:
         # Simulate auto-correction
         broker_positions = [_make_position("RELIANCE", quantity=10)]
         for pos in broker_positions:
-            oms.upsert_position({
-                "symbol": pos.symbol,
-                "exchange": getattr(pos, "exchange", "NSE"),
-                "quantity": pos.quantity,
-                "avg_price": str(getattr(pos, "avg_price", "0")),
-                "ltp": str(getattr(pos, "ltp", "0")),
-            })
+            oms.upsert_position(
+                {
+                    "symbol": pos.symbol,
+                    "exchange": getattr(pos, "exchange", "NSE"),
+                    "quantity": pos.quantity,
+                    "avg_price": str(getattr(pos, "avg_price", "0")),
+                    "ltp": str(getattr(pos, "ltp", "0")),
+                }
+            )
 
         assert len(corrections_applied) == 1
         assert corrections_applied[0]["symbol"] == "RELIANCE"
@@ -252,11 +256,13 @@ class TestReconciliationServiceFailure:
         try:
             raise Exception("Failed to fetch broker positions")
         except Exception as e:
-            log_error({
-                "error": str(e),
-                "component": "reconciliation",
-                "timestamp": time.time(),
-            })
+            log_error(
+                {
+                    "error": str(e),
+                    "component": "reconciliation",
+                    "timestamp": time.time(),
+                }
+            )
 
         assert len(error_logs) == 1
         assert "reconciliation" in error_logs[0]["component"]
@@ -312,10 +318,12 @@ class TestReconciliationServiceFailure:
             drift = engine.compare_positions(local_positions, broker_positions)
 
             with lock:
-                cycle_results.append({
-                    "cycle_id": cycle_id,
-                    "drift_count": len(drift),
-                })
+                cycle_results.append(
+                    {
+                        "cycle_id": cycle_id,
+                        "drift_count": len(drift),
+                    }
+                )
 
         with ThreadPoolExecutor(max_workers=5) as ex:
             futures = [ex.submit(run_cycle, i) for i in range(5)]
@@ -351,6 +359,7 @@ class TestReconciliationServiceFailure:
         def unreliable_reconciliation():
             nonlocal failures, successes
             import random
+
             if random.random() < 0.3:  # 30% failure rate
                 failures += 1
                 raise Exception("Transient error")

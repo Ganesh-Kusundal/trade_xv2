@@ -94,27 +94,17 @@ class CandlestickPatterns:
         bull_prev = prev_body < 0  # prior candle bearish
         bear_prev = prev_body > 0  # prior candle bullish
         df["cdl_engulfing_bull"] = (
-            bull_prev
-            & (body > 0)
-            & (df["open"] <= prev_close)
-            & (df["close"] >= prev_open)
+            bull_prev & (body > 0) & (df["open"] <= prev_close) & (df["close"] >= prev_open)
         )
         df["cdl_engulfing_bear"] = (
-            bear_prev
-            & (body < 0)
-            & (df["open"] >= prev_close)
-            & (df["close"] <= prev_open)
+            bear_prev & (body < 0) & (df["open"] >= prev_close) & (df["close"] <= prev_open)
         )
 
         # --- harami (inside bar) ------------------------------------------
         inside_body = (df["open"] >= prev_close) & (df["close"] <= prev_open)
         inside_body_bear = (df["open"] <= prev_close) & (df["close"] >= prev_open)
-        df["cdl_harami_bull"] = (
-            bull_prev & (abs_body <= prev_abs_body) & inside_body
-        )
-        df["cdl_harami_bear"] = (
-            bear_prev & (abs_body <= prev_abs_body) & inside_body_bear
-        )
+        df["cdl_harami_bull"] = bull_prev & (abs_body <= prev_abs_body) & inside_body
+        df["cdl_harami_bear"] = bear_prev & (abs_body <= prev_abs_body) & inside_body_bear
 
         # --- swing continuation / breakdown (reuse MarketStructureAnalyzer)
         swings = MarketStructureAnalyzer(
@@ -124,9 +114,7 @@ class CandlestickPatterns:
             df["low"].where(swings["swing_low"]).ffill().fillna(df["low"].expanding().min())
         )
         df["swing_continuation"] = swings["market_structure"] == "Trend Continuation"
-        df["swing_breakdown"] = (df["close"] < last_swing_low) & (
-            swings["trend"] != "Uptrend"
-        )
+        df["swing_breakdown"] = (df["close"] < last_swing_low) & (swings["trend"] != "Uptrend")
 
         # --- combined direction enum --------------------------------------
         bull = (

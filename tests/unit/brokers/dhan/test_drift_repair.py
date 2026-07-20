@@ -7,10 +7,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
-from domain import DriftItem
 from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
+from domain import DriftItem
 
 
 class _FakeOrder:
@@ -64,8 +62,11 @@ class TestDriftRepair:
         svc = self._make_service(oms=oms)
 
         broker_orders = [
-            _FakeOrder("O1"), _FakeOrder("O2"), _FakeOrder("O3"),
-            _FakeOrder("O4"), _FakeOrder("O5"),
+            _FakeOrder("O1"),
+            _FakeOrder("O2"),
+            _FakeOrder("O3"),
+            _FakeOrder("O4"),
+            _FakeOrder("O5"),
         ]
         broker_positions = []
 

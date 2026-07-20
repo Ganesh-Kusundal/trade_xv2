@@ -25,15 +25,13 @@ from brokers.dhan.config import (
     DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
     DEFAULT_RATE_LIMITS,
     DEFAULT_REFRESH_COOLDOWN_SECONDS,
+    ENV_PREFIX,
     DhanCircuitBreakerConfig,
+    DhanConfigLoader,
     DhanRateLimitConfig,
     DhanResilienceConfig,
     DhanRetryConfig,
     DhanTokenConfig,
-)
-from brokers.dhan.config import (
-    ENV_PREFIX,
-    DhanConfigLoader,
     load_from_environment,
     load_from_file,
 )
@@ -236,7 +234,7 @@ class TestConfigLoader:
         # Save original env
         original_env = os.environ.copy()
         # Clear DHAN_RESILIENCE_* vars
-        to_clear = [k for k in os.environ.keys() if k.startswith(ENV_PREFIX)]
+        to_clear = [k for k in os.environ if k.startswith(ENV_PREFIX)]
         for key in to_clear:
             del os.environ[key]
 

@@ -50,17 +50,13 @@ def test_limit_order_transmits_numeric_float_price(fake_client, resolver) -> Non
     # 100.15 is a real fractional tick (multiple of RELIANCE's 0.05 tick); the
     # validator rejects non-aligned prices, which is *why* this end-to-end test
     # is stronger than poking the payload builder directly.
-    payload = _place(
-        fake_client, resolver, order_type="LIMIT", price=Decimal("100.15")
-    )
+    payload = _place(fake_client, resolver, order_type="LIMIT", price=Decimal("100.15"))
     assert isinstance(payload["price"], float), "price must be numeric float, not str"
     assert payload["price"] == 100.15
     assert "triggerPrice" not in payload
 
 
-def test_stop_loss_order_transmits_numeric_float_price_and_trigger(
-    fake_client, resolver
-) -> None:
+def test_stop_loss_order_transmits_numeric_float_price_and_trigger(fake_client, resolver) -> None:
     payload = _place(
         fake_client,
         resolver,

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 # Canonical constants — single source of truth for all consumers.
 # These are the legacy defaults; prefer DataPaths for new code.

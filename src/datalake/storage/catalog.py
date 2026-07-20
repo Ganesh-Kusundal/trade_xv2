@@ -15,8 +15,8 @@ from pathlib import Path
 
 import duckdb
 
-from datalake.core.paths import timeframe_partition_dir
 from datalake.core.duckdb_utils import duckdb_connection, get_pool
+from datalake.core.paths import timeframe_partition_dir
 from datalake.core.symbols import normalize_symbol_for_storage
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ class DataCatalog:
     def __init__(self, root: str | None = None, read_only: bool = False) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._db_path = self._root / "catalog.duckdb"
@@ -255,9 +256,7 @@ class DataCatalog:
         isin_by_symbol = isin_by_symbol or {}
         for symbol, sector in mapping.items():
             sym = normalize_symbol_for_storage(symbol)
-            exists = self.conn.execute(
-                "SELECT 1 FROM symbols WHERE symbol = ?", [sym]
-            ).fetchone()
+            exists = self.conn.execute("SELECT 1 FROM symbols WHERE symbol = ?", [sym]).fetchone()
             if exists is None:
                 continue
             isin = isin_by_symbol.get(sym) or isin_by_symbol.get(symbol) or ""
@@ -358,35 +357,46 @@ class DataCatalog:
 
         return count
 
-    def register_universe_snapshot(self, universe: str, symbols: list[str], as_of_date: date | None = None) -> int:
+    def register_universe_snapshot(
+        self, universe: str, symbols: list[str], as_of_date: date | None = None
+    ) -> int:
         if as_of_date is None:
             as_of_date = date.today()
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             UPDATE universe_history
             SET end_date = ?
             WHERE universe = ? AND end_date IS NULL
-        """, [as_of_date, universe])
+        """,
+            [as_of_date, universe],
+        )
 
         count = 0
         for symbol in symbols:
-            self.conn.execute("""
+            self.conn.execute(
+                """
                 INSERT OR IGNORE INTO universe_history
                 (universe, symbol, effective_date)
                 VALUES (?, ?, ?)
-            """, [universe, symbol, as_of_date])
+            """,
+                [universe, symbol, as_of_date],
+            )
             count += 1
 
         return count
 
     def get_universe_as_of(self, universe: str, as_of_date: date) -> list[str]:
-        result = self.conn.execute("""
+        result = self.conn.execute(
+            """
             SELECT symbol FROM universe_history
             WHERE universe = ?
               AND effective_date <= ?
               AND (end_date IS NULL OR end_date > ?)
             ORDER BY symbol
-        """, [universe, as_of_date, as_of_date]).fetchall()
+        """,
+            [universe, as_of_date, as_of_date],
+        ).fetchall()
         return [r[0] for r in result]
 
     def register_symbol_metadata_snapshot(
@@ -397,16 +407,19 @@ class DataCatalog:
         sector: str = "",
         isin: str = "",
         instrument_type: str = "EQUITY",
-        as_of_date: date | None = None
+        as_of_date: date | None = None,
     ) -> None:
         if as_of_date is None:
             as_of_date = date.today()
 
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT OR REPLACE INTO symbol_metadata_history
             (symbol, effective_date, lot_size, tick_size, sector, isin, instrument_type)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, [symbol, as_of_date, lot_size, tick_size, sector, isin, instrument_type])
+        """,
+            [symbol, as_of_date, lot_size, tick_size, sector, isin, instrument_type],
+        )
 
     def record_quality(
         self,
@@ -446,7 +459,6 @@ class DataCatalog:
                 status,
             ],
         )
-
 
     def summary(self) -> dict:
         """Get catalog summary."""

@@ -15,11 +15,11 @@ from typing import Any
 
 import pandas as pd
 
-from domain.entities.options import FutureChain, OptionChain
 from domain.entities.market import MarketDepth, QuoteSnapshot
+from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
-from domain.provenance import DataProvenance, SourceIdentity
 from domain.ports.protocols import SubscriptionHandle
+from domain.provenance import DataProvenance
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +164,7 @@ class BrokerDataProvider:
         Wraps the broker's stream handle in a SubscriptionHandle object.
         """
         if depth:
+
             def _on_depth(market_depth: MarketDepth) -> None:
                 try:
                     callback(instrument_id, market_depth)

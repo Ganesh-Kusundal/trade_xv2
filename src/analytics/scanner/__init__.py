@@ -7,6 +7,7 @@ from analytics.scanner.scanners import (
     RSScanner,
     VolumeScanner,
 )
+
 __all__ = [
     "BaseScanner",
     "BreakoutScanner",

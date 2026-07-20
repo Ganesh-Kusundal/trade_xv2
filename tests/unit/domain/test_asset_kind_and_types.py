@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
-import pytest
-
 from domain.instruments.asset_kind import AssetKind
-from domain.instruments.instrument import Commodity, ETF, Spot
+from domain.instruments.instrument import ETF, Commodity, Spot
 from domain.instruments.instrument_id import (
     InstrumentId,
     allowed_exchanges,

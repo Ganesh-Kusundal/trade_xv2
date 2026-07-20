@@ -9,20 +9,16 @@ Every bar carries ``DataProvenance`` so provenance survives federation and merge
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any
 
 from domain.candles._helpers import (
     coerce_decimal,
     coerce_event_time,
-    coverage_from_bars,
-    find_timestamp_column,
-    ohlcv_from_row,
-    parse_broker_timestamp,
-    parse_datalake_timestamp,
 )
 from domain.candles._indicators import SeriesIndicators
 from domain.provenance import DataProvenance, ProvenanceConfidence
@@ -253,22 +249,35 @@ class HistoricalSeries:
 
         records = []
         for bar in self.bars:
-            records.append({
-                "timestamp": bar.event_time,
-                "open": float(bar.open),
-                "high": float(bar.high),
-                "low": float(bar.low),
-                "close": float(bar.close),
-                "volume": int(bar.volume),
-                "oi": int(bar.open_interest),
-                "symbol": bar.instrument.symbol,
-                "exchange": bar.instrument.exchange,
-                "timeframe": bar.timeframe,
-            })
-        df = pd.DataFrame(records, columns=[
-            "timestamp", "open", "high", "low", "close",
-            "volume", "oi", "symbol", "exchange", "timeframe",
-        ])
+            records.append(
+                {
+                    "timestamp": bar.event_time,
+                    "open": float(bar.open),
+                    "high": float(bar.high),
+                    "low": float(bar.low),
+                    "close": float(bar.close),
+                    "volume": int(bar.volume),
+                    "oi": int(bar.open_interest),
+                    "symbol": bar.instrument.symbol,
+                    "exchange": bar.instrument.exchange,
+                    "timeframe": bar.timeframe,
+                }
+            )
+        df = pd.DataFrame(
+            records,
+            columns=[
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "oi",
+                "symbol",
+                "exchange",
+                "timeframe",
+            ],
+        )
         if not df.empty:
             # Federated series mix bars from multiple brokers (see
             # HistoricalDataCoordinator) whose event_time tzinfo objects
@@ -304,14 +313,22 @@ class HistoricalSeries:
         hi = self._coerce_boundary(end, floor=False)
         kept = [b for b in self.bars if lo <= b.event_time <= hi]
         return HistoricalSeries(
-            bars=kept, coverage=self.coverage, instrument=self.instrument,
-            timeframe=self.timeframe, gaps=self.gaps, merge_manifest=self.merge_manifest,
+            bars=kept,
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=self.timeframe,
+            gaps=self.gaps,
+            merge_manifest=self.merge_manifest,
         )
 
     def append(self, bar: HistoricalBar) -> HistoricalSeries:
         return HistoricalSeries(
-            bars=[*self.bars, bar], coverage=self.coverage, instrument=self.instrument,
-            timeframe=self.timeframe, gaps=self.gaps, merge_manifest=self.merge_manifest,
+            bars=[*self.bars, bar],
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=self.timeframe,
+            gaps=self.gaps,
+            merge_manifest=self.merge_manifest,
         )
 
     def merge(self, other: HistoricalSeries) -> HistoricalSeries:
@@ -320,8 +337,11 @@ class HistoricalSeries:
             by_time[b.event_time] = b
         merged = sorted(by_time.values(), key=lambda b: b.event_time)
         return HistoricalSeries(
-            bars=merged, coverage=self.coverage, instrument=self.instrument,
-            timeframe=self.timeframe, gaps=self.gaps + other.gaps,
+            bars=merged,
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=self.timeframe,
+            gaps=self.gaps + other.gaps,
             merge_manifest=self.merge_manifest,
         )
 
@@ -333,9 +353,7 @@ class HistoricalSeries:
         volumes = [int(b.volume) for b in self.bars]
         first_close = float(self.bars[0].close)
         last_close = float(self.bars[-1].close)
-        return_pct = (
-            ((last_close - first_close) / first_close) * 100.0 if first_close else None
-        )
+        return_pct = ((last_close - first_close) / first_close) * 100.0 if first_close else None
         return {
             "count": len(self.bars),
             "high": max(highs),
@@ -349,39 +367,65 @@ class HistoricalSeries:
 
         if not self.bars:
             return HistoricalSeries(
-                bars=[], coverage=self.coverage, instrument=self.instrument,
-                timeframe=target_timeframe, gaps=self.gaps, merge_manifest=self.merge_manifest,
+                bars=[],
+                coverage=self.coverage,
+                instrument=self.instrument,
+                timeframe=target_timeframe,
+                gaps=self.gaps,
+                merge_manifest=self.merge_manifest,
             )
 
         df = self.to_dataframe().set_index("timestamp")
         df = df.sort_index()
         rule = self._pandas_rule(target_timeframe)
-        agg = df.resample(rule).agg({
-            "open": "first", "high": "max", "low": "min",
-            "close": "last", "volume": "sum", "oi": "last",
-        }).dropna(subset=["close"])
+        agg = (
+            df.resample(rule)
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                    "oi": "last",
+                }
+            )
+            .dropna(subset=["close"])
+        )
 
         base_prov = self.bars[0].provenance.with_transformation(f"resample.{target_timeframe}")
         derived = DataProvenance(
-            source=base_prov.source, fetched_at=base_prov.fetched_at,
-            request_id=base_prov.request_id, confidence=ProvenanceConfidence.DERIVED,
+            source=base_prov.source,
+            fetched_at=base_prov.fetched_at,
+            request_id=base_prov.request_id,
+            confidence=ProvenanceConfidence.DERIVED,
             provider_timestamp=base_prov.provider_timestamp,
             transformation_chain=base_prov.transformation_chain,
         )
 
         new_bars: list[HistoricalBar] = []
         for ts, row in agg.iterrows():
-            new_bars.append(HistoricalBar(
-                instrument=self.instrument, timeframe=target_timeframe,
-                event_time=pd.Timestamp(ts).to_pydatetime().replace(tzinfo=timezone.utc),
-                open=Decimal(str(row["open"])), high=Decimal(str(row["high"])),
-                low=Decimal(str(row["low"])), close=Decimal(str(row["close"])),
-                volume=int(row["volume"]), provenance=derived,
-                open_interest=int(row.get("oi", 0) or 0),
-            ))
+            new_bars.append(
+                HistoricalBar(
+                    instrument=self.instrument,
+                    timeframe=target_timeframe,
+                    event_time=pd.Timestamp(ts).to_pydatetime().replace(tzinfo=timezone.utc),
+                    open=Decimal(str(row["open"])),
+                    high=Decimal(str(row["high"])),
+                    low=Decimal(str(row["low"])),
+                    close=Decimal(str(row["close"])),
+                    volume=int(row["volume"]),
+                    provenance=derived,
+                    open_interest=int(row.get("oi", 0) or 0),
+                )
+            )
         return HistoricalSeries(
-            bars=new_bars, coverage=self.coverage, instrument=self.instrument,
-            timeframe=target_timeframe, gaps=self.gaps, merge_manifest=self.merge_manifest,
+            bars=new_bars,
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=target_timeframe,
+            gaps=self.gaps,
+            merge_manifest=self.merge_manifest,
         )
 
     def export(self, format: str = "csv") -> str:
@@ -399,21 +443,38 @@ class HistoricalSeries:
     # ── Constructors (delegated to _constructors module) ───────────────
 
     @classmethod
-    def from_broker_df(cls, df, instrument, timeframe, *, broker_id, request_id,
-                       transformation_chain=("market_data.history", "normalize.ohlcv.v1")):
+    def from_broker_df(
+        cls,
+        df,
+        instrument,
+        timeframe,
+        *,
+        broker_id,
+        request_id,
+        transformation_chain=("market_data.history", "normalize.ohlcv.v1"),
+    ):
         from domain.candles._constructors import from_broker_df
-        return from_broker_df(cls, df, instrument, timeframe,
-                              broker_id=broker_id, request_id=request_id,
-                              transformation_chain=transformation_chain)
+
+        return from_broker_df(
+            cls,
+            df,
+            instrument,
+            timeframe,
+            broker_id=broker_id,
+            request_id=request_id,
+            transformation_chain=transformation_chain,
+        )
 
     @classmethod
     def from_datalake_df(cls, df, instrument, timeframe, *, request_id="datalake"):
         from domain.candles._constructors import from_datalake_df
+
         return from_datalake_df(cls, df, instrument, timeframe, request_id=request_id)
 
     @classmethod
     def from_dataframe(cls, df, instrument, timeframe):
         from domain.candles._constructors import from_dataframe
+
         return from_dataframe(cls, df, instrument, timeframe)
 
     @staticmethod

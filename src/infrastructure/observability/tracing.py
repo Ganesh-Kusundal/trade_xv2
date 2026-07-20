@@ -118,14 +118,18 @@ def trace_operation(operation_name: str) -> Callable[[Callable[..., T]], Callabl
                     with tracer.start_as_current_span(operation_name) as span:
                         span.set_attribute("correlation_id", correlation_id)
                         span.set_attribute("function", func.__name__)
-                        return _execute_traced(span, func, args, kwargs, operation_name, correlation_id, start_time)
+                        return _execute_traced(
+                            span, func, args, kwargs, operation_name, correlation_id, start_time
+                        )
                 except Exception:  # pragma: no cover - defensive: never break the call
                     logger.warning(
                         "Span start failed for %s; degrading to log-only",
                         operation_name,
                         exc_info=True,
                     )
-            return _execute_traced(None, func, args, kwargs, operation_name, correlation_id, start_time)
+            return _execute_traced(
+                None, func, args, kwargs, operation_name, correlation_id, start_time
+            )
 
         return wrapper
 
@@ -175,7 +179,9 @@ def trace_event_handler(event_type: str) -> Callable[[Callable[..., T]], Callabl
                         span.set_attribute("event_type", event_type)
                         span.set_attribute("correlation_id", correlation_id)
                         span.set_attribute("function", func.__name__)
-                        return _execute_traced(span, func, args, kwargs, event_type, correlation_id, start_time)
+                        return _execute_traced(
+                            span, func, args, kwargs, event_type, correlation_id, start_time
+                        )
                 except Exception:  # pragma: no cover - defensive: never break the call
                     logger.warning(
                         "Span start failed for %s; degrading to log-only",

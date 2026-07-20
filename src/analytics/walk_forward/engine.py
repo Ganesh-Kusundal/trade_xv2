@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import logging
-import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
-from analytics.backtest.engine import BacktestEngine
+from analytics.backtest.engine import BacktestEngine, ResearchMode
 from analytics.backtest.models import BacktestConfig
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.strategy.pipeline import StrategyPipeline
@@ -54,7 +53,9 @@ class WalkForwardEngine:
         self._strategy_pipeline = strategy_pipeline
         self._config = config or WalkForwardConfig()
 
-    def run(self, df: pd.DataFrame, symbol: str = "TEST", max_workers: int | None = None) -> WalkForwardResult:
+    def run(
+        self, df: pd.DataFrame, symbol: str = "TEST", max_workers: int | None = None
+    ) -> WalkForwardResult:
         """Execute walk-forward windows over *df*.
 
         Parameters
@@ -92,13 +93,10 @@ class WalkForwardEngine:
 
         if effective_workers <= 1 or len(windows) <= 1:
             window_results = [
-                self._run_window(df, symbol, s, te, tend, wi)
-                for s, te, tend, wi in windows
+                self._run_window(df, symbol, s, te, tend, wi) for s, te, tend, wi in windows
             ]
         else:
-            window_results = self._run_windows_parallel(
-                df, symbol, windows, effective_workers
-            )
+            window_results = self._run_windows_parallel(df, symbol, windows, effective_workers)
 
         # Aggregate results
         result = WalkForwardResult()
@@ -136,6 +134,7 @@ class WalkForwardEngine:
             self._pipeline,
             self._strategy_pipeline,
             bt_config,
+            mode=ResearchMode.PURE_SIM,
         )
         bt_result = engine.run(test_slice, symbol=symbol)
 
@@ -210,7 +209,12 @@ def _run_window_standalone(
     """Module-level function for parallel execution (picklable)."""
     test_slice = df.iloc[train_end:test_end].copy()
     bt_config = BacktestConfig(initial_capital=config.initial_capital)
-    engine = BacktestEngine(pipeline, strategy_pipeline, bt_config)
+    engine = BacktestEngine(
+        pipeline,
+        strategy_pipeline,
+        bt_config,
+        mode=ResearchMode.PURE_SIM,
+    )
     bt_result = engine.run(test_slice, symbol=symbol)
 
     metrics = getattr(bt_result, "metrics", None)

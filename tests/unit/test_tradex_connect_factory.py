@@ -10,7 +10,6 @@ import pytest
 import tradex
 from infrastructure.adapter_factory import (
     create_execution_provider,
-    register_execution_provider,
 )
 from infrastructure.gateway.factory import ENV_FILES, list_available_brokers
 
@@ -142,7 +141,7 @@ def test_paper_execution_provider_registered():
 
 
 def test_cli_broker_registry_reexports_require_gateway():
-    from interface.ui.services.broker_registry import require_gateway as cli_rg
     from infrastructure.gateway.factory import require_gateway as runtime_rg
+    from interface.ui.services.broker_registry import require_gateway as cli_rg
 
     assert cli_rg is runtime_rg

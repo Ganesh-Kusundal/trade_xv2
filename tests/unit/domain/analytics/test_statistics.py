@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 from analytics.backtest import BacktestConfig, BacktestEngine
+from analytics.backtest.engine import ResearchMode
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
 from analytics.replay.models import SimulatedTrade
 from domain.analytics.statistics import StatisticsEngine, TradeStatistics
@@ -241,7 +242,7 @@ class TestParityWithBacktest:
     def test_metrics_match_backtest_no_benchmark(
         self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
 
         session = result.replay.session
@@ -280,7 +281,7 @@ class TestParityWithBacktest:
     def test_metrics_match_backtest_with_benchmark(
         self, trending_data: pd.DataFrame, benchmark_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST", benchmark=benchmark_data)
 
         session = result.replay.session
@@ -307,7 +308,7 @@ class TestParityWithBacktest:
         self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
         """ReplayEngine.compute_statistics must agree with BacktestEngine output."""
-        bench_engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        bench_engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = bench_engine.run(trending_data, symbol="TEST")
 
         from analytics.replay import ReplayEngine

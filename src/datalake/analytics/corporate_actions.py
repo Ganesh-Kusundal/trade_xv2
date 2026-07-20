@@ -50,6 +50,7 @@ class CorporateActionStore:
     def __init__(self, root: str | None = None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._db_path = self._root / "catalog.duckdb"

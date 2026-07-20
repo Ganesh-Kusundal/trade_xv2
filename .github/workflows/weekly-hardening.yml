@@ -1,0 +1,78 @@
+name: Weekly Hardening
+
+on:
+  schedule:
+    # Monday 03:00 UTC — chaos, memory, OMS acceptance on main
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-hardening-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  oms-acceptance:
+    name: OMS Acceptance (PaperFillSource)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run OMS acceptance suite
+        run: |
+          PYTHONPATH=src pytest tests/acceptance/oms/ -v --tb=short
+
+  chaos-memory:
+    name: Chaos + Memory (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Chaos tests
+        run: |
+          PYTHONPATH=src pytest tests/chaos/ -v --tb=short -x
+      - name: Memory leak regression
+        run: |
+          PYTHONPATH=src pytest tests/architecture/regression_invariants/test_memory_leaks.py -v --tb=short
+
+  architecture-maturity:
+    name: Architecture Maturity Ratchets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Research mode + tick authority + service registry + live ADR ratchets
+        run: |
+          PYTHONPATH=src pytest \
+            tests/architecture/test_research_mode_gating.py \
+            tests/architecture/test_tick_authority.py \
+            tests/architecture/test_service_registry.py \
+            tests/architecture/test_production_fail_open_unbypassable.py \
+            tests/architecture/test_order_placement_port.py \
+            tests/architecture/test_order_port_services.py \
+            tests/architecture/test_metrics_auth_profile_scoped.py \
+            tests/integration/quant/test_views_pipeline_parity.py \
+            -v --tb=short

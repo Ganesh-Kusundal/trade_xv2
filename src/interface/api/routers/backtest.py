@@ -12,6 +12,7 @@ import uuid
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from datalake.research.backtest_cache_store import BacktestCacheStore
 from interface.api.auth import require_auth
 from interface.api.deps import get_datalake_gateway
 from interface.api.schemas import (
@@ -19,7 +20,6 @@ from interface.api.schemas import (
     BacktestResultResponse,
     BacktestRunRequest,
 )
-from datalake.research.backtest_cache_store import BacktestCacheStore
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +88,8 @@ async def run_backtest(
 ):
     """Run a backtest with the specified parameters.
 
-    Executes the backtest engine in **PURE_SIM** research mode against
-    historical data from the Parquet data lake. Results are labeled
-    ``research_only`` and are not a live-execution parity guarantee.
+    Default path routes fills through the OMS (PARITY). Set ``research_only=true``
+    for fast PURE_SIM research without live-execution parity guarantees.
     """
     if not gateway:
         raise HTTPException(
@@ -126,29 +125,33 @@ async def run_backtest(
         strategy_cls = strategy_map.get(req.strategy, MomentumStrategy)
         strategy = StrategyPipeline(strategies=[strategy_cls()])
 
-        from analytics.backtest import BacktestConfig, BacktestEngine, ResearchMode
+        from analytics.backtest import BacktestConfig, ResearchMode
+        from runtime.paper_session import build_backtest_engine
 
         config = BacktestConfig(
             initial_capital=req.initial_capital,
             warmup_bars=20,
         )
-        engine = BacktestEngine(
+        engine = build_backtest_engine(
             pipeline,
             strategy,
             config,
-            mode=ResearchMode.PURE_SIM,
+            research_only=req.research_only,
         )
         result = engine.run(df, symbol=req.symbol)
 
         run_id = str(uuid.uuid4())[:12]
         m = result.metrics
+        research_mode = (
+            ResearchMode.PURE_SIM.value if req.research_only else ResearchMode.PARITY.value
+        )
 
         resp = BacktestResultResponse(
             run_id=run_id,
             symbol=req.symbol,
             timeframe=req.timeframe,
-            research_mode=ResearchMode.PURE_SIM.value,
-            research_only=True,
+            research_mode=research_mode,
+            research_only=req.research_only,
             metrics=BacktestMetrics(
                 total_return_pct=round(m.total_return_pct, 2),
                 annualized_return_pct=round(m.cagr, 2),

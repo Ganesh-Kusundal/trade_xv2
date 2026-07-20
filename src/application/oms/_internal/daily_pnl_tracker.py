@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Callable
-
-from domain.events.types import EventType
 
 from application.oms._internal.loss_circuit_breaker import LossCircuitBreaker
 from application.oms._internal.risk_types import RiskConfig
+from domain.events.types import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -122,11 +121,7 @@ class DailyPnlTracker:
         (edge-triggered, not level-triggered, so this doesn't spam the
         event bus on every single MTM update while still in breach).
         """
-        if (
-            self._on_risk_event is None
-            or capital <= 0
-            or self._config.max_daily_loss_pct <= 0
-        ):
+        if self._on_risk_event is None or capital <= 0 or self._config.max_daily_loss_pct <= 0:
             return
         loss_budget = capital * (self._config.max_daily_loss_pct / Decimal("100"))
         if loss_budget <= 0:

@@ -5,17 +5,17 @@ and test-friendly configuration.
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 from pathlib import Path
 
-from application.oms.context import TradingContext
 from application.oms._internal.risk_manager import RiskConfig, RiskManager
-from infrastructure.observability.event_metrics import EventMetrics
+from application.oms.context import TradingContext
 from infrastructure.event_bus import EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_log import EventLog
+from infrastructure.observability.event_metrics import EventMetrics
+from tests.conftest import build_test_trading_context
 
 
 def create_test_trading_context(

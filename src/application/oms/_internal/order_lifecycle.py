@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from application.oms._internal.order_mutation_guard import OrderMutationGuard
@@ -20,9 +19,9 @@ from domain.types import OrderStatus
 if TYPE_CHECKING:
     from application.oms._internal.order_audit_logger import OrderAuditLogger
     from application.oms._internal.order_state_validator import OrderStateValidator
+    from application.oms._internal.risk_manager import RiskManager
     from application.oms.idempotency_guard import IdempotencyGuard
     from application.oms.order_manager import OmsOrderCommand, OrderResult
-    from application.oms._internal.risk_manager import RiskManager
     from application.oms.trade_recorder import TradeRecorder
     from domain.entities import Order
     from domain.ports import ExecutionLedgerPort
@@ -348,12 +347,16 @@ class OrderLifecycle:
         from application.oms.order_manager import OrderResult
         from domain.orders.requests import ModifyOrderRequest
 
-        req = request if isinstance(request, ModifyOrderRequest) else ModifyOrderRequest(
-            order_id=getattr(request, "order_id", ""),
-            quantity=getattr(request, "quantity", None),
-            price=getattr(request, "price", None),
-            order_type=getattr(request, "order_type", None),
-            product_type=getattr(request, "product_type", None),
+        req = (
+            request
+            if isinstance(request, ModifyOrderRequest)
+            else ModifyOrderRequest(
+                order_id=getattr(request, "order_id", ""),
+                quantity=getattr(request, "quantity", None),
+                price=getattr(request, "price", None),
+                order_type=getattr(request, "order_type", None),
+                product_type=getattr(request, "product_type", None),
+            )
         )
         with lock:
             order = orders.get(req.order_id)

@@ -104,6 +104,7 @@ ENV_KEY_MAPPING: dict[str, str] = {
 
 # ── Dataclasses ──────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class DhanRateLimitConfig:
     """Configuration for Dhan API rate limiting."""
@@ -252,6 +253,7 @@ DEFAULT_CONFIG = DhanResilienceConfig()
 
 # ── Loading helpers (merged from config_loader.py) ───────────────────────────
 
+
 def _parse_env_value(value: str, target_type: type) -> Any:
     if target_type == bool:
         return value.lower() in ("true", "1", "yes", "on")
@@ -298,7 +300,7 @@ def _flatten_env_vars(prefix: str = ENV_PREFIX) -> dict[str, str]:
     result = {}
     for key, value in os.environ.items():
         if key.startswith(prefix):
-            result[key[len(prefix):]] = value
+            result[key[len(prefix) :]] = value
     return result
 
 
@@ -327,9 +329,13 @@ def _build_nested_dict(flat_data: dict[str, str]) -> dict[str, Any]:
         elif final_key == "bucket_map":
             current[final_key] = _parse_json_dict(value)
         elif final_key in (
-            "max_retries", "orders_failure_threshold",
-            "default_failure_threshold", "success_threshold",
-            "recovery_timeout_ms", "base_delay_ms", "max_delay_ms",
+            "max_retries",
+            "orders_failure_threshold",
+            "default_failure_threshold",
+            "success_threshold",
+            "recovery_timeout_ms",
+            "base_delay_ms",
+            "max_delay_ms",
         ):
             current[final_key] = int(value)
         elif final_key in ("refresh_cooldown_seconds", "rate_limit_backoff_seconds"):
@@ -354,7 +360,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 def _parse_env_file(env_path: Path) -> dict[str, str]:
     result = {}
-    with open(env_path, "r", encoding="utf-8") as f:
+    with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -367,6 +373,7 @@ def _parse_env_file(env_path: Path) -> dict[str, str]:
 
 # ── Public loading functions ─────────────────────────────────────────────────
 
+
 def load_from_environment(prefix: str = ENV_PREFIX) -> DhanResilienceConfig:
     flat_vars = _flatten_env_vars(prefix)
     nested_data = _build_nested_dict(flat_vars)
@@ -377,7 +384,7 @@ def load_from_file(file_path: Path) -> DhanResilienceConfig:
     if not file_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {file_path}")
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         data = json.load(f)
 
     return DhanResilienceConfig.from_dict(data)
@@ -441,25 +448,25 @@ class DhanConfigLoader:
 
 
 __all__ = [
-    "DhanResilienceConfig",
-    "DhanRateLimitConfig",
-    "DhanRetryConfig",
-    "DhanCircuitBreakerConfig",
-    "DhanTokenConfig",
-    "DEFAULT_CONFIG",
-    "DEFAULT_RATE_LIMITS",
-    "DEFAULT_READ_CB_PREFIXES",
-    "DEFAULT_WRITE_CB_PREFIXES",
-    "DEFAULT_RL_BUCKET_MAP",
-    "DEFAULT_MAX_RETRIES",
     "DEFAULT_BASE_DELAY_MS",
+    "DEFAULT_CONFIG",
     "DEFAULT_MAX_DELAY_MS",
-    "DEFAULT_REFRESH_COOLDOWN_SECONDS",
+    "DEFAULT_MAX_RETRIES",
+    "DEFAULT_RATE_LIMITS",
     "DEFAULT_RATE_LIMIT_BACKOFF_SECONDS",
-    "ENV_PREFIX",
+    "DEFAULT_READ_CB_PREFIXES",
+    "DEFAULT_REFRESH_COOLDOWN_SECONDS",
+    "DEFAULT_RL_BUCKET_MAP",
+    "DEFAULT_WRITE_CB_PREFIXES",
     "ENV_KEY_MAPPING",
+    "ENV_PREFIX",
+    "DhanCircuitBreakerConfig",
     "DhanConfigLoader",
+    "DhanRateLimitConfig",
+    "DhanResilienceConfig",
+    "DhanRetryConfig",
+    "DhanTokenConfig",
+    "load_from_env_file",
     "load_from_environment",
     "load_from_file",
-    "load_from_env_file",
 ]

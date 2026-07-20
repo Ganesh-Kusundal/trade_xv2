@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from brokers.dhan.execution.orders import OrdersAdapter
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.execution_context import oms_managed
 from infrastructure.event_bus import EventBus
-from brokers.dhan.execution.orders import OrdersAdapter
 
 
 def test_place_order_skips_order_placed_when_oms_managed(fake_client, resolver):

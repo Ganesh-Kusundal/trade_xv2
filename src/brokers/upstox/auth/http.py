@@ -74,6 +74,20 @@ def _rate_limit_bucket(url: str) -> str:
     return "admin"
 
 
+class _UpstoxRateLimitAdapter:
+    """Adapt Upstox MultiBucketRateLimiter to ResilientHttpTransport (DP-01)."""
+
+    def __init__(self, client: "UpstoxHttpClient") -> None:
+        self._client = client
+
+    def acquire(self, bucket: str, tokens: int = 1, timeout: float = 30.0) -> bool:
+        return bool(
+            self._client._rate_limiter.acquire(
+                bucket, tokens=tokens, timeout=self._client._rate_limit_timeout
+            )
+        )
+
+
 class UpstoxHttpClient:
     """Small authenticated HTTP client for Upstox v2 / v3 / HFT endpoints."""
 
@@ -107,8 +121,8 @@ class UpstoxHttpClient:
         if rate_limiter is not None:
             self._rate_limiter = rate_limiter
         else:
-            from infrastructure.resilience.rate_limiter import create_rate_limiter
             from brokers.upstox.capabilities.snapshot import upstox_capabilities
+            from infrastructure.resilience.rate_limiter import create_rate_limiter
 
             self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
         if session is not None:
@@ -168,6 +182,13 @@ class UpstoxHttpClient:
             self._read_circuit_breaker = None
             self._write_circuit_breaker = None
             self._admin_circuit_breaker = None
+
+        from brokers.common.http.resilient_transport import ResilientHttpTransport
+
+        self._resilient_transport = ResilientHttpTransport(
+            rate_limiter=_UpstoxRateLimitAdapter(self),
+            circuit_breaker=None,
+        )
 
     @property
     def settings(self) -> Any:
@@ -316,12 +337,20 @@ class UpstoxHttpClient:
             total_attempts = self._max_retries + 2
 
         for attempt in range(total_attempts):
-            if not self._rate_limiter.acquire(bucket, timeout=self._rate_limit_timeout):
+            from brokers.common.http.resilient_transport import EndpointPolicy
+
+            policy = EndpointPolicy(
+                bucket=bucket,
+                is_write=_categorize_upstox_url(url, method) == "write",
+            )
+            try:
+                self._resilient_transport.before_request(policy)
+            except RuntimeError as exc:
                 raise UpstoxApiError(
                     f"Rate limiter acquire timed out after "
                     f"{self._rate_limit_timeout}s for bucket '{bucket}' (url={url})",
                     status_code=None,
-                )
+                ) from exc
 
             try:
                 resp = self._session.request(

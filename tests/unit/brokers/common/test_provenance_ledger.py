@@ -2,7 +2,12 @@
 
 from datetime import date, datetime, timezone
 
-from application.data.provenance import BarRangeRecord, ChunkRecord, ConflictRecord, ProvenanceLedger
+from application.data.provenance import (
+    BarRangeRecord,
+    ChunkRecord,
+    ConflictRecord,
+    ProvenanceLedger,
+)
 
 
 class TestProvenanceLedger:

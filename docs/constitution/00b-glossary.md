@@ -144,3 +144,25 @@ Market Data ──▶ Feature ──▶ Indicator ──▶ Strategy ──▶ S
 | Broker order (redundant) | Order (broker_id is metadata) |
 | Strategy signal / alert | Signal |
 | Session (unqualified) | Runtime Session or Market Session |
+
+---
+
+## Broker Subsystem Aliases (spec → as-built)
+
+| Spec / external name | Canonical symbol | Location |
+|---|---|---|
+| `IBroker` | `BrokerAdapter` | `src/domain/ports/broker_adapter.py` |
+| `IMarketDataGateway` | `DataProvider` / `BrokerAdapter` | `src/domain/ports/protocols.py` |
+| `IOrderGateway` | `ExecutionProvider` / `OrderTransportPort` | `src/domain/ports/protocols.py`, `broker_gateway.py` |
+| `IHistoricalGateway` | `DataProvider.get_history*` | `src/domain/ports/protocols.py` |
+| `IPortfolioGateway` | portfolio methods on `DataProvider` | same |
+| `ISessionProvider` | `SessionOpener` / `BrokerSession` | `domain/ports/session_opener.py`, `brokers/session/` |
+| `IAuthenticationProvider` | `TokenLifecyclePort` | `brokers/common/auth/lifecycle.py` |
+| `IRateLimiter` | `MultiBucketRateLimiter` (concrete) | `infrastructure/resilience/rate_limiter.py` |
+| `IInstrumentMapper` | `BrokerInstrumentService` | `brokers/common/instruments/service.py` |
+| `SupportsOptions` | `supports_option_chain` | `domain/capabilities/broker_capabilities.py` |
+| `SupportsBracketOrders` | `supports_super_order` | same |
+| `SupportsGTT` | `supports_forever_order` | same |
+| `InstrumentError` | `InstrumentError` / `InstrumentNotFoundError` | `src/domain/errors.py` |
+| `RejectedOrder` | `RejectedOrderError` | `src/domain/errors.py` |
+| `CapabilityError` | `CapabilityError` / `CapabilityNotSupported` | `domain/errors.py`, `brokers/exceptions/` |

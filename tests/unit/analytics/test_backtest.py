@@ -12,6 +12,7 @@ from analytics.backtest import (
     BacktestResult,
     PerformanceMetrics,
 )
+from analytics.backtest.engine import ResearchMode
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
 from analytics.replay.models import SimulatedTrade
 
@@ -93,7 +94,7 @@ class TestBacktestConfig:
 
 class TestTradeAnalysis:
     def test_analyze_trades_empty(self, pipeline: FeaturePipeline) -> None:
-        engine = BacktestEngine(pipeline)
+        engine = BacktestEngine(pipeline, mode=ResearchMode.PURE_SIM)
         result = engine.run(pd.DataFrame(), symbol="TEST")
         assert result.metrics.trade_analysis.total_trades == 0
 
@@ -130,7 +131,7 @@ class TestTradeAnalysis:
                 strategy="Breakout",
             ),
         ]
-        engine = BacktestEngine(FeaturePipeline())
+        engine = BacktestEngine(FeaturePipeline(), mode=ResearchMode.PURE_SIM)
         analysis = engine._analyze_trades(trades)
         assert analysis.total_trades == 3
         assert analysis.winning_trades == 2
@@ -152,13 +153,13 @@ class TestBacktestEngine:
     def test_run_returns_result(
         self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         assert isinstance(result, BacktestResult)
         assert result.replay.bars_processed == 200
 
     def test_metrics_computed(self, trending_data: pd.DataFrame, pipeline: FeaturePipeline) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         m = result.metrics
         assert isinstance(m, PerformanceMetrics)
@@ -170,7 +171,7 @@ class TestBacktestEngine:
     def test_summary_has_all_fields(
         self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         s = result.summary
         expected_keys = {
@@ -199,7 +200,7 @@ class TestBacktestEngine:
     def test_with_benchmark(
         self, trending_data: pd.DataFrame, benchmark_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST", benchmark=benchmark_data)
         m = result.metrics
         # Alpha and beta should be computed
@@ -208,7 +209,7 @@ class TestBacktestEngine:
         assert isinstance(m.benchmark_return, float)
 
     def test_to_dataframe(self, trending_data: pd.DataFrame, pipeline: FeaturePipeline) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         df = result.to_dataframe()
         assert isinstance(df, pd.DataFrame)
@@ -216,7 +217,7 @@ class TestBacktestEngine:
         assert "sharpe_ratio" in df.columns
 
     def test_empty_data(self, pipeline: FeaturePipeline) -> None:
-        engine = BacktestEngine(pipeline)
+        engine = BacktestEngine(pipeline, mode=ResearchMode.PURE_SIM)
         result = engine.run(pd.DataFrame(), symbol="TEST")
         assert result.replay.bars_processed == 0
         assert result.metrics.trade_analysis.total_trades == 0
@@ -224,23 +225,23 @@ class TestBacktestEngine:
     def test_max_drawdown_non_negative(
         self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
     ) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         assert result.metrics.max_drawdown >= 0
 
     def test_sharpe_with_no_trades(self, pipeline: FeaturePipeline) -> None:
         """With empty data, Sharpe should be 0."""
-        engine = BacktestEngine(pipeline)
+        engine = BacktestEngine(pipeline, mode=ResearchMode.PURE_SIM)
         result = engine.run(pd.DataFrame(), symbol="TEST")
         assert result.metrics.sharpe_ratio == 0.0
 
     def test_sortino_with_no_trades(self, pipeline: FeaturePipeline) -> None:
-        engine = BacktestEngine(pipeline)
+        engine = BacktestEngine(pipeline, mode=ResearchMode.PURE_SIM)
         result = engine.run(pd.DataFrame(), symbol="TEST")
         assert result.metrics.sortino_ratio == 0.0
 
     def test_calmar_ratio(self, trending_data: pd.DataFrame, pipeline: FeaturePipeline) -> None:
-        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
+        engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20), mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         # Calmar = CAGR / MaxDD, should be finite
         assert np.isfinite(result.metrics.calmar_ratio) or result.metrics.max_drawdown == 0
@@ -253,7 +254,7 @@ class TestBacktestEngine:
             commission_flat=15.0,
             risk_free_rate=0.07,
         )
-        engine = BacktestEngine(pipeline, config=config)
+        engine = BacktestEngine(pipeline, config=config, mode=ResearchMode.PURE_SIM)
         result = engine.run(trending_data, symbol="TEST")
         assert result.replay.bars_processed == 200
 

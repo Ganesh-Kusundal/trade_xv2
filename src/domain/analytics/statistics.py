@@ -140,9 +140,7 @@ class StatisticsEngine:
         dd = float(np.max(drawdown)) if len(drawdown) > 0 else 0.0
         peak_idx = int(np.argmax(arr))
         trough_idx = (
-            int(np.argmin(arr[peak_idx:]) + peak_idx)
-            if peak_idx < len(arr)
-            else len(arr) - 1
+            int(np.argmin(arr[peak_idx:]) + peak_idx) if peak_idx < len(arr) else len(arr) - 1
         )
         return dd, int(trough_idx - peak_idx)
 
@@ -189,9 +187,7 @@ class StatisticsEngine:
         else:
             stats.profit_factor = 0.0
 
-        stats.payoff_ratio = (
-            stats.avg_win / abs(stats.avg_loss) if stats.avg_loss != 0 else 0.0
-        )
+        stats.payoff_ratio = stats.avg_win / abs(stats.avg_loss) if stats.avg_loss != 0 else 0.0
         stats.expected_value = (
             stats.win_rate * stats.avg_win + (1 - stats.win_rate) * stats.avg_loss
         )

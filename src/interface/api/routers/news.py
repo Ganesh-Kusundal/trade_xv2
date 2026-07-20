@@ -53,15 +53,17 @@ async def get_news(
 
         items = []
         for item in raw_items[:limit]:
-            items.append({
-                "headline": item.get("headline", ""),
-                "summary": item.get("summary", ""),
-                "symbol": item.get("symbol", ""),
-                "category": item.get("category", ""),
-                "source": item.get("source", ""),
-                "timestamp": item.get("timestamp", ""),
-                "url": item.get("url"),
-            })
+            items.append(
+                {
+                    "headline": item.get("headline", ""),
+                    "summary": item.get("summary", ""),
+                    "symbol": item.get("symbol", ""),
+                    "category": item.get("category", ""),
+                    "source": item.get("source", ""),
+                    "timestamp": item.get("timestamp", ""),
+                    "url": item.get("url"),
+                }
+            )
 
         return {"items": items, "count": len(items)}
 

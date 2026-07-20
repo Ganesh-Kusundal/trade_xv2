@@ -7,8 +7,8 @@ from decimal import Decimal
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from infrastructure.mappers import DefaultFieldMapping
 from domain.types import OrderStatus
+from infrastructure.mappers import DefaultFieldMapping
 
 
 @given(st.text(min_size=0, max_size=32))

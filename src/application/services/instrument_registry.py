@@ -327,7 +327,9 @@ class CanonicalInstrumentRegistry:
         results = self._gateway.search(query) if hasattr(self._gateway, "search") else []
         instruments = []
         for r in results:
-            if exchange and normalize_exchange(r.get("exchange", "")) != normalize_exchange(exchange):
+            if exchange and normalize_exchange(r.get("exchange", "")) != normalize_exchange(
+                exchange
+            ):
                 continue
             instruments.append(self._to_canonical(r, exchange or r.get("exchange", "NSE")))
         return instruments

@@ -33,9 +33,7 @@ class ReplayStateAssertor:
             (state_matches, state_diff)
         """
         expected: dict[str, Any] = {"event_count": len(event_items)}
-        actual: dict[str, Any] = {
-            "event_count": len(event_items) if result is not None else 0
-        }
+        actual: dict[str, Any] = {"event_count": len(event_items) if result is not None else 0}
         diff: dict[str, Any] = {}
 
         if result is None:
@@ -63,8 +61,7 @@ class ReplayStateAssertor:
         # Trade details comparison
         expected["trades"] = self.derive_expected_trades(event_items)
         actual["trades"] = [
-            (t.symbol, str(t.side), t.quantity, str(t.entry_price))
-            for t in result.session.trades
+            (t.symbol, str(t.side), t.quantity, str(t.entry_price)) for t in result.session.trades
         ]
 
         # Position state comparison
@@ -128,7 +125,8 @@ class ReplayStateAssertor:
         Open positions marked at entry price (best available estimate).
         """
         trade_events = [
-            i for i in event_items
+            i
+            for i in event_items
             if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
         ]
         if not trade_events:

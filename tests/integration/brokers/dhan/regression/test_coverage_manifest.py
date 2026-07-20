@@ -57,9 +57,7 @@ class TestManifestCompleteness:
             if field.startswith("supports_") and getattr(caps, field) is True
         }
         # Capabilities covered by P0 cases
-        frozenset(
-            c.capability for c in ALL_CASES if c.severity == "P0"
-        )
+        frozenset(c.capability for c in ALL_CASES if c.severity == "P0")
 
         # Each declared capability should have at least P1 coverage in future;
         # for now we only enforce P0 capabilities registered in the manifest
@@ -74,9 +72,7 @@ class TestManifestCompleteness:
         """Case tier must be one of the known values."""
         valid = {"off_market_safe", "market_hours", "pre_prod", "sandbox"}
         for case in ALL_CASES:
-            assert case.tier in valid, (
-                f"Case '{case.id}' has invalid tier '{case.tier}'"
-            )
+            assert case.tier in valid, f"Case '{case.id}' has invalid tier '{case.tier}'"
 
     def test_severity_values_valid(self):
         """Case severity must be P0, P1, or P2."""

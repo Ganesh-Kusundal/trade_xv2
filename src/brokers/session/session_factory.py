@@ -45,7 +45,6 @@ def create_session(broker: str = "paper", **kwargs: Any) -> BrokerSession:
         ensure_core_plugins()
     if get_broker_plugin(broker_id) is None:
         raise ValueError(
-            f"Unknown broker {broker_id!r}. "
-            f"Available: {', '.join(available_brokers()) or 'none'}"
+            f"Unknown broker {broker_id!r}. Available: {', '.join(available_brokers()) or 'none'}"
         )
     return BrokerSession(broker_id, **kwargs)

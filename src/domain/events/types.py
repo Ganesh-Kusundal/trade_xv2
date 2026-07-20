@@ -13,11 +13,12 @@ compatibility — the original imports continue to work unchanged.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 
 EVENT_ID_HEX_LENGTH = 16
 
@@ -185,13 +186,14 @@ class EventType(str, Enum):
 
 # ── Backward-compatible re-exports ──────────────────────────────────────
 # All symbols previously in this file remain importable from here.
-from domain.events.payloads import (  # noqa: E402, F401
+from domain.events.payloads import (  # noqa: E402
     EVENT_PAYLOADS,
     EventPayload,
     canonical_event_types,
     make_payload,
 )
-from domain.events.typed_events import (  # noqa: E402, F401
+from domain.events.trade_id import TradeIdKey  # noqa: E402
+from domain.events.typed_events import (  # noqa: E402
     ExecutionPlanBuiltEvent,
     OrderFilledEvent,
     OrderRequestedEvent,
@@ -203,18 +205,14 @@ from domain.events.typed_events import (  # noqa: E402, F401
     TypedDomainEvent,
     to_typed_event,
 )
-from domain.events.trade_id import TradeIdKey  # noqa: E402, F401
-
 
 __all__ = [
-    # Core types (defined here)
-    "DomainEvent",
-    "EventType",
     # Re-exported from payloads.py
     "EVENT_PAYLOADS",
+    # Core types (defined here)
+    "DomainEvent",
     "EventPayload",
-    "canonical_event_types",
-    "make_payload",
+    "EventType",
     # Re-exported from typed_events.py
     "ExecutionPlanBuiltEvent",
     "OrderFilledEvent",
@@ -224,8 +222,10 @@ __all__ = [
     "QuoteUpdatedEvent",
     "TradeAppliedEvent",
     "TradeFilledEvent",
-    "TypedDomainEvent",
-    "to_typed_event",
     # Re-exported from trade_id.py
     "TradeIdKey",
+    "TypedDomainEvent",
+    "canonical_event_types",
+    "make_payload",
+    "to_typed_event",
 ]

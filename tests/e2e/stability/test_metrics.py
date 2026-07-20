@@ -9,7 +9,7 @@ Verifies:
 
 import threading
 
-from infrastructure.metrics import Counter, Gauge, Histogram, MetricsRegistry, metrics_registry
+from infrastructure.metrics import Counter, Gauge, Histogram, MetricsRegistry
 from infrastructure.metrics.types import Timer
 
 
@@ -137,4 +137,5 @@ class TestGlobalRegistry:
     def test_singleton(self):
         from infrastructure.metrics.registry import metrics_registry as r1
         from infrastructure.metrics.registry import metrics_registry as r2
+
         assert r1 is r2

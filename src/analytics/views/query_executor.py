@@ -45,11 +45,7 @@ class QueryExecutor:
                 return conn.execute(sql, params)
             return conn.execute(sql)
         with self._get_query_connection() as conn:
-            df = (
-                conn.execute(sql, params).fetchdf()
-                if params
-                else conn.execute(sql).fetchdf()
-            )
+            df = conn.execute(sql, params).fetchdf() if params else conn.execute(sql).fetchdf()
         return duckdb.from_df(df)
 
     def query_df(self, sql: str, params: list | None = None) -> Any:

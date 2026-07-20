@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from infrastructure.auth import AuthManager, TokenSource, TokenState
 from brokers.dhan.auth.token_scheduler import TokenRefreshScheduler
+from infrastructure.auth import AuthManager, TokenSource, TokenState
 
 
 @pytest.fixture

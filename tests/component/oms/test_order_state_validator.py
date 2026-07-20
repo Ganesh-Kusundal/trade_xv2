@@ -15,8 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from application.oms._internal.order_state_validator import OrderStateValidator
-from domain.types import OrderStatus
 from domain.state_machine import IllegalTransitionError
+from domain.types import OrderStatus
 
 
 @pytest.fixture

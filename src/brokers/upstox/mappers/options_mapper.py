@@ -25,13 +25,6 @@ def _leg_market_data(leg: dict) -> dict:
     return md if isinstance(md, dict) else {}
 
 
-def _leg_greeks(leg: dict) -> dict:
-    if not isinstance(leg, dict):
-        return {}
-    g = leg.get("option_greeks")
-    return g if isinstance(g, dict) else {}
-
-
 def _leg_ltp(leg: dict):
     md = _leg_market_data(leg)
     val = md.get("ltp")
@@ -94,9 +87,7 @@ def to_option_contract(payload: Any) -> OptionContract:
     return OptionContract(
         strike=UpstoxPriceParser.parse(payload.get("strike_price") or 0),
         expiry=str(payload.get("expiry") or ""),
-        instrument_type=instrument_type_from_wire(
-            str(payload.get("instrument_type") or "")
-        ).value,
+        instrument_type=instrument_type_from_wire(str(payload.get("instrument_type") or "")).value,
         exchange=str(payload.get("exchange") or "NFO"),
         lot_size=to_int(payload.get("lot_size")),
         call_ltp=_leg_ltp(call),

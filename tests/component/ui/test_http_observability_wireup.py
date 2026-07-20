@@ -15,8 +15,8 @@ from __future__ import annotations
 import socket
 from decimal import Decimal
 
-from infrastructure.observability.http_server import HttpObservabilityServer
 from infrastructure.lifecycle import LifecycleManager
+from infrastructure.observability.http_server import HttpObservabilityServer
 
 
 def _find_free_port() -> int:

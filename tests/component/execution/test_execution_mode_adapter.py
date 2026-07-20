@@ -1,7 +1,6 @@
 """Unit tests for ExecutionModeAdapter."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -11,9 +10,9 @@ from application.execution.oms_backtest_adapter import (
     SimulatedOMSAdapter,
     create_execution_adapter,
 )
-from application.oms.factory import create_trading_context
 from application.oms.order_manager import OmsOrderCommand
 from domain import Side
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture

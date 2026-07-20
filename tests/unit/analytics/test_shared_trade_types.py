@@ -1,11 +1,12 @@
 """P2-analytics: single Trade/Position for simulation."""
-from datetime import datetime
 
-from analytics.replay.models import SimulatedTrade
-from analytics.paper.models import PaperTrade
-from analytics.shared.trade_types import SimTrade, SimPosition, sim_trade_to_domain
-from domain.enums import Side
+from datetime import datetime
 from decimal import Decimal
+
+from analytics.paper.models import PaperTrade
+from analytics.replay.models import SimulatedTrade
+from analytics.shared.trade_types import SimPosition, SimTrade
+from domain.enums import Side
 
 
 def test_sim_trade_construction():
@@ -55,9 +56,18 @@ def test_replay_and_paper_share_domain_conversion():
         )
         sim.to_domain_trade()
         paper = PaperTrade(
-            symbol="RELIANCE", side=Side.BUY, entry_price=2500.0, exit_price=2600.0,
-            quantity=10, entry_time=datetime(2026, 1, 1), exit_time=datetime(2026, 1, 2),
-            pnl=100.0, pnl_pct=4.0, commission=0.0, slippage_cost=0.0, strategy="s",
+            symbol="RELIANCE",
+            side=Side.BUY,
+            entry_price=2500.0,
+            exit_price=2600.0,
+            quantity=10,
+            entry_time=datetime(2026, 1, 1),
+            exit_time=datetime(2026, 1, 2),
+            pnl=100.0,
+            pnl_pct=4.0,
+            commission=0.0,
+            slippage_cost=0.0,
+            strategy="s",
         )
         paper.to_domain_trade()
     finally:
@@ -67,4 +77,3 @@ def test_replay_and_paper_share_domain_conversion():
     # Same symbol/side/quantity mapping shape.
     assert calls[0]["symbol"] == calls[1]["symbol"] == "RELIANCE"
     assert calls[0]["side"] == calls[1]["side"] == "BUY"
-

@@ -16,7 +16,6 @@ from datetime import date
 #   from datalake.exchange_registry import (
 #       get_market_open_time, get_market_close_time, get_session_minutes,
 #   )
-
 import pyarrow as pa
 
 # Canonical column names
@@ -35,10 +34,10 @@ CANONICAL_COLUMNS = [
 
 # Temporal columns for point-in-time safety (metadata, not candle data)
 TEMPORAL_COLUMNS = [
-    "event_time",      # When the event actually occurred (identical to timestamp for candles)
-    "published_at",    # When this version of the bar became available
-    "ingested_at",     # When the system ingested this bar version
-    "is_correction",   # Boolean flag: true if this replaces a previous version
+    "event_time",  # When the event actually occurred (identical to timestamp for candles)
+    "published_at",  # When this version of the bar became available
+    "ingested_at",  # When the system ingested this bar version
+    "is_correction",  # Boolean flag: true if this replaces a previous version
 ]
 
 OPTIONAL_COLUMNS = [
@@ -100,6 +99,7 @@ def enforce_canonical_schema(table: pa.Table) -> pa.Table:
     if target_schema.equals(table.schema):
         return table
     return table.cast(target_schema)
+
 
 # Trade_J schema (source)
 TRADEJ_SCHEMA = {
@@ -169,13 +169,16 @@ def load_universe(universe: str, catalog=None, as_of_date=None) -> list[str]:
                 if isinstance(catalog, DataCatalog):
                     rows = catalog.get_universe_as_of(universe, as_of_date)
                 else:
-                    rows = catalog.execute("""
+                    rows = catalog.execute(
+                        """
                         SELECT symbol FROM universe_history
                         WHERE universe = ?
                           AND effective_date <= ?
                           AND (end_date IS NULL OR end_date > ?)
                         ORDER BY symbol
-                    """, [universe, as_of_date, as_of_date]).fetchall()
+                    """,
+                        [universe, as_of_date, as_of_date],
+                    ).fetchall()
                 if rows:
                     symbols = [s.upper() for s in rows]
                     _universe_cache[cache_key] = symbols

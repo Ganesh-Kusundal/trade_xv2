@@ -20,7 +20,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -29,6 +29,7 @@ from domain.ports.time_service import get_current_clock
 
 def _signal_timestamp() -> datetime:
     return get_current_clock().now()
+
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -209,5 +210,6 @@ class StrategyResult:
             if s.symbol == symbol:
                 return s
         return None
+
 
 from analytics.scanner.models import Candidate  # noqa: F401
