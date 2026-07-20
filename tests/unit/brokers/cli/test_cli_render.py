@@ -117,39 +117,41 @@ def test_present_option_chain_table(monkeypatch) -> None:
     assert "sample_strikes" not in out
 
 
-def test_present_json_mode_when_piped(monkeypatch, capsys) -> None:
-    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-    present(None, {"symbol": "RELIANCE", "ltp": 2500.5})
-    out = capsys.readouterr().out
-    assert json.loads(out) == {"symbol": "RELIANCE", "ltp": 2500.5}
+def test_present_json_mode_when_piped(monkeypatch, caplog) -> None:
+    monkeypatch.setattr("brokers.cli._render.sys.stdout.isatty", lambda: False)
+    with caplog.at_level("INFO", logger="brokers.cli._render"):
+        present(None, {"symbol": "RELIANCE", "ltp": 2500.5})
+    assert json.loads(caplog.records[0].message) == {"symbol": "RELIANCE", "ltp": 2500.5}
 
 
-def test_present_json_mode_forced_by_flag(monkeypatch, capsys) -> None:
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+def test_present_json_mode_forced_by_flag(monkeypatch, caplog) -> None:
+    monkeypatch.setattr("brokers.cli._render.sys.stdout.isatty", lambda: True)
 
     class _Ctx:
         def __init__(self) -> None:
             self.obj = {"json": True}
 
-    present(_Ctx(), {"symbol": "RELIANCE"})
-    out = capsys.readouterr().out
-    assert json.loads(out) == {"symbol": "RELIANCE"}
+    with caplog.at_level("INFO", logger="brokers.cli._render"):
+        present(_Ctx(), {"symbol": "RELIANCE"})
+    assert json.loads(caplog.records[0].message) == {"symbol": "RELIANCE"}
 
 
-def test_cli_json_flag_emits_json(monkeypatch) -> None:
+def test_cli_json_flag_emits_json(monkeypatch, caplog) -> None:
     monkeypatch.setattr(
         "brokers.cli.broker.get_quote",
         lambda b, symbol: {"symbol": symbol, "ltp": 123.0},
     )
-    res = CliRunner().invoke(broker, ["--json", "--broker", "paper", "quote", "FOO"])
+    with caplog.at_level("INFO", logger="brokers.cli._render"):
+        res = CliRunner().invoke(broker, ["--json", "--broker", "paper", "quote", "FOO"])
     assert res.exit_code == 0, res.output
-    assert json.loads(res.output) == {"symbol": "FOO", "ltp": 123.0}
+    assert json.loads(caplog.records[-1].message) == {"symbol": "FOO", "ltp": 123.0}
 
 
-def test_cli_discover_runs() -> None:
-    res = CliRunner().invoke(broker, ["--broker", "paper", "discover"])
+def test_cli_discover_runs(caplog) -> None:
+    with caplog.at_level("INFO", logger="brokers.cli._render"):
+        res = CliRunner().invoke(broker, ["--json", "--broker", "paper", "discover"])
     assert res.exit_code == 0
-    assert "paper" in res.output
+    assert "paper" in caplog.text
 
 
 def test_present_yaml_mode_emits_valid_yaml(caplog) -> None:

@@ -81,7 +81,7 @@ def test_get_quote_carries_oi_for_derivatives(fake_client, resolver):
         {
             "data": {
                 "NSE_FNO": {
-                    "99999": {
+                    "55100": {
                         "last_price": 245.0,
                         "ohlc": {
                             "open": 240.0,
@@ -100,7 +100,7 @@ def test_get_quote_carries_oi_for_derivatives(fake_client, resolver):
         },
     )
     adapter = MarketDataAdapter(fake_client, resolver)
-    quote = adapter.get_quote("NIFTY 26 JUN FUT", "NFO")
+    quote = adapter.get_quote("NIFTY JUN FUT", "NFO")
     assert quote.oi == 182345
 
 

@@ -39,6 +39,8 @@ def _make_caps() -> BrokerCapabilities:
 class _RealGateway:
     """Minimal real gateway (not a mock) honouring the wire adapter contract."""
 
+    broker_id = "dhan"
+
     def __init__(self, caps: BrokerCapabilities) -> None:
         self._caps = caps
 
@@ -69,10 +71,6 @@ class _RealGateway:
 
 @pytest.fixture
 def session(monkeypatch):
-    from runtime.session_historical import wire_session_historical
-
-    wire_session_historical()
-
     gw = _RealGateway(_make_caps())
     MarketDataGatewayAdapter(gw, broker_id="dhan", capabilities=_make_caps())
 

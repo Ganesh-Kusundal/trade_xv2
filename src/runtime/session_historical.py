@@ -115,7 +115,22 @@ def wire_session_historical() -> None:
                 f"broker {broker_id!r} does not support historical data"
             )
 
-        broker_id = getattr(session, "broker_id", None) or getattr(gw, "broker_id", "unknown")
+        status = getattr(session, "status", None)
+        broker_id = (
+            getattr(session, "broker_id", None)
+            or getattr(gw, "broker_id", None)
+            or getattr(status, "broker_id", None)
+            or getattr(caps, "broker_id", None)
+        )
+        if not broker_id:
+            provider = getattr(session, "provider", None)
+            if provider is not None:
+                broker_id = (
+                    getattr(provider, "broker_id", None)
+                    or getattr(provider, "name", None)
+                    or getattr(getattr(provider, "_gw", None), "broker_id", None)
+                )
+        broker_id = broker_id or "unknown"
         adapter = MarketDataGatewayAdapter(gw, broker_id=str(broker_id), capabilities=caps)
         registry = BrokerRegistry()
         registry.register(adapter)

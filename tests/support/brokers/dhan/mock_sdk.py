@@ -35,24 +35,31 @@ def mock_market_feed_class() -> Iterator[MagicMock]:
         with mock_market_feed_class() as MockFeed:
             MockFeed.return_value.some_method.return_value = ...
     """
+    shared = MagicMock()
     with ExitStack() as stack:
-        mocks = [stack.enter_context(patch(target)) for target in _FEED_PATCH_TARGETS]
-        # All patches target the same object — yield the first (source) mock.
-        yield mocks[0]
+        for target in _FEED_PATCH_TARGETS:
+            stack.enter_context(patch(target, shared))
+        yield shared
 
 
 @contextmanager
 def mock_order_update_class() -> Iterator[MagicMock]:
     """Patch the SDK OrderUpdate class at all known import locations."""
+    shared = MagicMock()
     with ExitStack() as stack:
-        mocks = [stack.enter_context(patch(target)) for target in _ORDER_PATCH_TARGETS]
-        yield mocks[0]
+        for target in _ORDER_PATCH_TARGETS:
+            stack.enter_context(patch(target, shared))
+        yield shared
 
 
 @contextmanager
 def mock_both_sdk_classes() -> Iterator[tuple[MagicMock, MagicMock]]:
     """Patch both SDK classes simultaneously at all known import locations."""
+    feed_shared = MagicMock()
+    order_shared = MagicMock()
     with ExitStack() as stack:
-        feed_mocks = [stack.enter_context(patch(t)) for t in _FEED_PATCH_TARGETS]
-        order_mocks = [stack.enter_context(patch(t)) for t in _ORDER_PATCH_TARGETS]
-        yield feed_mocks[0], order_mocks[0]
+        for target in _FEED_PATCH_TARGETS:
+            stack.enter_context(patch(target, feed_shared))
+        for target in _ORDER_PATCH_TARGETS:
+            stack.enter_context(patch(target, order_shared))
+        yield feed_shared, order_shared

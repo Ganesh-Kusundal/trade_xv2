@@ -183,7 +183,7 @@ def test_market_feed_disconnect_stops_backoff():
             self.closed = True
 
     fake = FakeFeed()
-    feed._feed = fake
+    object.__setattr__(feed._conn, "_feed", fake)
     feed._is_connected = True
     feed._stop_event.clear()
 

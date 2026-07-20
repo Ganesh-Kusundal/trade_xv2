@@ -21,6 +21,14 @@
 - **P2:** Deleted dead `WebSocketConnectionManager`, `EncryptedTokenStateStore`; hoisted `DHAN_FIELD_MAPPING`; Upstox regression manifest parity (`conftest`, `test_e2e_smoke`, `MARKET_HOURS_CASES`); `@pytest.mark.chaos` on broker chaos suites; refreshed `docs/constitution/09-broker-subsystem-gap-analysis.md` §G-BS-P0-3/P1-5.
 - **Tests:** factory resilience wiring, capability validator field ratchet, order-stream exchange mapping, instrument search boundary, Upstox exchange mapping, extended transport error ratchet.
 
+### Broker suite green — unit + architecture (2026-07-20)
+
+- **Production:** `DhanWireAdapter.stream_order` / `unstream_order` delegate to `subscription_engine`; gateway surface freeze updated.
+- **Historical routing:** `build_coordinator` resolves `broker_id` from `session.status`, `caps.broker_id`, and `provider.name` (fixes paper verify `RoutingError` when `PaperGateway` lacks `broker_id`).
+- **Unit suite:** `tests/unit/brokers` **1771 passed**, 0 failed (44 skipped, 4 xfailed pre-existing).
+- **Architecture:** `tests/architecture -k broker` **100 passed**.
+- **Integration:** `tests/integration/brokers` still has ~94 pre-existing failures (module path drift, extended-capability attrs, orchestrator renames) — out of this plan’s scoped root causes; regression manifest paths mostly green with clean off-market skips.
+
 
 | Week | Date (Mon 03:00 UTC) | Status | Notes |
 |------|----------------------|--------|-------|

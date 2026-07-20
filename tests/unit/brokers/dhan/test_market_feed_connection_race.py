@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import threading
 import time
+from io import StringIO
 from unittest import mock
+from unittest.mock import MagicMock
 
 from brokers.dhan.websocket.connection import MarketFeedConnection
 from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class
@@ -25,6 +27,8 @@ from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class
 class _FakeSDKFeed:
     """Stand-in for dhanhq's MarketFeed — records call ordering, never raises."""
 
+    ready = threading.Event()
+
     def __init__(self, **kwargs) -> None:
         self.run_called_at: float | None = None
         self.close_called_at: float | None = None
@@ -32,9 +36,7 @@ class _FakeSDKFeed:
 
     def run(self) -> None:
         self.run_called_at = time.monotonic()
-        # Simulate the SDK's blocking loop.run_until_complete() taking a
-        # moment to actually own the loop — without the fix, stop() racing
-        # in here is exactly the scenario that raised the SDK error.
+        self.ready.set()
         time.sleep(self._run_delay)
 
     def close_connection(self) -> None:
@@ -65,9 +67,7 @@ def test_stop_immediately_after_start_never_closes_before_run_claims_loop():
         conn = _make_connection(fake_feed)
         started = conn.start()
         assert started is True
-
-        # Zero delay — this is exactly the CLI subscribe-probe pattern that
-        # reproduced the bug on every run.
+        assert fake_feed.ready.wait(timeout=2.0)
         conn.stop(timeout_seconds=2.0)
 
     assert fake_feed.run_called_at is not None, "feed.run() was never entered"

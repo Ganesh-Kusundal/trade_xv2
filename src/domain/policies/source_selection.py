@@ -185,7 +185,7 @@ def auto_dual_broker_policy(
     return SourceSelectionPolicy(
         historical=RoutingPolicy(
             mode="capability_match",
-            candidates=("upstox", "dhan"),
+            candidates=("upstox", "dhan", "paper"),
             required_features=frozenset({"historical_data"}),
             allow_fallback=True,
             max_parallel_sources=2,

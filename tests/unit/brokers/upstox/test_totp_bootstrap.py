@@ -177,10 +177,16 @@ class TestTotpBootstrap:
         mock_client.generate_token.assert_called_once()
         assert token_manager.current_token() == "brand-new-token"
 
+    @patch("brokers.upstox.auth.token_persistence.os.getenv", return_value=None)
+    @patch("brokers.upstox.auth.token_persistence.sys")
     @patch("brokers.upstox.auth.login.perform_login")
     @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_bootstrap_totp_fallback_to_interactive_oauth(
-        self, mock_totp_client_class, mock_perform_login
+        self,
+        mock_totp_client_class,
+        mock_perform_login,
+        mock_sys,
+        _mock_getenv,
     ):
         """Test that TOTP bootstrap failure falls back to interactive browser OAuth login."""
         mock_totp_client_class.side_effect = Exception("TOTP API error")
@@ -191,16 +197,16 @@ class TestTotpBootstrap:
             "issued_at_ms": 1000,
         }
 
+        class _NonTestModules:
+            def __contains__(self, key: object) -> bool:
+                return key not in {"pytest", "unittest"}
+
+        mock_sys.modules = _NonTestModules()
+
         settings = _make_settings()
         token_manager = UpstoxTokenManager(settings, state_store=MagicMock())
 
-        # Force in_test=False check using patch.dict on sys.modules
-        import sys
-
-        with patch.dict("sys.modules"):
-            sys.modules.pop("pytest", None)
-            sys.modules.pop("unittest", None)
-            state = token_manager._bootstrap_totp()
+        state = token_manager._bootstrap_totp()
 
         assert state.access_token == "fallback-access-token"
         assert state.refresh_token == "fallback-refresh-token"
