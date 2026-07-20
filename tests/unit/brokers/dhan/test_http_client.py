@@ -78,3 +78,20 @@ def test_update_token():
     client.update_token("NEW_TOKEN")
     assert client.access_token == "NEW_TOKEN"
     assert client._session.headers["access-token"] == "NEW_TOKEN"
+
+
+def test_async_http_client_uses_public_config_constants():
+    from brokers.dhan import config as dhan_config
+    from brokers.dhan.api import async_http_client
+
+    assert async_http_client.DEFAULT_MAX_RETRIES == dhan_config.DEFAULT_MAX_RETRIES
+    assert async_http_client.DEFAULT_RATE_LIMITS == dhan_config.DEFAULT_RATE_LIMITS
+    assert async_http_client.DEFAULT_BASE_DELAY_MS == dhan_config.DEFAULT_BASE_DELAY_MS
+    assert (
+        async_http_client.DEFAULT_REFRESH_COOLDOWN_SECONDS
+        == dhan_config.DEFAULT_REFRESH_COOLDOWN_SECONDS
+    )
+    assert (
+        async_http_client.DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+        == dhan_config.DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+    )

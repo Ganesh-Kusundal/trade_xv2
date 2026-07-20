@@ -49,6 +49,7 @@ class ReconnectController:
     """
 
     _HEARTBEAT_INTERVAL_S = 5.0
+    _HEALTH_POLL_INTERVAL_S = 1.0
     _RECONNECT_BASE_DELAY_S = 1.0
     _RECONNECT_MAX_DELAY_S = 60.0
     _MAX_RECONNECT_ATTEMPTS = 5
@@ -102,7 +103,7 @@ class ReconnectController:
         """
         delay = self._RECONNECT_BASE_DELAY_S
         while self._running():
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(self._HEALTH_POLL_INTERVAL_S)
             session = self._sessions.get(session_id)
             if session is None:
                 return

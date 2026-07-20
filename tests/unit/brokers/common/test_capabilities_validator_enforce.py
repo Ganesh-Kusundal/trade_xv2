@@ -47,3 +47,30 @@ def test_enforce_raises_on_mismatch() -> None:
 
 def test_enforce_is_silent_when_consistent() -> None:
     enforce_gateway_capabilities(_ConsistentGateway())  # must not raise
+
+
+class _HistoricalCaps:
+    supports_historical_data = True
+
+
+class _NoHistoryGateway:
+    def capabilities(self) -> _HistoricalCaps:
+        return _HistoricalCaps()
+
+
+class _HistoryGateway:
+    def capabilities(self) -> _HistoricalCaps:
+        return _HistoricalCaps()
+
+    def history(self, *args, **kwargs):
+        return None
+
+
+def test_enforce_raises_when_historical_data_unbacked() -> None:
+    with pytest.raises(CapabilityMismatchError) as exc_info:
+        enforce_gateway_capabilities(_NoHistoryGateway())
+    assert "supports_historical_data" in str(exc_info.value)
+
+
+def test_enforce_passes_when_history_present() -> None:
+    enforce_gateway_capabilities(_HistoryGateway())

@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 class ExitAllAdapter:
     """Adapter for Dhan Exit All API (v2.5)."""
 
-    def __init__(self, client: DhanHttpClient):
+    def __init__(self, client: DhanHttpClient, *, allow_live_orders: bool = False) -> None:
         self._client = client
+        self._allow_live_orders = allow_live_orders
 
     def exit_all(self, authorize: Callable[[], None] | None = None) -> ExitAllResponse:
         """Close all positions and cancel all orders.
@@ -33,6 +34,10 @@ class ExitAllAdapter:
             ExitAllError: If API call fails
             LiveBrokerBlockedError / RiskRejectedError: If ``authorize`` blocks.
         """
+        if not self._allow_live_orders:
+            raise ExitAllError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
         if authorize is not None:
             authorize()
         try:

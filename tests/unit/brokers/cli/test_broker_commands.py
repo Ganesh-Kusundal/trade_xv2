@@ -42,6 +42,16 @@ def test_broker_list_includes_paper_connected(cli_config_env, caplog) -> None:
 
 
 @pytest.mark.unit
+def test_broker_list_does_not_construct_broker_session(cli_config_env, caplog, monkeypatch) -> None:
+    def _fail_if_session(*args, **kwargs):
+        raise AssertionError("broker list must not construct BrokerSession")
+
+    monkeypatch.setattr("brokers.cli.broker.BrokerSession", _fail_if_session)
+    rows = _invoke_json(["list"], caplog)
+    assert rows
+
+
+@pytest.mark.unit
 def test_broker_list_marks_configured_default_active(cli_config_env, caplog) -> None:
     from brokers.cli._preferences import PreferencesStore
 

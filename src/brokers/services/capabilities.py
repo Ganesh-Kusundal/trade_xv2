@@ -11,19 +11,9 @@ from ._session import _borrow_session
 
 
 def _session_gateway(session: BrokerSession) -> Any | None:
-    """Resolve the wire gateway from a BrokerSession (internal).
-
-    Escape hatch: capability matrices live on the broker-specific wire gateway
-    (``provider._gw``), not on the public session facade. We reach into the
-    provider's private ``_gw`` first, then fall back to ``session.session._gateway``.
-    This is intentionally coupled to provider internals because the capability
-    surface is not yet exposed through a public, stable API.
-    """
+    """Resolve the wire gateway from a BrokerSession (internal)."""
     provider = session.provider
-    gw = getattr(provider, "_gw", None)
-    if gw is not None:
-        return gw
-    return getattr(session.session, "_gateway", None)
+    return getattr(provider, "gateway", None)
 
 
 def _cap_value(value: Any) -> Any:

@@ -50,6 +50,10 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
 
     broker_id = "upstox"
 
+    @property
+    def broker(self) -> UpstoxBroker:
+        return self._broker
+
     def _transport_connected(self) -> bool:
         """Authenticated + transport alive.
 

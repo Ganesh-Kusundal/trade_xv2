@@ -104,6 +104,7 @@ class OrdersAdapter:
             client=self._client,
             event_bus=event_bus,
             allow_live_orders=allow_live_orders,
+            get_order_fn=self.get_order,
         )
 
     # ── Validation (delegated) ──────────────────────────────────────────

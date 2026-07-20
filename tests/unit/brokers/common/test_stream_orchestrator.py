@@ -319,7 +319,12 @@ class _MarketTickConsumer:
 
 
 @pytest.fixture
-async def orchestrator_with_transport_loss():
+async def orchestrator_with_transport_loss(monkeypatch):
+    from application.streaming.reconnect_controller import ReconnectController
+
+    monkeypatch.setattr(ReconnectController, "_HEALTH_POLL_INTERVAL_S", 0.01)
+    monkeypatch.setattr(ReconnectController, "_RECONNECT_BASE_DELAY_S", 0.01)
+
     gateway = _TransportLossGateway()
     registry = BrokerRegistry()
     registry.register(gateway)
@@ -346,18 +351,29 @@ class TestStreamOrchestratorAfterTransportLoss:
 
         assert gateway._plans[0].on_raw_frame is not None
         gateway.deliver_tick()
-        await asyncio.sleep(0.05)
+        # Let the orchestrator's async tick dispatch run.
+        for _ in range(20):
+            if len(consumer.ticks) >= 1:
+                break
+            await asyncio.sleep(0.01)
         assert len(consumer.ticks) == 1
 
         gateway._connected = False
-        await asyncio.sleep(2.5)
 
+        deadline = asyncio.get_running_loop().time() + 2.0
+        while asyncio.get_running_loop().time() < deadline:
+            if len(gateway._plans) >= 2:
+                break
+            await asyncio.sleep(0.01)
         assert len(gateway._plans) >= 2
         assert gateway._plans[-1].on_raw_frame is not None
 
         gateway._connected = True
         gateway.deliver_tick(ltp=101.0)
-        await asyncio.sleep(0.05)
+        for _ in range(20):
+            if len(consumer.ticks) >= 2:
+                break
+            await asyncio.sleep(0.01)
         assert len(consumer.ticks) >= 2
 
         await orch.unsubscribe(sub_id)

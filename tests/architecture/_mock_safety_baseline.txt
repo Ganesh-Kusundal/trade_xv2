@@ -153,18 +153,14 @@ unit/brokers/common/test_acl.py
 unit/brokers/common/test_async_compat.py
 unit/brokers/common/test_audit.py
 unit/brokers/common/test_batch_quote_coordinator.py
-unit/brokers/common/test_bootstrap_create_intelligent_gateway.py
 unit/brokers/common/test_capabilities.py
 unit/brokers/common/test_capabilities_validator_enforce.py
 unit/brokers/common/test_e2e_order_lifecycle.py
 unit/brokers/common/test_event_bus_compatibility_shims.py
 unit/brokers/common/test_extensions_registry.py
-unit/brokers/common/test_gateway_contract_suite.py
 unit/brokers/common/test_gateway_errors.py
 unit/brokers/common/test_historical_coordinator.py
-unit/brokers/common/test_infrastructure_e2e.py
 unit/brokers/common/test_intelligent_market_gateway.py
-unit/brokers/common/test_live_broker_infrastructure.py
 unit/brokers/common/test_logging_redaction.py
 unit/brokers/common/test_margin_parse.py
 unit/brokers/common/test_provenance_ledger.py
@@ -207,7 +203,6 @@ unit/brokers/dhan/test_reconnecting_service.py
 unit/brokers/dhan/test_resolver.py
 unit/brokers/dhan/test_segments.py
 unit/brokers/dhan/test_settings.py
-unit/brokers/dhan/test_status_mapper.py
 unit/brokers/dhan/test_stream_depth_facade.py
 unit/brokers/dhan/test_super_orders.py
 unit/brokers/dhan/test_symbol_mapping.py
@@ -225,6 +220,8 @@ unit/brokers/services/test_live_actionable_gate.py
 unit/brokers/services/test_pipeline_wiring.py
 unit/brokers/test_capability_exposure.py
 unit/brokers/test_capability_matrix.py
+unit/brokers/test_data_provider_protocol.py
+unit/brokers/test_get_order_direct_lookup.py
 unit/brokers/test_wire_adapters.py
 unit/brokers/upstox/test_broker_bundle_split.py
 unit/brokers/upstox/test_context.py
@@ -240,7 +237,6 @@ unit/brokers/upstox/test_price_parser.py
 unit/brokers/upstox/test_redirect_server.py
 unit/brokers/upstox/test_segment_mapper.py
 unit/brokers/upstox/test_settings_loader.py
-unit/brokers/upstox/test_status_mapper.py
 unit/brokers/upstox/test_stream_depth_facade.py
 unit/brokers/upstox/test_stream_manager_tick_routing.py
 unit/brokers/upstox/test_token_expiry.py

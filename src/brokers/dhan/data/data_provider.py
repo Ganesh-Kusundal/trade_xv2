@@ -6,19 +6,23 @@ Used by ``tradex.connect("dhan", mode="market"|"trade")`` so
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from decimal import Decimal
-from typing import Any, Callable
+import logging
+from collections.abc import Callable
+from datetime import date
+from typing import Any
 
 import pandas as pd
 
-from domain.candles.historical import InstrumentRef, HistoricalSeries
+from brokers.common.quote_normalize import normalize_broker_quote
+from domain.candles.historical import InstrumentRef, HistoricalBar, HistoricalSeries
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
+from domain.exceptions import QuoteUnavailableError
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import DataProvider, SubscriptionHandle
 from domain.ports.time_service import get_current_clock
-from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+
+logger = logging.getLogger(__name__)
 
 
 class _DhanSubscriptionHandle(SubscriptionHandle):
@@ -54,6 +58,10 @@ class DhanDataProvider(DataProvider):
         self._broker_id = broker_id or "dhan"
 
     @property
+    def gateway(self) -> Any:
+        return self._gw
+
+    @property
     def name(self) -> str:
         return self._broker_id
 
@@ -65,8 +73,12 @@ class DhanDataProvider(DataProvider):
             if isinstance(q, QuoteSnapshot):
                 return q
             return self._normalize_quote(q, instrument_id)
-        except Exception:
-            return None
+        except QuoteUnavailableError:
+            raise
+        except Exception as exc:
+            raise QuoteUnavailableError(
+                f"quote fetch failed for {instrument_id.underlying}:{instrument_id.exchange}: {exc}"
+            ) from exc
 
     def get_quotes_batch(self, instrument_ids: list[InstrumentId]) -> list[QuoteSnapshot | None]:
         """Batch quotes; groups by exchange and uses gateway quote_batch when present."""
@@ -114,15 +126,15 @@ class DhanDataProvider(DataProvider):
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
-    ) -> HistoricalSeries:
-        """Return canonical ``HistoricalSeries`` (SSOT at broker→app boundary)."""
+    ) -> list[HistoricalBar]:
+        """Return canonical domain bars (export view of ``get_history_series``)."""
         return self.get_history_series(
             instrument_id,
             timeframe=timeframe,
             lookback_days=lookback_days,
             from_date=from_date,
             to_date=to_date,
-        )
+        ).bars
 
     def _history_dataframe(
         self,
@@ -265,72 +277,53 @@ class DhanDataProvider(DataProvider):
                 else:
                     snap = self._normalize_quote(payload, instrument_id)
                 callback(instrument_id, snap)
-            except Exception:
+            except Exception as exc:
                 # Never break the feed thread from user/provider errors
-                pass
+                logger.warning(
+                    "tick_normalize_failed",
+                    extra={
+                        "symbol": instrument_id.underlying,
+                        "exchange": instrument_id.exchange,
+                        "exc_type": type(exc).__name__,
+                    },
+                )
 
+        symbol = instrument_id.underlying
+        exchange = instrument_id.exchange
         try:
-            from brokers.dhan.data.instrument_adapter import to_dhan_symbol
-
             handle = self._gw.stream(
-                to_dhan_symbol(instrument_id),
-                instrument_id.exchange,
+                symbol,
+                exchange,
                 mode=mode,
                 on_tick=_on_tick,
             )
-            stop = getattr(handle, "stop", None) or getattr(handle, "disconnect", None)
+
+            def _stop() -> None:
+                unstream = getattr(self._gw, "unstream", None)
+                if callable(unstream):
+                    unstream(symbol, exchange, on_tick=_on_tick)
+
             return _DhanSubscriptionHandle(
-                stop_fn=stop if callable(stop) else None,
+                stop_fn=_stop,
                 is_connected_fn=lambda: getattr(handle, "is_connected", False),
             )
         except Exception:
-            return _DhanSubscriptionHandle()
+            logging.getLogger(__name__).exception(
+                "dhan_subscribe_failed",
+                extra={
+                    "symbol": instrument_id.underlying,
+                    "exchange": instrument_id.exchange,
+                },
+            )
+            raise
 
     def unsubscribe(self, handle: SubscriptionHandle) -> None:
         handle.unsubscribe()
 
     def _normalize_quote(self, raw_quote: Any, instrument_id: InstrumentId) -> QuoteSnapshot:
-        now = get_current_clock().now()
-        if isinstance(raw_quote, dict):
-            ltp = Decimal(str(raw_quote.get("last_price", 0)))
-            bid = Decimal(str(raw_quote.get("bid_price", raw_quote.get("best_bid", 0))))
-            ask = Decimal(str(raw_quote.get("ask_price", raw_quote.get("best_ask", 0))))
-            high = Decimal(str(raw_quote.get("high", 0)))
-            low = Decimal(str(raw_quote.get("low", 0)))
-            open_ = Decimal(str(raw_quote.get("open", 0)))
-            close = Decimal(str(raw_quote.get("close", raw_quote.get("prev_close", 0))))
-            volume = int(raw_quote.get("volume", 0) or 0)
-            oi = int(raw_quote.get("oi", 0) or 0)
-        else:
-            ltp = Decimal(str(getattr(raw_quote, "ltp", 0) or 0))
-            bid = Decimal(str(getattr(raw_quote, "bid", 0) or 0))
-            ask = Decimal(str(getattr(raw_quote, "ask", 0) or 0))
-            high = Decimal(str(getattr(raw_quote, "high", 0) or 0))
-            low = Decimal(str(getattr(raw_quote, "low", 0) or 0))
-            open_ = Decimal(str(getattr(raw_quote, "open", 0) or 0))
-            close = Decimal(str(getattr(raw_quote, "close", 0) or 0))
-            volume = int(getattr(raw_quote, "volume", 0) or 0)
-            oi = int(getattr(raw_quote, "oi", 0) or 0)
-
-        return QuoteSnapshot(
-            instrument=InstrumentRef(
-                symbol=instrument_id.underlying,
-                exchange=instrument_id.exchange,
-            ),
-            ltp=ltp,
-            event_time=now,
-            provenance=DataProvenance(
-                source=SourceIdentity(broker_id=self._broker_id),
-                fetched_at=now,
-                request_id="",
-                confidence=ProvenanceConfidence.AUTHORITATIVE,
-            ),
-            bid=bid if bid > 0 else None,
-            ask=ask if ask > 0 else None,
-            high=high if high > 0 else None,
-            low=low if low > 0 else None,
-            open=open_ if open_ > 0 else None,
-            close=close if close > 0 else None,
-            volume=volume,
-            oi=oi,
+        return normalize_broker_quote(
+            raw_quote,
+            instrument_id,
+            broker_id=self._broker_id,
+            now=get_current_clock().now(),
         )

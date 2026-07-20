@@ -7,12 +7,13 @@ Owns cancel, modify, kill-switch, and cancel-all operations.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from brokers.common.transport_errors import order_response_from_transport_error
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.exceptions import OrderError
-from domain import OrderResponse, OrderStatus
+from domain import Order, OrderResponse, OrderStatus
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,12 @@ class OrderCanceller:
         client: DhanHttpClient,
         event_bus: EventBus | None = None,
         allow_live_orders: bool = False,
+        get_order_fn: Callable[[str], Order] | None = None,
     ) -> None:
         self._client = client
         self._event_bus = event_bus
         self._allow_live_orders = allow_live_orders
+        self._get_order_fn = get_order_fn
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing order via PUT /orders/{order_id}.
@@ -113,6 +116,9 @@ class OrderCanceller:
         # Dhan uses both "success" and "ok"; both mean "cancelled".
         success = broker_status in {"success", "ok"}
         if success:
+            verified = self._verify_cancel_not_race_filled(order_id)
+            if verified is not None:
+                return verified
             return OrderResponse.ok(
                 order_id=order_id,
                 message=str(data.get("message", "Order cancelled")),
@@ -126,10 +132,27 @@ class OrderCanceller:
             raw_payload=data,
         )
 
+    def _verify_cancel_not_race_filled(self, order_id: str) -> OrderResponse | None:
+        """Post-cancel fill detection (H1) — fail if order filled before cancel landed."""
+        if self._get_order_fn is None:
+            return None
+        try:
+            order = self._get_order_fn(order_id)
+        except Exception as exc:
+            return order_response_from_transport_error(exc)
+        if order and order.status == OrderStatus.FILLED:
+            return OrderResponse.fail(
+                message=f"Order {order_id} was already filled before cancel completed",
+                status=OrderStatus.FILLED,
+            )
+        return None
+
     def cancel_all_orders(self) -> list[tuple[str, bool]]:
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
-            return []
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
 
         data = self._client.delete("/orders")
         # Defensive: the broker may return a list/None instead of a dict on

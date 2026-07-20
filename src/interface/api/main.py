@@ -56,11 +56,11 @@ def _wire_market_session(
         return
 
     from domain.session import Session
-    from infrastructure.providers.broker.broker_data_provider import BrokerDataProvider
+    from infrastructure.adapter_factory import create_data_adapter
     from interface.api.routers import market as market_router
     from interface.api.routers.live import market as live_market
 
-    session = Session(BrokerDataProvider(gateway, broker_name=str(broker_name)))
+    session = Session(create_data_adapter(gateway, broker_id=str(broker_name)))
     market_router.set_session(session)
     live_market.set_session(session)
     logger.info("Market Session wired (provider=%s)", broker_name)

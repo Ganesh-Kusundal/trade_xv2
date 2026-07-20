@@ -67,6 +67,15 @@ def _assert_connection_status(gw: UpstoxBrokerGateway) -> None:
         return
     status = gw.get_connection_status()
     assert isinstance(status, dict)
+    assert "portfolio_stream" in status
+
+
+def _assert_portfolio_stream_capability(gw: UpstoxBrokerGateway) -> None:
+    from domain import Capability
+
+    broker = gw._broker
+    provider = broker.get_capability(Capability.PORTFOLIO_STREAM)
+    assert provider is broker.portfolio_stream
 
 
 def _assert_ltp_stream(gw: UpstoxBrokerGateway) -> None:
@@ -85,6 +94,16 @@ def _assert_ltp_stream(gw: UpstoxBrokerGateway) -> None:
     finally:
         with contextlib.suppress(Exception):
             feed.disconnect()
+
+
+def _assert_subscribe_normalizes_ticks(_gw) -> None:
+    from pathlib import Path
+
+    text = (
+        Path(__file__).resolve().parents[5] / "src/brokers/upstox/data_provider.py"
+    ).read_text()
+    assert "_normalize_quote(raw, instrument_id)" in text
+    assert "callback(instrument_id, raw)" not in text
 
 
 OFF_MARKET_CASES: tuple[RegressionCase, ...] = (
@@ -168,6 +187,26 @@ OFF_MARKET_CASES: tuple[RegressionCase, ...] = (
         description="Connection status dict is available",
         assert_fn=_assert_connection_status,
         severity="P1",
+    ),
+    RegressionCase(
+        id="upstox.portfolio_stream_capability",
+        capability="portfolio_stream",
+        tier="off_market_safe",
+        segment="ACCOUNT",
+        description="PORTFOLIO_STREAM capability targets portfolio_stream adapter",
+        assert_fn=_assert_portfolio_stream_capability,
+        severity="P0",
+        tags=("regression_fix",),
+    ),
+    RegressionCase(
+        id="upstox.subscribe_normalize",
+        capability="ltp_stream",
+        tier="off_market_safe",
+        segment="NSE",
+        description="DataProvider subscribe normalizes raw ticks to QuoteSnapshot",
+        assert_fn=_assert_subscribe_normalizes_ticks,
+        severity="P0",
+        tags=("regression_fix",),
     ),
 )
 

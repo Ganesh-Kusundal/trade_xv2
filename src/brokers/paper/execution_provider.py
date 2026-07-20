@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.transport_errors import order_result_from_response
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from domain.ports.order_placement import OrderPlacementPort, invoke_place_order
 from domain.ports.protocols import ExecutionProvider, OrderResult
@@ -25,16 +26,6 @@ class PaperExecutionProvider(ExecutionProvider):
         return "paper"
 
     @staticmethod
-    def _wrap(response: Any) -> OrderResult:
-        if getattr(response, "success", True):
-            return OrderResult.ok(response)
-        return OrderResult.fail(
-            getattr(response, "message", None)
-            or getattr(response, "error", "paper rejected order")
-            or "paper rejected order"
-        )
-
-    @staticmethod
     def _enum_value(value: Any) -> Any:
         return value.value if hasattr(value, "value") else value
 
@@ -43,11 +34,11 @@ class PaperExecutionProvider(ExecutionProvider):
             response = invoke_place_order(self._gateway, request)
         except Exception as exc:  # transport boundary: never raise into domain
             return OrderResult.fail(str(exc))
-        return self._wrap(response)
+        return order_result_from_response(response)
 
     def cancel_order(self, order_id: str) -> OrderResult:
         try:
-            return self._wrap(self._gateway.cancel_order(order_id))
+            return order_result_from_response(self._gateway.cancel_order(order_id))
         except Exception as exc:
             return OrderResult.fail(str(exc))
 
@@ -66,7 +57,9 @@ class PaperExecutionProvider(ExecutionProvider):
                 kwargs["validity"] = self._enum_value(request.validity)
             if request.product_type is not None:
                 kwargs["product_type"] = self._enum_value(request.product_type)
-            return self._wrap(self._gateway.modify_order(request.order_id, **kwargs))
+            return order_result_from_response(
+                self._gateway.modify_order(request.order_id, **kwargs)
+            )
         except Exception as exc:
             return OrderResult.fail(str(exc))
 

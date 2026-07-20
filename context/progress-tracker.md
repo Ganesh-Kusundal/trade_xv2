@@ -6,6 +6,7 @@
 
 ## Current Phase
 
+- **Broker + market-data remediation (2026-07-21):** Combined P0/P1 pass — Dhan subscription ownership + typed read-path errors + live-order guard parity; Upstox modify_order/idempotency/lifecycle/capability fixes; market-data async parquet sink + IST bucketing + gap bar injection + single-broker StreamOrchestrator + shutdown flush. Regression manifests + unit/integration tests added; gap analysis addendum in `docs/constitution/09-broker-subsystem-gap-analysis.md`.
 - **Doc cleanup (2026-07-21):** Removed old/dated docs under `docs/` (reviews, stubs, gap notes, runbooks, superpowers specs) and local `.trae/repowiki/`. **Kept:** `docs/constitution/`, `docs/architecture/adr/`, test-bound `FLOWS.md` / `STATE_MACHINES.md` / `ERROR_TAXONOMY.md` / `DEPENDENCY_*.md` / `e2e-spec/`.
 - **Next Maturity Contexts — complete** (2026-07-20): DP-04 tick authority, quote-zero fail-closed, deploy-profile auth (SEC-009 profile-scoped), Context 7 StrategyEvaluator bridge
 - **Architecture Maturity Program — Contexts 5–7, 8, 10 complete** (2026-07-20)
@@ -1388,3 +1389,23 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
   `run_coro_sync`'s ephemeral loop; dead-loop reconnect in `StreamManagerAdapter`
 - Cert disconnect probes are FSM-soft (hard `gateway.disconnect` left to chaos tests)
 - Verified: Dhan/Upstox live token+reconnect probes, paper certifier, unit live probes — green
+
+**Broker parity + test honesty (2026-07-21):**
+- Wave 1: Dhan subscribe failures now raise (parity with Upstox); all three `DataProvider.get_history()` return `list[HistoricalBar]`; shared `brokers/common/quote_normalize.py` with injectable clock; `session_historical` uses `provider.gateway`
+- Wave 2: Upstox `BrokerContractSuite` runs against real offline wire adapter; market-coverage inherits parent `live_gateway`; dead skipped test modules removed; `tests/unit/brokers/test_data_provider_protocol.py` added
+- Wave 3: public `connection`/`broker` on wire adapters; readiness/bootstrap use them; API uses `create_data_adapter()`; shared parameterized certification probes; lazy `ENV_FILES` via `__getattr__`
+- Follow-up: shared `test_get_order_direct_lookup.py`; Upstox fallbacks in `test_get_order_fallback.py`; removed deprecated `GatewayContractSuite` + unused `common/conftest.py`
+
+---
+
+## 2026-07-21 — Review findings remediation (second pass)
+
+**Completed:**
+- **P0:** `order_result_from_response()` shared helper (fail-closed); Upstox subscribe tick normalization; Dhan tick normalize WARNING logging
+- **P1:** Dhan `OrderCanceller` post-cancel fill detection; paper `try_fill_on_quote` + EventBus TICK wiring; capabilities validator expanded (wire-surface flags); gateway TypeError fallback paper-only
+- **P2:** `IST_SQL_INTERVAL` constant replaces hardcoded DuckDB interval strings
+- **Tests:** `test_order_canceller_post_cancel.py`, `test_upstox_data_provider_subscribe.py`, `test_paper_limit_fill_on_tick.py`, extended error-surface + capabilities enforce tests
+- **Docs:** gap analysis addendum G-BS-REV-*; `graphify update src` applied
+
+**Next:** Operator live certify; optional extension-surface capability validation for super/forever/slice orders
+

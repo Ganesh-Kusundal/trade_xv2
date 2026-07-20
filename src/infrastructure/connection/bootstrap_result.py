@@ -27,7 +27,7 @@ __all__ = [
 
 
 def _check_dhan(gateway: Any) -> tuple[bool, str | None]:
-    conn = getattr(gateway, "_conn", None)
+    conn = getattr(gateway, "connection", None) or getattr(gateway, "_conn", None)
     if conn is None:
         return False, "gateway missing _conn"
     token = getattr(conn, "access_token", None)
@@ -45,7 +45,9 @@ def _check_dhan(gateway: Any) -> tuple[bool, str | None]:
 
 
 def _check_upstox(gateway: Any) -> tuple[bool, str | None]:
-    broker_obj = getattr(gateway, "_broker", None)
+    if getattr(gateway, "bootstrap_transport_ready", True) is False:
+        return False, "Upstox bootstrap connect failed"
+    broker_obj = getattr(gateway, "broker", None) or getattr(gateway, "_broker", None)
     if broker_obj is None:
         return False, "gateway missing _broker"
     tm = getattr(broker_obj, "token_manager", None)

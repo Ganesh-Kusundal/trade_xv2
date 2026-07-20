@@ -10,7 +10,10 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from brokers.common.transport_errors import order_result_from_transport_error
+from brokers.common.transport_errors import (
+    order_result_from_response,
+    order_result_from_transport_error,
+)
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
 from domain.ports.order_placement import OrderPlacementPort, invoke_place_order
@@ -45,32 +48,22 @@ class DhanOrderTransport(ExecutionProvider):
     def name(self) -> str:
         return "dhan"
 
-    @staticmethod
-    def _wrap(response: Any) -> OrderResult:
-        if getattr(response, "success", True):
-            return OrderResult.ok(response)
-        return OrderResult.fail(
-            getattr(response, "message", None)
-            or getattr(response, "error", None)
-            or "broker rejected order"
-        )
-
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:
             response = invoke_place_order(self._gateway, request)
         except Exception as exc:  # transport boundary: never raise into domain
             return order_result_from_transport_error(exc)
-        return self._wrap(response)
+        return order_result_from_response(response)
 
     def cancel_order(self, order_id: str) -> OrderResult:
         try:
-            return self._wrap(self._gateway.cancel_order(order_id))
+            return order_result_from_response(self._gateway.cancel_order(order_id))
         except Exception as exc:
             return order_result_from_transport_error(exc)
 
     def modify_order(self, request) -> OrderResult:
         try:
-            return self._wrap(
+            return order_result_from_response(
                 self._gateway.modify_order(
                     request.order_id, price=request.price, quantity=request.quantity
                 )

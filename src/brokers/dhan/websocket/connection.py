@@ -23,6 +23,9 @@ from typing import Any
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.websocket._helpers import _DhanContext, _sdk_market_feed_class
 from config.ws_settings import (
+    DHAN_BACKOFF_BASE_DELAY_MS,
+    DHAN_BACKOFF_MAX_DELAY_MS,
+    DHAN_INITIAL_BACKOFF_SECONDS,
     DHAN_MAX_RECONNECT_ATTEMPTS,
     DHAN_RECONNECT_COOLDOWN_SECONDS,
     DHAN_STALENESS_THRESHOLD_SECONDS,
@@ -236,7 +239,7 @@ class MarketFeedConnection:
         ``DHAN_STALENESS_THRESHOLD_SECONDS``, we close the socket before
         backing off.
         """
-        backoff = 1.0
+        backoff = DHAN_INITIAL_BACKOFF_SECONDS
         max_reconnect_attempts = DHAN_MAX_RECONNECT_ATTEMPTS
         staleness_threshold = DHAN_STALENESS_THRESHOLD_SECONDS
 
@@ -311,7 +314,9 @@ class MarketFeedConnection:
                 from brokers.common.backoff import exponential_backoff
 
                 backoff = exponential_backoff(
-                    current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0
+                    current_reconnects,
+                    base_delay_ms=DHAN_BACKOFF_BASE_DELAY_MS,
+                    max_delay_ms=DHAN_BACKOFF_MAX_DELAY_MS,
                 )
                 continue
 
@@ -322,7 +327,7 @@ class MarketFeedConnection:
                 self._run_claimed.set()
                 feed.run()
                 # Successful return → clean close → reset backoff fast
-                backoff = 1.0
+                backoff = DHAN_INITIAL_BACKOFF_SECONDS
                 with self._lock:
                     self._is_connected = False
                     self._connected_at = None
@@ -335,7 +340,7 @@ class MarketFeedConnection:
                 err_str = str(exc).lower()
                 if "no close frame" in err_str:
                     logger.debug("WebSocket closed without close frame (expected)")
-                    backoff = 1.0
+                    backoff = DHAN_INITIAL_BACKOFF_SECONDS
                 elif "429" in err_str:
                     logger.warning("WebSocket rate limited, backing off %ss", backoff)
                     if admission is not None:
@@ -375,7 +380,9 @@ class MarketFeedConnection:
             from brokers.common.backoff import exponential_backoff
 
             backoff = exponential_backoff(
-                current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0
+                current_reconnects,
+                base_delay_ms=DHAN_BACKOFF_BASE_DELAY_MS,
+                max_delay_ms=DHAN_BACKOFF_MAX_DELAY_MS,
             )
 
         # Always release the host-wide admission lock on exit.

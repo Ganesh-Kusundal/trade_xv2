@@ -45,6 +45,7 @@ from brokers.dhan.resilience.retry_policies import (
 )
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.wire import DhanBrokerGateway
+from infrastructure.resilience.backoff import ExponentialBackoff
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -60,6 +61,25 @@ from infrastructure.resilience.rate_limiter import (
     RateLimitConfig,
 )
 from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
+
+# ponytail: unit chaos must not pay production backoff (1s–8s); override after build.
+_ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)
+
+
+def _fast_retry_executor(category, circuit_breaker=None, rate_limiter=None):
+    executor = create_retry_executor(
+        category, circuit_breaker=circuit_breaker, rate_limiter=rate_limiter
+    )
+    executor.backoff = _ZERO_BACKOFF
+    return executor
+
+
+def _expire_open_window(monkeypatch, cb: CircuitBreaker) -> None:
+    """Jump monotonic past open_duration so OPEN→HALF_OPEN without wall sleep."""
+    import infrastructure.resilience.circuit_breaker as cb_mod
+
+    target = cb._opened_at_ns + cb.config.open_duration_ms * 1_000_000 + 1
+    monkeypatch.setattr(cb_mod.time, "monotonic_ns", lambda: target)
 
 
 @pytest.fixture()
@@ -118,7 +138,7 @@ class TestCircuitBreakerBasic:
 
         assert cb.state == CircuitState.OPEN
 
-    def test_circuit_half_open_after_timeout(self):
+    def test_circuit_half_open_after_timeout(self, monkeypatch):
         config = CircuitBreakerConfig(
             failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS
         )
@@ -128,11 +148,11 @@ class TestCircuitBreakerBasic:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        time.sleep(0.15)
+        _expire_open_window(monkeypatch, cb)
         assert cb.allow_request() is True
         assert cb.state == CircuitState.HALF_OPEN
 
-    def test_circuit_closes_after_successes_in_half_open(self):
+    def test_circuit_closes_after_successes_in_half_open(self, monkeypatch):
         config = CircuitBreakerConfig(
             failure_threshold=2, success_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS
         )
@@ -142,14 +162,14 @@ class TestCircuitBreakerBasic:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        time.sleep(0.15)
+        _expire_open_window(monkeypatch, cb)
         assert cb.state == CircuitState.HALF_OPEN
 
         cb.on_success()
         cb.on_success()
         assert cb.state == CircuitState.CLOSED
 
-    def test_circuit_reopens_on_failure_in_half_open(self):
+    def test_circuit_reopens_on_failure_in_half_open(self, monkeypatch):
         config = CircuitBreakerConfig(
             failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS
         )
@@ -159,7 +179,7 @@ class TestCircuitBreakerBasic:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        time.sleep(0.15)
+        _expire_open_window(monkeypatch, cb)
         assert cb.state == CircuitState.HALF_OPEN
 
         cb.on_failure()
@@ -265,7 +285,6 @@ class TestCircuitBreakerThreadSafety:
         def read_state():
             for _ in range(10):
                 states.append(cb.state)
-                time.sleep(0.01)
 
         threads = [threading.Thread(target=read_state) for _ in range(5)]
         for t in threads:
@@ -339,7 +358,7 @@ class TestDhanRetryExecutor:
     def test_retry_exhaustion_raises_error(self):
         """When all retries are exhausted, the last error should be raised."""
         cb = DhanCircuitBreakerFactory.create_orders()
-        executor = create_retry_executor("orders", circuit_breaker=cb)
+        executor = _fast_retry_executor("orders", circuit_breaker=cb)
 
         call_count = [0]
 
@@ -355,7 +374,7 @@ class TestDhanRetryExecutor:
     def test_retry_with_eventual_success(self):
         """Should succeed after transient failures."""
         cb = DhanCircuitBreakerFactory.create_market_data()
-        executor = create_retry_executor("market_data", circuit_breaker=cb)
+        executor = _fast_retry_executor("market_data", circuit_breaker=cb)
 
         call_count = [0]
 
@@ -372,7 +391,7 @@ class TestDhanRetryExecutor:
     def test_non_retryable_error_fails_immediately(self):
         """Non-retryable errors should not trigger retries."""
         cb = DhanCircuitBreakerFactory.create_orders()
-        executor = create_retry_executor("orders", circuit_breaker=cb)
+        executor = _fast_retry_executor("orders", circuit_breaker=cb)
 
         call_count = [0]
 
@@ -462,19 +481,20 @@ class TestRateLimiterEnforcement:
         # Third request should timeout
         assert rl.acquire("test", tokens=1, timeout=0.01) is False
 
-    def test_token_refill(self):
+    def test_token_refill(self, monkeypatch):
         """Tokens should refill over time."""
+        import infrastructure.resilience.rate_limiter as rl_mod
+
         config = RateLimitConfig(rate_per_second=100.0, capacity=2)
         rl = MultiBucketRateLimiter({"test": config})
 
-        # Consume all tokens
         rl.acquire("test", tokens=1, timeout=0.1)
         rl.acquire("test", tokens=1, timeout=0.1)
 
-        # Wait for refill
-        time.sleep(0.05)
+        # Advance monotonic so the bucket refills without wall sleep.
+        real_ns = time.monotonic_ns
+        monkeypatch.setattr(rl_mod.time, "monotonic_ns", lambda: real_ns() + 50_000_000)
 
-        # Should have tokens now
         assert rl.acquire("test", tokens=1, timeout=0.1) is True
 
 
@@ -556,26 +576,22 @@ class TestGracefulDegradation:
 class TestRecoveryScenarios:
     """Test recovery after circuit opens."""
 
-    def test_recovery_after_circuit_opens(self):
+    def test_recovery_after_circuit_opens(self, monkeypatch):
         """Circuit should transition to half-open after timeout."""
-        # Use a short timeout for testing
         config = CircuitBreakerConfig(failure_threshold=3, open_duration_ms=50)
         cb = CircuitBreaker("test-recovery", config)
 
-        # Trip the circuit
         for _ in range(3):
             cb.on_failure()
 
         assert cb.state == CircuitState.OPEN
 
-        # Wait for recovery timeout
-        time.sleep(0.1)
+        _expire_open_window(monkeypatch, cb)
 
-        # Should transition to half-open
         assert cb.state == CircuitState.HALF_OPEN
         assert cb.allow_request() is True
 
-    def test_successful_recovery_closes_circuit(self):
+    def test_successful_recovery_closes_circuit(self, monkeypatch):
         """Successful requests in half-open should close the circuit."""
         config = CircuitBreakerConfig(failure_threshold=2, success_threshold=2, open_duration_ms=50)
         cb = CircuitBreaker("test", config)
@@ -584,14 +600,14 @@ class TestRecoveryScenarios:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        time.sleep(0.1)
+        _expire_open_window(monkeypatch, cb)
         assert cb.state == CircuitState.HALF_OPEN
 
         cb.on_success()
         cb.on_success()
         assert cb.state == CircuitState.CLOSED
 
-    def test_failed_recovery_reopens_circuit(self):
+    def test_failed_recovery_reopens_circuit(self, monkeypatch):
         """Failed request in half-open should immediately re-open."""
         config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=50)
         cb = CircuitBreaker("test", config)
@@ -600,7 +616,7 @@ class TestRecoveryScenarios:
         cb.on_failure()
         assert cb.state == CircuitState.OPEN
 
-        time.sleep(0.1)
+        _expire_open_window(monkeypatch, cb)
         assert cb.state == CircuitState.HALF_OPEN
 
         cb.on_failure()
@@ -708,7 +724,7 @@ class TestFaultInjection:
     def test_retry_exhaustion_under_persistent_fault(self):
         """Retry executor should exhaust retries under persistent faults."""
         cb = DhanCircuitBreakerFactory.create_portfolio()
-        executor = create_retry_executor("portfolio", circuit_breaker=cb)
+        executor = _fast_retry_executor("portfolio", circuit_breaker=cb)
 
         call_count = [0]
 
@@ -726,12 +742,9 @@ class TestFaultInjection:
         config = RateLimitConfig(rate_per_second=10.0, capacity=3)
         rl = MultiBucketRateLimiter({"test": config})
 
-        # Burst of 5 requests
-        results = []
-        for _ in range(5):
-            results.append(rl.acquire("test", tokens=1, timeout=0.01))
+        # timeout=0 → no wait/refill during the burst itself
+        results = [rl.acquire("test", tokens=1, timeout=0.0) for _ in range(5)]
 
-        # First 3 should succeed, last 2 should timeout
         assert results[:3] == [True, True, True]
         assert results[3:] == [False, False]
 
@@ -757,7 +770,7 @@ class TestResilienceIntegration:
         """Circuit breaker and retry executor should work together."""
         cb = DhanCircuitBreakerFactory.create_admin()
         rl = create_rate_limiter()
-        executor = create_retry_executor("admin", circuit_breaker=cb, rate_limiter=rl)
+        executor = _fast_retry_executor("admin", circuit_breaker=cb, rate_limiter=rl)
 
         call_count = [0]
 

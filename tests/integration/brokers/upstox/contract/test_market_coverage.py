@@ -17,10 +17,5 @@ def capabilities():
     return upstox_capabilities()
 
 
-@pytest.fixture()
-def live_gateway():
-    pytest.skip("live coverage requires .env.local credentials")
-
-
 class TestUpstoxMarketCoverage(MarketCoverageContract):
     pass

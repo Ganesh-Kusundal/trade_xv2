@@ -99,8 +99,8 @@ def test_1m_candle_ohlcv_and_boundary():
     assert c.close == 101.0
     assert c.volume == 40.0
     assert c.tick_count == 4
-    assert c.open_time == base
-    assert c.close_time == base.replace(minute=1, second=0)
+    assert c.open_time.timestamp() == base.timestamp()
+    assert c.close_time.timestamp() == base.replace(minute=1, second=0).timestamp()
 
 
 # =============================================================================
@@ -129,7 +129,7 @@ def test_multi_timeframe_per_symbol():
     # The emitted 1m candle holds only the 10:00 tick (50); the 60 tick is the
     # OPEN of the next bucket.
     assert candles_by_tf["1m"].close == 50.0
-    assert candles_by_tf["1m"].open_time == base
+    assert candles_by_tf["1m"].open_time.timestamp() == base.timestamp()
 
     # Now cross the 5m boundary (10:05:00) → both 1m and 5m open buckets emit.
     agg.update(_tick("AAA", 70, 1, base.replace(minute=5)))
@@ -193,18 +193,34 @@ def test_late_tick_discarded():
     agg.update(_tick("L", 100, 1, base))
     agg.update(_tick("L", 110, 1, base.replace(minute=1)))  # closes 10:00 bucket, opens 10:01
 
-    # Late tick referencing 10:00:30 (already closed) must be ignored.
+    # Late tick referencing 10:00:30 (already closed) must be ignored by default.
     agg.update(_tick("L", 999, 50, base.replace(second=30)))
-    # New bucket tick at 10:02:00 closes the 10:01 bucket and opens 10:02.
     agg.update(_tick("L", 120, 1, base.replace(minute=2)))
 
     assert len(emitted) == 2
-    # First emitted candle (10:00) only saw the 100 tick; late 999 tick ignored.
     assert emitted[0].open == 100.0 and emitted[0].close == 100.0
     assert emitted[0].high == 100.0 and emitted[0].low == 100.0
     assert emitted[0].volume == 1.0
-    # Second candle (10:01) only saw the 110 tick.
     assert emitted[1].open == 110.0 and emitted[1].close == 110.0
+
+
+def test_late_tick_correction():
+    CandleAggregator, HistoricalBar, parse_timeframe, MarketTick, _, InstrumentRef = (
+        _import_runtime()
+    )
+
+    emitted = []
+    agg = CandleAggregator(on_candle=emitted.append, timeframes=("1m",))
+
+    base = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    agg.update(_tick("L", 100, 1, base))
+    agg.update(_tick("L", 110, 1, base.replace(minute=1)))
+    before = len(emitted)
+    agg.update(_tick("L", 105, 2, base.replace(second=30)), is_correction=True)
+    assert len(emitted) == before + 1
+    corrected = emitted[-1]
+    assert corrected.close == 105.0
+    assert corrected.volume == 2.0
 
 
 # =============================================================================

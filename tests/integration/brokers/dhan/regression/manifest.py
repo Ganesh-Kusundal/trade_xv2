@@ -126,6 +126,35 @@ def _assert_stream_order_not_market_alias(gw: DhanBrokerGateway) -> None:
     assert gw.stream_order is not gw.stream
 
 
+def _assert_post_cancel_fill_detection(_gw: DhanBrokerGateway) -> None:
+    from pathlib import Path
+
+    text = (
+        Path(__file__).resolve().parents[5]
+        / "src/brokers/dhan/execution/order_cancellation.py"
+    ).read_text()
+    assert "_verify_cancel_not_race_filled" in text
+    assert "get_order_fn" in text
+
+
+def _assert_tick_normalize_logging(_gw: DhanBrokerGateway) -> None:
+    from pathlib import Path
+
+    text = (
+        Path(__file__).resolve().parents[5] / "src/brokers/dhan/data/data_provider.py"
+    ).read_text()
+    assert "tick_normalize_failed" in text
+
+
+def _assert_get_order_propagates_transport_errors(gw: DhanBrokerGateway) -> None:
+    """P0: get_order must not swallow transport failures as None."""
+    import inspect
+
+    source = inspect.getsource(gw.get_order)
+    assert "return None" not in source
+    assert "raise mapped" in source
+
+
 def _assert_nse_depth_both_sides(gw: DhanBrokerGateway) -> None:
     """After the fix: REST depth always returns both sides."""
     depth = gw.depth("TCS", "NSE")
@@ -332,6 +361,36 @@ OFF_MARKET_CASES: list[RegressionCase] = [
         assert_fn=_assert_stream_order_not_market_alias,
         severity="P0",
         tags=("architecture",),
+    ),
+    RegressionCase(
+        id="get_order_typed_transport_errors",
+        capability="supports_live_market_data",
+        tier="off_market_safe",
+        segment="NSE_EQ",
+        description="get_order propagates transport failures (not silent None)",
+        assert_fn=_assert_get_order_propagates_transport_errors,
+        severity="P0",
+        tags=("regression_fix",),
+    ),
+    RegressionCase(
+        id="post_cancel_fill_detection",
+        capability="supports_cancel_order",
+        tier="off_market_safe",
+        segment="NSE_EQ",
+        description="OrderCanceller verifies fill-before-cancel race",
+        assert_fn=_assert_post_cancel_fill_detection,
+        severity="P0",
+        tags=("regression_fix",),
+    ),
+    RegressionCase(
+        id="tick_normalize_logging",
+        capability="supports_live_market_data",
+        tier="off_market_safe",
+        segment="NSE_EQ",
+        description="Dhan tick normalize failures are logged not swallowed",
+        assert_fn=_assert_tick_normalize_logging,
+        severity="P0",
+        tags=("regression_fix",),
     ),
 ]
 

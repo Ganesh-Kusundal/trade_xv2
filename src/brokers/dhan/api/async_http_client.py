@@ -40,15 +40,19 @@ from typing import Any
 import httpx
 
 from brokers.dhan.api.http_client import (
-    _MAX_RETRIES,
-    _RATE_LIMIT_BACKOFF_SECONDS,
-    _REFRESH_COOLDOWN_SECONDS,
     _categorize_endpoint,
     _parse_retry_after,
     _rate_limit_bucket,
 )
 from brokers.dhan.api.http_client import _match_rate_limit as _match_static_rate_limit
-from brokers.dhan.config import DEFAULT_CONFIG
+from brokers.dhan.config import (
+    DEFAULT_BASE_DELAY_MS,
+    DEFAULT_CONFIG,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
+    DEFAULT_RATE_LIMITS,
+    DEFAULT_REFRESH_COOLDOWN_SECONDS,
+)
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 from brokers.dhan.resilience.metrics import (
     dhan_errors_total,
@@ -223,7 +227,7 @@ class DhanAsyncHttpClient:
         await self._throttle(endpoint)
 
         url = f"{self._base_url}{endpoint}" if endpoint.startswith("/") else endpoint
-        max_attempts = _MAX_RETRIES if self._enable_retry else 1
+        max_attempts = DEFAULT_MAX_RETRIES if self._enable_retry else 1
         last_exc: Exception | None = None
 
         _start = __import__("time").monotonic()
@@ -418,7 +422,7 @@ class DhanAsyncHttpClient:
 
         if now < self._refresh_backoff_until:
             return False
-        if now - self._last_refresh_time < _REFRESH_COOLDOWN_SECONDS:
+        if now - self._last_refresh_time < DEFAULT_REFRESH_COOLDOWN_SECONDS:
             return False
         if self._token_refresh_fn is None:
             return False
@@ -432,12 +436,12 @@ class DhanAsyncHttpClient:
                 logger.info("token_refreshed", extra={"client_id": self.client_id})
                 return True
             else:
-                self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
+                self._refresh_backoff_until = now + DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
                 return False
         except Exception as exc:
             error_msg = str(exc)
             if "once every 2 minutes" in error_msg or "rate limit" in error_msg.lower():
-                self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
+                self._refresh_backoff_until = now + DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
             else:
                 logger.warning("token_refresh_failed", extra={"error": error_msg})
             return False
@@ -467,11 +471,9 @@ class DhanAsyncHttpClient:
 
 def _match_prefix(endpoint: str) -> str | None:
     """Return the matching rate-limit prefix key for endpoint, or None."""
-    from brokers.dhan.api.http_client import _RATE_LIMITS
-
-    if endpoint in _RATE_LIMITS:
+    if endpoint in DEFAULT_RATE_LIMITS:
         return endpoint
-    for prefix in _RATE_LIMITS:
+    for prefix in DEFAULT_RATE_LIMITS:
         if endpoint.startswith(prefix):
             return prefix
     return None
@@ -480,6 +482,5 @@ def _match_prefix(endpoint: str) -> str | None:
 def _backoff_delay(attempt: int) -> float:
     """Exponential backoff: 500ms, 1s, 2s, 4s... capped at 5s."""
     from brokers.common.backoff import exponential_backoff
-    from brokers.dhan.api.http_client import _BASE_DELAY_MS
 
-    return exponential_backoff(attempt, base_delay_ms=_BASE_DELAY_MS)
+    return exponential_backoff(attempt, base_delay_ms=DEFAULT_BASE_DELAY_MS)

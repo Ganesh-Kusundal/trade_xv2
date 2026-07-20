@@ -112,6 +112,7 @@ class UpstoxMarketDataV3Multiplexer:
         self._task: asyncio.Task[Any] | None = None
         self._stopped = False
         self._connected = False
+        self._reconnect_exhausted = False
         # Reconnect backfill state
         self._last_tick_time: dict[str, Any] = {}
         self._disconnect_time: Any = None
@@ -123,7 +124,12 @@ class UpstoxMarketDataV3Multiplexer:
 
     @property
     def is_connected(self) -> bool:
-        return self._connected and not self._stopped
+        return self._connected and not self._stopped and not self._reconnect_exhausted
+
+    @property
+    def stream_unhealthy(self) -> bool:
+        """True when reconnect budget is exhausted and the feed is dead."""
+        return self._reconnect_exhausted
 
     def add_listener(self, listener: TickListener) -> None:
         with self._listener_lock:
@@ -321,6 +327,11 @@ class UpstoxMarketDataV3Multiplexer:
                     self._disconnect_time = datetime.now(timezone.utc)
                 if not self._reconnect.should_retry():
                     self._connected = False
+                    self._reconnect_exhausted = True
+                    logger.critical(
+                        "upstox_v3_reconnect_exhausted",
+                        extra={"hint": "market data stream unhealthy until manual reconnect"},
+                    )
                     break
                 delay = self._reconnect.next_delay()
                 self._reconnect.record_failure()

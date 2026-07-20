@@ -78,7 +78,7 @@ def session(monkeypatch):
     sess._broker_id = "dhan"
     sess._runtime = None
 
-    provider = type("P", (), {"_gw": gw})()
+    provider = type("P", (), {"_gw": gw, "gateway": gw})()
     domain_session = type("DS", (), {"provider": provider, "broker_id": "dhan"})()
     sess._session = domain_session
     return sess

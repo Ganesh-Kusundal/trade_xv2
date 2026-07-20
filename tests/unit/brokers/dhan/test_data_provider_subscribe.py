@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+import pytest
+
 from brokers.dhan.data.data_provider import DhanDataProvider
 from domain.entities.market import QuoteSnapshot
 from domain.instruments.instrument_id import InstrumentId
@@ -15,6 +17,7 @@ def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
     feed = MagicMock()
     feed.stop = MagicMock()
     gw.stream.return_value = feed
+    gw.unstream = MagicMock()
 
     provider = DhanDataProvider(gw)
     iid = InstrumentId.equity("NSE", "RELIANCE")
@@ -49,7 +52,7 @@ def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
 
     handle.unsubscribe()
     assert not handle.is_active
-    feed.stop.assert_called()
+    gw.unstream.assert_called_once_with("RELIANCE", "NSE", on_tick=kwargs["on_tick"])
 
 
 def test_subscribe_depth_mode() -> None:
@@ -66,6 +69,43 @@ def test_subscribe_depth_mode() -> None:
         depth=True,
     )
     assert gw.stream.call_args.kwargs.get("mode") == "FULL"
+
+
+def test_subscribe_normalizer_failure_logs(caplog) -> None:
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    gw = MagicMock()
+    feed = MagicMock()
+    gw.stream.return_value = feed
+
+    provider = DhanDataProvider(gw)
+    iid = InstrumentId.equity("NSE", "RELIANCE")
+    received: list = []
+
+    provider.subscribe(iid, lambda i, p: received.append(p))
+    on_tick = gw.stream.call_args.kwargs["on_tick"]
+
+    class _BrokenNormalizer:
+        def _normalize_quote(self, *_a, **_k):
+            raise ValueError("bad tick")
+
+    provider._normalize_quote = _BrokenNormalizer()._normalize_quote  # type: ignore[method-assign]
+    on_tick({"ltp": 1})
+
+    assert received == []
+    assert any("tick_normalize_failed" in r.message for r in caplog.records)
+
+
+def test_subscribe_failure_raises() -> None:
+    gw = MagicMock()
+    gw.stream.side_effect = RuntimeError("no stream")
+    provider = DhanDataProvider(gw)
+    with pytest.raises(RuntimeError, match="no stream"):
+        provider.subscribe(
+            InstrumentId.equity("NSE", "SBIN"),
+            lambda *a: None,
+        )
 
 
 def test_subscribe_normalizes_dict_tick() -> None:

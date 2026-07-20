@@ -85,3 +85,17 @@ def test_get_capabilities_matrix_keys_match_dhan() -> None:
         "supports_depth",
     ):
         assert key in matrix
+
+
+@pytest.mark.unit
+def test_session_gateway_uses_public_provider_gateway_property() -> None:
+    from brokers.paper.data_provider import PaperDataProvider
+    from brokers.paper.paper_gateway import PaperGateway
+    from brokers.services.capabilities import _session_gateway
+
+    class _FakeSession:
+        provider = PaperDataProvider(PaperGateway())
+
+    gw = _session_gateway(_FakeSession())
+    assert gw is not None
+    assert gw is _FakeSession.provider.gateway

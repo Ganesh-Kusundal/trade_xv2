@@ -1,34 +1,22 @@
 """Live tick → candle (OHLCV) aggregator.
 
-This module is intentionally pure and I/O-free so it can be unit-tested in
-isolation and called cheaply from the stream fan-out path without blocking the
-event loop.
-
-The aggregator consumes normalized :class:`MarketTick` objects (symbol,
-exchange/arrival time, last traded price, and per-tick volume) and buckets them
-into calendar-aligned OHLCV candles per ``(symbol, timeframe)`` pair. A candle is
-``open`` while ticks keep arriving inside its calendar window; it is ``closed``
-and emitted via the supplied callback as soon as a later tick's timestamp crosses
-the bucket boundary.
-
-Boundary alignment uses the tick's resolved timestamp (``MarketTick.event_time``,
-which the orchestrator sets to the exchange time when available, falling back to
-arrival time). Because alignment depends only on the tick timestamp, aggregation
-is fully deterministic and independent of wall-clock time.
+Buckets are aligned to IST wall-clock boundaries (exchange session timezone),
+not raw UTC epoch floors, so 1m bars open at :00 IST (e.g. 09:15 IST) rather
+than at UTC minute boundaries.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from domain.candles.historical import HistoricalBar
+from domain.constants.market import IST
 from domain.entities.market import MarketTick
 
 # --- timeframe parsing -------------------------------------------------------
 
-# Common fixed timeframes. Anything not listed can be expressed with a suffix
-# parser below (e.g. "30m", "2h", "1d", "1w").
 _FIXED_TIMEFRAMES: Mapping[str, int] = {
     "1m": 60,
     "2m": 120,
@@ -55,12 +43,7 @@ _SUFFIX_SECONDS: Mapping[str, int] = {
 
 
 def parse_timeframe(tf: str) -> int:
-    """Return the duration of ``tf`` in seconds.
-
-    Accepts entries from :data:`_FIXED_TIMEFRAMES` (``"1m"``, ``"5m"``,
-    ``"15m"``, ``"1h"``, ...) or a ``<n><unit>`` expression where unit is one of
-    ``s``, ``m``, ``h``, ``d``, ``w``.
-    """
+    """Return the duration of ``tf`` in seconds."""
     tf = tf.strip().lower()
     if tf in _FIXED_TIMEFRAMES:
         return _FIXED_TIMEFRAMES[tf]
@@ -78,21 +61,18 @@ def parse_timeframe(tf: str) -> int:
     return n * _SUFFIX_SECONDS[unit]
 
 
-# --- aggregator --------------------------------------------------------------
+def _bucket_bounds(ts: datetime, dur: int) -> tuple[int, datetime]:
+    """Return (open_epoch, open_time) aligned to IST calendar buckets."""
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    ist_epoch = ts.astimezone(IST).timestamp()
+    open_epoch = int(ist_epoch // dur) * dur
+    open_time = datetime.fromtimestamp(open_epoch, tz=IST)
+    return open_epoch, open_time
 
 
 class CandleAggregator:
-    """Aggregate normalized ticks into calendar-aligned OHLCV candles.
-
-    Usage::
-
-        agg = CandleAggregator(on_candle=my_callback, timeframes=("1m", "5m"))
-        agg.update(tick)  # called per normalized tick
-
-    ``on_candle`` is invoked synchronously with each completed :class:`HistoricalBar`.
-    The aggregator holds bounded per-``(symbol, timeframe)`` state (a single open
-    bucket each), so steady-state memory is ``O(symbols * timeframes)``.
-    """
+    """Aggregate normalized ticks into calendar-aligned OHLCV candles."""
 
     def __init__(
         self,
@@ -105,28 +85,20 @@ class CandleAggregator:
         self._timeframes: tuple[str, ...] = tuple(dict.fromkeys(timeframes))
         if not self._timeframes:
             raise ValueError("at least one timeframe is required")
-        # Validate durations eagerly so misconfiguration fails fast.
         self._durations = {tf: parse_timeframe(tf) for tf in self._timeframes}
-
-        # (symbol_key, timeframe) -> open bucket state.
         self._buckets: dict[tuple[str, str], dict] = {}
 
-    # -- public API -----------------------------------------------------------
-
-    def update(self, tick: MarketTick) -> None:
+    def update(self, tick: MarketTick, *, is_correction: bool = False) -> None:
         """Feed one normalized tick into the aggregator.
 
-        Late ticks that fall strictly before an already-closed bucket are
-        discarded (their window has already been emitted and cannot be
-        reconstructed). Ticks inside the currently open bucket are merged.
+        When ``is_correction`` is True and the tick targets an already-closed
+        bucket, the open bucket state is updated and the bar re-emitted instead
+        of being silently dropped.
         """
         ts = tick.event_time
         if ts.tzinfo is None:
-            # Defensive: normalize naive timestamps to UTC. The orchestrator
-            # always emits timezone-aware times, but this keeps the aggregator
-            # robust to hand-built ticks in tests.
             ts = ts.replace(tzinfo=timezone.utc)
-        ts_epoch = ts.timestamp()
+        ts_epoch = ts.astimezone(IST).timestamp()
 
         symbol = tick.instrument.symbol
         exchange = tick.instrument.exchange
@@ -136,19 +108,26 @@ class CandleAggregator:
 
         for tf in self._timeframes:
             dur = self._durations[tf]
-            bucket_start_epoch = int(ts_epoch // dur) * dur
-            bucket_start = datetime.fromtimestamp(bucket_start_epoch, tz=timezone.utc)
+            bucket_start_epoch, bucket_start = _bucket_bounds(ts, dur)
 
             key = (symbol_key, tf)
             cur = self._buckets.get(key)
 
             if cur is not None and cur["open_epoch"] < bucket_start_epoch:
-                # Boundary crossed: close the open bucket, then start a new one.
                 self._emit(cur, tf, dur)
                 cur = None
-            elif cur is not None and cur["open_epoch"] > bucket_start_epoch:
-                # Late tick for an already-closed window — ignore.
+            elif (
+                cur is not None
+                and cur["open_epoch"] > bucket_start_epoch
+                and not is_correction
+            ):
                 continue
+            elif (
+                cur is not None
+                and cur["open_epoch"] > bucket_start_epoch
+                and is_correction
+            ):
+                cur = None
 
             if cur is None:
                 self._buckets[key] = {
@@ -163,6 +142,8 @@ class CandleAggregator:
                     "volume": vol,
                     "tick_count": 1,
                 }
+                if is_correction:
+                    self._emit(self._buckets[key], tf, dur)
             else:
                 if price > cur["high"]:
                     cur["high"] = price
@@ -171,13 +152,15 @@ class CandleAggregator:
                 cur["close"] = price
                 cur["volume"] += vol
                 cur["tick_count"] += 1
+                if is_correction:
+                    self._emit(cur, tf, dur)
+
+    def apply_reconciled_bar(self, bar: HistoricalBar) -> None:
+        """Apply a gap-filled historical bar through the live bar callback."""
+        self._on_candle(bar)
 
     def flush(self) -> None:
-        """Emit all currently open buckets as completed candles.
-
-        Useful on shutdown to avoid losing the partial candle for an interval
-        that has not yet received a boundary-crossing tick.
-        """
+        """Emit all currently open buckets as completed candles."""
         for tf in self._timeframes:
             dur = self._durations[tf]
             for key in [k for k in self._buckets if k[1] == tf]:
@@ -187,15 +170,13 @@ class CandleAggregator:
         """Return the set of ``symbol:exchange`` keys with an open bucket."""
         return {k[0] for k in self._buckets}
 
-    # -- internals ------------------------------------------------------------
-
     def _emit(self, bucket: dict, tf: str, dur: int) -> None:
         candle = HistoricalBar.from_live_bucket(
             symbol=bucket["symbol"],
             exchange=bucket["exchange"],
             timeframe=tf,
             open_time=bucket["open_time"],
-            close_time=datetime.fromtimestamp(bucket["open_epoch"] + dur, tz=timezone.utc),
+            close_time=datetime.fromtimestamp(bucket["open_epoch"] + dur, tz=IST),
             open=bucket["open"],
             high=bucket["high"],
             low=bucket["low"],

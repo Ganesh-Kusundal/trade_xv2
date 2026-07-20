@@ -32,8 +32,10 @@ import asyncio
 import contextlib
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Literal, Protocol
 
 from application.streaming.broker_selector import BrokerSelector
@@ -42,6 +44,7 @@ from application.streaming.session_manager import SessionManager
 from application.streaming.tick_router import (
     TickRouter,
 )
+from domain.candles.historical import HistoricalBar, InstrumentRef, coerce_event_time
 from domain.entities.market import MarketTick
 from domain.ports.broker_gateway import BrokerStreamHandle
 from domain.ports.time_service import get_current_clock
@@ -172,6 +175,7 @@ class StreamOrchestrator:
         # Optional live tick→candle aggregator
         self._candle_aggregator = candle_aggregator
         self._tick_hook = tick_hook
+        self._reconciled_bar_handler: Callable[[HistoricalBar], None] | None = None
 
         # Build collaborators (has-a composition)
         self._broker_selector = BrokerSelector(registry, router)
@@ -331,6 +335,26 @@ class StreamOrchestrator:
         self._candle_aggregator = aggregator
         self._tick_router._candle_aggregator = aggregator
 
+    def attach_reconciled_bar_handler(
+        self, handler: Callable[[HistoricalBar], None] | None
+    ) -> None:
+        """Register a sink for gap-reconciled OHLCV bars (datalake / aggregator)."""
+        self._reconciled_bar_handler = handler
+
+    def inject_reconciled_bars(self, key: str, bars: list[dict]) -> None:
+        """Publish gap-filled bars through the reconciled-bar delivery path."""
+        if not bars:
+            return
+        symbol, exchange = _split_instrument_key(key)
+        for raw in bars:
+            bar = _reconciled_dict_to_bar(raw, symbol=symbol, exchange=exchange)
+            handler = self._reconciled_bar_handler
+            if handler is not None:
+                handler(bar)
+            agg = self._candle_aggregator
+            if agg is not None and hasattr(agg, "apply_reconciled_bar"):
+                agg.apply_reconciled_bar(bar)
+
     # ------------------------------------------------------------------
     # Internal wiring
     # ------------------------------------------------------------------
@@ -382,3 +406,39 @@ class StreamOrchestrator:
                 reason=reason,
                 reconnect_generation=reconnect_gen,
             )
+
+
+def _split_instrument_key(key: str) -> tuple[str, str]:
+    if ":" in key:
+        symbol, exchange = key.split(":", 1)
+        return symbol.strip(), exchange.strip() or "NSE"
+    return key.strip(), "NSE"
+
+
+def _reconciled_dict_to_bar(
+    raw: dict,
+    *,
+    symbol: str,
+    exchange: str,
+) -> HistoricalBar:
+    from domain.provenance import DataProvenance
+
+    sym = str(raw.get("symbol") or symbol)
+    exch = str(raw.get("exchange") or exchange)
+    ts_raw = raw.get("timestamp")
+    if isinstance(ts_raw, str):
+        ts = coerce_event_time(datetime.fromisoformat(ts_raw.replace("Z", "+00:00")))
+    else:
+        ts = coerce_event_time(ts_raw)
+    timeframe = str(raw.get("timeframe") or "1m")
+    return HistoricalBar(
+        instrument=InstrumentRef(symbol=sym, exchange=exch),
+        timeframe=timeframe,
+        event_time=ts,
+        open=Decimal(str(raw.get("open", raw.get("ltp", raw.get("close", 0))))),
+        high=Decimal(str(raw.get("high", raw.get("close", raw.get("ltp", 0))))),
+        low=Decimal(str(raw.get("low", raw.get("close", raw.get("ltp", 0))))),
+        close=Decimal(str(raw.get("close", raw.get("ltp", 0)))),
+        volume=int(raw.get("volume") or 0),
+        provenance=DataProvenance.now("gap_reconcile", "gap_reconciler"),
+    )

@@ -22,7 +22,17 @@ DHAN_STALENESS_THRESHOLD_SECONDS: float = float(
 #: Cooldown period in seconds after max reconnect attempts exceeded.
 DHAN_RECONNECT_COOLDOWN_SECONDS: float = float(os.getenv("DHAN_RECONNECT_COOLDOWN_SECONDS", "300"))
 
+#: Initial reconnect backoff (seconds) before the first retry after a drop.
+DHAN_INITIAL_BACKOFF_SECONDS: float = float(os.getenv("DHAN_INITIAL_BACKOFF_SECONDS", "1.0"))
+
+#: Exponential backoff base / cap (ms) used between subsequent reconnect attempts.
+DHAN_BACKOFF_BASE_DELAY_MS: float = float(os.getenv("DHAN_BACKOFF_BASE_DELAY_MS", "1000.0"))
+DHAN_BACKOFF_MAX_DELAY_MS: float = float(os.getenv("DHAN_BACKOFF_MAX_DELAY_MS", "30000.0"))
+
 __all__ = [
+    "DHAN_BACKOFF_BASE_DELAY_MS",
+    "DHAN_BACKOFF_MAX_DELAY_MS",
+    "DHAN_INITIAL_BACKOFF_SECONDS",
     "DHAN_MAX_RECONNECT_ATTEMPTS",
     "DHAN_RECONNECT_COOLDOWN_SECONDS",
     "DHAN_STALENESS_THRESHOLD_SECONDS",

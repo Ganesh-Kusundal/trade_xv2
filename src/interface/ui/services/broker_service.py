@@ -531,6 +531,12 @@ class BrokerService:
         """
         # 1. Drain every ManagedService via the LifecycleManager.
         try:
+            from runtime.live_datalake_wiring import flush_live_bar_pipeline
+
+            flush_live_bar_pipeline()
+        except Exception as exc:
+            logger.debug("live_bar_flush_failed: %s", exc)
+        try:
             self._lifecycle.stop_all()
         except Exception as exc:
             logger.warning("lifecycle_stop_all_failed: %s", exc)

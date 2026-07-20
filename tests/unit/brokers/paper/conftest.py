@@ -40,8 +40,9 @@ class MockPaperOrderManager:
     def upsert_order(self, order: Order) -> None:
         self._orders.append(order)
 
-    def record_trade(self, trade: Trade) -> None:
+    def record_trade(self, trade: Trade) -> bool:
         self._trades.append(trade)
+        return True
 
 
 @pytest.fixture

@@ -78,6 +78,9 @@ def test_eventbus_tick_produces_merged_parquet_bar(tmp_path: Path) -> None:
         ts=base.replace(minute=1),
     )
 
+    sink.flush()
+    pipeline.flush()
+
     parquet_path = (
         tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=RELIANCE" / "data.parquet"
     )

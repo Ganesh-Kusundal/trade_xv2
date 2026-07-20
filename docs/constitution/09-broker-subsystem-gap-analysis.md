@@ -379,6 +379,37 @@ This repository instead uses a **hexagonal / layered architecture** enforced by 
 
 ---
 
+## Addendum — 2026-07-21 broker + market-data remediation
+
+| ID | Area | Verdict | Notes |
+|---|---|---|---|
+| G-BS-REM-P0-1 | Dhan subscription ownership | ✅ Closed | `DataProvider.stop_fn` → `unstream`; `SubscriptionEngine` ref-count fix |
+| G-BS-REM-P0-2 | Dhan/Upstox read-path silent failures | ✅ Closed | `get_order`/`get_quote`/`get_depth` raise typed errors |
+| G-BS-REM-P0-3 | Upstox modify_order integrity | ✅ Closed | Body parsing via `UpstoxDomainMapper`; instrument_key fallback removed |
+| G-BS-REM-P0-4 | Live bar parquet hot path | ✅ Closed | Async `LiveBarSink` queue + `file_lock()` on merge-write |
+| G-BS-REM-P0-5 | IST candle bucketing + gap inject | ✅ Closed | `CandleAggregator` IST alignment; `StreamOrchestrator.inject_reconciled_bars` |
+| G-BS-REM-P1-1 | Dhan live-order guard parity | ✅ Closed | `convert_position`/`exit_all`/`cancel_all_orders` gated |
+| G-BS-REM-P1-2 | Upstox lifecycle + capability wiring | ✅ Closed | `disconnect()` cascades WS; `PORTFOLIO_STREAM` target fixed |
+| G-BS-REM-P1-3 | Single-broker StreamOrchestrator | ✅ Closed | `BrokerInfrastructure` wires with ≥1 broker |
+| G-BS-REM-P1-4 | Account registry 401 storm | ✅ Closed | `AccountConnectionRegistry.record_auth_failure` invalidates cache |
+
+---
+
+## Addendum — 2026-07-21 review findings remediation (second pass)
+
+| ID | Area | Verdict | Notes |
+|---|---|---|---|
+| G-BS-REV-P0-1 | Malformed order response → silent ok | ✅ Closed | Shared `order_result_from_response()` defaults `success=False` |
+| G-BS-REV-P0-2 | Upstox subscribe raw dict leak | ✅ Closed | `UpstoxDataProvider._on_tick` normalizes via `_normalize_quote` |
+| G-BS-REV-P0-3 | Dhan tick normalize swallow | ✅ Closed | WARNING log `tick_normalize_failed`; feed thread preserved |
+| G-BS-REV-P1-1 | Dhan post-cancel fill race | ✅ Closed | `OrderCanceller._verify_cancel_not_race_filled` + `get_order_fn` |
+| G-BS-REV-P1-2 | Paper limit fill parity | ✅ Closed | `PaperOrders.try_fill_on_quote` + `wire_paper_limit_fills` |
+| G-BS-REV-P1-3 | Capabilities validator expansion | ✅ Closed | Core `supports_*` flags mapped; extensions excluded (ponytail) |
+| G-BS-REV-P1-4 | Gateway TypeError fallback | ✅ Closed | Legacy fallback paper-only in `GatewayExecutionProvider` |
+| G-BS-REV-P2-1 | Hardcoded IST SQL interval | ✅ Closed | `IST_SQL_INTERVAL` from `IST_OFFSET` in sync/normalize |
+
+---
+
 ## Evidence references
 
 | Path | Finding |

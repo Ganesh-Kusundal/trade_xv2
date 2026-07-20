@@ -215,11 +215,12 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         reset so the behaviour is uniform across all Dhan WS services.
         """
         from config.ws_settings import (
+            DHAN_INITIAL_BACKOFF_SECONDS,
             DHAN_MAX_RECONNECT_ATTEMPTS,
             DHAN_RECONNECT_COOLDOWN_SECONDS,
         )
 
-        backoff = self.INITIAL_BACKOFF
+        backoff = DHAN_INITIAL_BACKOFF_SECONDS
         max_reconnect_attempts = DHAN_MAX_RECONNECT_ATTEMPTS
         cooldown_seconds = DHAN_RECONNECT_COOLDOWN_SECONDS
 

@@ -62,6 +62,16 @@ class Runtime:
             await infra.streams.start()
         self._streams_started = True
 
+    async def stop(self) -> None:
+        """Stop streams and flush live bar pipeline state."""
+        from runtime.live_datalake_wiring import flush_live_bar_pipeline
+
+        flush_live_bar_pipeline()
+        infra = self.broker_infrastructure
+        if infra is not None and self._streams_started:
+            await infra.streams.stop()
+        self._streams_started = False
+
 
 # ---------------------------------------------------------------------------
 # Build options
@@ -161,8 +171,15 @@ def _wire_trading_orchestrator(
 
     kind = resolve_execution_target_kind()
     quote_fn = _quote_fn_from_gateway(gateway)
+    # For LIVE: pass gateway directly for BrokerFillSource;
+    # for PAPER/REPLAY: use quote_fn for simulated fills.
+    from domain.ports.execution_target import ExecutionTargetKind
+
     execution_engine = build_execution_engine(
-        tc, kind, gateway=None, quote_fn=quote_fn
+        tc,
+        kind,
+        gateway=gateway if kind is ExecutionTargetKind.LIVE else None,
+        quote_fn=quote_fn,
     )
 
     orchestrator = TradingOrchestrator(
@@ -186,7 +203,7 @@ def _build_broker_infrastructure(
     broker_service: Any,
 ) -> Any | None:
     """Build BrokerInfrastructure from available broker gateways."""
-    from domain.policies.source_selection import auto_dual_broker_policy
+    from domain.policies.source_selection import RoutingPolicy, SourceSelectionPolicy, auto_dual_broker_policy
     from runtime.broker_infrastructure import build_infrastructure
 
     gateways = broker_service.gateways
@@ -195,16 +212,36 @@ def _build_broker_infrastructure(
         gateway_pairs.append(("dhan", gateways["dhan"]))
     if gateways.get("upstox") is not None:
         gateway_pairs.append(("upstox", gateways["upstox"]))
-    if len(gateway_pairs) < 2:
-        logger.info("BrokerInfrastructure skipped: fewer than 2 brokers configured")
+    if not gateway_pairs:
         return None
     execution_account = gateway_pairs[0][0]
+    if len(gateway_pairs) >= 2:
+        policy = auto_dual_broker_policy(execution_account=execution_account)
+    else:
+        bid = gateway_pairs[0][0]
+        fixed = RoutingPolicy(mode="fixed", candidates=(bid,), allow_fallback=False)
+        policy = SourceSelectionPolicy(
+            policy_version="1.0.0-single",
+            execution=RoutingPolicy(
+                mode="fixed",
+                candidates=(bid,),
+                allow_fallback=False,
+                execution_account=bid,
+            ),
+            historical=fixed,
+            live_market_data=fixed,
+            enrichment=fixed,
+            instrument_metadata=fixed,
+        )
     try:
         infra = build_infrastructure(
             gateways=[gw for _, gw in gateway_pairs],
-            policy=auto_dual_broker_policy(execution_account=execution_account),
+            policy=policy,
         )
-        logger.info("BrokerInfrastructure wired for multi-broker routing")
+        logger.info(
+            "BrokerInfrastructure wired (%d broker(s))",
+            len(gateway_pairs),
+        )
         return infra
     except Exception as exc:
         logger.warning("Failed to build BrokerInfrastructure: %s", exc)
@@ -277,6 +314,17 @@ def build_from_broker_service(
     tc = broker_service.trading_context
     gateway = broker_service.active_broker
 
+    if event_bus_for_sink is not None:
+        paper_gw = getattr(broker_service, "gateways", {}).get("paper")
+        if paper_gw is not None and hasattr(paper_gw, "orders"):
+            from runtime.live_datalake_wiring import wire_paper_limit_fills
+
+            wire_paper_limit_fills(event_bus_for_sink, paper_gw.orders)
+        elif hasattr(gateway, "orders"):
+            from runtime.live_datalake_wiring import wire_paper_limit_fills
+
+            wire_paper_limit_fills(event_bus_for_sink, gateway.orders)
+
     event_bus = getattr(broker_service, "_event_bus", None)
     if event_bus is None and tc is not None:
         event_bus = tc.event_bus
@@ -286,12 +334,16 @@ def build_from_broker_service(
         wire_intelligent_gateway = os.getenv("ENABLE_INTELLIGENT_GATEWAY", "0") == "1"
 
     broker_infrastructure = None
-    if wire_intelligent_gateway or _both_brokers_available(broker_service):
+    if wire_intelligent_gateway or len(getattr(broker_service, "gateways", {})) >= 1:
         broker_infrastructure = _build_broker_infrastructure(broker_service)
         if event_bus is not None:
-            from runtime.live_datalake_wiring import wire_stream_orchestrator_ticks
+            from runtime.live_datalake_wiring import (
+                attach_orchestrator_gap_fill,
+                wire_stream_orchestrator_ticks,
+            )
 
             wire_stream_orchestrator_ticks(broker_infrastructure.streams, event_bus)
+            attach_orchestrator_gap_fill(broker_infrastructure.streams)
 
     orchestrator = None
     pattern_engine = None

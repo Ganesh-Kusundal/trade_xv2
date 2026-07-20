@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from datetime import datetime
 from threading import RLock
 
 from domain import (
@@ -229,6 +230,90 @@ class PaperOrders:
             self._order_manager.record_trade(trade)
 
         return result.order
+
+    def try_fill_on_quote(
+        self,
+        symbol: str,
+        exchange: str,
+        ltp: Decimal,
+        ts: datetime | None = None,
+    ) -> list[Order]:
+        """Fill OPEN limit orders when LTP crosses the resting limit price."""
+        if ltp <= 0:
+            return []
+
+        sym = normalize_symbol(symbol)
+        exch = normalize_exchange(exchange)
+        now = ts or get_current_clock().now()
+        filled_orders: list[Order] = []
+        trades_to_record: list[Trade] = []
+
+        with self._lock:
+            for i, order in enumerate(self._orders):
+                if order.status != OrderStatus.OPEN or order.order_type != OrderType.LIMIT:
+                    continue
+                if order.symbol != sym or order.exchange != exch:
+                    continue
+
+                limit_price = order.price
+                if limit_price <= 0:
+                    continue
+
+                crosses = (
+                    order.side == Side.BUY and ltp <= limit_price
+                ) or (order.side == Side.SELL and ltp >= limit_price)
+                if not crosses:
+                    continue
+
+                filled_order = Order(
+                    order_id=order.order_id,
+                    symbol=order.symbol,
+                    exchange=order.exchange,
+                    side=order.side,
+                    order_type=order.order_type,
+                    quantity=order.quantity,
+                    filled_quantity=order.quantity,
+                    price=order.price,
+                    trigger_price=order.trigger_price,
+                    validity=order.validity,
+                    product_type=order.product_type,
+                    correlation_id=order.correlation_id,
+                    status=OrderStatus.FILLED,
+                    timestamp=now,
+                    avg_price=limit_price,
+                )
+                self._orders[i] = filled_order
+                self._trade_seq += 1
+                trade = Trade(
+                    trade_id=f"PPR-T-{self._trade_seq:06d}",
+                    order_id=filled_order.order_id,
+                    symbol=filled_order.symbol,
+                    exchange=filled_order.exchange,
+                    side=filled_order.side,
+                    quantity=filled_order.quantity,
+                    price=limit_price,
+                    trade_value=limit_price * filled_order.quantity,
+                    timestamp=now,
+                    product_type=filled_order.product_type,
+                )
+                self._trades.append(trade)
+                self._positions = self._update_position(
+                    filled_order.symbol,
+                    filled_order.exchange,
+                    filled_order.side,
+                    filled_order.quantity,
+                    limit_price,
+                    filled_order.product_type,
+                )
+                filled_orders.append(filled_order)
+                trades_to_record.append(trade)
+
+        if self._order_manager is not None:
+            for order, trade in zip(filled_orders, trades_to_record, strict=True):
+                self._order_manager.upsert_order(order)
+                self._order_manager.record_trade(trade)
+
+        return filled_orders
 
     def cancel_order(self, order_id: str) -> bool:
         with self._lock:

@@ -72,10 +72,14 @@ class UpstoxOrderCommandAdapter:
                 raise OrderError("concurrent placement for same correlation_id timed out")
 
         try:
-            return self._place_order_impl(request)
-        finally:
+            response = self._place_order_impl(request)
+        except Exception:
             if cid and self._idempotency_cache is not None:
                 self._idempotency_cache.clear_reservation(cid)
+            raise
+        if cid and self._idempotency_cache is not None and not response.success:
+            self._idempotency_cache.clear_reservation(cid)
+        return response
 
     def _place_order_impl(self, request: BrokerOrderPayload) -> OrderResponse:
         from domain.errors import OrderError
@@ -87,8 +91,6 @@ class UpstoxOrderCommandAdapter:
                 return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
 
         instrument_key = self._resolve_instrument_key(request)
-        if not instrument_key:
-            raise OrderError(f"Cannot resolve Upstox instrument_key for {request.symbol!r}")
 
         preview = self.preview_order(request)
         if not preview.valid:
@@ -149,7 +151,15 @@ class UpstoxOrderCommandAdapter:
             result = self._order_client.modify_order_v3(payload)
         except Exception as exc:
             return order_response_from_transport_error(exc)
-        return OrderResponse.ok(order_id=order_id, message="Order modified", raw_payload=result)
+        response = UpstoxDomainMapper.to_order_response(result)
+        if not response.success:
+            return response
+        return OrderResponse.ok(
+            order_id=order_id,
+            message=response.message or "Order modified",
+            status=response.status,
+            raw_payload=result if isinstance(result, dict) else None,
+        )
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order via the Upstox v3 cancel endpoint.
@@ -237,15 +247,19 @@ class UpstoxOrderCommandAdapter:
 
         return OrderPreview(valid=not errors, errors=errors)
 
-    def _resolve_instrument_key(self, request: BrokerOrderPayload) -> str | None:
+    def _resolve_instrument_key(self, request: BrokerOrderPayload) -> str:
+        from domain.errors import InstrumentNotFoundError
+
         seg_wire = UpstoxDomainMapper.segment_to_wire(request.exchange_segment)
         definition = self._instrument_resolver.resolve(
             symbol=request.symbol, exchange_segment=seg_wire
         )
         if definition is not None:
             return definition.instrument_key
-        # Last resort: assume symbol is the bare instrument_key
-        return request.symbol or None
+        raise InstrumentNotFoundError(
+            f"Cannot resolve Upstox instrument_key for {request.symbol!r} "
+            f"on segment {request.exchange_segment!r}"
+        )
 
     def _to_domain_order(self, request: BrokerOrderPayload) -> Order:
         from domain import OrderStatus, OrderType, ProductType, Validity

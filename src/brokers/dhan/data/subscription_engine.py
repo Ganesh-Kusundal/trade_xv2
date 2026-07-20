@@ -53,11 +53,12 @@ class SubscriptionEngine:
             feed = self._ensure_market_feed()
             feed.subscribe([(segment, sid, mode)])
             self._instrument_modes[key] = mode
-            self._instrument_refs[key] = self._instrument_refs.get(key, 0) + 1
 
+            new_consumer = on_tick is None
             if on_tick is not None:
                 existing = self._market_callbacks.get(key, [])
                 if on_tick not in existing:
+                    new_consumer = True
 
                     def _wrap(data: dict, _sym: str = symbol, _cb: Any = on_tick) -> None:
                         try:
@@ -89,6 +90,9 @@ class SubscriptionEngine:
                         extra={"symbol": symbol, "exchange": exchange},
                     )
 
+            if new_consumer:
+                self._instrument_refs[key] = self._instrument_refs.get(key, 0) + 1
+
             if not feed.is_connected:
                 feed.connect()
 
@@ -109,7 +113,10 @@ class SubscriptionEngine:
             wrappers = self._market_wrappers.get(key, [])
             feed = self._conn.market_feed
 
+            removed_consumer = False
             if on_tick is not None:
+                if on_tick in callbacks:
+                    removed_consumer = True
                 with contextlib.suppress(ValueError):
                     callbacks.remove(on_tick)
                 to_remove = [(cb, wrap) for cb, wrap in wrappers if cb is on_tick]
@@ -119,6 +126,7 @@ class SubscriptionEngine:
                     if feed is not None:
                         feed.off_quote(wrap)
             else:
+                removed_consumer = bool(callbacks or self._instrument_refs.get(key, 0))
                 if feed is not None:
                     for _cb, wrap in list(wrappers):
                         feed.off_quote(wrap)
@@ -129,13 +137,14 @@ class SubscriptionEngine:
                 self._market_callbacks.pop(key, None)
                 self._market_wrappers.pop(key, None)
 
-            refs = self._instrument_refs.get(key, 0)
-            if refs <= 1:
-                self._instrument_refs.pop(key, None)
-                if refs >= 1:
-                    self._decrement_instrument(key, symbol, exchange, feed)
-            else:
-                self._instrument_refs[key] = refs - 1
+            if removed_consumer:
+                refs = self._instrument_refs.get(key, 0)
+                if refs <= 1:
+                    self._instrument_refs.pop(key, None)
+                    if refs >= 1:
+                        self._decrement_instrument(key, symbol, exchange, feed)
+                else:
+                    self._instrument_refs[key] = refs - 1
 
             self._update_metrics()
 

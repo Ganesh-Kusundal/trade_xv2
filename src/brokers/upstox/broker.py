@@ -367,7 +367,7 @@ class UpstoxBroker:
         # registered lazily in ``_ensure_extended`` — they are part of the
         # Upstox-specific "extended" surface and must not be available until
         # ``gateway.extended`` is first accessed.
-        self._register_capability(Capability.PORTFOLIO_STREAM, self.market_data_websocket)
+        self._register_capability(Capability.PORTFOLIO_STREAM, self.portfolio_stream)
         self._register_capability(Capability.WEBHOOKS, self.feed_authorizer)
 
     # ── Connection lifecycle ──
@@ -446,6 +446,22 @@ class UpstoxBroker:
             return False
 
     def disconnect(self) -> bool:
+        """Stop market-data and portfolio streams before marking disconnected."""
+        import contextlib
+
+        from infrastructure.io.async_compat import run_async_compat
+
+        for name in ("market_data_websocket", "portfolio_stream"):
+            ws = getattr(self, name, None)
+            if ws is None:
+                continue
+            stop = getattr(ws, "disconnect", None) or getattr(ws, "stop", None)
+            if not callable(stop):
+                continue
+            with contextlib.suppress(Exception):
+                result = stop()
+                if result is not None and hasattr(result, "__await__"):
+                    run_async_compat(result)
         self._set_status(ConnectionStatus.DISCONNECTED)
         return True
 

@@ -1,4 +1,4 @@
-"""Live certification probe integration tests for Upstox (marker-gated)."""
+"""Shared live certification probe tests for all brokers."""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ def _open_or_skip(broker: str) -> BrokerSession:
 
 @pytest.mark.integration
 @pytest.mark.live_readonly
-@pytest.mark.upstox
-def test_upstox_live_token_probes() -> None:
-    session = _open_or_skip("upstox")
+@pytest.mark.parametrize("broker", ["dhan", "upstox"])
+def test_live_token_probes(broker: str) -> None:
+    session = _open_or_skip(broker)
     try:
         probe_token_refresh(session)
         probe_token_expiry(session)
@@ -34,9 +34,9 @@ def test_upstox_live_token_probes() -> None:
 
 @pytest.mark.integration
 @pytest.mark.live_readonly
-@pytest.mark.upstox
-def test_upstox_live_reconnect_probes() -> None:
-    session = _open_or_skip("upstox")
+@pytest.mark.parametrize("broker", ["dhan", "upstox"])
+def test_live_reconnect_probes(broker: str) -> None:
+    session = _open_or_skip(broker)
     try:
         probe_reconnect(session)
         probe_session_recovery(session)

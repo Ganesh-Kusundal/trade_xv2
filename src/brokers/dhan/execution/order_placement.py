@@ -117,6 +117,8 @@ class OrderPlacer:
     def _place_order_impl(self, request: BrokerOrderPayload, cid: str) -> OrderResponse:
         """Internal placement after idempotency reservation is held."""
         # -- Safety guard ---------------------------------------------------
+        # Adapter gate (DHAN_ALLOW_LIVE_ORDERS). OMS also enforces
+        # check_live_actionable() in brokers/services/_session.py — both must pass.
         if not self._allow_live_orders:
             return OrderResponse.fail("Live orders disabled; set DHAN_ALLOW_LIVE_ORDERS=1")
 

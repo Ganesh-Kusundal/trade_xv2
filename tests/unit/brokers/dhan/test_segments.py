@@ -51,3 +51,18 @@ def test_sdk_int_roundtrip():
 
     assert from_sdk_int(5) is ExchangeSegment.MCX
     assert to_sdk_int(ExchangeSegment.MCX) == 5
+
+
+def test_to_sdk_int_does_not_import_dhanhq():
+    """to_sdk_int uses local SEGMENT_TO_NUMERIC — works without dhanhq installed."""
+    import sys
+
+    from domain.types import ExchangeSegment
+
+    saved = sys.modules.pop("dhanhq", None)
+    try:
+        assert to_sdk_int(ExchangeSegment.NSE) == 1
+        assert to_sdk_int(ExchangeSegment.MCX) == 5
+    finally:
+        if saved is not None:
+            sys.modules["dhanhq"] = saved

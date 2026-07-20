@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from domain.candles.historical import HistoricalSeries, InstrumentRef
+from domain.candles.historical import HistoricalBar, HistoricalSeries, InstrumentRef
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -33,6 +33,10 @@ class PaperDataProvider(DataProvider):
 
     def __init__(self, gateway: Any) -> None:
         self._gw = gateway
+
+    @property
+    def gateway(self) -> Any:
+        return self._gw
 
     @property
     def name(self) -> str:
@@ -77,9 +81,24 @@ class PaperDataProvider(DataProvider):
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
+    ) -> list[HistoricalBar]:
+        return self.get_history_series(
+            instrument_id,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        ).bars
+
+    def _history_dataframe(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
     ) -> pd.DataFrame:
-        # PaperGateway.history(symbol, exchange=..., timeframe=..., lookback_days=...)
-        # (historically this used wrong kwargs and silently returned empty frames)
         try:
             df = self._gw.history(
                 instrument_id.underlying,
@@ -105,7 +124,7 @@ class PaperDataProvider(DataProvider):
         to_date: str | None = None,
     ) -> HistoricalSeries:
         ref = InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange)
-        df = self.get_history(
+        df = self._history_dataframe(
             instrument_id,
             timeframe=timeframe,
             lookback_days=lookback_days,

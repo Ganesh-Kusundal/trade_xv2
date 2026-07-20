@@ -56,7 +56,7 @@ def _upstox_market_status_ok(oauth_client: Any, token: str) -> bool:
 
 
 def _probe_upstox(gateway: Any) -> AuthProbeResult:
-    broker_obj = getattr(gateway, "_broker", None)
+    broker_obj = getattr(gateway, "broker", None) or getattr(gateway, "_broker", None)
     probe_name = "upstox.profile"
     token: str | None = None
     oauth_client: Any | None = None
@@ -154,11 +154,45 @@ def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:
     result = handler(gateway)
     if result.ok:
         AuthMetrics.probe_ok(broker)
+        from infrastructure.connection.account_registry import AccountConnectionRegistry
+
+        account_id = _resolve_account_id(gateway, broker)
+        if account_id:
+            AccountConnectionRegistry.clear_auth_failures(broker, account_id)
     else:
         AuthMetrics.probe_fail(broker)
         if result.token_rejected:
             AuthMetrics.token_rejected(broker)
+            _record_registry_auth_failure(gateway, broker)
     return result
+
+
+def _resolve_account_id(gateway: Any, broker: str) -> str | None:
+    broker_obj = getattr(gateway, "broker", None) or getattr(gateway, "_broker", None)
+    if broker_obj is None:
+        return None
+    settings = getattr(broker_obj, "settings", None)
+    if settings is not None:
+        for attr in ("client_id", "account_id", "dhan_client_id"):
+            val = getattr(settings, attr, None)
+            if val:
+                return str(val)
+    conn = getattr(gateway, "connection", None) or getattr(gateway, "_conn", None)
+    if conn is not None:
+        client = getattr(conn, "_client", None) or getattr(conn, "client", None)
+        if client is not None:
+            cid = getattr(client, "client_id", None)
+            if cid:
+                return str(cid)
+    return broker
+
+
+def _record_registry_auth_failure(gateway: Any, broker: str) -> None:
+    from infrastructure.connection.account_registry import AccountConnectionRegistry
+
+    account_id = _resolve_account_id(gateway, broker)
+    if account_id:
+        AccountConnectionRegistry.record_auth_failure(broker, account_id)
 
 
 def authenticated_readiness_probe(
@@ -288,7 +322,7 @@ def _force_dhan_token_refresh(
     ``on_refresh`` → TOTP mint. We revoke first so a rejected JWT cannot
     be reloaded from the store by a subsequent ``acquire()``.
     """
-    conn = getattr(gateway, "_conn", None)
+    conn = getattr(gateway, "connection", None) or getattr(gateway, "_conn", None)
     if conn is None:
         return False
     auth = getattr(conn, "_auth", None)
@@ -329,7 +363,7 @@ def _force_dhan_token_refresh(
 
 
 def _force_upstox_token_refresh(gateway: Any) -> bool:
-    broker_obj = getattr(gateway, "_broker", None)
+    broker_obj = getattr(gateway, "broker", None) or getattr(gateway, "_broker", None)
     if broker_obj is None:
         return False
     tm = getattr(broker_obj, "token_manager", None)

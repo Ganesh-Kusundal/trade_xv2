@@ -27,10 +27,12 @@ def resolve_execution_target_kind(
         kind = ExecutionTargetKind.from_str(raw)
 
     if kind is ExecutionTargetKind.LIVE:
-        raise RuntimeError(
-            "Live execution is disabled. Product scope is paper-only; "
-            "set TRADEX_EXECUTION_TARGET=paper (default)."
-        )
+        if os.getenv("TRADEX_ENABLE_LIVE_EXECUTION", "0") != "1":
+            raise RuntimeError(
+                "Live execution requires explicit opt-in: "
+                "set TRADEX_ENABLE_LIVE_EXECUTION=1."
+            )
+        return kind
     return kind
 
 

@@ -1,13 +1,16 @@
 """Live aggregated bars → datalake parquet (MD-001 increment 2).
 
-ponytail: increment 2 only — 1m bars, synchronous merge-write on each close,
-no catalog refresh, no multi-timeframe fan-out. Upgrade path: batch writes +
-catalog.register after bar close, wire StreamOrchestrator path in parallel.
+Completed bars are enqueued from the EventBus hot path; a single background
+writer thread performs merge-write so tick subscribers never block on parquet I/O.
 """
 
 from __future__ import annotations
 
 import logging
+import queue
+import threading
+from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -17,6 +20,14 @@ from datalake.ingestion.normalize import ensure_timestamp_dtype
 from domain.candles.historical import HistoricalBar
 
 logger = logging.getLogger(__name__)
+
+_SENTINEL = object()
+
+
+@dataclass(frozen=True)
+class _WriteJob:
+    bar: HistoricalBar
+    df: pd.DataFrame
 
 
 def historical_bar_to_dataframe(bar: HistoricalBar) -> pd.DataFrame:
@@ -47,14 +58,80 @@ class LiveBarSink:
         root: str | None = None,
         catalog=None,
         loader: HistoricalDataLoader | None = None,
+        *,
+        sync: bool | None = None,
     ) -> None:
         self._loader = loader or HistoricalDataLoader(root=root, catalog=catalog)
+        self._queue: queue.Queue[Any] = queue.Queue(maxsize=4096)
+        self._sync = sync
+        self._writer = threading.Thread(
+            target=self._writer_loop,
+            name="live-bar-sink",
+            daemon=True,
+        )
+        self._writer.start()
+        self._inflight = threading.Event()
 
     def write_bar(self, bar: HistoricalBar) -> WriteResult:
-        """Merge one closed bar into hive-partitioned parquet."""
+        """Enqueue one closed bar; returns immediately on the hot path."""
         df = historical_bar_to_dataframe(bar)
         if df.empty:
             return WriteResult(0, 0, 0, None, None)
+        if self._sync:
+            return self._persist(bar, df)
+        job = _WriteJob(bar=bar, df=df)
+        self._inflight.set()
+        try:
+            self._queue.put(job, block=False)
+        except queue.Full:
+            logger.warning(
+                "live_bar_sink.queue_full symbol=%s tf=%s — dropping bar",
+                bar.symbol,
+                bar.timeframe,
+            )
+            self._inflight.clear()
+            return WriteResult(0, 0, 0, None, None)
+        return WriteResult(1, 0, 0, None, None)
+
+    def flush(self, timeout: float = 30.0) -> None:
+        """Drain queued writes and wait for the in-flight merge-write to finish."""
+        import time
+
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            self._queue.join()
+            if not self._inflight.is_set():
+                return
+            time.sleep(0.01)
+        logger.warning("live_bar_sink.flush timed out after %.1fs", timeout)
+
+    def close(self) -> None:
+        """Stop the background writer after draining pending jobs."""
+        self.flush()
+        self._queue.put(_SENTINEL)
+        self._writer.join(timeout=5.0)
+
+    def _writer_loop(self) -> None:
+        while True:
+            item = self._queue.get()
+            if item is _SENTINEL:
+                return
+            assert isinstance(item, _WriteJob)
+            self._inflight.set()
+            try:
+                self._persist(item.bar, item.df)
+            except Exception as exc:
+                logger.warning(
+                    "live_bar_sink.write_failed symbol=%s tf=%s: %s",
+                    item.bar.symbol,
+                    item.bar.timeframe,
+                    exc,
+                )
+            finally:
+                self._inflight.clear()
+                self._queue.task_done()
+
+    def _persist(self, bar: HistoricalBar, df: pd.DataFrame) -> WriteResult:
         result = self._loader.merge_live_bar(bar, df)
         catalog = getattr(self._loader, "_catalog", None)
         if catalog is not None and result.last_ts is not None:

@@ -10,14 +10,15 @@ from domain.candles.historical import HistoricalSeries
 from domain.instruments.instrument_id import InstrumentId
 
 
-def test_get_history_returns_non_empty_dataframe() -> None:
+def test_get_history_returns_non_empty_bars() -> None:
     gw = PaperGateway(initial_capital=Decimal("100000"))
     provider = PaperDataProvider(gw)
     iid = InstrumentId.equity("NSE", "RELIANCE")
-    df = provider.get_history(iid, timeframe="1D", lookback_days=7)
-    assert df is not None
-    assert len(df) == 7
-    assert {"timestamp", "open", "high", "low", "close", "volume"}.issubset(df.columns)
+    bars = provider.get_history(iid, timeframe="1D", lookback_days=7)
+    assert isinstance(bars, list)
+    assert len(bars) == 7
+    assert bars[0].close > 0
+    assert bars[0].open is not None
 
 
 def test_get_history_series_bar_count() -> None:

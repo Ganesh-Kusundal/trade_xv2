@@ -344,6 +344,59 @@ class TestUpstoxQuoteLogging:
     pass
 
 
+class TestReadPathTypedErrors:
+    """get_quote/get_order must not swallow transport failures as empty results."""
+
+    def test_dhan_get_order_raises_broker_error_on_transport_failure(self) -> None:
+        from brokers.dhan.wire import DhanBrokerGateway
+        from domain.errors import BrokerError
+
+        gw = DhanBrokerGateway.__new__(DhanBrokerGateway)
+
+        class _Orders:
+            def get_order(self, order_id: str):
+                raise ConnectionError("reset")
+
+        class _Conn:
+            orders = _Orders()
+
+        gw._conn = _Conn()
+        with pytest.raises(BrokerError):
+            gw.get_order("123")
+
+    def test_dhan_data_provider_get_quote_raises_quote_unavailable(self) -> None:
+        from brokers.dhan.data.data_provider import DhanDataProvider
+        from domain.exceptions import QuoteUnavailableError
+        from domain.instruments.instrument_id import InstrumentId
+
+        provider = DhanDataProvider.__new__(DhanDataProvider)
+        provider._gw = type(
+            "G",
+            (),
+            {
+                "quote": staticmethod(lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("down")))
+            },
+        )()
+        iid = InstrumentId(underlying="RELIANCE", exchange="NSE")
+        with pytest.raises(QuoteUnavailableError):
+            provider.get_quote(iid)
+
+    def test_upstox_data_provider_get_depth_raises_quote_unavailable(self) -> None:
+        from brokers.upstox.data_provider import UpstoxDataProvider
+        from domain.exceptions import QuoteUnavailableError
+        from domain.instruments.instrument_id import InstrumentId
+
+        provider = UpstoxDataProvider.__new__(UpstoxDataProvider)
+        provider._gw = type(
+            "G",
+            (),
+            {"depth": staticmethod(lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("down")))},
+        )()
+        iid = InstrumentId(underlying="RELIANCE", exchange="NSE")
+        with pytest.raises(QuoteUnavailableError):
+            provider.get_depth(iid)
+
+
 class TestTransportErrorMapping:
     """Order transport boundaries must map exceptions to canonical errors."""
 
@@ -399,3 +452,39 @@ class TestTransportBareExceptRatchet:
         assert "order_response_from_transport_error" in content
         assert "OrderResponse.fail(str(e))" not in content
         assert "OrderResponse.fail(str(exc))" not in content
+
+
+class TestOrderResultFromResponse:
+    """Malformed broker responses must fail closed (default success=False)."""
+
+    def test_missing_success_attribute_fails(self) -> None:
+        from brokers.common.transport_errors import order_result_from_response
+
+        class _Response:
+            order_id = "X"
+
+        result = order_result_from_response(_Response())
+        assert not result.success
+        assert "malformed" in (result.error or "").lower()
+
+    def test_success_false_fails(self) -> None:
+        from brokers.common.transport_errors import order_result_from_response
+        from domain import OrderResponse
+
+        result = order_result_from_response(
+            OrderResponse.fail(message="rejected", error_code="E1")
+        )
+        assert not result.success
+
+    def test_dict_without_success_fails(self) -> None:
+        from brokers.common.transport_errors import order_result_from_response
+
+        result = order_result_from_response({"order_id": "1"})
+        assert not result.success
+
+    def test_success_true_ok(self) -> None:
+        from brokers.common.transport_errors import order_result_from_response
+        from domain import OrderResponse
+
+        result = order_result_from_response(OrderResponse.ok(order_id="OK-1"))
+        assert result.success

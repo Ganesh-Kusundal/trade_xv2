@@ -5,6 +5,7 @@ Implements BrokerProviderFactory for polymorphic factory pattern.
 
 from __future__ import annotations
 
+import atexit
 import logging
 from collections.abc import Callable
 from dataclasses import replace
@@ -20,6 +21,12 @@ from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
 logger = logging.getLogger(__name__)
+
+# One TOTP refresh scheduler per token manager for the process lifetime.
+# Reusing the scheduler avoids spawning a new daemon thread + atexit handler on
+# every UpstoxBrokerFactory.create() call (the gateway itself is already
+# de-duplicated via AccountConnectionRegistry).
+_active_totp_schedulers: dict[int, Any] = {}
 
 
 class UpstoxBrokerFactory(BrokerProviderFactory):
@@ -80,7 +87,8 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
             backfill_callback=backfill_callback,
             reconciliation_service=reconciliation_service,
         )
-        if not broker.connect():
+        connect_ok = broker.connect()
+        if not connect_ok:
             if settings.is_totp:
                 raise UpstoxAuthError(
                     "Upstox TOTP bootstrap failed during connect; "
@@ -89,12 +97,26 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
             logger.warning("Upstox connect failed; gateway created in disconnected state")
 
         if settings.is_totp and lifecycle is None:
+            from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
+
+            tm = broker.token_manager
+            scheduler = _active_totp_schedulers.get(id(tm))
+            if scheduler is None:
+                scheduler = TotpRefreshScheduler(
+                    tm,
+                    refresh_hour=settings.totp_refresh_hour,
+                    refresh_minute=settings.totp_refresh_minute,
+                )
+                scheduler.start()
+                atexit.register(scheduler.stop)
+                _active_totp_schedulers[id(tm)] = scheduler
             logger.warning(
-                "Upstox TOTP mode without lifecycle manager: daily refresh scheduler "
-                "will not run until lifecycle.start_all() wires TotpRefreshScheduler"
+                "upstox_totp_scheduler_started_without_lifecycle",
+                extra={"hint": "registered atexit stop handler"},
             )
 
         gateway = UpstoxWireAdapter(broker)
+        gateway.bootstrap_transport_ready = connect_ok
 
         # Register extension factories so brokers.common can find them
 
@@ -102,7 +124,11 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
             try:
                 gateway.load_instruments()
             except Exception as e:
+                # ponytail: instrument load is best-effort for analytics; live
+                # sessions with require_authenticated=True still fail the auth probe.
                 logger.warning("Failed to load Upstox instruments: %s", e)
+                if not settings.analytics_only and settings.is_totp:
+                    raise
 
         # ── Auto-wire WebSocket lifecycle ──────────────────────────────
         # When lifecycle is provided, register the WebSocket multiplexer

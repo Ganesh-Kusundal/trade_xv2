@@ -40,6 +40,10 @@ class DhanWireAdapter(BaseWireAdapter):
         self._stream_lock = threading.Lock()
         enforce_gateway_capabilities(self)
 
+    @property
+    def connection(self) -> DhanConnection:
+        return self._conn
+
     def _transport_connected(self) -> bool:
         """Authenticated + transport alive.
 
@@ -48,13 +52,12 @@ class DhanWireAdapter(BaseWireAdapter):
         is authoritative.
         """
         conn = self._conn
+        client = getattr(conn, "_client", None)
+        rest_ok = bool(client is not None and (getattr(client, "access_token", None) or "").strip())
         feed = getattr(conn, "market_feed", None) or getattr(conn, "_market_feed", None)
         if feed is not None and hasattr(feed, "is_connected"):
-            return bool(feed.is_connected)
-        client = getattr(conn, "_client", None)
-        if client is not None:
-            return bool((getattr(client, "access_token", None) or "").strip())
-        return False
+            return bool(feed.is_connected) or rest_ok
+        return rest_ok
 
     def authenticate(self) -> bool:
         """Ensure Dhan session token is usable — parity with Upstox.connect().
@@ -194,21 +197,7 @@ class DhanWireAdapter(BaseWireAdapter):
         return self._conn.orders.place_order(payload)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
-        result = self._conn.orders.cancel_order(order_id)
-        if result.success:
-            order = self.get_order(order_id)
-            if order and order.status.name == "FILLED":
-                from domain import OrderResponse as DomainOrderResponse
-                from domain import OrderStatus
-
-                return DomainOrderResponse(
-                    success=False,
-                    order_id=order_id,
-                    message="Cancel failed: order already filled",
-                    error_code="ALREADY_EXECUTED",
-                    status=OrderStatus.REJECTED,
-                )
-        return result
+        return self._conn.orders.cancel_order(order_id)
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing order, delegating to the orders adapter."""
@@ -223,8 +212,14 @@ class DhanWireAdapter(BaseWireAdapter):
         try:
             return self._conn.orders.get_order(order_id)
         except Exception as e:
-            logger.warning("get_order_failed", extra={"order_id": order_id, "error": str(e)})
-            return None
+            from brokers.common.transport_errors import map_transport_exception
+
+            mapped = map_transport_exception(e)
+            logger.warning(
+                "get_order_failed",
+                extra={"order_id": order_id, "error": str(mapped), "error_type": type(mapped).__name__},
+            )
+            raise mapped from e
 
     def get_orderbook(self) -> list[Order]:
         return self._conn.orders.get_orderbook()
@@ -479,9 +474,10 @@ class DhanWireAdapter(BaseWireAdapter):
         ``security_id`` values are never exposed to the caller — mapping is
         internal to the connection.
         """
-        return self._conn.subscription_engine.subscribe_market(
-            symbol, exchange, mode=mode, on_tick=on_tick
-        )
+        with self._stream_lock:
+            return self._conn.subscription_engine.subscribe_market(
+                symbol, exchange, mode=mode, on_tick=on_tick
+            )
 
     def unstream(
         self,
@@ -490,7 +486,10 @@ class DhanWireAdapter(BaseWireAdapter):
         on_tick: Any | None = None,
     ) -> None:
         """Unsubscribe from a live tick stream for *symbol* on *exchange*."""
-        self._conn.subscription_engine.unsubscribe_market(symbol, exchange, on_tick=on_tick)
+        with self._stream_lock:
+            self._conn.subscription_engine.unsubscribe_market(
+                symbol, exchange, on_tick=on_tick
+            )
 
     def stream_order(self, on_order: Any | None = None) -> Any:
         """Subscribe to account-wide order updates; distinct from market ``stream``."""

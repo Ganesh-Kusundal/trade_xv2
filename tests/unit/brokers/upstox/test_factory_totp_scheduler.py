@@ -116,3 +116,33 @@ class TestUpstoxFactoryTotpScheduler:
         scheduler = lifecycle.get("upstox.totp_refresh_scheduler")
         assert scheduler is not None
         assert scheduler.is_running is True
+
+    def test_totp_scheduler_registers_atexit_when_lifecycle_absent(self):
+        mock_broker = MagicMock()
+        mock_broker.token_manager = MagicMock()
+        mock_broker.connect.return_value = True
+        scheduler = MagicMock()
+
+        with (
+            patch(
+                "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
+                return_value=_totp_settings(),
+            ),
+            patch(
+                "brokers.upstox.factory.UpstoxBroker",
+                return_value=mock_broker,
+            ),
+            patch(
+                "brokers.upstox.factory.UpstoxWireAdapter",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "brokers.upstox.auth.totp_scheduler.TotpRefreshScheduler",
+                return_value=scheduler,
+            ),
+            patch("atexit.register") as register_atexit,
+        ):
+            UpstoxBrokerFactory().create(load_instruments=False, lifecycle=None)
+
+        scheduler.start.assert_called_once()
+        register_atexit.assert_called_once_with(scheduler.stop)

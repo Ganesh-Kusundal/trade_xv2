@@ -117,9 +117,19 @@ class DhanConnection:
 
         # ── Registry-driven adapter construction ──
         for attr_name, adapter_cls in _ADAPTERS_WITH_INSTRUMENTS:
-            setattr(self, attr_name, adapter_cls(client, self.identity))
+            if adapter_cls is PortfolioAdapter:
+                setattr(
+                    self,
+                    attr_name,
+                    adapter_cls(client, self.identity, allow_live_orders=allow_live_orders),
+                )
+            else:
+                setattr(self, attr_name, adapter_cls(client, self.identity))
         for attr_name, adapter_cls in _ADAPTERS_CLIENT_ONLY:
-            setattr(self, attr_name, adapter_cls(client))
+            if adapter_cls is ExitAllAdapter:
+                setattr(self, attr_name, adapter_cls(client, allow_live_orders=allow_live_orders))
+            else:
+                setattr(self, attr_name, adapter_cls(client))
 
         # Special case: OrdersAdapter takes extra kwargs
         self._orders = OrdersAdapter(
@@ -365,50 +375,10 @@ class DhanConnection:
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
-        """Subscribe to a live tick stream. Security mapping stays internal."""
-        from decimal import Decimal
-
-        from domain import Quote
-
-        ref = self.instruments.resolve_dhan_ref(symbol, exchange)
-        segment = ref.exchange_segment
-        sid = int(ref.security_id)
-        feed = self.market_feed
-        if feed is None:
-            feed = self.create_market_feed(
-                access_token=self.access_token,
-                instruments=[(segment, sid, mode)],
-                access_token_fn=lambda: self.access_token,
-            )
-            self.market_feed = feed
-        else:
-            feed.subscribe([(segment, sid, mode)])
-        if on_tick:
-
-            def _wrap(data: dict) -> None:
-                try:
-                    q = Quote(
-                        symbol=data.get("symbol", symbol),
-                        ltp=data.get("ltp", Decimal("0")),
-                        open=data.get("open", Decimal("0")),
-                        high=data.get("high", Decimal("0")),
-                        low=data.get("low", Decimal("0")),
-                        close=data.get("close", Decimal("0")),
-                        volume=int(data.get("volume", 0)),
-                        change=data.get("change", Decimal("0")),
-                    )
-                    on_tick(q)
-                except Exception:
-                    logger.debug(
-                        "Dhan tick→Quote wrap failed; forwarding raw",
-                        exc_info=True,
-                    )
-                    on_tick(data)
-
-            feed.on_quote(_wrap)
-        if not feed.is_connected:
-            feed.connect()
-        return feed
+        """Subscribe to a live tick stream via the canonical subscription engine."""
+        return self.subscription_engine.subscribe_market(
+            symbol, exchange, mode=mode, on_tick=on_tick
+        )
 
     def subscribe_depth_20(
         self,

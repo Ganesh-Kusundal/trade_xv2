@@ -6,7 +6,7 @@ and timezone definitions.
 
 from __future__ import annotations
 
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -107,6 +107,13 @@ IST_OFFSET = timezone(timedelta(hours=5, minutes=30))
 #: but DST/history-aware via the tz database.
 IST = ZoneInfo("Asia/Kolkata")
 
+#: DuckDB ``INTERVAL`` literal derived from :data:`IST_OFFSET` (no hardcoded 5:30).
+_ist_delta = IST_OFFSET.utcoffset(None) or timedelta(hours=5, minutes=30)
+IST_SQL_INTERVAL = (
+    f"INTERVAL '{_ist_delta.seconds // 3600 + _ist_delta.days * 24} hours "
+    f"{(_ist_delta.seconds % 3600) // 60} minutes'"
+)
+
 __all__ = [
     "ATR_PERIOD_DEFAULT",
     "DEFAULT_CURRENCY",
@@ -118,6 +125,7 @@ __all__ = [
     "DEFAULT_TICK_SIZE",
     "IST",
     "IST_OFFSET",
+    "IST_SQL_INTERVAL",
     "MCX_CLOSE_HOUR_IST",
     "MCX_CLOSE_MINUTE_IST",
     "MCX_OPEN_HOUR_IST",

@@ -287,7 +287,7 @@ class StreamingGateway:
             Dict mapping WebSocket name to connected status
         """
         status: dict[str, bool] = {}
-        for name in ("market_data_websocket", "order_stream_websocket"):
+        for name in ("market_data_websocket", "portfolio_stream"):
             ws = getattr(self._broker, name, None)
             status[name] = bool(getattr(ws, "is_connected", False))
         return status
@@ -330,7 +330,7 @@ class StreamingGateway:
 
     def disconnect(self) -> None:
         """Disconnect market-data / order-stream websockets when present."""
-        for name in ("market_data_websocket", "order_stream_websocket"):
+        for name in ("market_data_websocket", "portfolio_stream"):
             ws = getattr(self._broker, name, None)
             if ws is None:
                 continue

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Any
 
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from domain.ports.protocols import ExecutionProvider, OrderResult
+from infrastructure.resilience.transport_errors import order_result_from_response
+
+logger = logging.getLogger(__name__)
 
 
 class GatewayExecutionProvider(ExecutionProvider):
@@ -29,14 +33,9 @@ class GatewayExecutionProvider(ExecutionProvider):
         return value.value if hasattr(value, "value") else value
 
     @staticmethod
-    def _wrap(response: Any) -> OrderResult:
-        if getattr(response, "success", True):
-            return OrderResult.ok(response)
-        return OrderResult.fail(
-            getattr(response, "message", None)
-            or getattr(response, "error", None)
-            or "broker rejected order"
-        )
+    def _allows_legacy_place_order_fallback(gateway: Any) -> bool:
+        broker_id = str(getattr(gateway, "broker_id", "") or "").lower()
+        return broker_id in {"paper", ""}
 
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:
@@ -52,19 +51,26 @@ class GatewayExecutionProvider(ExecutionProvider):
                 trigger_price=request.trigger_price or Decimal("0"),
                 correlation_id=request.correlation_id,
             )
-        except TypeError:
-            # Some gateways use different kwargs — fall back to OrderRequest object
-            try:
-                response = self._gateway.place_order(request)
-            except Exception as exc:
-                return OrderResult.fail(str(exc))
+        except TypeError as exc:
+            if self._allows_legacy_place_order_fallback(self._gateway):
+                try:
+                    response = self._gateway.place_order(request)
+                except Exception as inner:
+                    return OrderResult.fail(str(inner))
+            else:
+                logger.error(
+                    "gateway_place_order_signature_mismatch broker=%s: %s",
+                    self._broker_id,
+                    exc,
+                )
+                return OrderResult.fail("gateway signature mismatch")
         except Exception as exc:
             return OrderResult.fail(str(exc))
-        return self._wrap(response)
+        return order_result_from_response(response)
 
     def cancel_order(self, order_id: str) -> OrderResult:
         try:
-            return self._wrap(self._gateway.cancel_order(order_id))
+            return order_result_from_response(self._gateway.cancel_order(order_id))
         except Exception as exc:
             return OrderResult.fail(str(exc))
 
@@ -79,7 +85,9 @@ class GatewayExecutionProvider(ExecutionProvider):
                 kwargs["trigger_price"] = request.trigger_price
             if request.order_type is not None:
                 kwargs["order_type"] = self._enum_value(request.order_type)
-            return self._wrap(self._gateway.modify_order(request.order_id, **kwargs))
+            return order_result_from_response(
+                self._gateway.modify_order(request.order_id, **kwargs)
+            )
         except Exception as exc:
             return OrderResult.fail(str(exc))
 

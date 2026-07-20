@@ -24,10 +24,35 @@ pytestmark = pytest.mark.live_readonly
 
 @pytest.fixture(scope="module")
 def mock_gateway():
-    """Return a PaperGateway for contract testing without live credentials."""
-    from brokers.paper.paper_gateway import PaperGateway
+    """Offline Upstox wire adapter with contract-test mocks wired."""
+    from decimal import Decimal
+    from unittest.mock import MagicMock
 
-    return PaperGateway()
+    from domain import Balance, Quote
+    from tests.integration.fixtures.upstox import make_mock_broker
+
+    mock_broker = make_mock_broker(ws_connected=False, allow_live_orders=False)
+    gateway = UpstoxBrokerGateway(mock_broker)
+    gateway._market_data.quote = MagicMock(
+        return_value=Quote(
+            symbol="RELIANCE",
+            ltp=Decimal("2550.00"),
+            open=Decimal("2540.00"),
+            high=Decimal("2560.00"),
+            low=Decimal("2535.00"),
+            close=Decimal("2545.00"),
+            volume=500000,
+        )
+    )
+    gateway._market_data.ltp = MagicMock(return_value=Decimal("2550.00"))
+    gateway._portfolio.get_funds = MagicMock(
+        return_value=Balance(
+            available_balance=Decimal("100000.00"),
+            used_margin=Decimal("0.00"),
+        )
+    )
+    gateway._portfolio.get_positions = MagicMock(return_value=[])
+    return gateway
 
 
 class TestUpstoxSharedBrokerContract(BrokerContractSuite):

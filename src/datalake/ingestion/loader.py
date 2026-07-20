@@ -468,6 +468,7 @@ class HistoricalDataLoader:
         target = self._parquet_path(symbol, timeframe)
 
         from datalake.quality.contract import validate_at_ingest
+        from infrastructure.io.parquet import file_lock
 
         invalid_count = 0
         len(df)
@@ -475,21 +476,22 @@ class HistoricalDataLoader:
         invalid_count = audit.dropped_rows
         fetched_rows = len(df)
 
-        merged = df
-        if target.exists():
-            try:
-                existing = pd.read_parquet(target)
-            except Exception as exc:
-                logger.warning("%s: could not read existing parquet for merge: %s", symbol, exc)
-                existing = pd.DataFrame()
-            if not existing.empty:
-                merged = pd.concat([existing, df], ignore_index=True)
-        merged = merged.drop_duplicates(subset=["timestamp"], keep="last")
-        merged = merged.sort_values("timestamp").reset_index(drop=True)
+        with file_lock(target):
+            merged = df
+            if target.exists():
+                try:
+                    existing = pd.read_parquet(target)
+                except Exception as exc:
+                    logger.warning("%s: could not read existing parquet for merge: %s", symbol, exc)
+                    existing = pd.DataFrame()
+                if not existing.empty:
+                    merged = pd.concat([existing, df], ignore_index=True)
+            merged = merged.drop_duplicates(subset=["timestamp"], keep="last")
+            merged = merged.sort_values("timestamp").reset_index(drop=True)
 
-        table = pa.Table.from_pandas(merged, preserve_index=False)
-        table = enforce_canonical_schema(table)
-        atomic_parquet_write(target, table, compression="snappy")
+            table = pa.Table.from_pandas(merged, preserve_index=False)
+            table = enforce_canonical_schema(table)
+            atomic_parquet_write(target, table, compression="snappy")
 
         if merged.empty:
             first_ts = last_ts = None

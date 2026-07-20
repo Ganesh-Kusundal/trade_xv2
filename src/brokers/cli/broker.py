@@ -288,21 +288,20 @@ def list_cmd(ctx: click.Context) -> None:
     # "Account" column from the original CLI spec mockup is omitted here —
     # add once brokers.services exposes one.
     """
+    from pathlib import Path
+
     from brokers.cli._preferences import PreferencesStore
+    from infrastructure.broker_plugin import ensure_core_plugins, list_broker_plugins
 
     default_broker = PreferencesStore().get("broker.default")
+    ensure_core_plugins()
+    env_status = {
+        plugin.broker_id: (True if plugin.env_file is None else Path(plugin.env_file).exists())
+        for plugin in list_broker_plugins()
+    }
     rows: list[dict] = []
     for broker_id in available_brokers():
-        connected = True
-        if broker_id != "paper":
-            try:
-                s = BrokerSession(broker_id)
-                try:
-                    status_from_session(s)
-                finally:
-                    s.close()
-            except Exception:
-                connected = False
+        connected = True if broker_id == "paper" else env_status.get(broker_id, False)
         rows.append(
             {"broker": broker_id, "connected": connected, "active": broker_id == default_broker}
         )

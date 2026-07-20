@@ -16,13 +16,20 @@ logger = logging.getLogger(__name__)
 
 
 class PortfolioAdapter:
-    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
+    def __init__(
+        self,
+        client: DhanHttpClient,
+        identity: DhanIdentityProvider | object,
+        *,
+        allow_live_orders: bool = False,
+    ):
         # Read paths parse Dhan positions/holdings/balance responses.
         # Convert position is write-side and builds a security_id payload
         # via the identity provider.
         self._client = client
         self._identity = coerce_identity_provider(identity)
         self._resolver = self._identity.resolver
+        self._allow_live_orders = allow_live_orders
 
     def get_positions(self) -> list[Position]:
         data = self._client.get("/positions")
@@ -120,6 +127,12 @@ class PortfolioAdapter:
         Returns:
             Raw API response dict (often empty body with 202 Accepted).
         """
+        if not self._allow_live_orders:
+            from brokers.dhan.exceptions import OrderError
+
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
         if quantity <= 0:
             raise ValueError("quantity must be positive")
         from_pt = str(from_product_type).upper()

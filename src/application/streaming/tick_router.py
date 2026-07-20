@@ -254,12 +254,15 @@ class TickRouter:
             return Decimal(str(frame[key]))
 
         ltp_raw = frame.get("ltp") or frame.get("last_price") or 0
+        from brokers.common.quote_normalize import tick_volume_from_frame
+
+        volume = tick_volume_from_frame(frame, str(symbol), str(exchange))
         return MarketTick(
             instrument=InstrumentRef(symbol=symbol, exchange=exchange),
             ltp=Decimal(str(ltp_raw)),
             event_time=event_time,
             provenance=DataProvenance.now(broker_id, "stream"),
-            volume=int(frame.get("volume") or 0),
+            volume=volume,
             bid=_dec("bid"),
             ask=_dec("ask"),
             broker_id=broker_id,

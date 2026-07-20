@@ -16,10 +16,21 @@ from domain.errors import CapabilityError
 # when the flag is True. The first name present on the gateway satisfies the
 # capability, so multiple acceptable aliases can be listed.
 _CAPABILITY_METHOD_MAP: dict[str, tuple[str, ...]] = {
-    "supports_modify_order": ("modify_order",),
+    "supports_place_order": ("place_order",),
     "supports_cancel_order": ("cancel_order",),
-    "supports_order_stream": ("stream_order",),
+    "supports_modify_order": ("modify_order",),
+    "supports_historical_data": ("history", "get_historical"),
+    "supports_intraday_history": ("history", "get_historical"),
+    "supports_expired_options_history": ("history", "get_historical"),
+    "supports_live_market_data": ("quote", "ltp"),
     "supports_depth": ("depth", "stream_depth"),
+    "supports_depth_20_ws": ("stream_depth",),
+    "supports_depth_200_ws": ("stream_depth",),
+    "supports_option_chain": ("option_chain",),
+    "supports_polling_fallback": ("quote", "ltp"),
+    "supports_order_stream": ("stream_order",),
+    # ponytail: super/forever/slice/portfolio_stream/news/fundamentals are
+    # extension or broker-internal surfaces — not enforced on wire gateways.
 }
 
 # Deprecated alias — use domain.errors.CapabilityError

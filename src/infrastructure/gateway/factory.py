@@ -95,15 +95,18 @@ def env_files() -> dict[str, str]:
     }
 
 
-# Back-compat alias: callers/tests still reference the old ``ENV_FILES`` name.
-ENV_FILES = env_files()
+# Back-compat alias: callers/tests still reference ``ENV_FILES``; resolved live.
+def __getattr__(name: str) -> Any:
+    if name == "ENV_FILES":
+        return env_files()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ── Gateway builders — plugin-driven dispatch ──────────────────────────────
 
-# Builder functions keyed by broker_id. Brokers register their builders
-# here at import time (see ADR-007). This replaces the old hardcoded
-# ``builders`` dict inside ``_create_transport_gateway``.
+# Builder functions keyed by broker_id. Canonical registration path:
+# ``runtime.broker_builders`` registers builders lazily via
+# ``_ensure_default_builders()`` — not at broker package import time.
 _GATEWAY_BUILDERS: dict[str, callable] = {}
 
 

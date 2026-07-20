@@ -85,8 +85,10 @@ def _get_watermark(target_file: Path, conn: duckdb.DuckDBPyConnection) -> int:
     if not target_file.exists():
         return 0
     try:
+        from domain.constants.market import IST_SQL_INTERVAL
+
         result = conn.execute(
-            "SELECT COALESCE(MAX(CAST(EPOCH(timestamp - INTERVAL '5 hours 30 minutes') * 1000 AS BIGINT)), 0) "
+            f"SELECT COALESCE(MAX(CAST(EPOCH(timestamp - {IST_SQL_INTERVAL}) * 1000 AS BIGINT)), 0) "
             "FROM read_parquet(?)",
             [str(target_file)],
         ).fetchone()

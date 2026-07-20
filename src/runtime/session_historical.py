@@ -95,11 +95,11 @@ def wire_session_historical() -> None:
 
     def build_coordinator(session: Any) -> HistoricalDataCoordinator:
         provider = session.provider
-        gw = getattr(provider, "_gw", None)
+        gw = getattr(provider, "gateway", None)
         if gw is None:
             broker_id = getattr(session, "broker_id", None) or "unknown"
             raise RuntimeError(
-                f"broker {broker_id!r} has no wire adapter (provider._gw is None)"
+                f"broker {broker_id!r} has no wire adapter (provider.gateway is None)"
             )
 
         caps_fn = getattr(gw, "capabilities", None)
@@ -128,7 +128,7 @@ def wire_session_historical() -> None:
                 broker_id = (
                     getattr(provider, "broker_id", None)
                     or getattr(provider, "name", None)
-                    or getattr(getattr(provider, "_gw", None), "broker_id", None)
+                    or getattr(getattr(provider, "gateway", None), "broker_id", None)
                 )
         broker_id = broker_id or "unknown"
         adapter = MarketDataGatewayAdapter(gw, broker_id=str(broker_id), capabilities=caps)

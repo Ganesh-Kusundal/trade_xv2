@@ -17,10 +17,5 @@ def capabilities():
     return dhan_capabilities()
 
 
-@pytest.fixture()
-def live_gateway():
-    pytest.skip("live coverage requires .env.local credentials")
-
-
 class TestDhanMarketCoverage(MarketCoverageContract):
     pass

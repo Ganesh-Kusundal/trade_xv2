@@ -11,6 +11,20 @@ import pytest
 from domain import Order, OrderResponse, OrderStatus
 
 
+@pytest.fixture
+def fake_client():
+    from tests.support.brokers.dhan.fixtures import FakeHttpClient
+
+    return FakeHttpClient()
+
+
+@pytest.fixture
+def resolver():
+    from brokers.dhan.resolver import SymbolResolver
+
+    return SymbolResolver()
+
+
 class TestPaperGatewayCancelVerification:
     """Test post-cancellation verification with PaperGateway."""
 
@@ -101,85 +115,91 @@ class TestPaperGatewayCancelVerification:
 
 
 class TestDhanGatewayCancelVerification:
-    """Test post-cancellation verification with Dhan gateway (mocked)."""
+    """Test post-cancellation verification with Dhan OrdersAdapter + fake HTTP."""
 
-    @pytest.fixture
-    def mock_dhan_gateway(self):
-        """Create Dhan gateway with mocked connection."""
-        from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.wire import DhanBrokerGateway
-
-        mock_conn = MagicMock(spec=DhanConnection)
-        mock_conn.orders = MagicMock()
-        mock_conn.market_data = MagicMock()
-
-        gw = DhanBrokerGateway(mock_conn)
-        return gw, mock_conn
-
-    def test_cancel_open_order_with_verification(self, mock_dhan_gateway):
-        """Cancel OPEN order should succeed after verification."""
-        gw, mock_conn = mock_dhan_gateway
-
-        # Mock cancel_order to return success
-        mock_conn.orders.cancel_order.return_value = OrderResponse.ok(
-            order_id="DHAN-123",
-            message="Cancel request accepted",
+    def test_cancel_open_order_with_verification(self, fake_client, resolver) -> None:
+        fake_client.set_response("DELETE", "/orders/DHAN-123", {"status": "success"})
+        fake_client.set_response(
+            "GET",
+            "/orders/DHAN-123",
+            {
+                "data": {
+                    "orderId": "DHAN-123",
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "transactionType": "BUY",
+                    "quantity": 1,
+                    "filledQty": 0,
+                    "orderStatus": "CANCELLED",
+                }
+            },
         )
+        from brokers.dhan.execution.orders import OrdersAdapter
 
-        # Mock get_orderbook to return cancelled order
-        mock_order = MagicMock(spec=Order)
-        mock_order.order_id = "DHAN-123"
-        mock_order.status = OrderStatus.CANCELLED
-        mock_conn.orders.get_orderbook.return_value = [mock_order]
-
-        cancel_resp = gw.cancel_order("DHAN-123")
+        adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
+        cancel_resp = adapter.cancel_order("DHAN-123")
         assert cancel_resp.success is True
 
-    def test_cancel_filled_order_detects_race_condition(self, mock_dhan_gateway):
-        """Cancel should detect if order was FILLED before cancel completed."""
-        gw, mock_conn = mock_dhan_gateway
-
-        # Mock cancel_order to return success (broker accepted cancel)
-        mock_conn.orders.cancel_order.return_value = OrderResponse.ok(
-            order_id="DHAN-456",
-            message="Cancel request accepted",
+    def test_cancel_filled_order_detects_race_condition(self, fake_client, resolver) -> None:
+        fake_client.set_response("DELETE", "/orders/DHAN-456", {"status": "success"})
+        fake_client.set_response(
+            "GET",
+            "/orders/DHAN-456",
+            {
+                "data": {
+                    "orderId": "DHAN-456",
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "transactionType": "BUY",
+                    "quantity": 1,
+                    "filledQty": 1,
+                    "orderStatus": "TRADED",
+                }
+            },
         )
+        from brokers.dhan.execution.orders import OrdersAdapter
 
-        # Mock get_orderbook to show order was actually FILLED (race condition)
-        mock_order = MagicMock(spec=Order)
-        mock_order.order_id = "DHAN-456"
-        mock_order.status = OrderStatus.FILLED
-        mock_conn.orders.get_orderbook.return_value = [mock_order]
-
-        cancel_resp = gw.cancel_order("DHAN-456")
-
-        # Should fail because order was already filled
+        adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
+        cancel_resp = adapter.cancel_order("DHAN-456")
         assert cancel_resp.success is False
-        assert "already filled" in cancel_resp.message.lower()
+        assert "already filled" in (cancel_resp.message or "").lower()
         assert cancel_resp.status == OrderStatus.FILLED
 
-    def test_get_order_returns_order_from_orderbook(self, mock_dhan_gateway):
-        """get_order should query orderbook and return matching order."""
-        gw, mock_conn = mock_dhan_gateway
+    def test_get_order_returns_order_from_direct_lookup(self, fake_client, resolver) -> None:
+        from tests.unit.brokers.dhan.test_gateway_get_order import (
+            _make_gateway_with_real_adapter,
+        )
 
-        mock_order1 = MagicMock(spec=Order)
-        mock_order1.order_id = "DHAN-111"
-        mock_order2 = MagicMock(spec=Order)
-        mock_order2.order_id = "DHAN-222"
-        mock_conn.orders.get_orderbook.return_value = [mock_order1, mock_order2]
-
+        fake_client.set_response(
+            "GET",
+            "/orders/DHAN-222",
+            {
+                "data": {
+                    "orderId": "DHAN-222",
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "transactionType": "BUY",
+                    "quantity": 1,
+                    "filledQty": 0,
+                    "orderStatus": "PENDING",
+                }
+            },
+        )
+        gw = _make_gateway_with_real_adapter(fake_client, resolver)
         order = gw.get_order("DHAN-222")
         assert order is not None
         assert order.order_id == "DHAN-222"
 
-    def test_get_order_returns_none_if_not_in_orderbook(self, mock_dhan_gateway):
-        """get_order should return None if order not found."""
-        gw, mock_conn = mock_dhan_gateway
+    def test_get_order_raises_when_not_found(self, fake_client, resolver) -> None:
+        from domain.errors import OrderError
+        from tests.unit.brokers.dhan.test_gateway_get_order import (
+            _make_gateway_with_real_adapter,
+        )
 
-        mock_conn.orders.get_orderbook.return_value = []
-
-        order = gw.get_order("DHAN-999")
-        assert order is None
+        fake_client.set_side_effect("GET", "/orders/DHAN-999", RuntimeError("not found"))
+        gw = _make_gateway_with_real_adapter(fake_client, resolver)
+        with pytest.raises(OrderError):
+            gw.get_order("DHAN-999")
 
 
 class TestUpstoxGatewayCancelVerification:

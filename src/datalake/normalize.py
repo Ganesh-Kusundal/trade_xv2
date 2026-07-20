@@ -114,10 +114,12 @@ def normalize_timestamps(
     return _apply_correction(conn, symbol, tz, path)
 
 
-_IST_SHIFTED_SQL = """
+from domain.constants.market import IST_SQL_INTERVAL
+
+_IST_SHIFTED_SQL = f"""
     CREATE TABLE _tmp AS
     SELECT * EXCLUDE (timestamp),
-           CAST(timestamp - INTERVAL '5 hours 30 minutes' AS TIMESTAMP) as timestamp
+           CAST(timestamp - {IST_SQL_INTERVAL} AS TIMESTAMP) as timestamp
     FROM read_parquet(?)
 """
 

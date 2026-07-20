@@ -129,20 +129,8 @@ def to_dhan_wire(segment: str | ExchangeSegment) -> str:
 
 def to_sdk_int(segment: str | ExchangeSegment) -> int:
     """Return Dhan SDK MarketFeed integer constant for a segment."""
-    from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
-
     wire = to_dhan_wire(segment)
-    _sdk_map: dict[str, int] = {
-        "IDX_I": SDKMarketFeed.IDX,
-        "NSE_EQ": SDKMarketFeed.NSE,
-        "NSE_FNO": SDKMarketFeed.NSE_FNO,
-        "NSE_CURRENCY": SDKMarketFeed.NSE_CURR,
-        "BSE_EQ": SDKMarketFeed.BSE,
-        "MCX_COMM": SDKMarketFeed.MCX,
-        "BSE_FNO": SDKMarketFeed.BSE_FNO,
-        "BSE_CURRENCY": SDKMarketFeed.BSE_CURR,
-    }
-    sdk_int = _sdk_map.get(wire)
+    sdk_int = SEGMENT_TO_NUMERIC.get(wire)
     if sdk_int is None:
         raise ValueError(f"No SDK mapping for Dhan wire segment: {wire!r}")
     return sdk_int

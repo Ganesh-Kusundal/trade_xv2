@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date, datetime, timezone
-from decimal import Decimal
+from datetime import date
 from typing import Any
 
 import pandas as pd
 
+from brokers.common.quote_normalize import normalize_broker_quote
 from domain.candles.historical import DateRange, HistoricalBar, HistoricalSeries, InstrumentRef
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
+from domain.exceptions import QuoteUnavailableError
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import DataProvider, SubscriptionHandle
-from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+from domain.ports.time_service import get_current_clock
 
 
 class _UpstoxSubscriptionHandle(SubscriptionHandle):
@@ -41,6 +42,10 @@ class UpstoxDataProvider(DataProvider):
         self._broker_id = broker_id or "upstox"
 
     @property
+    def gateway(self) -> Any:
+        return self._gw
+
+    @property
     def name(self) -> str:
         return self._broker_id
 
@@ -52,8 +57,22 @@ class UpstoxDataProvider(DataProvider):
             if isinstance(q, QuoteSnapshot):
                 return q
             return self._normalize_quote(q, instrument_id)
-        except Exception:
-            return None
+        except QuoteUnavailableError:
+            raise
+        except Exception as exc:
+            raise QuoteUnavailableError(
+                f"quote fetch failed for {instrument_id.underlying}:{instrument_id.exchange}: {exc}"
+            ) from exc
+
+    def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
+        try:
+            return self._gw.depth(instrument_id.underlying, instrument_id.exchange)
+        except QuoteUnavailableError:
+            raise
+        except Exception as exc:
+            raise QuoteUnavailableError(
+                f"depth fetch failed for {instrument_id.underlying}:{instrument_id.exchange}: {exc}"
+            ) from exc
 
     def get_quotes_batch(self, instrument_ids: list[InstrumentId]) -> list[QuoteSnapshot | None]:
         """Batch quotes via native multi-key API when gateway supports quote_batch."""
@@ -174,12 +193,6 @@ class UpstoxDataProvider(DataProvider):
             request_id="upstox.history",
         )
 
-    def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
-        try:
-            return self._gw.depth(instrument_id.underlying, instrument_id.exchange)
-        except Exception:
-            return None
-
     def get_option_chain(
         self,
         underlying: InstrumentId,
@@ -249,7 +262,13 @@ class UpstoxDataProvider(DataProvider):
         log = logging.getLogger(__name__)
 
         def _on_tick(raw: Any) -> None:
-            callback(instrument_id, raw)
+            if isinstance(raw, QuoteSnapshot):
+                callback(instrument_id, raw)
+                return
+            if isinstance(raw, MarketDepth):
+                callback(instrument_id, raw)
+                return
+            callback(instrument_id, self._normalize_quote(raw, instrument_id))
 
         from brokers.upstox.instrument_adapter import to_upstox_symbol
 
@@ -296,47 +315,9 @@ class UpstoxDataProvider(DataProvider):
         handle.unsubscribe()
 
     def _normalize_quote(self, raw_quote: Any, instrument_id: InstrumentId) -> QuoteSnapshot:
-        now = datetime.now(timezone.utc)
-        if isinstance(raw_quote, dict):
-            ltp = Decimal(str(raw_quote.get("last_price", raw_quote.get("ltp", 0)) or 0))
-            bid = Decimal(str(raw_quote.get("bid", raw_quote.get("bid_price", 0)) or 0))
-            ask = Decimal(str(raw_quote.get("ask", raw_quote.get("ask_price", 0)) or 0))
-            volume = int(raw_quote.get("volume", 0) or 0)
-            oi = int(raw_quote.get("oi", 0) or 0)
-            ohlc = raw_quote.get("ohlc") or {}
-            open_ = Decimal(str(ohlc.get("open", 0) or 0))
-            high = Decimal(str(ohlc.get("high", 0) or 0))
-            low = Decimal(str(ohlc.get("low", 0) or 0))
-            close = Decimal(str(ohlc.get("close", 0) or 0))
-        else:
-            ltp = Decimal(str(getattr(raw_quote, "ltp", 0) or 0))
-            bid = Decimal(str(getattr(raw_quote, "bid", 0) or 0))
-            ask = Decimal(str(getattr(raw_quote, "ask", 0) or 0))
-            volume = int(getattr(raw_quote, "volume", 0) or 0)
-            oi = int(getattr(raw_quote, "oi", 0) or 0)
-            open_ = Decimal(str(getattr(raw_quote, "open", 0) or 0))
-            high = Decimal(str(getattr(raw_quote, "high", 0) or 0))
-            low = Decimal(str(getattr(raw_quote, "low", 0) or 0))
-            close = Decimal(str(getattr(raw_quote, "close", 0) or 0))
-        return QuoteSnapshot(
-            instrument=InstrumentRef(
-                symbol=instrument_id.underlying,
-                exchange=instrument_id.exchange,
-            ),
-            ltp=ltp,
-            event_time=now,
-            provenance=DataProvenance(
-                source=SourceIdentity(broker_id=self._broker_id),
-                fetched_at=now,
-                request_id="",
-                confidence=ProvenanceConfidence.AUTHORITATIVE,
-            ),
-            open=open_,
-            high=high,
-            low=low,
-            close=close,
-            bid=bid if bid > 0 else None,
-            ask=ask if ask > 0 else None,
-            volume=volume,
-            oi=oi,
+        return normalize_broker_quote(
+            raw_quote,
+            instrument_id,
+            broker_id=self._broker_id,
+            now=get_current_clock().now(),
         )

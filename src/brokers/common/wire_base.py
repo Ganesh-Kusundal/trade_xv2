@@ -36,6 +36,9 @@ class BaseWireAdapter:
 
     # Each concrete adapter sets this (e.g. "dhan", "upstox", "paper").
     broker_id: str = ""
+    #: Set False when factory connect/bootstrap failed so callers can distinguish
+    #: a degraded gateway from a healthy authenticated session.
+    bootstrap_transport_ready: bool = True
 
     # ── Connection liveness (unified contract) ──────────────────────────
 
