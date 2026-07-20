@@ -19,6 +19,7 @@ from domain import (
 )
 
 from ._base import (
+    exchange_from_wire,
     parse_iso,
     product_from_wire,
     to_int,
@@ -100,9 +101,6 @@ def to_quotes(payload: Any) -> dict[str, Quote]:
         q = _quote_from_instrument_dict(data)
         if q.symbol:
             out[q.symbol] = q
-        token = data.get("instrument_token")
-        if token:
-            out[str(token)] = q
         return out
     for map_key, value in data.items():
         if not isinstance(value, dict):
@@ -116,12 +114,6 @@ def to_quotes(payload: Any) -> dict[str, Quote]:
         ):
             continue
         q = _quote_from_instrument_dict(value, map_key=str(map_key))
-        out[str(map_key)] = q
-        token = value.get("instrument_token")
-        if token:
-            out[str(token)] = q
-            out[str(token).replace("|", ":")] = q
-            out[str(token).replace(":", "|")] = q
         if q.symbol:
             out[q.symbol] = q
     return out
@@ -132,7 +124,7 @@ def to_position(payload: Any) -> Position:
         return Position(symbol="")
     return Position(
         symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
-        exchange=str(payload.get("exchange") or ""),
+        exchange=exchange_from_wire(str(payload.get("exchange") or "")),
         quantity=to_int(payload.get("net_quantity") or payload.get("quantity")),
         avg_price=UpstoxPriceParser.parse(payload.get("buy_average_price") or 0),
         ltp=UpstoxPriceParser.parse(payload.get("last_price") or 0),
@@ -147,7 +139,7 @@ def to_holding(payload: Any) -> Holding:
         return Holding(symbol="")
     return Holding(
         symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
-        exchange=str(payload.get("exchange") or ""),
+        exchange=exchange_from_wire(str(payload.get("exchange") or "")),
         quantity=to_int(payload.get("quantity")),
         available_quantity=to_int(payload.get("quantity")),
         avg_price=UpstoxPriceParser.parse(payload.get("average_price") or 0),
@@ -163,7 +155,7 @@ def to_trade(payload: Any) -> Trade:
         trade_id=str(payload.get("trade_id") or ""),
         order_id=str(payload.get("order_id") or ""),
         symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
-        exchange=str(payload.get("exchange") or ""),
+        exchange=exchange_from_wire(str(payload.get("exchange") or "")),
         side=txn_from_wire(str(payload.get("transaction_type") or "BUY")),
         quantity=to_int(payload.get("quantity") or payload.get("traded_quantity")),
         price=UpstoxPriceParser.parse(payload.get("price") or payload.get("average_price") or 0),

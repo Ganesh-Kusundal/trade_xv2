@@ -60,10 +60,17 @@ def _make_gateway(
     broker = MagicMock()
     broker.market_data_websocket = ws
 
-    # Configure the resolver mock
     mock_resolver = MagicMock()
     mock_resolver.resolve.return_value = resolver_defn
-    broker.instruments = mock_resolver
+    broker.instrument_resolver = mock_resolver
+
+    def _resolve_key(sym: str, exch: str) -> str:
+        if exch == "BSE":
+            return f"BSE_EQ|{sym}"
+        return f"NSE_EQ|{sym}"
+
+    broker.instruments = MagicMock()
+    broker.instruments.resolve_instrument_key = _resolve_key
 
     gateway = UpstoxBrokerGateway(broker)
     return gateway, ws, broker
@@ -100,7 +107,23 @@ class TestUpstoxGatewayStream:
         assert keys == ["NSE_EQ|INFY"]
         assert mode == "ltp"
 
-    def test_stream_connects_when_not_connected(self):
+    def test_stream_connects_when_not_connected(self, monkeypatch):
+        import asyncio
+
+        def _sync_connect_then(coro, then):
+            if asyncio.iscoroutine(coro):
+                asyncio.run(coro)
+            then()
+
+        monkeypatch.setattr(
+            "infrastructure.io.async_compat.connect_async_then",
+            _sync_connect_then,
+        )
+        monkeypatch.setattr(
+            "runtime.event_loop.ensure_runtime_loop_running",
+            lambda: None,
+        )
+
         gateway, ws, _broker = _make_gateway(connected=False)
 
         gateway.stream("INFY", exchange="NSE", mode="LTP")

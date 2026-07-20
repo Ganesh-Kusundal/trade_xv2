@@ -69,6 +69,10 @@ class _RealGateway:
 
 @pytest.fixture
 def session(monkeypatch):
+    from runtime.session_historical import wire_session_historical
+
+    wire_session_historical()
+
     gw = _RealGateway(_make_caps())
     MarketDataGatewayAdapter(gw, broker_id="dhan", capabilities=_make_caps())
 
@@ -77,7 +81,7 @@ def session(monkeypatch):
     sess._runtime = None
 
     provider = type("P", (), {"_gw": gw})()
-    domain_session = type("DS", (), {"provider": provider})()
+    domain_session = type("DS", (), {"provider": provider, "broker_id": "dhan"})()
     sess._session = domain_session
     return sess
 
@@ -98,7 +102,7 @@ class TestBrokerSessionRoutesThroughCoordinator:
         today = date(2026, 7, 15)
         instrument = type("I", (), {"symbol": "RELIANCE", "exchange": "NSE"})()
         with pytest.MonkeyPatch().context() as mp:
-            mp.setattr("brokers.session.broker_session.date", _FixedDate(today))
+            mp.setattr("runtime.session_historical.date", _FixedDate(today))
             series = session.history(instrument, timeframe="1D", days=30)
         assert series.coverage.start == today - timedelta(days=30)
         assert series.coverage.end == today

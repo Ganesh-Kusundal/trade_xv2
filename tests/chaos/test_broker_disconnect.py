@@ -16,6 +16,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytestmark = pytest.mark.chaos
+
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,

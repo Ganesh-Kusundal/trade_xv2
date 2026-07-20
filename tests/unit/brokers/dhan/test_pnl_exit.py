@@ -92,5 +92,5 @@ def test_get_pnl_exit(fake_client):
 def test_configure_api_error(fake_client):
     fake_client.set_side_effect("POST", "/pnlExit", RuntimeError("network"))
     adapter = PnlExitAdapter(fake_client)
-    with pytest.raises(PnlExitError, match="Configure"):
+    with pytest.raises(PnlExitError, match="network"):
         adapter.configure(loss_value=100)

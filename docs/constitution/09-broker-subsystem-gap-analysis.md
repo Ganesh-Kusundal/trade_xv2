@@ -101,9 +101,8 @@ This repository instead uses a **hexagonal / layered architecture** enforced by 
 | | |
 |---|---|
 | **Constitution** | Session FSM: `Created → Initializing → Authenticating → Connected → Healthy → Degraded → Recovering → Disconnected → Shutdown` |
-| **As-built** | Fragmented models: `BootstrapStatus` (`domain/ports/bootstrap.py`), `TransportState` / `SubscriptionState` / `FreshnessState` (`domain/stream_health.py`), circuit breaker states (`infrastructure/resilience/circuit_breaker.py`). `BrokerSession` exposes `.status` but does not own a single FSM |
-| **Violation** | Implicit session semantics; order-of-execution bugs during reconnect; "Healthy" vs "Degraded" not queryable as one enum |
-| **Fix** | Define `BrokerSessionState` in domain; compose transport/subscription/freshness as orthogonal dimensions (already modeled in `StreamHealth`) under one session aggregate |
+| **As-built (2026-07-20 remediation)** | `BrokerSessionState` FSM in `domain/ports/broker_session_state.py`; composed with `BootstrapStatus`, transport/subscription/freshness in `BrokerSessionStatus` |
+| **Status** | ✅ Closed — unified session aggregate implemented |
 | **Acceptance** | Session state transitions documented; diagnostics expose unified state; reconnect cert uses FSM |
 
 ---
@@ -155,9 +154,8 @@ This repository instead uses a **hexagonal / layered architecture** enforced by 
 | | |
 |---|---|
 | **Constitution** | `InstrumentError`, `MappingError`, `RejectedOrder`, `CapabilityError`, … |
-| **As-built** | `InstrumentNotFoundError` (not `InstrumentError`), no `MappingError`, no `RejectedOrder` class (only `EventType.ORDER_REJECTED`), `CapabilityNotSupported` / `CapabilityMismatchError` in `brokers/exceptions/` and `brokers/common/capabilities_validator.py` |
-| **Violation** | Spec ↔ code naming drift; inconsistent isinstance checks across layers |
-| **Fix** | Add missing domain error types or document intentional renames in glossary |
+| **As-built (2026-07-20 remediation)** | `InstrumentError`, `InstrumentNotFoundError`, `MappingError`, `RejectedOrderError`, `CapabilityError` in `domain/errors.py`; `CapabilityMismatchError` / `CapabilityNotSupported` consolidated as aliases of `CapabilityError` |
+| **Status** | ✅ Closed — domain hierarchy complete; broker-layer aliases retained for backward compat |
 | **Acceptance** | Error mapping table in `docs/architecture/ERROR_TAXONOMY.md` aligned with domain types |
 
 ### G-BS-P1-6 — Historical certification does not verify gap-free data

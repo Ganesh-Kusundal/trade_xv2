@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.idempotency import IdempotencyCache
+from brokers.common.transport_errors import order_response_from_transport_error
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.execution.order_validator import OrderValidator
 from brokers.dhan.identity import DhanIdentityProvider
@@ -30,16 +31,12 @@ from domain import (
 )
 from domain import Side as OrderSide
 from domain.events import DomainEvent
-from domain.field_mapping import DefaultFieldMapping
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort
 from domain.value_objects.price import to_wire_float
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
-
-# Reusable field mapping instance for Dhan order parsing
-_DHAN_MAPPING = DefaultFieldMapping()
 
 # IdempotencyCache now lives in brokers.common.idempotency (shared with
 # Upstox, built on infrastructure.idempotency.memory_cache — fixes a
@@ -127,7 +124,7 @@ class OrderPlacer:
         try:
             ref = self._identity.resolve_ref(request.symbol, request.exchange)
         except Exception as exc:
-            return OrderResponse.fail(f"instrument_resolution_failed: {exc}")
+            return order_response_from_transport_error(exc)
 
         segment = ref.exchange_segment
         dhan_exchange = segment_to_exchange(segment)
@@ -179,7 +176,7 @@ class OrderPlacer:
         try:
             data = self._client.post("/orders", json=payload)
         except Exception as exc:
-            return OrderResponse.fail(f"order_placement_error: {exc}")
+            return order_response_from_transport_error(exc)
 
         # -- Parse response ------------------------------------------------
         placed = self._build_placed_order(data, ref, request, cid)
@@ -209,7 +206,7 @@ class OrderPlacer:
         try:
             ref = self._identity.resolve_ref(symbol, exchange)
         except Exception as exc:
-            return OrderResponse.fail(f"instrument_resolution_failed: {exc}")
+            return order_response_from_transport_error(exc)
 
         segment = ref.exchange_segment
         payload = {
@@ -230,7 +227,7 @@ class OrderPlacer:
         try:
             data = self._client.post("/orders/slicing", json=payload)
         except Exception as exc:
-            return OrderResponse.fail(f"slice_order_error: {exc}")
+            return order_response_from_transport_error(exc)
 
         raw = data.get("data", data) if isinstance(data, dict) else data
         order_id = (

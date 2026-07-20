@@ -12,6 +12,9 @@ import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
 from brokers.paper.paper_gateway import PaperGateway
+from domain import OrderStatus
+from tests.fixtures.domain_helpers import make_order
+from tests.unit.brokers.paper.conftest import MockPaperOrderManager
 
 
 class TestPaperContract(BrokerContractSuite):
@@ -32,4 +35,19 @@ class TestPaperContract(BrokerContractSuite):
     @pytest.fixture
     def gateway(self) -> PaperGateway:
         """Provide a PaperGateway instance with default capital."""
-        return PaperGateway(initial_capital=Decimal("1000000"))
+        gw = PaperGateway(
+            initial_capital=Decimal("1000000"),
+            order_manager=MockPaperOrderManager(),
+        )
+        gw.seed_orders(
+            [
+                make_order(
+                    order_id="test-order-id",
+                    status=OrderStatus.OPEN,
+                    order_type="LIMIT",
+                    quantity=10,
+                    price=Decimal("100"),
+                )
+            ]
+        )
+        return gw

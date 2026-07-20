@@ -19,6 +19,7 @@ import time
 from unittest import mock
 
 from brokers.dhan.websocket.connection import MarketFeedConnection
+from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class
 
 
 class _FakeSDKFeed:
@@ -60,7 +61,7 @@ def test_stop_immediately_after_start_never_closes_before_run_claims_loop():
     fake_feed = _FakeSDKFeed()
 
     with mock_market_feed_class() as mock_cls:
-        mock_cls.return_value = lambda **kwargs: fake_feed
+        mock_cls.return_value = MagicMock(return_value=fake_feed)
         conn = _make_connection(fake_feed)
         started = conn.start()
         assert started is True
@@ -81,7 +82,7 @@ def test_stop_immediately_after_start_never_closes_before_run_claims_loop():
 def test_stop_without_start_does_not_hang():
     fake_feed = _FakeSDKFeed()
     with mock_market_feed_class() as mock_cls:
-        mock_cls.return_value = lambda **kwargs: fake_feed
+        mock_cls.return_value = MagicMock(return_value=fake_feed)
         conn = _make_connection(fake_feed)
         started = time.monotonic()
         conn.stop(timeout_seconds=2.0)

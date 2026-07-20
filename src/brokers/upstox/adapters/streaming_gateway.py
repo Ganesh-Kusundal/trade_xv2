@@ -135,7 +135,9 @@ class StreamingGateway:
 
         def portfolio_listener(event_type: str, payload: dict[str, Any]) -> None:
             if event_type == "order" and on_order is not None:
-                on_order(payload)
+                from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+
+                on_order(UpstoxDomainMapper.to_order(payload))
 
         stream = self._broker.portfolio_stream
 

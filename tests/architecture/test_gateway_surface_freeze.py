@@ -46,7 +46,9 @@ _DHAN_PUBLIC = frozenset(
         "search",
         "stream",
         "stream_depth",
+        "stream_order",
         "unstream",
+        "unstream_order",
     }
 )
 

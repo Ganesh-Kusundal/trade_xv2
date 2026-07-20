@@ -192,6 +192,12 @@ class BrokerFactory(BrokerProviderFactory):
         refresh_lock: threading.Lock,
     ) -> DhanHttpClient:
         """Create DhanHttpClient with 401 → force_refresh remint."""
+        from brokers.dhan.config.capabilities import dhan_capabilities
+        from brokers.dhan.resilience import create_circuit_breakers, create_rate_limiter
+
+        cbs = create_circuit_breakers()
+        rate_limiter = create_rate_limiter("dhan", caps=dhan_capabilities())
+
         return DhanHttpClient(
             client_id=settings.client_id,
             access_token=token,
@@ -199,6 +205,11 @@ class BrokerFactory(BrokerProviderFactory):
             timeout=settings.http_timeout,
             enable_retry=settings.enable_retry,
             token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
+            _rate_limiter=rate_limiter,
+            _circuit_breakers=cbs,
+            read_circuit_breaker=cbs["market_data"],
+            write_circuit_breaker=cbs["orders"],
+            admin_circuit_breaker=cbs["admin"],
             config=settings.resilience_config,
         )
 

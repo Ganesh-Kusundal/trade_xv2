@@ -492,6 +492,14 @@ class DhanWireAdapter(BaseWireAdapter):
         """Unsubscribe from a live tick stream for *symbol* on *exchange*."""
         self._conn.subscription_engine.unsubscribe_market(symbol, exchange, on_tick=on_tick)
 
+    def stream_order(self, on_order: Any | None = None) -> Any:
+        """Subscribe to account-wide order updates; distinct from market ``stream``."""
+        return self._conn.subscription_engine.subscribe_order(on_order)
+
+    def unstream_order(self, on_order: Any | None = None) -> None:
+        """Remove an order-update callback (or all if *on_order* is None)."""
+        self._conn.subscription_engine.unsubscribe_order(on_order)
+
     # ── Parallel Data Fetching ──────────────────────────────────────
 
     def ltp_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Decimal]:

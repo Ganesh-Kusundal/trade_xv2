@@ -303,12 +303,21 @@ class UpstoxDataProvider(DataProvider):
             ask = Decimal(str(raw_quote.get("ask", raw_quote.get("ask_price", 0)) or 0))
             volume = int(raw_quote.get("volume", 0) or 0)
             oi = int(raw_quote.get("oi", 0) or 0)
+            ohlc = raw_quote.get("ohlc") or {}
+            open_ = Decimal(str(ohlc.get("open", 0) or 0))
+            high = Decimal(str(ohlc.get("high", 0) or 0))
+            low = Decimal(str(ohlc.get("low", 0) or 0))
+            close = Decimal(str(ohlc.get("close", 0) or 0))
         else:
             ltp = Decimal(str(getattr(raw_quote, "ltp", 0) or 0))
             bid = Decimal(str(getattr(raw_quote, "bid", 0) or 0))
             ask = Decimal(str(getattr(raw_quote, "ask", 0) or 0))
             volume = int(getattr(raw_quote, "volume", 0) or 0)
             oi = int(getattr(raw_quote, "oi", 0) or 0)
+            open_ = Decimal(str(getattr(raw_quote, "open", 0) or 0))
+            high = Decimal(str(getattr(raw_quote, "high", 0) or 0))
+            low = Decimal(str(getattr(raw_quote, "low", 0) or 0))
+            close = Decimal(str(getattr(raw_quote, "close", 0) or 0))
         return QuoteSnapshot(
             instrument=InstrumentRef(
                 symbol=instrument_id.underlying,
@@ -322,6 +331,10 @@ class UpstoxDataProvider(DataProvider):
                 request_id="",
                 confidence=ProvenanceConfidence.AUTHORITATIVE,
             ),
+            open=open_,
+            high=high,
+            low=low,
+            close=close,
             bid=bid if bid > 0 else None,
             ask=ask if ask > 0 else None,
             volume=volume,

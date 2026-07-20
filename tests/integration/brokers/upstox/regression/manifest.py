@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import threading
+import time
+
 from brokers.upstox.wire import UpstoxBrokerGateway
 from tests.support.brokers.regression_manifest import RegressionCase
 
@@ -65,7 +69,25 @@ def _assert_connection_status(gw: UpstoxBrokerGateway) -> None:
     assert isinstance(status, dict)
 
 
-UPSTOX_REGRESSION_CASES: tuple[RegressionCase, ...] = (
+def _assert_ltp_stream(gw: UpstoxBrokerGateway) -> None:
+    """LTP stream must receive ticks within 15 s during market hours."""
+    received = threading.Event()
+    ticks: list[object] = []
+
+    def on_tick(q):
+        ticks.append(q)
+        received.set()
+
+    feed = gw.stream("RELIANCE", "NSE", mode="LTP", on_tick=on_tick)
+    try:
+        got = received.wait(timeout=15)
+        assert got and len(ticks) > 0, "LTP stream: 0 ticks in 15 s"
+    finally:
+        with contextlib.suppress(Exception):
+            feed.disconnect()
+
+
+OFF_MARKET_CASES: tuple[RegressionCase, ...] = (
     RegressionCase(
         id="upstox.nse.quote",
         capability="quote",
@@ -89,14 +111,6 @@ UPSTOX_REGRESSION_CASES: tuple[RegressionCase, ...] = (
         segment="NSE",
         description="NSE daily history returns OHLCV bars",
         assert_fn=_assert_nse_history,
-    ),
-    RegressionCase(
-        id="upstox.nse.depth",
-        capability="depth",
-        tier="market_hours",
-        segment="NSE",
-        description="NSE REST depth returns at least one side",
-        assert_fn=_assert_depth,
     ),
     RegressionCase(
         id="upstox.nfo.option_chain",
@@ -156,3 +170,24 @@ UPSTOX_REGRESSION_CASES: tuple[RegressionCase, ...] = (
         severity="P1",
     ),
 )
+
+MARKET_HOURS_CASES: tuple[RegressionCase, ...] = (
+    RegressionCase(
+        id="upstox.nse.depth",
+        capability="depth",
+        tier="market_hours",
+        segment="NSE",
+        description="NSE REST depth returns at least one side",
+        assert_fn=_assert_depth,
+    ),
+    RegressionCase(
+        id="upstox.nse.ltp_stream",
+        capability="ltp_stream",
+        tier="market_hours",
+        segment="NSE",
+        description="LTP stream receives ticks during market hours",
+        assert_fn=_assert_ltp_stream,
+    ),
+)
+
+UPSTOX_REGRESSION_CASES: tuple[RegressionCase, ...] = OFF_MARKET_CASES + MARKET_HOURS_CASES

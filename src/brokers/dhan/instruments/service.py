@@ -159,18 +159,20 @@ class DhanInstrumentService:
         return self._identity.resolve_ref(symbol, exchange, expected_segment=expected_segment)
 
     def search(self, query: str, *, limit: int = 20) -> list[dict]:
-        """Search returning dicts for describe/debug tooling."""
+        """Search returning canonical dicts (no wire identifiers)."""
         results: list[dict] = []
         q = query.upper().strip()
         for inst in self._resolver.all_instruments():
             if q in inst.symbol.upper() or q in (inst.canonical_symbol or "").upper():
+                exchange = (
+                    inst.exchange.value if hasattr(inst.exchange, "value") else str(inst.exchange)
+                )
                 results.append(
                     {
                         "symbol": inst.symbol,
-                        "exchange": inst.exchange.value,
+                        "exchange": exchange,
                         "type": inst.instrument_type.value,
-                        "security_id": inst.security_id,
-                        "name": inst.canonical_symbol,
+                        "name": inst.canonical_symbol or inst.name,
                     }
                 )
                 if len(results) >= limit:

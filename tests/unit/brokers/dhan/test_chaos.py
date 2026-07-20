@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytest
 
 # ── Test Constants ────────────────────────────────────────────────────────────
+pytestmark = pytest.mark.chaos
 DEFAULT_FAILURE_THRESHOLD = 3
 DEFAULT_OPEN_DURATION_MS = 100
 DEFAULT_RATE_PER_SECOND = 25.0

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration.brokers.upstox.regression.manifest import UPSTOX_REGRESSION_CASES
+from tests.integration.brokers.upstox.regression.manifest import (
+    MARKET_HOURS_CASES,
+    OFF_MARKET_CASES,
+    UPSTOX_REGRESSION_CASES,
+)
 from tests.support.brokers.regression_manifest import manifest_ids, required_p0_capabilities
 
 
@@ -12,6 +16,16 @@ from tests.support.brokers.regression_manifest import manifest_ids, required_p0_
 def test_upstox_regression_manifest_has_unique_ids() -> None:
     ids = manifest_ids(UPSTOX_REGRESSION_CASES)
     assert len(ids) == len(UPSTOX_REGRESSION_CASES)
+
+
+@pytest.mark.architecture
+def test_upstox_market_hours_cases_non_empty() -> None:
+    assert len(MARKET_HOURS_CASES) > 0, "MARKET_HOURS_CASES is empty"
+
+
+@pytest.mark.architecture
+def test_upstox_off_market_cases_non_empty() -> None:
+    assert len(OFF_MARKET_CASES) > 0, "OFF_MARKET_CASES is empty"
 
 
 @pytest.mark.architecture

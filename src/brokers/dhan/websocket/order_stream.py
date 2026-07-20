@@ -365,15 +365,18 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
     @staticmethod
     def _transform_order(data: dict) -> dict:
         """Transform SDK order data to canonical format."""
+        from brokers.dhan.segments import segment_to_exchange
         from brokers.dhan.websocket._helpers import _parse_quote_exchange_time
         from domain.ports.time_service import get_current_clock
 
         now = get_current_clock().now()
+        segment = str(data.get("exchangeSegment", "NSE_EQ"))
+        exchange = segment_to_exchange(segment).value
         return {
             "order_id": str(data.get("orderNo", "")),
             "status": data.get("status", "UNKNOWN"),
             "symbol": data.get("tradingSymbol", ""),
-            "exchange": data.get("exchangeSegment", "NSE"),
+            "exchange": exchange,
             "side": data.get("transactionType", "BUY"),
             "quantity": int(data.get("quantity", 0)),
             "filled_quantity": int(data.get("filledQty", 0)),

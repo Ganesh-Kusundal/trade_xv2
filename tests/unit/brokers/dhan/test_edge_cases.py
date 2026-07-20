@@ -64,7 +64,7 @@ class TestOrderValidation:
     """Edge cases for order validation."""
 
     def test_zero_quantity(self, offline_gateway):
-        errors = offline_gateway.extended.validate_order(
+        errors = offline_gateway.extended.data.validate_order(
             symbol="RELIANCE",
             exchange="NSE",
             quantity=0,
@@ -75,7 +75,7 @@ class TestOrderValidation:
         assert any("quantity" in e.lower() for e in errors)
 
     def test_negative_quantity(self, offline_gateway):
-        errors = offline_gateway.extended.validate_order(
+        errors = offline_gateway.extended.data.validate_order(
             symbol="RELIANCE",
             exchange="NSE",
             quantity=-10,
@@ -85,7 +85,7 @@ class TestOrderValidation:
         assert len(errors) > 0
 
     def test_limit_order_without_price(self, offline_gateway):
-        errors = offline_gateway.extended.validate_order(
+        errors = offline_gateway.extended.data.validate_order(
             symbol="RELIANCE",
             exchange="NSE",
             quantity=10,
@@ -96,7 +96,7 @@ class TestOrderValidation:
         assert any("price" in e.lower() for e in errors)
 
     def test_cnc_on_fno_rejected(self, offline_gateway):
-        errors = offline_gateway.extended.validate_order(
+        errors = offline_gateway.extended.data.validate_order(
             symbol="NIFTY 26 JUN FUT",
             exchange="NFO",
             quantity=75,

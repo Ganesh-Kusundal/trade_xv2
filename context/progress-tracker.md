@@ -14,7 +14,13 @@
 - Delivered: `should_publish_tick_directly`, `QuoteUnavailableError`, `evaluator_bridge.py`, deploy-profile auth ratchet, reconnect disconnect-before-reopen
 - **Live ADR blocked:** 4× weekly chaos green (0/4 on `main`); live score < 8.5; ADR-0012 lift per [`adr/0013-live-adr-lift-preconditions.md`](../docs/architecture/adr/0013-live-adr-lift-preconditions.md)
 
-### Weekly chaos clock (Live ADR gate)
+### Broker module architecture audit remediation (2026-07-20)
+
+- **P0:** Dhan `BrokerFactory` wires `MultiBucketRateLimiter` + category circuit breakers; Dhan execution paths use `order_response_from_transport_error` / `map_transport_exception`; Upstox `order_command_adapter` unified error boundary; `capabilities_validator` flag names aligned with `BrokerCapabilities`; Dhan order-stream `exchange` uses `segment_to_exchange`.
+- **P1:** `CapabilityError` canonical (aliases for `CapabilityMismatchError` / `CapabilityNotSupported`); `DhanInstrumentService.search()` no longer leaks `security_id`; Upstox mappers normalize exchange via `exchange_from_wire`, quote dicts symbol-keyed only, `stream_order` maps to domain `Order`.
+- **P2:** Deleted dead `WebSocketConnectionManager`, `EncryptedTokenStateStore`; hoisted `DHAN_FIELD_MAPPING`; Upstox regression manifest parity (`conftest`, `test_e2e_smoke`, `MARKET_HOURS_CASES`); `@pytest.mark.chaos` on broker chaos suites; refreshed `docs/constitution/09-broker-subsystem-gap-analysis.md` §G-BS-P0-3/P1-5.
+- **Tests:** factory resilience wiring, capability validator field ratchet, order-stream exchange mapping, instrument search boundary, Upstox exchange mapping, extended transport error ratchet.
+
 
 | Week | Date (Mon 03:00 UTC) | Status | Notes |
 |------|----------------------|--------|-------|

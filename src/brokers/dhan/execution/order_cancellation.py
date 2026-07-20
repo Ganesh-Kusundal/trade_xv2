@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from brokers.common.transport_errors import order_response_from_transport_error
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.exceptions import OrderError
 from domain import OrderResponse, OrderStatus
@@ -53,7 +54,7 @@ class OrderCanceller:
         try:
             result = self._client.put(f"/orders/{order_id}", json=payload)
         except Exception as exc:
-            return OrderResponse.fail(f"Broker API error: {exc}")
+            return order_response_from_transport_error(exc)
 
         if not isinstance(result, dict):
             return OrderResponse.fail(f"Unexpected modify response: {result}")
@@ -100,10 +101,7 @@ class OrderCanceller:
                 "order_cancel_network_error",
                 extra={"order_id": order_id, "error": str(exc)},
             )
-            return OrderResponse.fail(
-                message=f"network error: {exc}",
-                error_code="BRO_ERR_CONNECTION_FAILED",
-            )
+            return order_response_from_transport_error(exc)
 
         if not isinstance(data, dict):
             return OrderResponse.fail(

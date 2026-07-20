@@ -7,7 +7,7 @@ where the domain layer does not already cover the case.
 from __future__ import annotations
 
 from domain.connect_errors import ConnectError
-from domain.errors import BrokerError, NotConfiguredError
+from domain.errors import BrokerError, CapabilityError, NotConfiguredError
 from domain.exceptions import (
     ConfigError,
     DataError,
@@ -22,8 +22,8 @@ class BrokerNotAvailable(BrokerError):
     """Raised when a requested broker plugin is not registered/available."""
 
 
-class CapabilityNotSupported(BrokerError):
-    """Raised when an instrument/broker lacks a requested capability."""
+# Deprecated alias — use domain.errors.CapabilityError
+CapabilityNotSupported = CapabilityError
 
 
 __all__ = [

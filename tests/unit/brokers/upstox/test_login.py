@@ -144,7 +144,7 @@ class TestLoginModule:
         fake_response = {"access_token": "new", "refresh_token": "new-rt"}
         monkeypatch.setattr(login_mod, "perform_login", lambda *a, **k: fake_response)
 
-        with patch("builtins.print") as fake_print:
+        with patch.object(login_mod.logger, "info") as fake_log:
             rc = login_mod.main(["--no-browser", "--timeout", "0.01"])
         assert rc == 0
-        fake_print.assert_called()
+        fake_log.assert_called()

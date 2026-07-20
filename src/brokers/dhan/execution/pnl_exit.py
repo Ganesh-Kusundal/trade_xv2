@@ -6,6 +6,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.transport_errors import map_transport_exception
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.domain import PnlExitConfig, PnlExitStatus
 from brokers.dhan.exceptions import PnlExitError
@@ -61,7 +62,8 @@ class PnlExitAdapter:
         try:
             data = self._client.post("/pnlExit", json=payload)
         except Exception as exc:
-            raise PnlExitError(f"Configure P&L exit failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise PnlExitError(str(mapped)) from mapped
 
         status = self._parse_status(data)
         logger.info(
@@ -79,7 +81,8 @@ class PnlExitAdapter:
         try:
             data = self._client.delete("/pnlExit")
         except Exception as exc:
-            raise PnlExitError(f"Stop P&L exit failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise PnlExitError(str(mapped)) from mapped
 
         status = self._parse_status(data)
         logger.info("pnl_exit_stopped", extra={"status": status.status})
@@ -90,7 +93,8 @@ class PnlExitAdapter:
         try:
             data = self._client.get("/pnlExit")
         except Exception as exc:
-            raise PnlExitError(f"Get P&L exit failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise PnlExitError(str(mapped)) from mapped
 
         raw = data.get("data", data) if isinstance(data, dict) else {}
         if not isinstance(raw, dict):

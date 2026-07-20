@@ -201,15 +201,14 @@ class TestResolveInstrumentKey:
         """Index symbols (NIFTY) should resolve to NSE_INDEX segment."""
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
         from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
+        from brokers.upstox.instruments.service import UpstoxInstrumentService
         from brokers.upstox.wire import UpstoxBrokerGateway
         from domain.market_enums import ExchangeSegment
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False
-        mock_broker.instruments = UpstoxInstrumentResolver()
-
-        # Load index instrument
+        resolver = UpstoxInstrumentResolver()
         index_def = UpstoxInstrumentDefinition(
             instrument_key="NSE_INDEX|Nifty 50",
             exchange_segment=ExchangeSegment.IDX_I,
@@ -219,7 +218,9 @@ class TestResolveInstrumentKey:
             tick_size=0.05,
             lot_size=1,
         )
-        mock_broker.instruments.register(index_def)
+        resolver.register(index_def)
+        mock_broker.instruments = UpstoxInstrumentService(resolver=resolver)
+        mock_broker.instrument_resolver = resolver
 
         gateway = UpstoxBrokerGateway(mock_broker)
         key = gateway._resolve_instrument_key("NIFTY", "NSE")
@@ -231,15 +232,14 @@ class TestResolveInstrumentKey:
         """Equity symbols should resolve to NSE_EQ|ISIN format."""
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
         from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
+        from brokers.upstox.instruments.service import UpstoxInstrumentService
         from brokers.upstox.wire import UpstoxBrokerGateway
         from domain.market_enums import ExchangeSegment
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False
-        mock_broker.instruments = UpstoxInstrumentResolver()
-
-        # Load equity instrument
+        resolver = UpstoxInstrumentResolver()
         equity_def = UpstoxInstrumentDefinition(
             instrument_key="NSE_EQ|INE002A01018",
             exchange_segment=ExchangeSegment.NSE,
@@ -249,7 +249,9 @@ class TestResolveInstrumentKey:
             tick_size=0.05,
             lot_size=1,
         )
-        mock_broker.instruments.register(equity_def)
+        resolver.register(equity_def)
+        mock_broker.instruments = UpstoxInstrumentService(resolver=resolver)
+        mock_broker.instrument_resolver = resolver
 
         gateway = UpstoxBrokerGateway(mock_broker)
         key = gateway._resolve_instrument_key("RELIANCE", "NSE")
@@ -258,13 +260,15 @@ class TestResolveInstrumentKey:
 
     def test_unknown_symbol_falls_back_to_constructed_key(self):
         """Unknown symbols should fall back to segment|symbol construction."""
+        from brokers.upstox.instruments.service import UpstoxInstrumentService
         from brokers.upstox.wire import UpstoxBrokerGateway
 
         mock_broker = MagicMock()
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False
-        mock_broker.instruments = MagicMock()
-        mock_broker.instruments.resolve.return_value = None
+        service = UpstoxInstrumentService()
+        mock_broker.instruments = service
+        mock_broker.instrument_resolver = service.resolver
 
         gateway = UpstoxBrokerGateway(mock_broker)
         key = gateway._resolve_instrument_key("UNKNOWN", "NSE")

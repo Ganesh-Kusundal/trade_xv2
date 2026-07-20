@@ -12,6 +12,7 @@ from typing import Any
 
 from brokers.common.idempotency import IdempotencyCache, IdempotencyCachePort
 from brokers.common.order_validation import validate_tick_alignment
+from brokers.common.transport_errors import order_response_from_transport_error
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
@@ -83,7 +84,7 @@ class UpstoxOrderCommandAdapter:
             preview_order = self._to_domain_order(request)
             risk_result = self._risk_manager.check_order(preview_order)
             if not risk_result.allowed:
-                raise OrderError(f"Risk check failed: {risk_result.reason}")
+                return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
 
         instrument_key = self._resolve_instrument_key(request)
         if not instrument_key:
@@ -104,8 +105,8 @@ class UpstoxOrderCommandAdapter:
                 result = self._order_client.place_order_v3(payload)
             else:
                 result = self._order_client.place_order_v2(payload)
-        except (RuntimeError, OSError) as exc:
-            raise OrderError(str(exc)) from exc
+        except Exception as exc:
+            return order_response_from_transport_error(exc)
 
         response = UpstoxDomainMapper.to_order_response(result)
         if response.success:
@@ -113,7 +114,7 @@ class UpstoxOrderCommandAdapter:
                 self._idempotency_cache.commit(request.correlation_id, response)
             self._publish_order_placed(request, response)
         elif response.message:
-            raise OrderError(response.message)
+            return OrderResponse.fail(response.message)
         return response
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
@@ -146,8 +147,8 @@ class UpstoxOrderCommandAdapter:
         payload = UpstoxDomainMapper.to_modify_payload(order_id, instrument_key, **changes)
         try:
             result = self._order_client.modify_order_v3(payload)
-        except (RuntimeError, OSError) as exc:
-            return OrderResponse.fail(str(exc))
+        except Exception as exc:
+            return order_response_from_transport_error(exc)
         return OrderResponse.ok(order_id=order_id, message="Order modified", raw_payload=result)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
@@ -161,11 +162,8 @@ class UpstoxOrderCommandAdapter:
 
         try:
             result = self._order_client.cancel_order_v3(order_id)
-        except (RuntimeError, OSError) as exc:
-            return OrderResponse.fail(
-                message=f"network error: {exc}",
-                error_code="BRO_ERR_CONNECTION_FAILED",
-            )
+        except Exception as exc:
+            return order_response_from_transport_error(exc)
         if not isinstance(result, dict):
             return OrderResponse.fail(
                 message="malformed broker response (not a dict)",

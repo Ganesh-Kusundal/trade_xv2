@@ -6,12 +6,17 @@ from decimal import Decimal
 from brokers.paper.paper_market_data import PaperMarketData
 from brokers.paper.paper_orders import PaperOrders
 from domain import OrderStatus, Side
+from tests.unit.brokers.paper.conftest import MockPaperOrderManager
+
+
+def _paper_orders() -> PaperOrders:
+    md = PaperMarketData()
+    return PaperOrders(md, {}, order_manager=MockPaperOrderManager())
 
 
 class TestPaperOrdersConcurrency:
     def test_concurrent_place_order_generates_unique_ids(self):
-        md = PaperMarketData()
-        orders = PaperOrders(md, {})
+        orders = _paper_orders()
 
         def place():
             return orders.place_order("RELIANCE", "NSE", Side.BUY, 1)
@@ -25,8 +30,7 @@ class TestPaperOrdersConcurrency:
         assert all(o.status == OrderStatus.FILLED for o in results)
 
     def test_concurrent_place_order_updates_positions_atomically(self):
-        md = PaperMarketData()
-        orders = PaperOrders(md, {})
+        orders = _paper_orders()
 
         def place():
             return orders.place_order("RELIANCE", "NSE", Side.BUY, 1)
@@ -45,8 +49,7 @@ class TestPaperOrdersConcurrency:
         assert pos.avg_price > Decimal("0")
 
     def test_position_copy_on_write_does_not_mutate_original(self):
-        md = PaperMarketData()
-        orders = PaperOrders(md, {})
+        orders = _paper_orders()
         orders.place_order(
             "RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"), order_type="MARKET"
         )
@@ -65,8 +68,7 @@ class TestPaperOrdersConcurrency:
         assert second.quantity == 20
 
     def test_cancel_order_replaces_immutable_order(self):
-        md = PaperMarketData()
-        orders = PaperOrders(md, {})
+        orders = _paper_orders()
         o = orders.place_order(
             "RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"), order_type="LIMIT"
         )

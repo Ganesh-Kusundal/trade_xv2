@@ -10,28 +10,20 @@ method) is surfaced as a WARNING instead of failing later at call time.
 import logging
 from typing import Any
 
-from domain.exceptions import TradeXV2Error
+from domain.errors import CapabilityError
 
 # Maps a capability flag to the method name(s) that must exist on the gateway
 # when the flag is True. The first name present on the gateway satisfies the
 # capability, so multiple acceptable aliases can be listed.
 _CAPABILITY_METHOD_MAP: dict[str, tuple[str, ...]] = {
     "supports_modify_order": ("modify_order",),
-    "supports_order_cancellation": ("cancel_order",),
-    "supports_positions": ("positions",),
-    "supports_holdings": ("holdings",),
-    "supports_stream_order": ("stream_order",),
+    "supports_cancel_order": ("cancel_order",),
+    "supports_order_stream": ("stream_order",),
     "supports_depth": ("depth", "stream_depth"),
 }
 
-
-class CapabilityMismatchError(TradeXV2Error, RuntimeError):
-    """Raised when a gateway advertises a capability it cannot actually deliver.
-
-    Broker-agnostic on purpose: shared by every broker's gateway constructor
-    via :func:`enforce_gateway_capabilities`, so a "capability lie" always
-    fails the same way regardless of which broker produced it.
-    """
+# Deprecated alias — use domain.errors.CapabilityError
+CapabilityMismatchError = CapabilityError
 
 
 def validate_gateway_capabilities(
@@ -86,12 +78,11 @@ def enforce_gateway_capabilities(
     docs/architecture/TARGET_SYSTEM_DESIGN.md §6.
 
     Raises:
-        CapabilityMismatchError: if any advertised capability has no
-            backing method on the gateway.
+        CapabilityError: if any advertised capability has no backing method on the gateway.
     """
     mismatches = validate_gateway_capabilities(gateway, log=log)
     if mismatches:
-        raise CapabilityMismatchError(
+        raise CapabilityError(
             f"{type(gateway).__name__} advertises capabilities it cannot "
             f"deliver: {'; '.join(mismatches)}"
         )

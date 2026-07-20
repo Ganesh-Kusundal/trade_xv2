@@ -17,7 +17,6 @@ from unittest.mock import MagicMock, patch
 # reference at import time, so we must also patch those bindings.
 _FEED_PATCH_TARGETS = [
     "brokers.dhan.websocket._helpers._sdk_market_feed_class",
-    "brokers.dhan.websocket.market_feed._sdk_market_feed_class",
     "brokers.dhan.websocket.connection._sdk_market_feed_class",
 ]
 

@@ -29,22 +29,9 @@ class TestGatewayImportHygiene:
     """No local imports of internal modules inside gateway methods."""
 
     def test_dhan_gateway_no_local_segment_imports(self):
-        """EXCHANGE_TO_SEGMENT must be imported at module level in dhan/gateway.py."""
-        import ast
-
+        """wire.py must not import segments inside methods (module-level only if needed)."""
         with open(_gw_source("dhan")) as f:
             tree = ast.parse(f.read())
-
-        # Top-level imports
-        top_imports = set()
-        for node in tree.body:
-            if isinstance(node, ast.ImportFrom | ast.Import):
-                for alias in node.names:
-                    top_imports.add(alias.asname or alias.name)
-
-        assert "EXCHANGE_TO_SEGMENT" in top_imports, (
-            "EXCHANGE_TO_SEGMENT must be imported at module level"
-        )
 
         # No local imports of segments module inside functions
         for node in ast.walk(tree):
@@ -386,6 +373,26 @@ class TestTransportBareExceptRatchet:
         path = GATEWAY_DIR / "dhan" / "api" / "transport.py"
         content = path.read_text()
         assert "OrderResult.fail(str(exc))" not in content
+
+    def test_no_unmapped_order_response_fail_in_dhan_execution(self) -> None:
+        import re
+
+        execution_dir = GATEWAY_DIR / "dhan" / "execution"
+        pattern = re.compile(
+            r"except Exception[^\n]*:\n(?:[^\n]*\n){0,8}[^\n]*"
+            r"(OrderResponse\.fail\([^)]*\bexc\b|raise \w+Error\(f?[\"'][^\"']*\{?\s*exc)",
+            re.MULTILINE,
+        )
+        for path in execution_dir.glob("*.py"):
+            content = path.read_text()
+            matches = pattern.findall(content)
+            assert not matches, f"{path.name} stringifies raw exceptions: {matches}"
+
+    def test_upstox_order_command_adapter_uses_mapper(self) -> None:
+        content = (GATEWAY_DIR / "upstox" / "orders" / "order_command_adapter.py").read_text()
+        assert "order_response_from_transport_error" in content
+        assert "OrderResponse.fail(str(exc))" not in content
+        assert 'OrderResponse.fail(f"network error:' not in content
 
     def test_upstox_order_gateway_uses_mapper(self) -> None:
         content = (GATEWAY_DIR / "upstox" / "adapters" / "order_gateway.py").read_text()

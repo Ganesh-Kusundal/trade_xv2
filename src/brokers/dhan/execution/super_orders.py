@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from brokers.common.acl import normalize_order_status
 from brokers.common.idempotency import IdempotencyCache
+from brokers.common.transport_errors import map_transport_exception
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
 from brokers.dhan.exceptions import SuperOrderError
@@ -148,7 +149,8 @@ class SuperOrdersAdapter:
             data = self._client.post("/super/orders", json=payload)
         except Exception as exc:
             self._idempotency.clear_reservation(cid)
-            raise SuperOrderError(f"Super order placement failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise SuperOrderError(str(mapped)) from mapped
 
         # Parse response
         order_data = data.get("data", data)
@@ -207,7 +209,8 @@ class SuperOrdersAdapter:
         try:
             data = self._client.put(f"/super/orders/{order_id}", json=payload)
         except Exception as exc:
-            raise SuperOrderError(f"Super order modification failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise SuperOrderError(str(mapped)) from mapped
 
         order_data = data.get("data", data)
         order = self._parse_super_order(order_data)
@@ -236,7 +239,8 @@ class SuperOrdersAdapter:
         try:
             data = self._client.delete(f"/super/orders/{order_id}/{leg_name}")
         except Exception as exc:
-            raise SuperOrderError(f"Super order leg cancellation failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise SuperOrderError(str(mapped)) from mapped
 
         if not isinstance(data, dict):
             return OrderResponse.fail(
@@ -284,7 +288,8 @@ class SuperOrdersAdapter:
         try:
             data = self._client.get("/super/orders")
         except Exception as exc:
-            raise SuperOrderError(f"Failed to fetch super orders: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise SuperOrderError(str(mapped)) from mapped
 
         items = data.get("data", []) if isinstance(data, dict) else []
         orders = [

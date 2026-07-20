@@ -207,6 +207,9 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
     def get_trade_book(self) -> list[Trade]:
         return self._order_gw.get_trade_book()
 
+    def trades(self) -> list[Trade]:
+        return super().trades()
+
     def stream(
         self,
         symbol: str,

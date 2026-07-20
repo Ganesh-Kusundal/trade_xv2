@@ -28,10 +28,10 @@ def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
     args, kwargs = gw.stream.call_args
     assert args[0] == "RELIANCE"
     assert args[1] == "NSE"
-    assert kwargs.get("mode") == "LTP"
-    assert callable(kwargs.get("on_tick"))
+    assert args[2] == "ltpc"
+    assert callable(args[3])
     # callback adapter receives raw tick
-    kwargs["on_tick"]({"ltp": 1})
+    args[3]({"ltp": 1})
     cb.assert_called()
     assert sub is not None
 
@@ -45,10 +45,12 @@ def test_subscribe_does_not_pass_callback_as_mode() -> None:
     provider = UpstoxDataProvider(gw)
     iid = InstrumentId(exchange="NSE", underlying="TCS", kind="EQUITY")
     provider.subscribe(iid, lambda *_a, **_k: None)
-    _args, kwargs = gw.stream.call_args
-    # Third positional must not be the user callback (old bug).
-    assert len(_args) <= 2
-    assert "on_tick" in kwargs
+    args, kwargs = gw.stream.call_args
+    # Mode is the third positional; user callback is fourth — never conflated.
+    assert len(args) == 4
+    assert args[2] == "ltpc"
+    assert callable(args[3])
+    assert "on_tick" not in kwargs
 
 
 @pytest.mark.unit

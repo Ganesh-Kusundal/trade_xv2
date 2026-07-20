@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from brokers.common.acl import normalize_order_status
 from brokers.common.idempotency import IdempotencyCache
+from brokers.common.transport_errors import map_transport_exception
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
 from brokers.dhan.exceptions import ForeverOrderError
@@ -137,7 +138,8 @@ class ForeverOrdersAdapter:
             data = self._client.post("/forever/orders", json=payload)
         except Exception as exc:
             self._idempotency.clear_reservation(cid)
-            raise ForeverOrderError(f"Forever order placement failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ForeverOrderError(str(mapped)) from mapped
 
         # Parse response
         order_data = data.get("data", data)
@@ -206,7 +208,8 @@ class ForeverOrdersAdapter:
         try:
             data = self._client.put(f"/forever/orders/{order_id}", json=payload)
         except Exception as exc:
-            raise ForeverOrderError(f"Forever order modification failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ForeverOrderError(str(mapped)) from mapped
 
         order_data = data.get("data", data)
         order = self._parse_forever_order(order_data)
@@ -233,7 +236,8 @@ class ForeverOrdersAdapter:
         try:
             data = self._client.delete(f"/forever/orders/{order_id}")
         except Exception as exc:
-            raise ForeverOrderError(f"Forever order cancellation failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ForeverOrderError(str(mapped)) from mapped
 
         if not isinstance(data, dict):
             return OrderResponse.fail(
@@ -280,7 +284,8 @@ class ForeverOrdersAdapter:
         try:
             data = self._client.get("/forever/all")
         except Exception as exc:
-            raise ForeverOrderError(f"Failed to fetch forever orders: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ForeverOrderError(str(mapped)) from mapped
 
         items = data.get("data", []) if isinstance(data, dict) else []
         orders = [

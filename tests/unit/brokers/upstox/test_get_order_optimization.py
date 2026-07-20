@@ -56,20 +56,18 @@ class TestGetOrderDirectLookup:
 
     def test_get_order_fallback_when_no_order_query(self):
         """get_order() falls back to orderbook scan if order_query is unavailable."""
-        broker = MagicMock(spec=[])  # Empty spec — no attributes
-        # Manually set only what the constructor needs
+        from brokers.upstox.adapters.order_gateway import OrderGateway
+
+        broker = MagicMock(spec=["settings"])
         broker.settings = MagicMock()
         broker.settings.analytics_only = False
         broker.settings.allow_live_orders = True
 
-        # Create gateway with minimal mock
-        gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
-        gw._broker = broker
-        gw._order_command = MagicMock()
+        portfolio = MagicMock()
+        portfolio.get_orderbook.return_value = [_make_order("ORD-789")]
 
-        # Simulate no order_query attribute
-        orderbook = [_make_order("ORD-789")]
-        gw.get_orderbook = MagicMock(return_value=orderbook)
+        gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
+        gw._order_gw = OrderGateway(broker, MagicMock(), portfolio)
 
         result = gw.get_order("ORD-789")
         assert result is not None
@@ -77,11 +75,15 @@ class TestGetOrderDirectLookup:
 
     def test_get_order_fallback_returns_none_if_not_in_orderbook(self):
         """Fallback scan returns None when order is not in orderbook."""
+        from brokers.upstox.adapters.order_gateway import OrderGateway
+
+        broker = MagicMock(spec=["settings"])
+        broker.settings = MagicMock()
+        portfolio = MagicMock()
+        portfolio.get_orderbook.return_value = []
+
         gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
-        gw._broker = MagicMock(spec=[])  # No order_query attribute
-        gw._broker.settings = MagicMock()
-        gw._order_command = MagicMock()
-        gw.get_orderbook = MagicMock(return_value=[])
+        gw._order_gw = OrderGateway(broker, MagicMock(), portfolio)
 
         result = gw.get_order("NONEXISTENT")
         assert result is None

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
+from brokers.common.transport_errors import map_transport_exception
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.domain import ExitAllResponse
 from brokers.dhan.exceptions import ExitAllError
@@ -37,7 +38,8 @@ class ExitAllAdapter:
         try:
             data = self._client.post("/exitall")
         except Exception as exc:
-            raise ExitAllError(f"Exit all operation failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ExitAllError(str(mapped)) from mapped
 
         response_data = data.get("data", data)
         response = self._parse_response(response_data)

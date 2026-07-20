@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from brokers.common.transport_errors import map_transport_exception
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.domain import ConditionalTrigger, ConditionalTriggerRequest
 from brokers.dhan.exceptions import ConditionalTriggerError
@@ -77,7 +78,8 @@ class ConditionalTriggersAdapter:
         try:
             data = self._client.post("/alerts/orders", json=payload)
         except Exception as exc:
-            raise ConditionalTriggerError(f"Conditional trigger placement failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ConditionalTriggerError(str(mapped)) from mapped
 
         trigger_data = data.get("data", data)
         trigger = self._parse_trigger(trigger_data)
@@ -135,9 +137,8 @@ class ConditionalTriggersAdapter:
         try:
             data = self._client.put(f"/alerts/orders/{alert_id}", json=payload)
         except Exception as exc:
-            raise ConditionalTriggerError(
-                f"Conditional trigger modification failed: {exc}"
-            ) from exc
+            mapped = map_transport_exception(exc)
+            raise ConditionalTriggerError(str(mapped)) from mapped
 
         trigger_data = data.get("data", data)
         trigger = self._parse_trigger(trigger_data)
@@ -166,7 +167,8 @@ class ConditionalTriggersAdapter:
         try:
             data = self._client.delete(f"/alerts/orders/{alert_id}")
         except Exception as exc:
-            raise ConditionalTriggerError(f"Conditional trigger deletion failed: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ConditionalTriggerError(str(mapped)) from mapped
 
         success = isinstance(data, dict) and data.get("status") == "success"
         logger.info(
@@ -193,7 +195,8 @@ class ConditionalTriggersAdapter:
         try:
             data = self._client.get(f"/alerts/orders/{alert_id}")
         except Exception as exc:
-            raise ConditionalTriggerError(f"Failed to fetch conditional trigger: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ConditionalTriggerError(str(mapped)) from mapped
 
         trigger_data = data.get("data", data)
         trigger = self._parse_trigger(trigger_data)
@@ -218,7 +221,8 @@ class ConditionalTriggersAdapter:
         try:
             data = self._client.get("/alerts/orders")
         except Exception as exc:
-            raise ConditionalTriggerError(f"Failed to fetch conditional triggers: {exc}") from exc
+            mapped = map_transport_exception(exc)
+            raise ConditionalTriggerError(str(mapped)) from mapped
 
         items = data.get("data", []) if isinstance(data, dict) else []
         triggers = [

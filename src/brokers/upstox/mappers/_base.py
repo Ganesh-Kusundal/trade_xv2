@@ -136,6 +136,26 @@ def segment_from_wire(segment: str) -> ExchangeSegment:
     return UpstoxSegmentMapper.to_safe(segment)
 
 
+def exchange_from_wire(segment: str) -> str:
+    """Map Upstox wire segment (e.g. NSE_EQ) to canonical exchange code (NSE)."""
+    from domain.constants.exchanges import BFO, BSE, CDS, IDX, MCX, NFO, NSE
+
+    seg = segment_from_wire(segment)
+    if seg == ExchangeSegment.NSE_FNO:
+        return NFO
+    if seg == ExchangeSegment.BSE_FNO:
+        return BFO
+    if seg in (ExchangeSegment.NSE_CURRENCY, ExchangeSegment.BSE_CURRENCY):
+        return CDS
+    if seg == ExchangeSegment.MCX:
+        return MCX
+    if seg == ExchangeSegment.IDX_I:
+        return IDX
+    if seg == ExchangeSegment.BSE:
+        return BSE
+    return NSE
+
+
 def segment_to_wire(segment: ExchangeSegment) -> str:
     from brokers.upstox.instruments.segment_mapper import _to_wire
 

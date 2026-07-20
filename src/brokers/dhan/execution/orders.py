@@ -33,15 +33,12 @@ from domain import (
     Trade,
 )
 from domain import Side as OrderSide
-from domain.field_mapping import DefaultFieldMapping
+from brokers.dhan.execution.field_mapping import DHAN_FIELD_MAPPING
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
-
-# Module-level field mapping instance (reused for all order parsing)
-_DHAN_MAPPING = DefaultFieldMapping()
 
 
 def _parse_timestamp(val: object) -> datetime | None:
@@ -228,7 +225,7 @@ class OrdersAdapter:
     @staticmethod
     def _parse_order(raw: dict) -> Order:
         return Order.from_broker_dict(
-            raw, field_mapping=_DHAN_MAPPING, exchange_resolver=segment_to_exchange
+            raw, field_mapping=DHAN_FIELD_MAPPING, exchange_resolver=segment_to_exchange
         )
 
     @staticmethod

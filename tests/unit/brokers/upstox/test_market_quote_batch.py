@@ -46,8 +46,9 @@ class TestToQuotesMapper:
         quotes = UpstoxDomainMapper.to_quotes(payload)
         assert quotes["RELIANCE"].ltp == Decimal("2500.5")
         assert quotes["TCS"].ltp == Decimal("3500.0")
-        assert quotes["NSE_EQ|INE002A01018"].symbol == "RELIANCE"
-        assert quotes["NSE_EQ:RELIANCE"].bid == Decimal("2500")
+        assert "NSE_EQ|INE002A01018" not in quotes
+        assert "NSE_EQ:RELIANCE" not in quotes
+        assert quotes["RELIANCE"].bid == Decimal("2500")
 
     def test_v3_ltp_fields_cp_volume(self):
         payload = {
@@ -68,7 +69,7 @@ class TestToQuotesMapper:
         assert q.close == Decimal("29.0")  # V3 cp → close
 
         multi = UpstoxDomainMapper.to_quotes(payload)
-        assert multi["NSE_FO|51834"].ltp == Decimal("303.9")
+        assert multi["NIFTY2543021600PE"].ltp == Decimal("303.9")
 
     def test_v3_live_ohlc_fallback(self):
         payload = {
@@ -245,7 +246,7 @@ class TestMarketDataAdapterBatch:
         out = adapter.ltps_batch(["NSE_EQ|INE002A01018"])
         v3.get_ltp_v3.assert_called_once()
         v2.get_quote.assert_not_called()
-        assert out["NSE_EQ|INE002A01018"] == Decimal("111.1")
+        assert out["RELIANCE"] == Decimal("111.1")
 
     def test_ltp_single_falls_back_to_v2_on_v3_error(self):
         v2 = MagicMock()
@@ -272,34 +273,23 @@ class TestGatewayNativeBatch:
     def test_quote_batch_maps_back_to_symbols(self):
         from brokers.upstox.wire import UpstoxBrokerGateway
 
-        broker = MagicMock()
         gw = object.__new__(UpstoxBrokerGateway)
-        gw._broker = broker
-        gw._market_data = MagicMock()
-        gw._resolve_instrument_key = MagicMock(
-            side_effect=lambda s, e: {
-                "RELIANCE": "NSE_EQ|INE002A01018",
-                "TCS": "NSE_EQ|INE467B01029",
-            }[s]
-        )
-        gw._market_data.quotes_batch.return_value = {
-            "NSE_EQ|INE002A01018": Quote(symbol="RELIANCE", ltp=Decimal("10")),
+        gw._data_gw = MagicMock()
+        gw._data_gw.quote_batch.return_value = {
             "RELIANCE": Quote(symbol="RELIANCE", ltp=Decimal("10")),
-            "NSE_EQ|INE467B01029": Quote(symbol="TCS", ltp=Decimal("20")),
             "TCS": Quote(symbol="TCS", ltp=Decimal("20")),
         }
         result = UpstoxBrokerGateway.quote_batch(gw, ["RELIANCE", "TCS"], "NSE")
         assert result["RELIANCE"].ltp == Decimal("10")
         assert result["TCS"].ltp == Decimal("20")
-        gw._market_data.quotes_batch.assert_called_once()
-        # single multi-key call, not N singles
-        called_keys = gw._market_data.quotes_batch.call_args[0][0]
-        assert set(called_keys) == {"NSE_EQ|INE002A01018", "NSE_EQ|INE467B01029"}
+        gw._data_gw.quote_batch.assert_called_once_with(["RELIANCE", "TCS"], "NSE")
 
     def test_ltp_batch_empty(self):
         from brokers.upstox.wire import UpstoxBrokerGateway
 
         gw = object.__new__(UpstoxBrokerGateway)
+        gw._data_gw = MagicMock()
+        gw._data_gw.ltp_batch.return_value = {}
         assert UpstoxBrokerGateway.ltp_batch(gw, [], "NSE") == {}
 
 
