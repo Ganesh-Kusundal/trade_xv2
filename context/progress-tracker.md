@@ -15,7 +15,12 @@
 - Next: **Phase D-Phase2** — physical split (create `data/lake` + `data/state`, move files).
 - Parallel: remaining `ExecutionService`/`SimulatedOMSAdapter` can be deleted once backtest path is migrated to `ExecutionEngine`.
 
-### Ponytail Wave 1 (dead-code deletes) — 2026-07-20
+### SEC remediation cycle 1 (Agent-SEC) — 2026-07-20
+
+- **SEC-009**: `auth.py` fail-closed in production/staging — no ephemeral `API_KEY` generation; `RuntimeError` when unset.
+- **SEC-004/SEC-005**: `/api/v1/health/metrics` and `/metrics/prometheus` require `X-API-Key`; liveness/readiness probes unchanged.
+- Tests: `test_auth_production.py`, metrics auth + probe public tests in `test_health.py`; fixed `api.auth` alias bugs in auth test modules.
+
 
 - Deleted FeatureFlags subsystem + `/flags` API; toggles remain in `config.schema` env vars.
 - Deleted `CompositeDataProvider`, dead Protocols (`BrokerPluginInterface`, `CliCommand`), `evaluator_bridge`, `domain/scanners`, `exchange_adapters` shim, unused Redis cache path, `runtime/historical_data` re-export.

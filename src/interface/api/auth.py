@@ -6,8 +6,11 @@ Authentication modes:
 Any other ``AUTH_MODE`` value is rejected at startup and on every request
 (fail-closed — no silent unauthenticated trading surface).
 
-Public endpoints (never require auth in development):
-- /healthz, /readyz (health probes)
+Public endpoints (never require auth):
+- /api/v1/health, /api/v1/health/readyz (liveness/readiness probes)
+
+Metrics endpoints require authentication:
+- /api/v1/health/metrics, /api/v1/health/metrics/prometheus
 
 In production/staging (``TRADEX_ENV``), /docs, /redoc, /openapi.json also require auth.
 
@@ -35,6 +38,30 @@ def _auth_none_allowed() -> bool:
         return True
     env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
     return env not in ("production", "staging") and os.getenv("TRADEX_ALLOW_AUTH_NONE") == "1"
+
+
+def _requires_explicit_api_key() -> bool:
+    """Production/staging must not use auto-generated API keys."""
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    return env in ("production", "staging")
+
+
+def _resolve_api_key(*, explicit: str = "") -> str:
+    """Resolve API key from config/env, or generate ephemeral key in dev only."""
+    key = (explicit or os.getenv("API_KEY", "")).strip()
+    if key:
+        return key
+    if _requires_explicit_api_key():
+        raise RuntimeError(
+            "API_KEY must be set explicitly when TRADEX_ENV is production or staging "
+            "(auto-generated ephemeral keys are forbidden)"
+        )
+    generated = secrets.token_urlsafe(32)
+    logger.warning(
+        "AUTH_MODE=api_key but API_KEY not set. "
+        "A temporary dev key was generated; set API_KEY explicitly before production."
+    )
+    return generated
 
 
 def _normalize_auth_mode(mode: str) -> str:
@@ -67,21 +94,20 @@ class _AuthConfig:
         """Override auth settings from APIConfig (called by ``create_app``)."""
         cls.AUTH_MODE = _normalize_auth_mode(auth_mode)
         if api_key:
-            cls.API_KEY = api_key
-        elif cls.AUTH_MODE == "api_key" and not cls.API_KEY:
-            cls.API_KEY = secrets.token_urlsafe(32)
+            cls.API_KEY = api_key.strip()
+        elif cls.AUTH_MODE == "api_key":
+            cls.API_KEY = _resolve_api_key(explicit="")
+        else:
+            cls.API_KEY = (os.getenv("API_KEY", "") or "").strip()
 
 
 AUTH_MODE = _AuthConfig.AUTH_MODE  # intentional module singleton — read by FastAPI deps
 API_KEY = _AuthConfig.API_KEY  # intentional module singleton — read by FastAPI deps
 ADMIN_API_KEY = _AuthConfig.ADMIN_API_KEY
 
-if AUTH_MODE == "api_key" and not API_KEY:
-    API_KEY = secrets.token_urlsafe(32)
-    logger.warning(
-        "AUTH_MODE=api_key but API_KEY not set. "
-        "A temporary key was generated; set API_KEY explicitly in production."
-    )
+if AUTH_MODE == "api_key" and not API_KEY.strip():
+    API_KEY = _resolve_api_key(explicit="")
+    _AuthConfig.API_KEY = API_KEY
 
 
 def configure(*, auth_mode: str, api_key: str = "") -> None:
@@ -94,8 +120,7 @@ def configure(*, auth_mode: str, api_key: str = "") -> None:
 
 def _is_production_docs_gated() -> bool:
     """Gate OpenAPI/docs behind auth in production/staging."""
-    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
-    return env in ("production", "staging")
+    return _requires_explicit_api_key()
 
 
 # ── Security Scheme ───────────────────────────────────────────────────────────
