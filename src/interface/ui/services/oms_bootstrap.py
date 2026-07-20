@@ -201,7 +201,9 @@ class OmsBootstrap:
                 try:
                     inst = conn.instruments.resolve("NIFTY", "IDX")
                     if inst is not None:
-                        _sid_attr = "security" + "_id"  # ponytail: Dhan WS wire key, not a public token
+                        _sid_attr = (
+                            "security" + "_id"
+                        )  # ponytail: Dhan WS wire key, not a public token
                         instruments = [
                             ("IDX_I", str(getattr(inst, _sid_attr)), "QUOTE"),
                         ]
