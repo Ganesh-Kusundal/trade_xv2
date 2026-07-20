@@ -129,9 +129,7 @@ class StreamManagerAdapter:
             # already closed — treat a dead task loop as needing reconnect.
             task = getattr(ws, "_task", None)
             loop_dead = (
-                task is not None
-                and hasattr(task, "get_loop")
-                and task.get_loop().is_closed()
+                task is not None and hasattr(task, "get_loop") and task.get_loop().is_closed()
             )
             if not ws.is_connected or loop_dead:
 

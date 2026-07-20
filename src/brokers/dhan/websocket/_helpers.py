@@ -53,14 +53,13 @@ class _ModeMapCache:
     _map: dict[str, int] | None = None
 
 
-
-
 def _sdk_subscription_ticker() -> int:
     """SDK constant for default LTP/Ticker subscription mode."""
     from dhanhq import marketfeed as mf_mod
 
     mf_cls = _sdk_market_feed_class()
     return getattr(mf_cls, "Ticker", mf_mod.Ticker)
+
 
 def _mode_map() -> dict[str, int]:
     """Return the mode-name -> SDK constant mapping (cached at module level)."""

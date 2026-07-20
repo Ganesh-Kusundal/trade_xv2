@@ -84,7 +84,7 @@ class EventBus:
         bus = EventBus(metrics=metrics, dead_letter_queue=dlq, alerting_engine=engine)
         # Or with custom config:
         bus = EventBus(config=EventBusConfig(fail_fast=True), metrics=metrics)
-        token = bus.subscribe("TICK", lambda e: print(e.payload))
+        token = bus.subscribe("TICK", lambda e: logger.debug("tick", extra={"payload": e.payload}))
         bus.publish(DomainEvent.now("TICK", {"ltp": 100.0}, symbol="RELIANCE"))
         bus.unsubscribe(token)
         bus.stop_alerting()  # Clean shutdown

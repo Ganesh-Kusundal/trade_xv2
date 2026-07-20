@@ -248,13 +248,9 @@ class RiskManager:
             tick = Decimal(str(DEFAULT_TICK_SIZE))
             if rm._instrument_provider is not None:
                 try:
-                    instrument = rm._instrument_provider.resolve(
-                        order.symbol, order.exchange
-                    )
+                    instrument = rm._instrument_provider.resolve(order.symbol, order.exchange)
                     if instrument is not None:
-                        tick = Decimal(
-                            str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE))
-                        )
+                        tick = Decimal(str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE)))
                 except Exception as exc:
                     return RiskResult(
                         False,

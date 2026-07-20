@@ -202,8 +202,12 @@ class OmsBootstrap:
                     inst = conn.instruments.resolve("NIFTY", "IDX")
                     if inst is not None:
                         instruments = [
-                            ("IDX_I", str(inst.security_id), "QUOTE")
-                        ]  # ponytail: internal Dhan WS tuple
+                            (
+                                "IDX_I",
+                                str(inst.security_id),
+                                "QUOTE",
+                            )  # ponytail: internal Dhan WS tuple
+                        ]
                 except Exception as exc:
                     logger.debug(
                         "nifty_spot_resolve_skipped: %s",

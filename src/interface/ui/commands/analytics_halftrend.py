@@ -222,9 +222,7 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
             df = gw.history(sym, timeframe="1m", lookback_days=lookback_days)
             if df.empty:
                 return (i, sym, "[red]No data[/red]", "-", "-", "-")
-            engine = BacktestEngine(
-                pipeline, strategy, config, mode=ResearchMode.PURE_SIM
-            )
+            engine = BacktestEngine(pipeline, strategy, config, mode=ResearchMode.PURE_SIM)
             bt_result = engine.run(df, symbol=sym)
             m = bt_result.metrics
             ret_style = "green" if m.total_return_pct >= 0 else "red"

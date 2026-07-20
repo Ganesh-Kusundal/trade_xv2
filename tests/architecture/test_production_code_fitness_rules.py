@@ -357,6 +357,8 @@ class TestRetryUsage:
             "src/interface/ui/services/feed_probe.py",  # Live-feed probe window (not HTTP retry)
             "src/interface/ui/utils/retry_handler.py",  # Shared UI retry helper
             "src/brokers/services/market_data.py",  # Subscribe probe window (not HTTP retry)
+            "src/brokers/upstox/orders/order_command_adapter.py",  # Broker poll between slice legs
+            "src/brokers/dhan/data/depth_feed_base/connection.py",  # Depth WS reconnect poll
         ]
         violations = [v for v in violations if not any(exc in v for exc in known_exceptions)]
 

@@ -105,11 +105,7 @@ class ConnectionMixin:
                 else None
             )
 
-        is_stale = (
-            is_connected
-            and last_message_age is not None
-            and last_message_age > threshold
-        )
+        is_stale = is_connected and last_message_age is not None and last_message_age > threshold
 
         if thread_alive and is_connected and not is_stale:
             state = HealthState.HEALTHY

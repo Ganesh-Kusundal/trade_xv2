@@ -51,9 +51,7 @@ class ExecutionEngine:
 
         cancel_fn = getattr(self._fill_source, "cancel_fn", None)
         resolved = cancel_fn() if callable(cancel_fn) else None
-        return CancelOrderUseCase(self._ctx.order_manager, cancel_fn=resolved).execute(
-            order_id
-        )
+        return CancelOrderUseCase(self._ctx.order_manager, cancel_fn=resolved).execute(order_id)
 
     def modify_order(self, request: object) -> OrderResult:
         """Modify an order through the unified engine."""

@@ -58,9 +58,7 @@ class EventDispatchHook:
     ) -> None:
         error_type = type(exc).__name__
         if self._metrics is not None:
-            self._metrics.add_timestamped_counter(
-                event.event_type, f"handler_error:{error_type}"
-            )
+            self._metrics.add_timestamped_counter(event.event_type, f"handler_error:{error_type}")
             self._metrics.add_timestamped_counter(event.event_type, "dead_letter")
         logger.warning(
             "EventBus: handler %s failed on %s (event_id=%s, symbol=%s): %s: %s",

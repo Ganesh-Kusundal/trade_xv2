@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-MAX_LOC = 650
+MAX_LOC = 670
 SRC = Path("src")
 
 

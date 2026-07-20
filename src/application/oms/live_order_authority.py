@@ -35,13 +35,9 @@ from typing import Any
 
 from application.oms._internal.order_mutation_guard import MutationAction, OrderMutationGuard
 from domain.exceptions import LiveBrokerBlockedError, TradeXV2Error
+from domain.policies.live_capital import LIVE_CAPITAL_BROKER_IDS
 
 logger = logging.getLogger(__name__)
-
-# Brokers that require the live-order gate. Mirrors
-# ``brokers.services._session.LIVE_BROKERS`` (kept local so the application layer
-# does not import the brokers/infrastructure layer — see the layering contract).
-_LIVE_BROKERS = frozenset({"dhan", "upstox"})
 
 
 class RiskRejectedError(TradeXV2Error):
@@ -64,7 +60,7 @@ def authorize_live_order(
     """Authorize a live order or raise. Returns ``None`` only when it may proceed.
 
     Args:
-        broker: Active broker id (``"dhan"``/``"upstox"``/``"paper"``/...).
+        broker: Active broker id (live-capital vs paper/sim).
         allow_live_orders: The resolved ``allow_live_orders`` flag for the broker.
         risk_manager: Object exposing ``is_kill_switch_active()`` and
             ``check_order(order) -> result`` (``result.allowed``/``result.reason``).
@@ -81,7 +77,7 @@ def authorize_live_order(
         RiskRejectedError: Kill switch active, payload unbuildable, or risk
             manager rejected the order.
     """
-    is_live = broker.lower() in _LIVE_BROKERS
+    is_live = broker.lower() in LIVE_CAPITAL_BROKER_IDS
 
     if is_live:
         # 1. Live-actionable readiness gate (fail-closed). The gate is injected

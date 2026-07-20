@@ -70,16 +70,12 @@ class _DhanAsyncRateLimitAdapter:
     def __init__(self, client: "DhanAsyncHttpClient") -> None:
         self._client = client
 
-    async def acquire_async(
-        self, bucket: str, tokens: int = 1, timeout: float = 5.0
-    ) -> bool:
+    async def acquire_async(self, bucket: str, tokens: int = 1, timeout: float = 5.0) -> bool:
         limiter = self._client._rate_limiter
         if limiter is None:
             return True
         try:
-            return bool(
-                await limiter.acquire_async(bucket, tokens=tokens, timeout=timeout)
-            )
+            return bool(await limiter.acquire_async(bucket, tokens=tokens, timeout=timeout))
         except ValueError:
             return True
 

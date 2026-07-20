@@ -5,8 +5,9 @@ from __future__ import annotations
 from interface.api.config import APIConfig
 
 
-def test_api_config_default_auth_is_api_key():
-    assert APIConfig().auth_mode == "api_key"
+def test_api_config_default_auth_is_none_for_local():
+    """Local/single-operator default — prod/staging gate via TRADEX_ENV + profile."""
+    assert APIConfig().auth_mode == "none"
 
 
 def test_metrics_not_in_public_paths():

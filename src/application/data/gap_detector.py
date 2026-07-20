@@ -73,9 +73,7 @@ class GapDetector:
             for chunk in planned_chunks:
                 c_start = chunk.from_date
                 c_end = chunk.to_date
-                covered = any(
-                    c_start <= b.event_time.date() <= c_end for b in bars
-                )
+                covered = any(c_start <= b.event_time.date() <= c_end for b in bars)
                 if not covered:
                     gaps.append(Gap(start=c_start, end=c_end, reason="missing_chunk"))
 

@@ -6,13 +6,8 @@ target ownership boundary. Import ``analytics.*`` until the tree is moved here.
 
 from __future__ import annotations
 
-# Re-export the public analytics surface for callers migrating to this path.
-from analytics.engine_factory import (
-    create_backtest_engine,
-    create_paper_engine,
-    create_replay_engine,
-)
-from analytics.facade import AnalyticsFacade
+import importlib
+from typing import Any
 
 __all__ = [
     "AnalyticsFacade",
@@ -20,3 +15,16 @@ __all__ = [
     "create_paper_engine",
     "create_replay_engine",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy exports — avoids static import-linter application→runtime via facade."""
+    if name == "AnalyticsFacade":
+        return importlib.import_module("analytics.facade").Analytics
+    if name == "create_backtest_engine":
+        return importlib.import_module("analytics.engine_factory").create_backtest_engine
+    if name == "create_paper_engine":
+        return importlib.import_module("analytics.engine_factory").create_paper_engine
+    if name == "create_replay_engine":
+        return importlib.import_module("analytics.engine_factory").create_replay_engine
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -119,16 +119,16 @@ class SquareOffService:
             if result.success:
                 return SquareOffResult(
                     symbol=pos.symbol,
-                    quantity=quantity,
-                    side=opposite_side.value,
+                    quantity=cmd.quantity,
+                    side=cmd.side.value,
                     order_id=result.order.order_id if result.order else None,
                     success=True,
                 )
             else:
                 return SquareOffResult(
                     symbol=pos.symbol,
-                    quantity=quantity,
-                    side=opposite_side.value,
+                    quantity=cmd.quantity,
+                    side=cmd.side.value,
                     success=False,
                     error=result.error or "OMS rejected order",
                 )

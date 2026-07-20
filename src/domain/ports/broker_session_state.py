@@ -35,7 +35,11 @@ _ALLOWED: dict[BrokerSessionState, frozenset[BrokerSessionState]] = {
         {BrokerSessionState.INITIALIZING, BrokerSessionState.SHUTDOWN}
     ),
     BrokerSessionState.INITIALIZING: frozenset(
-        {BrokerSessionState.AUTHENTICATING, BrokerSessionState.DEGRADED, BrokerSessionState.SHUTDOWN}
+        {
+            BrokerSessionState.AUTHENTICATING,
+            BrokerSessionState.DEGRADED,
+            BrokerSessionState.SHUTDOWN,
+        }
     ),
     BrokerSessionState.AUTHENTICATING: frozenset(
         {BrokerSessionState.CONNECTED, BrokerSessionState.DEGRADED, BrokerSessionState.SHUTDOWN}
@@ -58,7 +62,11 @@ _ALLOWED: dict[BrokerSessionState, frozenset[BrokerSessionState]] = {
         {BrokerSessionState.HEALTHY, BrokerSessionState.CONNECTED, BrokerSessionState.DEGRADED}
     ),
     BrokerSessionState.DISCONNECTED: frozenset(
-        {BrokerSessionState.RECOVERING, BrokerSessionState.INITIALIZING, BrokerSessionState.SHUTDOWN}
+        {
+            BrokerSessionState.RECOVERING,
+            BrokerSessionState.INITIALIZING,
+            BrokerSessionState.SHUTDOWN,
+        }
     ),
     BrokerSessionState.SHUTDOWN: frozenset(),
 }

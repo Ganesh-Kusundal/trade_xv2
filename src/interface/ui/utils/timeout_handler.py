@@ -59,7 +59,7 @@ def with_timeout(
     >>> try:
     ...     quote = with_timeout(gw.quote, timeout_seconds=10, symbol="RELIANCE")
     ... except TimeoutError:
-    ...     print("Quote timed out")
+    ...     logger.error("Quote timed out")
     """
     with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(func, *args, **kwargs)

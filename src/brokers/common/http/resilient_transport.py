@@ -37,9 +37,7 @@ class ResilientHttpTransport:
 
     async def acquire_token_async(self, policy: EndpointPolicy) -> bool:
         if self._rate_limiter is not None and hasattr(self._rate_limiter, "acquire_async"):
-            acquired = await self._rate_limiter.acquire_async(
-                policy.bucket, tokens=1, timeout=5.0
-            )
+            acquired = await self._rate_limiter.acquire_async(policy.bucket, tokens=1, timeout=5.0)
             return bool(acquired) if acquired is not None else True
         return self.acquire_token(policy)
 

@@ -62,9 +62,9 @@ class BrokerContractSuite:
         caps = gateway.capabilities()
         assert caps.market_surfaces, "broker must declare market_surfaces"
         for surface in caps.market_surfaces:
-            assert caps.serves(surface.asset_kind, surface.exchange), (
-                f"declared surface not served: {surface}"
-            )
+            assert caps.serves(
+                surface.asset_kind, surface.exchange
+            ), f"declared surface not served: {surface}"
 
     def test_port_methods_do_not_return_raw_wire_dicts(self, gateway: Any) -> None:
         """Port methods must return domain entities, not raw ``{\"data\": ...}`` envelopes."""
@@ -195,9 +195,9 @@ class BrokerContractSuite:
             status = getattr(order, "order_status", None) or getattr(order, "status", None)
             if status is None:
                 continue
-            assert isinstance(status, OrderStatus), (
-                f"order_status must be OrderStatus enum, got {type(status).__name__}: {status!r}"
-            )
+            assert isinstance(
+                status, OrderStatus
+            ), f"order_status must be OrderStatus enum, got {type(status).__name__}: {status!r}"
 
     # ── Observability ────────────────────────────────────────────────────
 
@@ -281,6 +281,8 @@ class BrokerContractSuite:
         if quota is not None:
             from domain.orders.requests import ModifyOrderRequest
 
-            gateway.modify_order(ModifyOrderRequest(order_id="test-order-id", quantity=1), quota=quota)
+            gateway.modify_order(
+                ModifyOrderRequest(order_id="test-order-id", quantity=1), quota=quota
+            )
         else:
             gateway.modify_order("test-order-id", quantity=1)

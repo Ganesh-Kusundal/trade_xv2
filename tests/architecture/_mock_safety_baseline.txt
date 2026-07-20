@@ -23,7 +23,6 @@ component/execution/test_parity_characterization.py
 component/oms/test_composition.py
 component/oms/test_concurrent_rapid_fills.py
 component/oms/test_correlation_id_warning.py
-component/oms/test_oms_safety.py
 component/oms/test_oms_writer_lock.py
 component/oms/test_order_audit_logger.py
 component/oms/test_order_blocked_error.py

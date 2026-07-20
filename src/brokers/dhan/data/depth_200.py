@@ -19,7 +19,7 @@ IMPORTANT LIMITATION:
     Example:
         # Single instrument (direct)
         feed = DhanDepth200Feed(client_id, access_token, ("NSE", "12345"))
-        
+
         # Multiple instruments (use connection pool)
         pool = Depth200ConnectionPool(client_id, access_token)
         feed1 = pool.get_feed(("NSE", "12345"))  # Instrument 1
@@ -149,31 +149,31 @@ class DhanDepth200Feed(BinaryDepthFeed):
 
 class Depth200ConnectionPool:
     """Connection pool for managing multiple Dhan depth-200 WebSocket connections.
-    
+
     Since Dhan's depth-200 API only supports 1 instrument per connection,
     this pool creates and manages separate connections for each instrument.
-    
+
     Usage:
         pool = Depth200ConnectionPool(client_id, access_token)
-        
+
         # Get or create a feed for an instrument
         feed1 = pool.get_feed(("NSE", "12345"))
         feed2 = pool.get_feed(("NSE", "67890"))
-        
+
         # Access depth data
         depth1 = feed1.latest_depth()
         depth2 = feed2.latest_depth()
-        
+
         # Cleanup
         pool.close_all()
-    
+
     Thread Safety:
         All methods are thread-safe. Multiple threads can safely call get_feed()
         and access feeds concurrently.
     """
-    
+
     InstrumentKey: TypeAlias = Tuple[str, str]  # (segment, security_id)
-    
+
     def __init__(
         self,
         client_id: str,
@@ -182,7 +182,7 @@ class Depth200ConnectionPool:
         max_connections: int | None = None,
     ):
         """Initialize the connection pool.
-        
+
         Args:
             client_id: Dhan client ID
             access_token: Dhan access token
@@ -197,15 +197,15 @@ class Depth200ConnectionPool:
         self._max_connections = max_connections
         self._feeds: Dict[Self.InstrumentKey, DhanDepth200Feed] = {}
         self._lock = RLock()
-        
+
     def get_feed(self, instrument: InstrumentKey) -> DhanDepth200Feed:
         """Get or create a depth-200 feed for the given instrument.
-        
+
         Uses WebSocket rate limiting to prevent exceeding broker connection limits.
-        
+
         Args:
             instrument: Tuple of (segment, security_id) e.g. ("NSE", "12345")
-            
+
         Returns:
             DhanDepth200Feed instance for the instrument
         """
@@ -236,7 +236,7 @@ class Depth200ConnectionPool:
                     "depth_200_pool_eviction",
                     extra={"evicted_instrument": oldest_key, "new_instrument": instrument},
                 )
-            
+
             feed = DhanDepth200Feed(
                 client_id=self._client_id,
                 access_token=self._access_token,
@@ -248,17 +248,17 @@ class Depth200ConnectionPool:
                 "depth_200_pool_feed_created",
                 extra={"instrument": instrument, "total_feeds": len(self._feeds)},
             )
-            
+
             return self._feeds[instrument]
-    
+
     def has_feed(self, instrument: InstrumentKey) -> bool:
         """Check if a feed exists for the given instrument."""
         with self._lock:
             return instrument in self._feeds
-    
+
     def remove_feed(self, instrument: InstrumentKey) -> bool:
         """Remove and close a feed for the given instrument.
-        
+
         Returns:
             True if feed was found and removed, False otherwise
         """
@@ -272,17 +272,17 @@ class Depth200ConnectionPool:
                 )
                 return True
             return False
-    
+
     def get_all_feeds(self) -> list[DhanDepth200Feed]:
         """Get all active feeds in the pool."""
         with self._lock:
             return list(self._feeds.values())
-    
+
     def get_instruments(self) -> list[InstrumentKey]:
         """Get all instrument keys that have active feeds."""
         with self._lock:
             return list(self._feeds.keys())
-    
+
     def close_all(self) -> None:
         """Close all feeds in the pool."""
         with self._lock:
@@ -296,16 +296,16 @@ class Depth200ConnectionPool:
                     )
             self._feeds.clear()
             logger.info("depth_200_pool_all_closed")
-    
+
     def __len__(self) -> int:
         """Return the number of active feeds in the pool."""
         with self._lock:
             return len(self._feeds)
-    
+
     def __enter__(self):
         """Context manager entry."""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - closes all feeds."""
         self.close_all()

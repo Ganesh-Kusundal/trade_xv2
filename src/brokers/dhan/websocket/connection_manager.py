@@ -248,15 +248,15 @@ class WebSocketConnectionManager:
             if self._market_feed is not None:
                 # Check that the feed is not connected multiple times
                 # This is a sanity check - the feed itself should manage its connection
-                assert self._connection_stats["market_feed"]["start_count"] <= 1, (
-                    f"Market feed started multiple times: {self._connection_stats['market_feed']['start_count']}"
-                )
+                assert (
+                    self._connection_stats["market_feed"]["start_count"] <= 1
+                ), f"Market feed started multiple times: {self._connection_stats['market_feed']['start_count']}"
 
             # For order stream, we should have at most one connection
             if self._order_stream is not None:
-                assert self._connection_stats["order_stream"]["start_count"] <= 1, (
-                    f"Order stream started multiple times: {self._connection_stats['order_stream']['start_count']}"
-                )
+                assert (
+                    self._connection_stats["order_stream"]["start_count"] <= 1
+                ), f"Order stream started multiple times: {self._connection_stats['order_stream']['start_count']}"
 
             logger.debug(
                 "websocket_connection_manager.single_connections_verified",

@@ -71,9 +71,7 @@ class BrokerSession:
     ) -> None:
         self._broker_id = (broker or "paper").lower().strip()
         self._session_state = BrokerSessionState.CREATED
-        self._session_state = transition_state(
-            self._session_state, BrokerSessionState.INITIALIZING
-        )
+        self._session_state = transition_state(self._session_state, BrokerSessionState.INITIALIZING)
         self._session: DomainSession = get_session_opener()(
             self._broker_id,
             mode=mode,
@@ -86,12 +84,8 @@ class BrokerSession:
         self._session_state = transition_state(
             self._session_state, BrokerSessionState.AUTHENTICATING
         )
-        self._session_state = transition_state(
-            self._session_state, BrokerSessionState.CONNECTED
-        )
-        self._session_state = transition_state(
-            self._session_state, BrokerSessionState.HEALTHY
-        )
+        self._session_state = transition_state(self._session_state, BrokerSessionState.CONNECTED)
+        self._session_state = transition_state(self._session_state, BrokerSessionState.HEALTHY)
         self._runtime = RuntimeBundle(session=self._session)
         self._runtime.record_startup()
         self._publish_lifecycle_event("BROKER_CONNECTED")
