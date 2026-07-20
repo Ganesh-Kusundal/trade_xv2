@@ -22,9 +22,10 @@ Usage::
 Design notes
 ------------
 - The queue is bounded (``max_queue_size``) to apply backpressure when
-  consumers are overwhelmed.  When the queue is full, ``publish()``
-  drops the event and increments a ``dropped`` counter — better than
-  unbounded memory growth.
+  consumers are overwhelmed.  When the queue is full, non-capital
+  events are dropped and ``dropped`` is incremented.  Capital events
+  (orders, trades, positions) are never dropped — the queue may grow
+  beyond ``max_queue_size`` to preserve money-path integrity.
 - A single worker thread drains the queue sequentially, so handler
   ordering is preserved (FIFO).
 - Thread-safe: ``publish()`` can be called from any thread.
@@ -39,10 +40,13 @@ import threading
 from collections import deque
 from typing import Any
 
-from domain.events.capital_events import is_capital_event
+from domain.events.capital_events import CAPITAL_EVENT_TYPES, is_capital_event
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventHandler
 
 logger = logging.getLogger(__name__)
+
+# Explicit capital-event types for tests and callers (matches is_capital_event enum set).
+CRITICAL_EVENT_TYPES: frozenset[str] = CAPITAL_EVENT_TYPES
 
 
 class AsyncEventBus:
@@ -90,34 +94,23 @@ class AsyncEventBus:
     def publish(self, event: DomainEvent) -> None:
         """Enqueue an event for background dispatch.
 
-        Critical events (TRADE_APPLIED, TRADE_FILLED, ORDER_PLACED) are
-        never dropped — they overflow the queue to preserve trade integrity.
-        Normal events are dropped when the queue is full, applying
+        Capital events (orders, trades, positions) are never dropped — the
+        queue may grow beyond ``max_queue_size`` to preserve trade integrity.
+        Non-capital events are dropped when the queue is full, applying
         backpressure to prevent memory exhaustion.
         """
         is_critical = is_capital_event(event.event_type)
 
         with self._lock:
-            if len(self._queue) >= self._max_queue_size:
-                if not is_critical:
-                    self._dropped_count += 1
-                    logger.warning(
-                        "AsyncEventBus: queue full (%d), dropping non-critical event %s (type=%s)",
-                        self._max_queue_size,
-                        event.event_id,
-                        event.event_type,
-                    )
-                    return
-                # Critical event: allow queue to grow beyond max (bounded at 2x)
-                if len(self._queue) >= self._max_queue_size * 2:
-                    self._dropped_count += 1
-                    logger.error(
-                        "AsyncEventBus: queue critically full (%d/2x), dropping critical event %s (type=%s)",
-                        self._max_queue_size,
-                        event.event_id,
-                        event.event_type,
-                    )
-                    return
+            if len(self._queue) >= self._max_queue_size and not is_critical:
+                self._dropped_count += 1
+                logger.warning(
+                    "AsyncEventBus: queue full (%d), dropping non-capital event %s (type=%s)",
+                    self._max_queue_size,
+                    event.event_id,
+                    event.event_type,
+                )
+                return
             self._queue.append(event)
             self._publish_count += 1
 
