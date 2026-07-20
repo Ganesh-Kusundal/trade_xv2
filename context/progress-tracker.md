@@ -92,14 +92,13 @@ Checkpoint: `350bcff0` → merged lanes on `main` (`16e9a1d7` after Tier 2).
 | REL-003 / ARCH-006 capital event drops | **Resolved** | `e6215ca4` → main |
 | TEST-001 (4 collection errors) | **Resolved** | `054ea0bb` → main |
 | MD-001 live→lake (partial) | **Partial** | `16e9a1d7` — opt-in `TRADEX_LIVE_BAR_SINK=1` |
-| SEC-001/002/003 + ARCH-007 OMS/risk | **Pending review** | `worktrees/fix-oms-risk-gates` uncommitted |
+| SEC-001/002/003 + ARCH-007 OMS/risk | **Resolved** | `9854558f` → main (human-approved merge) |
 | QUANT-001/002/003/004 | **Deferred** | Agent-QUANT cycle (PURE_SIM default) |
 | CODE-001 + Agent-CODE lane | **Deferred** | same package as OMS-RISK active work |
 
 Test collection after cycle: **8653 tests, 0 collection errors** (was 5).
 
-Worktrees: `worktrees/fix-{broker-dhan-upstox,sec-api-auth,infra-eventbus,test-collection}` merged;
-`worktrees/fix-oms-risk-gates` holds uncommitted OMS/risk diff — **requires human approval before merge**.
+Worktrees: all five Tier-1 lanes merged to `main` (`9854558f` after OMS-RISK approval).
 
 ### Comprehensive Platform Review — 2026-07-20
 
