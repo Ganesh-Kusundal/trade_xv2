@@ -206,6 +206,10 @@ class TestUpstoxGatewayCancelVerification:
         gw._order_command = mock_order_cmd
         gw._market_data_adapter = MagicMock()
         gw._stream_manager = MagicMock()
+        # Wire the OrderGateway delegate that cancel_order() uses
+        gw._order_gw = MagicMock()
+        gw._order_gw.cancel_order = mock_order_cmd.cancel_order
+        gw._order_gw.get_order = MagicMock(return_value=None)
 
         return gw, mock_order_cmd
 

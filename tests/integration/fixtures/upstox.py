@@ -108,12 +108,36 @@ def make_mock_broker(
     # WebSocket
     broker.market_data_websocket = ws
 
-    # Instrument resolver
+    # Instrument resolver (legacy path)
     mock_resolver = MagicMock()
     mock_resolver.resolve.return_value = resolver_defn
     mock_resolver.is_loaded.return_value = True
     mock_resolver.search.return_value = []
     broker.instrument_resolver = mock_resolver
+
+    # Instrument service (refactored path: broker.instruments.resolve_instrument_key)
+    # Production code at stream_manager.py:88 and market_data_gateway.py:324
+    # calls broker.instruments.resolve_instrument_key(symbol, exchange).
+    mock_instruments = MagicMock()
+
+    def _resolve_key(symbol: str, exchange: str) -> str:
+        segment_map = {
+            "NSE": "NSE_EQ",
+            "BSE": "BSE_EQ",
+            "NFO": "NSE_FO",
+            "BFO": "BSE_FO",
+            "MCX": "MCX_FO",
+            "CDS": "NSE_CD",
+        }
+        segment = segment_map.get(exchange.upper(), f"{exchange.upper()}_EQ")
+        return f"{segment}|{symbol}"
+
+    mock_instruments.resolve_instrument_key.side_effect = _resolve_key
+    mock_instruments.search.return_value = []
+    mock_instruments.load = MagicMock()
+    mock_instruments.is_loaded.return_value = True
+    mock_instruments.stats.return_value = {"total": 100}
+    broker.instruments = mock_instruments
 
     # Market data clients
     broker.market_data_v2 = MagicMock()
@@ -156,6 +180,23 @@ def make_mock_broker(
 
     # Disconnect
     broker.disconnect = MagicMock()
+
+    # Observability context (get_circuit_breaker_states, get_rate_limiter_metrics,
+    # get_token_refresh_metrics)
+    mock_context = MagicMock()
+    mock_context.http_client.circuit_breaker_states.return_value = {
+        "read": 0,
+        "write": 0,
+        "admin": 0,
+    }
+    mock_context.token_manager.refresh_count = 0
+    mock_context.token_manager.error_count = 0
+    mock_context.rate_limiter.categories.return_value = ["orders", "quotes", "historical"]
+    mock_context.rate_limiter.get_bucket.return_value.available_tokens = 100
+    broker.context = mock_context
+
+    # News adapter (extended capabilities)
+    broker.news = MagicMock()
 
     return broker
 

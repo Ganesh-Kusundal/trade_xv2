@@ -68,7 +68,7 @@
 
 ## 5. In Scope (what we are building / maintaining)
 
-- Evolutionary refactoring toward `target-layering.md` (no rewrite).
+- Evolutionary refactoring toward `docs/architecture/DEPENDENCY_RULES.md` (no rewrite).
 - Plugin model: `tradex.brokers` and (new) `tradex.exchanges` entry-point groups.
 - Single event bus, single idempotency service, single config source.
 - Architecture-test + import-linter enforcement as CI gates.
@@ -102,9 +102,6 @@
 
 - [`docs/constitution/`](../docs/constitution/) — canonical product + architecture (start at `00-vision-and-product.md`, `01-architecture-constitution.md`).
 - [`context/architecture.md`](architecture.md) — enforced layering contract (Six-File Context).
-- [`docs/architecture/target-layering.md`](../docs/architecture/target-layering.md) — import-linter target rules.
+- [`docs/architecture/DEPENDENCY_RULES.md`](../docs/architecture/DEPENDENCY_RULES.md) — import-linter dependency rules.
 - [`docs/architecture/adr/`](../docs/architecture/adr/) — architecture decision records.
 - [`docs/architecture/FLOWS.md`](../docs/architecture/FLOWS.md) — flow contracts (architecture tests).
-- Operational runbooks: [`docs/config/README.md`](../docs/config/README.md), [`docs/brokers/`](../docs/brokers/), [`docs/ops/`](../docs/ops/).
-
-Deprecated stubs (redirect only): `baseline.md`, `CURRENT-STATE.md`, `TARGET-STATE.md`, `roadmap.md`, `backlog.md`.

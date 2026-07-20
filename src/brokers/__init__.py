@@ -15,7 +15,7 @@ Or via CLI / MCP (same ``brokers.services`` core)::
 
 Gateways under ``brokers.dhan.wire`` / ``brokers.upstox.wire`` are
 **private transport shims** — do not import them from product code.
-See ADR-014 and ``docs/brokers/README.md``.
+See ``docs/constitution/09-broker-subsystem-gap-analysis.md``.
 """
 
 from __future__ import annotations

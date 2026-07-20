@@ -55,7 +55,6 @@ def ui(args: tuple[str, ...]) -> None:
 # ``analytics`` flat dispatcher (``interface.ui.commands.analytics.run``),
 # reusing its broker_service/gateway wiring rather than duplicating it. Only
 # subcommands with a real backing engine are wired — see
-# docs/superpowers/specs/2026-07-14-tradex-cli-hierarchy-design.md and
 # context/progress-tracker.md's "Analytics-first CLI pivot" entry for what's
 # intentionally left out (no backing engine yet: pattern detect, market
 # advance-decline/heatmap/leaders/laggards, volume spikes/unusual/delivery/

@@ -49,6 +49,10 @@ class FakePositionManager:
     def get_positions(self) -> list[dict[str, Any]]:
         return []
 
+    def get_position(self, symbol: str, exchange: str = "NSE") -> None:
+        """Return None (no position) for risk check compatibility."""
+        return None
+
 
 @dataclass
 class FakeOrderManager:

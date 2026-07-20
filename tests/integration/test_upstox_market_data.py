@@ -96,7 +96,7 @@ class TestWebSocketSubscription:
         assert len(gateway_connected._broker.market_data_websocket.subscribed) == 1
 
         keys, mode = gateway_connected._broker.market_data_websocket.subscribed[0]
-        assert "NSE|RELIANCE" in keys
+        assert "NSE_EQ|RELIANCE" in keys
         assert mode == "ltp"
 
     def test_stream_connects_when_disconnected(self, gateway_disconnected):
@@ -158,22 +158,22 @@ class TestWebSocketSubscription:
         gateway_connected.stream("RELIANCE", exchange="NSE", mode="LTP")
 
         keys, _ = gateway_connected._broker.market_data_websocket.subscribed[0]
-        assert "NSE|RELIANCE" in keys
+        assert "NSE_EQ|RELIANCE" in keys
 
     def test_stream_maps_bse_exchange(self, gateway_connected):
         """stream() should map BSE exchange to BSE segment."""
         gateway_connected.stream("INFY", exchange="BSE", mode="LTP")
 
         keys, _ = gateway_connected._broker.market_data_websocket.subscribed[0]
-        assert "BSE|INFY" in keys
+        assert "BSE_EQ|INFY" in keys
 
     def test_stream_maps_nfo_exchange(self, gateway_connected):
         """stream() should map NFO exchange correctly."""
         gateway_connected.stream("NIFTY", exchange="NFO", mode="FULL")
 
         keys, _ = gateway_connected._broker.market_data_websocket.subscribed[0]
-        # NFO maps to NFO segment (not NSE_FO)
-        assert "NFO|NIFTY" in keys
+        # NFO maps to NSE_FO segment (Upstox wire format)
+        assert "NSE_FO|NIFTY" in keys
 
 
 # ─── Tick Data Reception ─────────────────────────────────────────────────
@@ -337,7 +337,7 @@ class TestUnsubscriptionCleanup:
 
         assert len(gateway_connected._broker.market_data_websocket._unsubscriptions) == 1
         keys = gateway_connected._broker.market_data_websocket._unsubscriptions[0]
-        assert "NSE|RELIANCE" in keys
+        assert "NSE_EQ|RELIANCE" in keys
 
     def test_unstream_clears_registry_entry(self, gateway_connected):
         """unstream() should remove instrument from stream registry."""
@@ -346,10 +346,10 @@ class TestUnsubscriptionCleanup:
             pass
 
         gateway_connected.stream("RELIANCE", exchange="NSE", mode="LTP", on_tick=on_tick)
-        assert "NSE|RELIANCE" in gateway_connected._stream_registry
+        assert "NSE_EQ|RELIANCE" in gateway_connected._stream_registry
 
         gateway_connected.unstream("RELIANCE", exchange="NSE", on_tick=on_tick)
-        assert "NSE|RELIANCE" not in gateway_connected._stream_registry
+        assert "NSE_EQ|RELIANCE" not in gateway_connected._stream_registry
 
     def test_unstream_nonexistent_instrument(self, gateway_connected):
         """unstream() for non-existent instrument should not raise."""
@@ -369,14 +369,14 @@ class TestUnsubscriptionCleanup:
         gateway_connected.stream("TCS", exchange="NSE", mode="LTP", on_tick=on_tick2)
 
         assert len(gateway_connected._stream_registry) == 2
-        assert "NSE|RELIANCE" in gateway_connected._stream_registry
-        assert "NSE|TCS" in gateway_connected._stream_registry
+        assert "NSE_EQ|RELIANCE" in gateway_connected._stream_registry
+        assert "NSE_EQ|TCS" in gateway_connected._stream_registry
 
         # Unsubscribe only RELIANCE
         gateway_connected.unstream("RELIANCE", exchange="NSE", on_tick=on_tick1)
 
-        assert "NSE|RELIANCE" not in gateway_connected._stream_registry
-        assert "NSE|TCS" in gateway_connected._stream_registry
+        assert "NSE_EQ|RELIANCE" not in gateway_connected._stream_registry
+        assert "NSE_EQ|TCS" in gateway_connected._stream_registry
 
 
 # ─── Quote Accuracy ──────────────────────────────────────────────────────

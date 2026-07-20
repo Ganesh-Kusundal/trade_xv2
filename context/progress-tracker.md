@@ -6,11 +6,12 @@
 
 ## Current Phase
 
+- **Doc cleanup (2026-07-21):** Removed old/dated docs under `docs/` (reviews, stubs, gap notes, runbooks, superpowers specs) and local `.trae/repowiki/`. **Kept:** `docs/constitution/`, `docs/architecture/adr/`, test-bound `FLOWS.md` / `STATE_MACHINES.md` / `ERROR_TAXONOMY.md` / `DEPENDENCY_*.md` / `e2e-spec/`.
 - **Next Maturity Contexts — complete** (2026-07-20): DP-04 tick authority, quote-zero fail-closed, deploy-profile auth (SEC-009 profile-scoped), Context 7 StrategyEvaluator bridge
 - **Architecture Maturity Program — Contexts 5–7, 8, 10 complete** (2026-07-20)
 - Constitution addendum: [`docs/constitution/10-architecture-maturity-program.md`](../docs/constitution/10-architecture-maturity-program.md)
 - **PR #10 CI fixes** (2026-07-20): architecture-enforcement **all green** on `feat/live-adr-readiness` (658 arch tests, ruff 0.15.22 pinned)
-- **PRE-DEPLOY revision:** paper **8.1/10** Conditional GO, live **6.8/10** NO-GO — [`PRE-DEPLOYMENT-REVIEW-2026-07-20-REVISION.md`](../docs/architecture/PRE-DEPLOYMENT-REVIEW-2026-07-20-REVISION.md)
+- **PRE-DEPLOY (paper Conditional GO / live NO-GO):** scores tracked in progress log; Live ADR lift per [`adr/0013-live-adr-lift-preconditions.md`](../docs/architecture/adr/0013-live-adr-lift-preconditions.md)
 - Delivered: `should_publish_tick_directly`, `QuoteUnavailableError`, `evaluator_bridge.py`, deploy-profile auth ratchet, reconnect disconnect-before-reopen
 - **Live ADR blocked:** 4× weekly chaos green (0/4 on `main`); live score < 8.5; ADR-0012 lift per [`adr/0013-live-adr-lift-preconditions.md`](../docs/architecture/adr/0013-live-adr-lift-preconditions.md)
 

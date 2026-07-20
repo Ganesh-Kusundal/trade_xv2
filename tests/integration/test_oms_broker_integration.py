@@ -13,9 +13,10 @@ from decimal import Decimal
 import pytest
 
 from application.oms._internal.risk_manager import RiskConfig, RiskManager
-from application.oms.order_manager import OrderManager
+from application.oms.order_manager import OmsOrderCommand, OrderManager
 from brokers.paper.paper_gateway import PaperGateway
 from domain import (
+    Order,
     OrderStatus,
     OrderType,
     ProductType,
@@ -23,6 +24,27 @@ from domain import (
 )
 from tests.fakes import FakePositionManager, FakeRiskManager
 from tests.integration.fixtures.domain import make_order
+
+
+def _paper_submit(req: OmsOrderCommand, gw: PaperGateway) -> Order:
+    """Simulate broker acceptance for PaperGateway integration tests.
+
+    PaperGateway.place_order routes *through* the OMS internally, so calling
+    it from submit_fn would be circular. Instead, simulate broker acceptance
+    by constructing the Order directly (as a real broker adapter would return).
+    """
+    return Order(
+        order_id=f"PAPER-{req.correlation_id}",
+        symbol=req.symbol,
+        exchange=req.exchange,
+        side=req.side,
+        order_type=req.order_type,
+        quantity=req.quantity,
+        price=req.price,
+        product_type=req.product_type,
+        status=OrderStatus.OPEN,
+        correlation_id=req.correlation_id,
+    )
 
 
 @pytest.mark.integration
@@ -48,11 +70,10 @@ class TestOMSBrokerIntegrationPaper:
         )
         return OrderManager(
             event_bus=event_bus,
-            broker_gateway=paper_gateway,
             risk_manager=real_risk_manager,
         )
 
-    def test_place_order_through_oms(self, order_manager, event_bus_with_capturer):
+    def test_place_order_through_oms(self, order_manager, paper_gateway, event_bus_with_capturer):
         """Test OrderManager.place_order() → PaperGateway.place_order() flow."""
         _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED")
@@ -66,8 +87,8 @@ class TestOMSBrokerIntegrationPaper:
             price=Decimal("2550.00"),
         )
 
-        # Place order through OMS
-        result = order_manager.place_order(
+        # Place order through OMS using OmsOrderCommand + submit_fn
+        cmd = OmsOrderCommand(
             symbol="RELIANCE",
             exchange="NSE",
             side=Side.BUY,
@@ -75,22 +96,28 @@ class TestOMSBrokerIntegrationPaper:
             order_type=OrderType.LIMIT,
             price=Decimal("2550.00"),
             product_type=ProductType.INTRADAY,
+            correlation_id="test-place-001",
+        )
+        result = order_manager.place_order(
+            cmd,
+            submit_fn=lambda req: _paper_submit(req, paper_gateway),
         )
 
         # Verify order was placed
         assert result is not None
-        assert result.status in [OrderStatus.OPEN, OrderStatus.FILLED]
+        assert result.success
+        assert result.order.status in [OrderStatus.OPEN, OrderStatus.FILLED]
 
         # Verify event was published
         capturer.assert_event_published("ORDER_PLACED", min_count=1)
 
-    def test_cancel_order_through_oms(self, order_manager, event_bus_with_capturer):
+    def test_cancel_order_through_oms(self, order_manager, paper_gateway, event_bus_with_capturer):
         """Test OrderManager.cancel_order() → PaperGateway.cancel_order() flow."""
         _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED", "ORDER_CANCELLED")
 
         # Place an order first
-        placed_order = order_manager.place_order(
+        cmd = OmsOrderCommand(
             symbol="INFY",
             exchange="NSE",
             side=Side.BUY,
@@ -98,26 +125,36 @@ class TestOMSBrokerIntegrationPaper:
             order_type=OrderType.LIMIT,
             price=Decimal("1420.00"),
             product_type=ProductType.INTRADAY,
+            correlation_id="test-cancel-001",
+        )
+        result = order_manager.place_order(
+            cmd,
+            submit_fn=lambda req: _paper_submit(req, paper_gateway),
         )
 
         # Cancel the order
-        if placed_order and placed_order.order_id:
-            order_manager.cancel_order(placed_order.order_id)
+        if result and result.order and result.order.order_id:
+            order_manager.cancel_order(
+                result.order.order_id,
+                cancel_fn=lambda oid: paper_gateway.cancel_order(oid),
+            )
 
             # Verify cancellation event
             capturer.assert_event_published("ORDER_CANCELLED", min_count=0)
 
-    def test_risk_manager_rejection(self, order_manager, event_bus_with_capturer):
+    def test_risk_manager_rejection(self, order_manager, paper_gateway, event_bus_with_capturer):
         """Test that risk manager rejects orders before broker call."""
         _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("RISK_CHECK_FAILED")
 
-        # Configure strict risk limits
-        order_manager._risk_manager._config.max_position_pct = Decimal("0.01")
+        # Configure strict risk limits (RiskConfig is frozen; use .replace())
+        order_manager._risk_manager._config = order_manager._risk_manager._config.replace(
+            max_position_pct=Decimal("0.01"),
+        )
 
         # Attempt to place oversized order (should be rejected)
         try:
-            result = order_manager.place_order(
+            cmd = OmsOrderCommand(
                 symbol="RELIANCE",
                 exchange="NSE",
                 side=Side.BUY,
@@ -125,10 +162,15 @@ class TestOMSBrokerIntegrationPaper:
                 order_type=OrderType.LIMIT,
                 price=Decimal("2550.00"),
                 product_type=ProductType.INTRADAY,
+                correlation_id="test-risk-001",
+            )
+            result = order_manager.place_order(
+                cmd,
+                submit_fn=lambda req: _paper_submit(req, paper_gateway),
             )
             # If we get here, check if it was rejected
             if result:
-                assert result.status == OrderStatus.REJECTED
+                assert not result.success or result.order.status == OrderStatus.REJECTED
         except Exception:
             # Risk check raised an exception (also valid)
             capturer.assert_event_published("RISK_CHECK_FAILED", min_count=0)
@@ -161,13 +203,12 @@ class TestOMSBrokerIntegrationMock:
         )
         return OrderManager(
             event_bus=event_bus,
-            broker_gateway=mock_gateway,
             risk_manager=risk_manager,
         )
 
     def test_order_placement_calls_gateway(self, order_manager, mock_gateway):
         """Test that OMS calls gateway.place_order()."""
-        order_manager.place_order(
+        cmd = OmsOrderCommand(
             symbol="RELIANCE",
             exchange="NSE",
             side=Side.BUY,
@@ -175,6 +216,11 @@ class TestOMSBrokerIntegrationMock:
             order_type=OrderType.LIMIT,
             price=Decimal("2550.00"),
             product_type=ProductType.INTRADAY,
+            correlation_id="test-mock-place-001",
+        )
+        order_manager.place_order(
+            cmd,
+            submit_fn=lambda req: mock_gateway.place_order(req),
         )
 
         # Verify gateway was called (observable fake)
@@ -183,7 +229,7 @@ class TestOMSBrokerIntegrationMock:
     def test_order_cancellation_calls_gateway(self, order_manager, mock_gateway):
         """Test that OMS calls gateway.cancel_order()."""
         # Place order first
-        order_manager.place_order(
+        cmd = OmsOrderCommand(
             symbol="INFY",
             exchange="NSE",
             side=Side.BUY,
@@ -191,10 +237,19 @@ class TestOMSBrokerIntegrationMock:
             order_type=OrderType.LIMIT,
             price=Decimal("1420.00"),
             product_type=ProductType.INTRADAY,
+            correlation_id="test-mock-cancel-001",
+        )
+        result = order_manager.place_order(
+            cmd,
+            submit_fn=lambda req: mock_gateway.place_order(req),
         )
 
         # Cancel it
-        order_manager.cancel_order("MOCK-ORD-001")
+        order_id = result.order.order_id if result and result.order else "MOCK-ORD-001"
+        order_manager.cancel_order(
+            order_id,
+            cancel_fn=lambda oid: mock_gateway.cancel_order(oid),
+        )
 
         # Verify gateway was called (observable fake)
-        assert "MOCK-ORD-001" in mock_gateway.cancelled_orders
+        assert order_id in mock_gateway.cancelled_orders

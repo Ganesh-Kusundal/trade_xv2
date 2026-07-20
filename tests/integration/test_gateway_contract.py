@@ -68,10 +68,23 @@ class TestGatewayContract:
         assert issubclass(DhanBrokerGateway, MarketDataGateway)
 
     def test_upstox_gateway_is_subclass(self):
-        """Upstox UpstoxBrokerGateway must extend MarketDataGateway."""
+        """Upstox UpstoxBrokerGateway must satisfy BrokerAdapter structurally."""
         from brokers.upstox.wire import UpstoxBrokerGateway
+        from tests.integration.fixtures.upstox import make_mock_broker
 
-        assert issubclass(UpstoxBrokerGateway, MarketDataGateway)
+        # UpstoxWireAdapter implements BrokerAdapter structurally (Protocol),
+        # not via explicit subclassing. Verify the surface is present.
+        gw = UpstoxBrokerGateway(make_mock_broker())
+        required_methods = (
+            "quote", "history", "depth", "ltp",
+            "place_order", "cancel_order", "modify_order",
+            "positions", "holdings", "funds",
+            "authenticate", "close", "describe",
+            "stream", "unstream",
+        )
+        missing = [m for m in required_methods if not hasattr(gw, m)]
+        assert not missing, f"UpstoxBrokerGateway missing methods: {missing}"
+        assert gw.broker_id == "upstox"
 
     def test_no_abstract_methods_remaining(self, paper_gateway):
         """PaperGateway must have implemented all abstract methods.

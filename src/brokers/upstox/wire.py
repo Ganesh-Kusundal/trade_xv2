@@ -248,7 +248,9 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
 
     @property
     def extended(self) -> Any:
-        return UpstoxExtendedCapabilities(self._broker)
+        if not hasattr(self, "_extended_cache"):
+            self._extended_cache = UpstoxExtendedCapabilities(self._broker)
+        return self._extended_cache
 
     @property
     def news(self) -> Any:
@@ -290,17 +292,26 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
         return self._stream_gw.get_connection_status()
 
     def get_circuit_breaker_states(self) -> dict[str, int]:
-        return self._broker.context.http_client.circuit_breaker_states()
+        ctx = getattr(self._broker, "context", None)
+        if ctx is None:
+            return {}
+        return ctx.http_client.circuit_breaker_states()
 
     def get_token_refresh_metrics(self) -> dict[str, int]:
-        tm = self._broker.context.token_manager
+        ctx = getattr(self._broker, "context", None)
+        if ctx is None:
+            return {"refresh_count": 0, "error_count": 0}
+        tm = ctx.token_manager
         return {
             "refresh_count": int(getattr(tm, "refresh_count", 0) or 0),
             "error_count": int(getattr(tm, "error_count", 0) or 0),
         }
 
     def get_rate_limiter_metrics(self) -> dict[str, int]:
-        rl = self._broker.context.rate_limiter
+        ctx = getattr(self._broker, "context", None)
+        if ctx is None:
+            return {"tokens_available": 0, "requests_throttled": 0}
+        rl = ctx.rate_limiter
         total = sum(int(rl.get_bucket(c).available_tokens) for c in rl.categories())
         return {"tokens_available": total, "requests_throttled": 0}
 

@@ -105,7 +105,7 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 | G5 | Duplicated infra (dual event bus, triple idempotency, two MCP) | ⚠️ | ✅ DONE — event bus unified to `EventBusPort` Protocol (3→1); dead idempotency backends deleted (~1095 lines); Upstox alias removed |
 | G6 | Reconciliation off hot path | ⚠️ | ✅ DONE — `request_reconciliation()` wakes loop on TRADE_APPLIED/ORDER_UPDATED events; periodic timer retained as safety net |
 | G7 | Reflection `getattr` kill-switch | ⚠️ | ✅ DONE — uses `RiskManagerPort` injection |
-| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; config docs at `docs/config/README.md` |
+| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py` |
 
 ## Views vs pipeline ownership (OE-01)
 
@@ -115,7 +115,7 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 | `analytics/views/` (SQL) | DuckDB views — `v_feature_*`, `v_top3_candidates`, materialized `m_intraday` | Batch/API/MCP datalake-at-scale queries |
 | `analytics/scanner/` (Python) | Scanner orchestration over pipeline | Replay-parity scanner paths |
 
-**Parity gate:** `tests/integration/quant/test_views_pipeline_parity.py` — overlapping `v_feature_*` columns must match `FeaturePipeline` ± float tolerance on a fixed OHLCV window before either stack is deprecated for a use case (see `docs/architecture/OE-01-views-pipeline-ownership.md`).
+**Parity gate:** `tests/integration/quant/test_views_pipeline_parity.py` — overlapping `v_feature_*` columns must match `FeaturePipeline` ± float tolerance on a fixed OHLCV window before either stack is deprecated for a use case.
 
 Domain indicators (`domain/indicators/`) are canonical; pipeline wraps domain; views SQL may lag (document equivalence gaps in `QualityViews` materialization notes).
 

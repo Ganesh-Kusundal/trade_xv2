@@ -143,16 +143,20 @@ class TestTOTPFailure:
 
     def test_totp_generation_failure_blocks_bootstrap(self):
         """TOTP generation failure should block bootstrap with clear error."""
-        from brokers.upstox.totp_client import UpstoxTotpClient
+        from brokers.upstox.auth.totp_client import UpstoxTotpClient
 
-        # Create client with invalid secret
-        client = UpstoxTotpClient(
-            totp_secret="INVALID_SECRET_TOO_SHORT",
-        )
+        # Create client with invalid settings (missing required fields)
+        from unittest.mock import MagicMock
 
-        # Should raise when generating TOTP
+        mock_settings = MagicMock()
+        mock_settings.mobile = "9999999999"
+        mock_settings.pin = "9999"
+        mock_settings.totp_secret = "INVALID_SECRET_TOO_SHORT"
+
+        # Should raise when initializing or generating TOTP
         with pytest.raises((ValueError, Exception)):
-            client.generate_totp()
+            client = UpstoxTotpClient(mock_settings)
+            client.generate_token()
 
         print("✅ TOTP failure blocks bootstrap")
 
