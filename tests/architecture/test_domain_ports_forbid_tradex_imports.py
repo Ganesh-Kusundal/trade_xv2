@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from domain.events.types import DomainEvent, EventType, canonical_event_types
-from infrastructure.event_bus.event_bus import EventBus
+from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
 
 def test_domain_broker_adapter_port_does_not_import_tradex() -> None:
@@ -46,7 +46,7 @@ def test_domain_event_payload_is_immutable_mapping() -> None:
 
 
 def test_event_bus_warns_on_unknown_event_type(caplog: pytest.LogCaptureFixture) -> None:
-    bus = EventBus(enforce_event_types=True)
+    bus = EventBus(config=EventBusConfig(enforce_event_types=True))
     event = DomainEvent.now("NOT_A_REAL_EVENT", {"x": 1})
     with caplog.at_level("WARNING"):
         bus.publish(event)

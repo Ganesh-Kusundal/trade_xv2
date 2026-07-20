@@ -13,7 +13,7 @@ import threading
 
 import pytest
 
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 
 
 class TestSetReplayMode:
@@ -26,7 +26,7 @@ class TestSetReplayMode:
         assert bus.replay_mode is True
 
     def test_disable_replay_mode(self) -> None:
-        bus = EventBus(replay_mode=True)
+        bus = EventBus(config=EventBusConfig(replay_mode=True))
         bus.set_replay_mode(False)
         assert bus.replay_mode is False
 
@@ -37,7 +37,7 @@ class TestSetReplayMode:
         assert bus.replay_mode is True
 
     def test_idempotent_disable(self) -> None:
-        bus = EventBus(replay_mode=True)
+        bus = EventBus(config=EventBusConfig(replay_mode=True))
         bus.set_replay_mode(False)
         bus.set_replay_mode(False)
         assert bus.replay_mode is False
@@ -55,7 +55,7 @@ class TestSetReplayMode:
         assert bus.replay_mode is True
 
     def test_suppresses_dispatch_when_enabled(self) -> None:
-        bus = EventBus(replay_mode=True)
+        bus = EventBus(config=EventBusConfig(replay_mode=True))
         handler_calls: list[str] = []
         bus.subscribe("TRADE_APPLIED", lambda e: handler_calls.append("called"))
         event = DomainEvent.now("TRADE_APPLIED", {"trade_id": "T1"}, symbol="RELIANCE")
@@ -64,7 +64,7 @@ class TestSetReplayMode:
         assert handler_calls == []
 
     def test_allows_dispatch_when_disabled(self) -> None:
-        bus = EventBus(replay_mode=False)
+        bus = EventBus(config=EventBusConfig(replay_mode=False))
         handler_calls: list[str] = []
         bus.subscribe("TRADE_APPLIED", lambda e: handler_calls.append("called"))
         event = DomainEvent.now("TRADE_APPLIED", {"trade_id": "T1"}, symbol="RELIANCE")

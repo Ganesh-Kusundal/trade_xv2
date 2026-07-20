@@ -244,10 +244,10 @@ class TestPhase5GodObjectDecomposition:
         from domain.entities.order import Order
         from domain.enums import Side
         from domain.types import OrderType, ProductType
-        from infrastructure.event_bus.event_bus import EventBus
+        from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
         # Create minimal PositionManager (requires event_bus)
-        event_bus = EventBus(fail_fast=False)
+        event_bus = EventBus(config=EventBusConfig(fail_fast=False))
         position_manager = PositionManager(event_bus=event_bus)
 
         # Create RiskManager with strict limits
@@ -411,10 +411,10 @@ class TestPhase6TypeSafetyAndResilience:
             IPositionManager,
             IRiskManager,
         )
-        from infrastructure.event_bus.event_bus import EventBus
+        from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
         # Create real instances
-        event_bus = EventBus(fail_fast=False)
+        event_bus = EventBus(config=EventBusConfig(fail_fast=False))
         position_manager = PositionManager(event_bus=event_bus)
         config = RiskConfig()
         risk_manager = RiskManager(

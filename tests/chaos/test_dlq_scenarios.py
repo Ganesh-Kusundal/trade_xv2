@@ -10,7 +10,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from infrastructure.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ class TestDLQProcessing:
     def test_dlq_captures_failed_events(self):
         """Failed handler invocations captured in DLQ."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         # Subscribe with failing handler
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
@@ -71,7 +71,7 @@ class TestDLQProcessing:
     def test_dlq_can_be_replayed(self):
         """DLQ events can be drained and replayed."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         # Publish multiple failing events
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
@@ -98,7 +98,7 @@ class TestDLQProcessing:
     def test_dlq_metrics_show_depth(self):
         """DLQ stats show current depth and capacity."""
         dlq = _make_dlq(max_size=10)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -118,7 +118,7 @@ class TestDLQProcessing:
     def test_dlq_respects_max_size(self):
         """DLQ drops oldest events when capacity exceeded."""
         dlq = _make_dlq(max_size=3)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -145,7 +145,7 @@ class TestDLQProcessing:
     def test_dlq_preserves_event_context(self):
         """DLQ preserves full event context for debugging."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler(ValueError("Invalid order")))
 
@@ -167,7 +167,7 @@ class TestDLQProcessing:
     def test_dlq_handles_multiple_event_types(self):
         """DLQ captures failures from different event types."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token1 = bus.subscribe("ORDER_PLACED", _make_failing_handler(RuntimeError("Order error")))
         token2 = bus.subscribe("ORDER_CANCELLED", _make_failing_handler(ValueError("Cancel error")))
@@ -188,7 +188,7 @@ class TestDLQProcessing:
     def test_dlq_thread_safety(self):
         """DLQ handles concurrent pushes safely."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         errors = []
 
@@ -223,7 +223,7 @@ class TestDLQProcessing:
             dropped_events.append(dead_letter)
 
         dlq = _make_dlq(max_size=2, on_drop=on_drop)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -258,7 +258,7 @@ class TestDLQMonitoring:
                     "threshold": 5,
                 })
 
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
         # Publish events to exceed threshold
@@ -276,7 +276,7 @@ class TestDLQMonitoring:
     def test_admin_endpoint_reports_dlq_stats(self):
         """Admin endpoint provides DLQ statistics."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -301,7 +301,7 @@ class TestDLQMonitoring:
     def test_dlq_depth_monitoring_with_clear(self):
         """DLQ depth resets after clear operation."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -323,7 +323,7 @@ class TestDLQMonitoring:
     def test_dlq_monitoring_with_concurrent_publishes(self):
         """DLQ monitoring accurate under concurrent publishes."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -348,7 +348,7 @@ class TestDLQMonitoring:
     def test_dlq_replay_does_not_duplicate(self):
         """DLQ replay doesn't create duplicate events."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         successful_events = []
 
@@ -388,7 +388,7 @@ class TestDLQMonitoring:
     def test_dlq_handles_graceful_degradation(self):
         """System continues operating even when DLQ is full."""
         dlq = _make_dlq(max_size=2)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -407,7 +407,7 @@ class TestDLQMonitoring:
     def test_dlq_stats_accurate_after_operations(self):
         """DLQ stats remain accurate after various operations."""
         dlq = _make_dlq(max_size=5)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 
@@ -433,7 +433,7 @@ class TestDLQMonitoring:
     def test_dlq_dead_letter_to_dict(self):
         """DeadLetter can be serialized to dict for monitoring."""
         dlq = _make_dlq()
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         token = bus.subscribe("ORDER_PLACED", _make_failing_handler())
 

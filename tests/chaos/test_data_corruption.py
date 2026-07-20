@@ -25,7 +25,7 @@ import pytest
 from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.resilience.broker_health_monitor import BrokerHealthMonitor
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 
 # ──────────────────────────────────────────────────────────────────────
 # Section 1: Corrupted Parquet / DataFrame
@@ -210,7 +210,7 @@ class TestCorruptedEvents:
 
     def test_event_bus_handles_corrupted_payload(self):
         """Handler receiving corrupted payload should not crash the bus."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         dlq = DeadLetterQueue(max_size=100)
         bus._dead_letter_queue = dlq
 
@@ -228,7 +228,7 @@ class TestCorruptedEvents:
 
     def test_event_bus_handles_none_payload_gracefully(self):
         """Event with None in payload should not crash."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
 
         def collector(event):
@@ -243,7 +243,7 @@ class TestCorruptedEvents:
 
     def test_event_bus_handles_empty_event_type(self):
         """Empty event type should still be dispatched."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
 
         bus.subscribe("", lambda e: received.append(e))
@@ -264,7 +264,7 @@ class TestDuplicateEvents:
 
     def test_duplicate_events_both_dispatched(self):
         """Duplicate events should both be dispatched (no dedup by default)."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
 
         bus.subscribe("TICK", lambda e: received.append(e.event_id))
@@ -283,7 +283,7 @@ class TestDuplicateEvents:
 
     def test_event_bus_sequence_numbers_are_monotonic(self):
         """Sequence numbers should be monotonically increasing."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         seq_numbers = []
 
         def seq_collector(event):
@@ -300,7 +300,7 @@ class TestDuplicateEvents:
 
     def test_replay_mode_preserves_original_sequence_numbers(self):
         """In replay mode, original sequence numbers should be preserved."""
-        bus = EventBus(fail_fast=False, replay_mode=True)
+        bus = EventBus(config=EventBusConfig(fail_fast=False, replay_mode=True))
 
         # Events with pre-assigned sequence numbers
         events = [
@@ -372,7 +372,7 @@ class TestClockSkew:
 
     def test_event_bus_publishes_with_backdated_timestamps(self):
         """Events with backdated timestamps should still be processed."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
 
         bus.subscribe("TICK", lambda e: received.append(e.timestamp))
@@ -386,7 +386,7 @@ class TestClockSkew:
 
     def test_event_bus_publishes_with_future_timestamps(self):
         """Events with future timestamps should still be processed."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
 
         bus.subscribe("TICK", lambda e: received.append(e.timestamp))
@@ -449,7 +449,7 @@ class TestInvalidStateTransitions:
     def test_event_bus_replay_mode_disables_persistence(self):
         """Replay mode should not write to event_log (no recursive writes)."""
         event_log = MagicMock()
-        bus = EventBus(event_log=event_log, replay_mode=True, fail_fast=False)
+        bus = EventBus(event_log=event_log, config=EventBusConfig(replay_mode=True, fail_fast=False))
 
         event = DomainEvent.now("TICK", {"data": "replay"})
         bus.publish(event)
@@ -458,8 +458,8 @@ class TestInvalidStateTransitions:
 
     def test_event_bus_sequence_counter_resets_on_new_instance(self):
         """Each EventBus instance should have its own sequence counter."""
-        bus1 = EventBus(fail_fast=False)
-        bus2 = EventBus(fail_fast=False)
+        bus1 = EventBus(config=EventBusConfig(fail_fast=False))
+        bus2 = EventBus(config=EventBusConfig(fail_fast=False))
 
         seq1 = []
         seq2 = []
@@ -477,7 +477,7 @@ class TestInvalidStateTransitions:
         """Events without correlation_id should get one injected from context."""
         from infrastructure.correlation import with_correlation
 
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         captured = []
 
         def capture_correlation(event):
@@ -505,10 +505,10 @@ class TestInvalidStateTransitions:
 
         engine = AlertingEngine(metrics)
         bus = EventBus(
-            metrics=metrics,
-            alerting_engine=engine,
-            alerting_interval_seconds=0.1,
-        )
+    metrics=metrics,
+    alerting_engine=engine,
+    config=EventBusConfig(alerting_interval_seconds=0.1),
+)
 
         # Give thread time to start
         time.sleep(0.2)
@@ -533,7 +533,7 @@ class TestDataIntegrityUnderConcurrency:
 
     def test_event_bus_concurrent_subscribe_unsubscribe(self):
         """Concurrent subscribe/unsubscribe should not corrupt state."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         errors = []
 
         def subscribe_many():
@@ -579,7 +579,7 @@ class TestDataIntegrityUnderConcurrency:
 
     def test_event_bus_handler_order_preserved_with_concurrent_publish(self):
         """Multiple publishes from different threads should all be delivered."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         lock = threading.Lock()
         received = []
 

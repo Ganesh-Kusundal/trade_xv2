@@ -25,23 +25,21 @@ def build_event_bus(
     bus idempotency cache size) are applied. This keeps the resilience
     subsystem a single visible knob instead of scattered env-var reads.
     """
-    from infrastructure.event_bus import EventBus
+    from infrastructure.event_bus import EventBus, EventBusConfig
 
-    logging_enabled = True
-    max_processed_events = 10_000
+    cfg = EventBusConfig()
     if resilience is not None:
-        logging_enabled = resilience.event_log_enabled
+        cfg.logging_enabled = resilience.event_log_enabled
         # Map the idempotency TTL (seconds) to a rough cache bound: 1 entry per
         # second of retention, capped to avoid unbounded memory. The bus uses
         # this only for duplicate-event suppression, not the OMS idempotency.
-        max_processed_events = max(1_000, min(resilience.idempotency_ttl_seconds, 1_000_000))
+        cfg.max_processed_events = max(1_000, min(resilience.idempotency_ttl_seconds, 1_000_000))
 
     return EventBus(
+        config=cfg,
         event_log=event_log,
         metrics=metrics,
         dead_letter_queue=dead_letter_queue,
-        logging_enabled=logging_enabled,
-        max_processed_events=max_processed_events,
     )
 
 

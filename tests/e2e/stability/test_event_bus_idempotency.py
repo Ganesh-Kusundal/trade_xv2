@@ -6,7 +6,7 @@ preventing double-counting under at-least-once delivery.
 
 from unittest.mock import MagicMock
 
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 
 
 class TestEventBusIdempotency:
@@ -47,7 +47,7 @@ class TestEventBusIdempotency:
     def test_idempotency_cache_bounded(self):
         """Idempotency cache should not grow unbounded."""
         max_events = 100
-        bus = EventBus(max_processed_events=max_events)
+        bus = EventBus(config=EventBusConfig(max_processed_events=max_events))
 
         # Publish more events than cache size
         for i in range(max_events + 50):
@@ -61,7 +61,7 @@ class TestEventBusIdempotency:
     def test_old_events_evicted_from_cache(self):
         """Old events should be evicted when cache is full."""
         max_events = 10
-        bus = EventBus(max_processed_events=max_events)
+        bus = EventBus(config=EventBusConfig(max_processed_events=max_events))
 
         # Fill cache
         events = []
@@ -141,7 +141,7 @@ class TestEventBusIdempotency:
 
     def test_replay_mode_still_idempotent(self):
         """Replay mode should respect idempotency."""
-        bus = EventBus(replay_mode=True)
+        bus = EventBus(config=EventBusConfig(replay_mode=True))
         handler = MagicMock()
         bus.subscribe("TRADE", handler)
 

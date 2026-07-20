@@ -28,7 +28,7 @@ from infrastructure.observability.alerting import (
 )
 from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.metrics.registry import metrics_registry
 
 
@@ -695,10 +695,10 @@ class TestEventBusIntegration:
 
         # Create bus with alerting engine.
         bus = EventBus(
-            metrics=metrics,
-            alerting_engine=engine,
-            alerting_interval_seconds=0.2,
-        )
+    metrics=metrics,
+    alerting_engine=engine,
+    config=EventBusConfig(alerting_interval_seconds=0.2),
+)
 
         # Add metric to trigger alert.
         metrics.add_timestamped_counter("TICK", "error", by=1)

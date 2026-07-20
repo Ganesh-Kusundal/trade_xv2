@@ -29,7 +29,7 @@ import traceback
 import uuid
 from collections import deque
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from domain.events import DomainEvent
@@ -44,6 +44,19 @@ logger = logging.getLogger(__name__)
 
 
 EventHandler = Callable[[DomainEvent], None]
+
+
+@dataclass
+class EventBusConfig:
+    """Configuration for EventBus behaviour and resource limits."""
+
+    logging_enabled: bool = True
+    fail_fast: bool = False
+    replay_mode: bool = False
+    alerting_interval_seconds: float = 10.0
+    max_processed_events: int = 10_000
+    enforce_event_types: bool = True
+    idempotency_ttl_seconds: int = 86_400
 
 
 class EventBus:
@@ -68,6 +81,8 @@ class EventBus:
         dlq = DeadLetterQueue()
         engine = AlertingEngine(metrics)
         bus = EventBus(metrics=metrics, dead_letter_queue=dlq, alerting_engine=engine)
+        # Or with custom config:
+        bus = EventBus(config=EventBusConfig(fail_fast=True), metrics=metrics)
         token = bus.subscribe("TICK", lambda e: print(e.payload))
         bus.publish(DomainEvent.now("TICK", {"ltp": 100.0}, symbol="RELIANCE"))
         bus.unsubscribe(token)
@@ -75,6 +90,10 @@ class EventBus:
 
     Parameters
     ----------
+    config:
+        Optional :class:`EventBusConfig` with behavioural tuning. When
+        ``None``, sensible defaults are used (equivalent to
+        ``EventBusConfig()``).
     event_log:
         Optional append-only :class:`EventLog` used for crash recovery.
     dead_letter_queue:
@@ -84,40 +103,22 @@ class EventBus:
     metrics:
         Optional :class:`EventMetrics` that the bus increments for every
         publish / dispatch / failure. Required in production.
-    logging_enabled:
-        If True (default), the bus forwards every event to the attached
-        ``event_log`` before dispatch. Used during crash-recovery replay
-        to suppress recursive log writes.
-    fail_fast:
-        If True, the bus re-raises handler exceptions after capturing them.
-        Defaults to False (the bus never stops the dispatch loop on a bad
-        handler) but tests use True to assert on failures.
-    replay_mode:
-        If True, disables auto-persistence and preserves original
-        event timestamps for deterministic replay.
     alerting_engine:
         Optional :class:`AlertingEngine` for threshold-based alerting.
-        When provided, a background thread evaluates alert rules every
-        ``alerting_interval_seconds`` seconds.
-    alerting_interval_seconds:
-        Interval between alert evaluations (default 10 seconds).
+    idempotency:
+        Optional :class:`IdempotencyService` for event dedup.
     """
 
     def __init__(
         self,
+        config: EventBusConfig | None = None,
         event_log: Any | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
         metrics: EventMetricsPort | None = None,
-        logging_enabled: bool = True,
-        fail_fast: bool = False,
-        replay_mode: bool = False,
         alerting_engine: AlertingEnginePort | None = None,
-        alerting_interval_seconds: float = 10.0,
-        max_processed_events: int = 10000,  # Idempotency cache size
-        enforce_event_types: bool = True,
         idempotency: "IdempotencyService | None" = None,
-        idempotency_ttl_seconds: int = 86_400,
     ) -> None:
+        self._config = config or EventBusConfig()
         # Lock sharding — separate lightweight Lock for subscriber
         # management from the (now lock-free) sequence counter.
         # RLock -> Lock downgrade is safe: no call-site requires reentrancy.
@@ -127,12 +128,12 @@ class EventBus:
         self._event_log = event_log
         self._dead_letter_queue = dead_letter_queue
         self._metrics = metrics
-        self._logging_enabled = logging_enabled
-        self._fail_fast = fail_fast
-        self._replay_mode = replay_mode
+        self._logging_enabled = self._config.logging_enabled
+        self._fail_fast = self._config.fail_fast
+        self._replay_mode = self._config.replay_mode
         # self._sequence_counter replaced by lock-free self._sequence
         self._alerting_engine = alerting_engine
-        self._alerting_interval = alerting_interval_seconds
+        self._alerting_interval = self._config.alerting_interval_seconds
         self._alerting_thread: threading.Thread | None = None
         self._alerting_stop = threading.Event()
 
@@ -141,12 +142,12 @@ class EventBus:
         # for event dedup (TTL-based, with backend fallback). The local bounded
         # set below is only a fallback used when no service is wired, so there is
         # never a double-write to two independent dedup stores.
-        self._processed_events: deque[str] = deque(maxlen=max_processed_events)
+        self._processed_events: deque[str] = deque(maxlen=self._config.max_processed_events)
         self._processed_event_ids: set[str] = set()
         self._idempotency_lock = threading.Lock()
         self._idempotency = idempotency
-        self._idempotency_ttl_seconds = idempotency_ttl_seconds
-        self._enforce_event_types = enforce_event_types
+        self._idempotency_ttl_seconds = self._config.idempotency_ttl_seconds
+        self._enforce_event_types = self._config.enforce_event_types
         self._known_event_types = canonical_event_types()
 
         # Start background alerting thread if engine is provided.
