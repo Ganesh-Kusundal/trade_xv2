@@ -137,6 +137,17 @@ already landed by a concurrent process; verified, not re-done.
 
 ## Completed
 
+### Task 7: Verify Concurrency Model (2026-07-19)
+
+- Investigated and documented the hybrid concurrency model (asyncio + threading)
+- Mapped ThreadPoolExecutor usage across 12+ modules for parallel operations
+- Mapped daemon thread usage for long-running services (event loop, reconciliation, lifecycle)
+- Analyzed event loop thread safety with centralized management and lock protection
+- Documented shared state protection patterns (threading.RLock for OMS, asyncio.Lock for streaming)
+- Identified key risks: daemon thread shutdown, ephemeral loops, ContextVar propagation, mixed locking
+- Created comprehensive concurrency model document: `docs/architecture/concurrency-model.md`
+- Commit: `cafb4639 docs: document concurrency model and thread safety`
+
 ### F7: Single Composition Root — TradingRuntimeFactory Consolidated (2026-07-16)
 
 - `TradingRuntimeFactory` class absorbed into `runtime.factory` — all wiring logic
@@ -949,3 +960,90 @@ All architectural phases from the roadmap are now complete:
 - `src/brokers/dhan/data/depth_feed_base/` (decomposed)
 - `src/analytics/replay/engine/` (decomposed)
 - 17 datalake/runtime/interface files (market_data → DataPaths)
+
+### Complexity Audit — Verification Pass (2026-07-19)
+
+Fact-checked two prior audits (`ARCHITECTURAL_COMPLEXITY_REVIEW.md`, `audit/phaseX_complexity_reduction_audit.md`)
+against the real code. Result: `[audit/MASTER_COMPLEXITY_AUDIT.md](audit/MASTER_COMPLEXITY_AUDIT.md)` — an
+evidence-verified master superseding both (they now carry SUPERSEDED banners). Both prior audits contained
+**phantom/dead-wrong findings** (e.g. `infrastructure/di.py`, `domain/services/*`, `scanner/scorer.py` do not
+exist; `MarginProviderPort`/`state_machine.py` are live).
+
+**NEEDS-RUNTIME-CHECK items resolved (§0.1 of master):**
+- **RC-A** `PositionRepository` — KEEP. Not a class; `get_position_repository()` (deps.py:212) is a DI factory over `PositionManager`, consumed by API routers.
+- **RC-B** `cache_redis.py` — KEEP (dormant seam). `RedisCache` is a valid `Cache` subclass but `create_cache()` has zero callers; `REDIS_URL` unset.
+- **RC-C** RSI parity — DO NOT MERGE. Three different methods (Wilder / pandas-EWM / SQL-SMA) silently diverged; `domain/indicators/rsi.py` is canonical; document the SQL view.
+- **RC-D** I* Protocols — `ICapitalAllocationFn` **DELETED** (2026-07-19, −18 LOC in `application/oms/protocols.py`; 19 protocol-contract tests pass); `IPositionManager`/`IRiskManager` KEEP (architecture/contract tests enforce them); `ITradingOrchestrator` KEEP (prod consumer in `context/__init__.py`).
+
+Evidence: 19 protocol-contract tests + 11 domain-indicator + 30 cache/redis unit tests passed.
+Realistic reduction revised to ~1,850–3,050 LOC (down from 6,000–8,000 claimed by prior audits; ~1,500 LOC of assumed deletion removed by the 4 runtime checks).
+No production code changed this pass (audit + verification only).
+
+### Test-Hygiene Cleanup — broken collection (2026-07-19)
+
+Full-suite run surfaced 3 modules that fail at *collection* (block the suite). None caused by the
+`ICapitalAllocationFn` deletion (proven via `git stash` re-run — same 7 pre-existing failures on stashed state).
+
+- **TH-1** `tests/integration/api/test_dual_path_routing.py` — **DELETED (2026-07-19)**. Root cause: obsolete test of a *deleted feature*, not a dangling import. `di_container` is fully gone; flag `COMPOSER_EXECUTION` no longer exists; orders router has no dual-path branch. The audit's "migrate to `set_container`" fix was wrong (would leave 6 failing tests). Correct resolution = delete. If dual-path routing is still required, write a new test against the current composer-only path.
+- **TH-2** `tests/unit/application/execution/test_tracing_emitted.py` — **FIXED (2026-07-19)**: added `pytest.importorskip("opentelemetry.sdk.trace")`.
+- **TH-3** `tests/unit/infrastructure/observability/test_tracing_emitted.py` — **FIXED (2026-07-19)**: same guard.
+
+Environment contract: `opentelemetry` is declared in `pyproject.toml` and present in `.venv` — tests must run in `.venv`. `importorskip` makes collection graceful elsewhere.
+
+**CORRECTION:** the earlier "verified-safe delete `error_codes.py` (~56 LOC)" claim is **WRONG** — it is live (`tests/architecture/test_cross_cutting_concerns.py` imports its constants; `src/brokers/dhan/execution/order_cancellation.py` references `BRO_ERR_CONNECTION_FAILED`). Do NOT delete. Only `ICapitalAllocationFn` was a genuine deletion.
+
+Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19).
+
+### Files Modified This Session
+- `src/application/oms/protocols.py` (deleted `ICapitalAllocationFn` — RC-D; −18 LOC)
+- `src/domain/indicators/rsi.py` (RC-C canonical note added — no logic change)
+- `tests/integration/api/test_dual_path_routing.py` (DELETED — obsolete; TH-1 root-cause fix)
+- `tests/unit/application/execution/test_tracing_emitted.py` (TH-2 importorskip guard)
+- `tests/unit/infrastructure/observability/test_tracing_emitted.py` (TH-3 importorskip guard)
+- `audit/MASTER_COMPLEXITY_AUDIT.md` (§0.1 RC verdicts, Appendix C corrected: TH-1/2/3 + error_codes correction)
+- `context/progress-tracker.md` (RC outcomes + test-hygiene resolution + error_codes correction)
+
+### Task 12: Consolidate Parallel Indicator Systems (2026-07-20)
+
+**Status: BLOCKED** — Same RSI divergence issue as Task 11 (scanner consolidation).
+
+**Inventory:**
+- Domain indicators (`src/domain/indicators/`): Pure Python, Wilder's RSI ✓ CORRECT
+- Analytics indicators (`src/analytics/indicators/`): Re-exports domain indicators ✓ CORRECT
+- SQL views (`src/analytics/views/`): DuckDB SQL, SMA-based RSI ✗ INCORRECT
+- Datalake analytics features (`src/datalake/analytics/features.py`): Pandas EWM, Wilder-family ~ PARTIALLY CORRECT
+- Precomputed SQL (`src/analytics/precompute_features.py`): SQL builders, SMA-based RSI ✗ INCORRECT
+
+**RSI Divergence:**
+- Domain RSI uses Wilder's method (EMA with alpha = 1/period) — industry standard
+- SQL views use simple moving average (SMA) via `AVG()` window functions
+- Datalake features use pandas EWM (Wilder-family but different warm-up handling)
+- Users comparing RSI values between CLI and API will see different numbers
+
+**Blocking Issues:**
+1. Same RSI divergence as Task 11 — SQL views use SMA while Python uses Wilder's
+2. No clear ownership — ponytail comment documents divergence but not why SQL uses SMA
+3. Multiple consumers — CLI (Wilder's), API (SMA), Precomputed (SMA), Research (Pandas EWM)
+4. Task 11 blocked this task — scanner consolidation is blocked on same RSI issue
+
+**Recommendation:**
+1. Resolve Task 11 first — scanner consolidation blocked on same RSI issue
+2. Decide on RSI for SQL views — keep SMA (performance) or replace with Wilder's (correctness)
+3. Align Datalake features — ensure pandas EWM matches domain RSI behavior
+4. Then consolidate indicator systems
+
+**Files Analyzed:**
+- `src/domain/indicators/rsi.py` — Canonical Wilder's RSI
+- `src/domain/indicators/atr.py` — Domain ATR
+- `src/domain/indicators/macd.py` — Domain MACD
+- `src/domain/indicators/vwap.py` — Domain VWAP
+- `src/analytics/indicators/__init__.py` — Re-exports domain indicators
+- `src/analytics/views/features.py` — SQL feature views (RSI, ATR, VWAP)
+- `src/analytics/views/scanner.py` — SQL scanner views (RSI, ATR)
+- `src/analytics/precompute_features.py` — Precomputed SQL features
+- `src/analytics/_daily_sql.py` — Daily SQL features
+- `src/analytics/_intraday_sql.py` — Intraday SQL features
+- `src/datalake/analytics/features.py` — Pandas-based indicators
+- `src/analytics/pipeline/features.py` — Pipeline RSI wrapper
+
+**Report:** `.superpowers/sdd/task-12-report.md`
