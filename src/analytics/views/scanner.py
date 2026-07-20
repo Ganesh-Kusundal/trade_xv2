@@ -25,7 +25,6 @@ class ScannerViews:
     def create_views(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create all scanner views."""
         self._create_intraday_vwap(conn)
-        self._create_intraday_rsi(conn)
         self._create_intraday_atr(conn)
         self._create_intraday_snapshot(conn)
         self._create_top3_candidates(conn)
@@ -283,50 +282,6 @@ class ScannerViews:
             FROM m_intraday
         """)
         logger.debug("Created v_intraday_vwap")
-
-    def _create_intraday_rsi(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """v_intraday_rsi — RSI for current trading day."""
-        conn.execute("""
-            CREATE OR REPLACE VIEW v_intraday_rsi AS
-            WITH changes AS (
-                SELECT
-                    symbol,
-                    timestamp,
-                    close,
-                    close - LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp) as change
-                FROM m_intraday
-            )
-            SELECT
-                symbol,
-                timestamp,
-                close,
-                AVG(CASE WHEN change > 0 THEN change ELSE 0 END) OVER (
-                    PARTITION BY symbol ORDER BY timestamp
-                    ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                ) as avg_gain_14,
-                AVG(CASE WHEN change < 0 THEN ABS(change) ELSE 0 END) OVER (
-                    PARTITION BY symbol ORDER BY timestamp
-                    ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                ) as avg_loss_14,
-                CASE
-                    WHEN AVG(CASE WHEN change < 0 THEN ABS(change) ELSE 0 END) OVER (
-                        PARTITION BY symbol ORDER BY timestamp
-                        ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                    ) = 0 THEN 100.0
-                    ELSE 100.0 - (100.0 / (1.0 +
-                        AVG(CASE WHEN change > 0 THEN change ELSE 0 END) OVER (
-                            PARTITION BY symbol ORDER BY timestamp
-                            ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                        ) /
-                        AVG(CASE WHEN change < 0 THEN ABS(change) ELSE 0 END) OVER (
-                            PARTITION BY symbol ORDER BY timestamp
-                            ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                        )
-                    ))
-                END as rsi_14
-            FROM changes
-        """)
-        logger.debug("Created v_intraday_rsi")
 
     def _create_intraday_atr(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_intraday_atr — ATR for current trading day."""

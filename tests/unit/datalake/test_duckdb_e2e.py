@@ -322,7 +322,7 @@ def view_conn(tmp_path: Path) -> duckdb.DuckDBPyConnection:
             close_5d,
             close_10d,
             close_20d,
-            50.0 as rsi_approx,
+            0.0 as momentum_5d_pct,
             (day_high - day_low) as atr_approx,
             50.0 as intraday_score,
             'NEUTRAL' as signal
@@ -388,7 +388,6 @@ class TestAnalyticsViewsIntegration:
             "v_feature_vwap",
             "v_feature_volume",
             "v_feature_momentum",
-            "v_feature_rsi",
         ]:
             count = view_conn.execute(f"SELECT COUNT(*) FROM {view_name}").fetchone()[0]
             assert count == 500
@@ -399,7 +398,6 @@ class TestAnalyticsViewsIntegration:
 
         for view_name in [
             "v_intraday_vwap",
-            "v_intraday_rsi",
             "v_intraday_atr",
             "v_intraday_snapshot",
         ]:
@@ -758,10 +756,10 @@ class TestDeterminism:
             c.execute("""
                 CREATE TABLE m_intraday_snapshot AS
                 SELECT * FROM (VALUES
-                    ('RELIANCE', 100.0, 100.0, 105.0, 99.0, 103.0, 1000, 1, 105.0, 99.0, 1.0, 1.0, 1.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 'BUY'),
-                    ('INFY', 200.0, 200.0, 205.0, 199.0, 203.0, 800, 1, 205.0, 199.0, 1.0, 1.0, 1.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 'BUY'),
-                    ('TCS', 300.0, 300.0, 305.0, 299.0, 303.0, 900, 1, 305.0, 299.0, 1.0, 1.0, 1.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 'BUY')
-                ) AS t(symbol, ltp, day_open, day_high, day_low, day_close, day_volume, bars_today, sma_20, sma_50, roc_5, roc_10, roc_20, trend, relative_volume, close_5d, close_10d, close_20d, atr_approx, rsi_approx, intraday_score, signal)
+                    ('RELIANCE', 100.0, 100.0, 105.0, 99.0, 103.0, 1000, 1, 105.0, 99.0, 1.0, 1.0, 1.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 50.0, 'BUY'),
+                    ('INFY', 200.0, 200.0, 205.0, 199.0, 203.0, 800, 1, 205.0, 199.0, 1.0, 1.0, 1.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 50.0, 'BUY'),
+                    ('TCS', 300.0, 300.0, 305.0, 299.0, 303.0, 900, 1, 305.0, 299.0, 1.0, 1.0, 1.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 50.0, 'BUY')
+                ) AS t(symbol, ltp, day_open, day_high, day_low, day_close, day_volume, bars_today, sma_20, sma_50, roc_5, roc_10, roc_20, trend, relative_volume, close_5d, close_10d, close_20d, momentum_5d_pct, atr_approx, intraday_score, signal)
             """)
 
             scanner = ScannerViews()
@@ -801,7 +799,7 @@ class TestNamedConstants:
         from analytics.views.validator import VALID_VIEWS
 
         assert "v_candles_1m" in VALID_VIEWS
-        assert "v_feature_rsi" in VALID_VIEWS
+        assert "v_feature_atr" in VALID_VIEWS
         assert "v_top3_candidates" in VALID_VIEWS
         assert "v_strategy_candidates" in VALID_VIEWS
         assert "v_quality_score" in VALID_VIEWS

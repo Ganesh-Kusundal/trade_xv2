@@ -20,13 +20,13 @@ def conn(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     c.execute("""
         CREATE TABLE m_intraday_snapshot AS
         SELECT * FROM (VALUES
-            ('RELIANCE', 100.0, 100.0, 105.0, 99.0, 103.0, 1000, 1, 105.0, 99.0, 100.0, 103.0, 1000.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 'BUY'),
-            ('INFY', 200.0, 200.0, 205.0, 199.0, 203.0, 800, 1, 205.0, 199.0, 200.0, 203.0, 800.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 'BUY'),
-            ('TCS', 300.0, 300.0, 305.0, 299.0, 303.0, 900, 1, 305.0, 299.0, 300.0, 303.0, 900.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 'BUY')
+            ('RELIANCE', 100.0, 100.0, 105.0, 99.0, 103.0, 1000, 1, 105.0, 99.0, 100.0, 103.0, 1000.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 50.0, 'BUY'),
+            ('INFY', 200.0, 200.0, 205.0, 199.0, 203.0, 800, 1, 205.0, 199.0, 200.0, 203.0, 800.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 50.0, 'BUY'),
+            ('TCS', 300.0, 300.0, 305.0, 299.0, 303.0, 900, 1, 305.0, 299.0, 300.0, 303.0, 900.0, 'Bullish', 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 50.0, 'BUY')
         ) AS t(
             symbol, ltp, day_open, day_high, day_low, day_close, day_volume, bars_today,
             sma_20, sma_50, roc_5, roc_10, roc_20, trend, relative_volume, close_5d,
-            close_10d, close_20d, atr_approx, rsi_approx, intraday_score, signal
+            close_10d, close_20d, momentum_5d_pct, atr_approx, intraday_score, signal
         )
     """)
 

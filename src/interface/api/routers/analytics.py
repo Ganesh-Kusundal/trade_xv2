@@ -32,9 +32,11 @@ async def get_indicators(
     Queries DuckDB feature views:
     - atr: v_feature_atr
     - vwap: v_feature_vwap
-    - rsi: v_feature_rsi
     - momentum: v_feature_momentum
     - volume: v_feature_volume
+
+    Note: RSI is now computed by the Python Wilder's RSI implementation
+    (domain/indicators/rsi.py), not by SQL views.
     """
     vm = get_view_manager()
 
@@ -42,7 +44,6 @@ async def get_indicators(
         view_map = {
             "atr": ("v_feature_atr", "atr_14"),
             "vwap": ("v_feature_vwap", "vwap"),
-            "rsi": ("v_feature_rsi", "rsi_14"),
             "momentum": ("v_feature_momentum", "roc_5"),
             "volume": ("v_feature_volume", "relative_volume"),
         }
