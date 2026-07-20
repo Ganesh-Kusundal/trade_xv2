@@ -418,6 +418,15 @@ class HistoricalDataLoader:
 
         return df
 
+    def merge_live_bar(self, bar: Any, df: pd.DataFrame) -> WriteResult:
+        """Merge one live aggregated bar into hive-partitioned parquet.
+
+        Used by :mod:`datalake.ingestion.live_bar_sink` (MD-001 increment 2).
+        """
+        if df.empty:
+            return WriteResult(0, 0, 0, None, None)
+        return self._write_parquet(df, bar.symbol, bar.timeframe)
+
     def _write_parquet(self, df: pd.DataFrame, symbol: str, timeframe: str) -> WriteResult:
         """Write DataFrame to hive-partitioned Parquet, merging with any
         existing data instead of overwriting it.

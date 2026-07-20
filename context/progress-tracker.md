@@ -69,6 +69,12 @@
   `AsyncEventBus` never drops capital events under backpressure (removed 2x cap);
   exports `CRITICAL_EVENT_TYPES`; `dropped_count` increments for non-capital only.
   Test: `test_critical_event_never_dropped_under_pressure`.
+- **MD-001 (infra increment 2, `fix/infra-eventbus`, partial)** — Live TICK
+  events now aggregate to 1m bars and merge-write into datalake parquet via
+  `LiveBarSink` + `LiveTickBarPipeline`; wired at runtime when
+  `TRADEX_LIVE_BAR_SINK=1`. ponytail ceiling: 1m only, sync merge-write, no
+  catalog refresh, StreamOrchestrator path not yet wired. Test:
+  `tests/integration/datalake/test_live_bar_sink.py`.
 - **RiskManager** — fail-closed tick validation when instrument provider configured.
 - Tests: `tests/component/oms/test_phase_a_money_safety.py` (13 green in Phase A batch).
 

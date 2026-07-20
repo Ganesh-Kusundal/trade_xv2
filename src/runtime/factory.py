@@ -202,6 +202,16 @@ def build_from_broker_service(
     wire_domain_port_sinks()
     validate_production_config(surface="runtime")
 
+    event_bus_for_sink = getattr(broker_service, "_event_bus", None)
+    if event_bus_for_sink is None:
+        tc_pre = getattr(broker_service, "trading_context", None)
+        if tc_pre is not None:
+            event_bus_for_sink = tc_pre.event_bus
+    if event_bus_for_sink is not None:
+        from runtime.live_datalake_wiring import wire_live_bar_sink
+
+        wire_live_bar_sink(event_bus_for_sink)
+
     # ADR-012 appendix: resilience subsystem is a visible kernel dependency.
     from runtime.resilience import ResilienceConfig
 
