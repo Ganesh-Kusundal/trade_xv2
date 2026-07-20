@@ -78,6 +78,29 @@
 - **RiskManager** — fail-closed tick validation when instrument provider configured.
 - Tests: `tests/component/oms/test_phase_a_money_safety.py` (13 green in Phase A batch).
 
+### Remediation Cycle 1 — Orchestration — 2026-07-20
+
+Checkpoint: `350bcff0` → merged lanes on `main` (`16e9a1d7` after Tier 2).
+
+| Finding | Status | Branch / commit |
+|---------|--------|-----------------|
+| ARCH-001 Dhan dual ORDER_PLACED | **Resolved** | `75fa025a` → main |
+| BROKER-008 Upstox idempotency race | **Resolved** | `75fa025a` → main |
+| MD-002 Dhan wall-clock timestamps | **Resolved** | `75fa025a` → main |
+| SEC-009 mandatory API_KEY | **Resolved** | `a4e86833` → main |
+| SEC-004/005 metrics auth | **Resolved** | `a4e86833` → main |
+| REL-003 / ARCH-006 capital event drops | **Resolved** | `e6215ca4` → main |
+| TEST-001 (4 collection errors) | **Resolved** | `054ea0bb` → main |
+| MD-001 live→lake (partial) | **Partial** | `16e9a1d7` — opt-in `TRADEX_LIVE_BAR_SINK=1` |
+| SEC-001/002/003 + ARCH-007 OMS/risk | **Pending review** | `worktrees/fix-oms-risk-gates` uncommitted |
+| QUANT-001/002/003/004 | **Deferred** | Agent-QUANT cycle (PURE_SIM default) |
+| CODE-001 + Agent-CODE lane | **Deferred** | same package as OMS-RISK active work |
+
+Test collection after cycle: **8653 tests, 0 collection errors** (was 5).
+
+Worktrees: `worktrees/fix-{broker-dhan-upstox,sec-api-auth,infra-eventbus,test-collection}` merged;
+`worktrees/fix-oms-risk-gates` holds uncommitted OMS/risk diff — **requires human approval before merge**.
+
 ### Comprehensive Platform Review — 2026-07-20
 
 - Independent 13-persona virtual review board (9 parallel domain subagents);
