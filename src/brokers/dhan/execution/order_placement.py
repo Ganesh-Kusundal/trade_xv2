@@ -269,6 +269,10 @@ class OrderPlacer:
     ) -> None:
         if self._event_bus is None:
             return
+        from domain.ports.execution_context import is_oms_managed_submit
+
+        if is_oms_managed_submit():
+            return
         try:
             order = Order(
                 order_id=response.order_id,
@@ -374,6 +378,10 @@ class OrderPlacer:
 
     def _publish(self, response: OrderResponse, request: BrokerOrderPayload) -> None:
         if self._event_bus is None:
+            return
+        from domain.ports.execution_context import is_oms_managed_submit
+
+        if is_oms_managed_submit():
             return
         try:
             order = Order(
