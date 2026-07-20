@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
 
@@ -282,6 +282,48 @@ def get_execution_composer() -> Any:
     return composer
 
 
+def enforce_live_order_authority(
+    *,
+    mutation_action: Literal["place", "modify", "cancel"] = "place",
+    risk_payload: dict[str, Any] | None = None,
+) -> None:
+    """Authorize a live order mutation at the API boundary.
+
+    Raises HTTP 403 when the live-actionable gate, allow_live_orders flag,
+    kill switch, or pre-trade risk path blocks the mutation. In production,
+    a missing risk manager is fail-closed.
+    """
+    svc = get_broker_service()
+    broker = (getattr(svc, "active_broker_name", None) or "unknown") if svc else "unknown"
+    try:
+        risk_manager = get_risk_manager()
+    except (HTTPException, ServiceNotFoundError):
+        risk_manager = None
+    try:
+        authorize_live_order(
+            broker=broker,
+            allow_live_orders=getattr(svc, "allow_live_orders", False) if svc else False,
+            risk_manager=risk_manager,
+            live_actionable=(
+                lambda: bool(getattr(svc, "live_actionable", False)) if svc else False
+            ),
+            risk_payload=risk_payload,
+            mutation_action=mutation_action,
+        )
+    except LiveBrokerBlockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
+    except RiskRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
+
+
 def require_live_broker() -> Any:
     """Return the active broker gateway or raise 503/403 when unavailable.
 
@@ -300,10 +342,6 @@ def require_live_broker() -> Any:
     try:
         risk_manager = get_risk_manager()
     except (HTTPException, ServiceNotFoundError):
-        # Risk manager not wired (e.g. diagnostics-only mode, or DI key
-        # unregistered). The authority treats a None risk manager as "no risk
-        # check" — the live-actionable gate and allow_live_orders flag still
-        # enforce the block.
         risk_manager = None
     try:
         authorize_live_order(
@@ -311,6 +349,7 @@ def require_live_broker() -> Any:
             allow_live_orders=getattr(svc, "allow_live_orders", False),
             risk_manager=risk_manager,
             live_actionable=lambda: bool(getattr(svc, "live_actionable", False)),
+            mutation_action="place",
         )
     except LiveBrokerBlockedError as exc:
         raise HTTPException(

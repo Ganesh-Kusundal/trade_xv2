@@ -10,7 +10,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from interface.api.auth import require_auth
-from interface.api.deps import get_execution_composer, get_order_manager, get_position_manager
+from interface.api.deps import (
+    enforce_live_order_authority,
+    get_execution_composer,
+    get_order_manager,
+    get_position_manager,
+)
 from interface.api.schemas import (
     OrderRequest,
     OrderResponse,
@@ -245,6 +250,19 @@ async def modify_order(
             detail=f"Cannot modify order in terminal state: {existing.status.value}",
         )
 
+    enforce_live_order_authority(
+        mutation_action="modify",
+        risk_payload={
+            "symbol": req.symbol,
+            "exchange": req.exchange or existing.exchange,
+            "side": req.transaction_type.upper(),
+            "order_type": req.order_type.upper(),
+            "quantity": req.quantity,
+            "price": req.price or (float(existing.price) if existing.price else "0"),
+            "product_type": (req.product_type or existing.product_type.value).upper(),
+        },
+    )
+
     from domain.orders.requests import ModifyOrderRequest
 
     modify_req = ModifyOrderRequest(
@@ -298,6 +316,8 @@ async def cancel_order(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Order '{order_id}' not found",
         )
+
+    enforce_live_order_authority(mutation_action="cancel")
 
     async def cancel_fn(oid: str) -> bool:
         response = await composer.cancel_order(oid)

@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
-from application.oms._internal.order_mutation_guard import OrderMutationGuard
+from application.oms._internal.order_mutation_guard import MutationAction, OrderMutationGuard
 from domain.exceptions import LiveBrokerBlockedError, TradeXV2Error
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ def authorize_live_order(
     risk_manager: Any | None,
     live_actionable: Callable[[], bool] | None = None,
     risk_payload: dict[str, Any] | None = None,
+    mutation_action: MutationAction = "place",
 ) -> None:
     """Authorize a live order or raise. Returns ``None`` only when it may proceed.
 
@@ -71,6 +72,7 @@ def authorize_live_order(
             the runtime is live-actionable. When omitted, the composition-root
             module-global gate is consulted instead.
         risk_payload: Optional order payload for the full pre-trade risk check.
+        mutation_action: Kill-switch action label (``place``/``modify``/``cancel``).
 
     Raises:
         LiveBrokerBlockedError: The broker is live but the gate blocks it, or
@@ -104,11 +106,17 @@ def authorize_live_order(
             )
 
     if risk_manager is None:
+        from runtime.production_config import is_production_environment
+
+        if is_production_environment():
+            raise RiskRejectedError(
+                "OMS refused: risk manager unavailable in production"
+            )
         return
 
     # 3. Kill switch (OrderMutationGuard — same policy as OMS lifecycle).
     guard = OrderMutationGuard(risk_manager)
-    ks = guard.check("place")
+    ks = guard.check(mutation_action)
     if not ks.allowed:
         raise RiskRejectedError(ks.reason or "Kill switch active — order rejected")
 

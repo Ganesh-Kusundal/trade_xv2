@@ -76,9 +76,9 @@ class TradingContextWiringMixin:
             # ponytail: replace-in-place rather than raise — bootstrap can be
             # re-entered on broker switch; unsubscribe the exact lambda hooks
             # we registered (they capture the wrapper, so they must be stored).
-            for _evt, _h in getattr(self, "_recon_handlers", []):
+            for _token in getattr(self, "_recon_handlers", []):
                 try:
-                    self._event_bus.unsubscribe(_evt, _h)
+                    self._event_bus.unsubscribe(_token)
                 except Exception:  # pragma: no cover - defensive
                     pass
             self._order_manager.clear_placement_gate()
@@ -113,12 +113,9 @@ class TradingContextWiringMixin:
         # lambda handles so a re-attach can unsubscribe exactly these.
         _on_trade = lambda *_a: self._reconciliation_service.request_reconciliation()
         _on_order = lambda *_a: self._reconciliation_service.request_reconciliation()
-        self._event_bus.subscribe(EventType.TRADE_APPLIED.value, _on_trade)
-        self._event_bus.subscribe(EventType.ORDER_UPDATED.value, _on_order)
-        self._recon_handlers = [
-            (EventType.TRADE_APPLIED.value, _on_trade),
-            (EventType.ORDER_UPDATED.value, _on_order),
-        ]
+        _trade_token = self._event_bus.subscribe(EventType.TRADE_APPLIED.value, _on_trade)
+        _order_token = self._event_bus.subscribe(EventType.ORDER_UPDATED.value, _on_order)
+        self._recon_handlers = [_trade_token, _order_token]
         if lifecycle is not None:
             lifecycle.register(self._reconciliation_service)
             if os.getenv("TRADEX_SKIP_STARTUP_RECONCILIATION") != "1":

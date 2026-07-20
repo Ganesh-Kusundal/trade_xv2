@@ -112,6 +112,44 @@ def test_order_mutation_guard_all_actions() -> None:
         assert "kill switch" in (result.reason or "").lower()
 
 
+def test_order_mutation_guard_fail_closed_without_risk_manager_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRADEX_ENV", "production")
+    monkeypatch.setenv("TRADEX_FORCE_PROD_VALIDATION", "1")
+    guard = OrderMutationGuard(None)
+    for action in ("place", "modify", "cancel"):
+        result = guard.check(action)  # type: ignore[arg-type]
+        assert not result.allowed
+        assert "risk manager unavailable" in (result.reason or "").lower()
+
+
+def test_order_mutation_guard_fail_open_without_risk_manager_in_dev(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TRADEX_ENV", raising=False)
+    monkeypatch.delenv("TRADEX_FORCE_PROD_VALIDATION", raising=False)
+    guard = OrderMutationGuard(None)
+    assert guard.check("cancel").allowed
+
+
+def test_authorize_live_order_fail_closed_without_risk_manager_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from application.oms.live_order_authority import RiskRejectedError, authorize_live_order
+
+    monkeypatch.setenv("TRADEX_ENV", "production")
+    monkeypatch.setenv("TRADEX_FORCE_PROD_VALIDATION", "1")
+    with pytest.raises(RiskRejectedError, match="risk manager unavailable"):
+        authorize_live_order(
+            broker="paper",
+            allow_live_orders=True,
+            risk_manager=None,
+            live_actionable=lambda: True,
+            mutation_action="cancel",
+        )
+
+
 class FailingProvider:
     def resolve(self, symbol: str, exchange: str) -> None:
         raise RuntimeError("catalog unavailable")

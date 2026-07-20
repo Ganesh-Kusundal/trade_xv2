@@ -25,6 +25,13 @@ class OrderMutationGuard:
 
     def check(self, action: MutationAction) -> GuardResult:
         if self._risk_manager is None:
+            from runtime.production_config import is_production_environment
+
+            if is_production_environment():
+                return GuardResult(
+                    allowed=False,
+                    reason=f"Order blocked: risk manager unavailable ({action})",
+                )
             return GuardResult(allowed=True)
         if self._risk_manager.is_kill_switch_active():
             return GuardResult(
