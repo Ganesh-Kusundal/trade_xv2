@@ -65,6 +65,10 @@
 - **Dhan HTTP** — legacy `_throttle()` removed; `MultiBucketRateLimiter` only.
 - **Capital events** — `domain/events/capital_events.py` canonical
   `is_capital_event()` wired into sync `EventBus` + `AsyncEventBus`.
+- **REL-003 / ARCH-006 (infra increment 1, `fix/infra-eventbus`)** —
+  `AsyncEventBus` never drops capital events under backpressure (removed 2x cap);
+  exports `CRITICAL_EVENT_TYPES`; `dropped_count` increments for non-capital only.
+  Test: `test_critical_event_never_dropped_under_pressure`.
 - **RiskManager** — fail-closed tick validation when instrument provider configured.
 - Tests: `tests/component/oms/test_phase_a_money_safety.py` (13 green in Phase A batch).
 
