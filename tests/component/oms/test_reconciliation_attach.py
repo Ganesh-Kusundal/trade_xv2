@@ -14,16 +14,14 @@ brokers instead of swallowing the failure.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import pytest
 
-from tests.conftest import build_test_trading_context
-
 from application.oms.context import TradingContext
 from domain.events.types import DomainEvent, EventType
 from infrastructure.lifecycle import LifecycleManager
+from tests.conftest import build_test_trading_context
 
 
 class StubReconciliationService:

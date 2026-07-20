@@ -6,12 +6,13 @@ defined here to prevent duplication and ensure consistency across the codebase.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 # Re-export from domain canonical home for backward compatibility.
-from domain.constants import BATCH_MAX_WORKERS, DEFAULT_STORAGE_TIMEFRAME  # noqa: F401
-from domain.ports.data_catalog import DEFAULT_CATALOG_PATH, DEFAULT_DATA_ROOT  # noqa: F401
-from domain.ports.data_catalog import DEFAULT_DATA_PATHS  # noqa: F401
+from domain.constants import BATCH_MAX_WORKERS, DEFAULT_STORAGE_TIMEFRAME
+from domain.ports.data_catalog import (
+    DEFAULT_CATALOG_PATH,
+    DEFAULT_DATA_PATHS,
+    DEFAULT_DATA_ROOT,
+)
 
 CURATED_ROOT: str = DEFAULT_DATA_PATHS.curated_root
 """Root directory for curated (date-partitioned) data layout."""
@@ -49,16 +50,16 @@ DEFAULT_COMPRESSION: str = "snappy"
 # (ADR-005 / G3).  Import from exchange_registry for new code.
 
 __all__ = [
-    "DEFAULT_DATA_ROOT",
+    "BATCH_MAX_WORKERS",
     "CURATED_ROOT",
-    "SUPPORTED_TIMEFRAMES",
+    "DEFAULT_CACHE_SIZE",
+    "DEFAULT_CACHE_TTL",
+    "DEFAULT_CATALOG_PATH",
+    "DEFAULT_COMPRESSION",
+    "DEFAULT_DATA_ROOT",
     "DEFAULT_STORAGE_TIMEFRAME",
     "DEFAULT_TIMEFRAME",
     "MAX_PRICE",
     "MIN_VOLUME",
-    "DEFAULT_CACHE_TTL",
-    "DEFAULT_CACHE_SIZE",
-    "BATCH_MAX_WORKERS",
-    "DEFAULT_COMPRESSION",
-    "DEFAULT_CATALOG_PATH",
+    "SUPPORTED_TIMEFRAMES",
 ]

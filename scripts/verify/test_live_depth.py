@@ -21,6 +21,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root / "scripts"))
 from _connect import bootstrap_or_exit
+
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.logging_config import configure_logging

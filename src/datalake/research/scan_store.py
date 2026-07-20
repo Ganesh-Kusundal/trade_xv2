@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _get_connection() -> duckdb.DuckDBPyConnection:
     from datalake.core.duckdb_utils import get_pool
+
     return get_pool().acquire(str(DEFAULT_CATALOG_PATH), read_only=False)
 
 

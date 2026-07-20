@@ -11,11 +11,11 @@ This module must NOT import from ``risk_manager`` (no circular deps).
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
-
-from domain.events.types import EventType
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from application.oms._internal.risk_types import RiskConfig
+from domain.events.types import EventType
 
 if TYPE_CHECKING:
     from domain.risk.policy import KillSwitch as DomainKillSwitch
@@ -37,7 +37,7 @@ class KillSwitch:
     def __init__(
         self,
         config: RiskConfig,
-        domain_kill_switch: "DomainKillSwitch | None" = None,
+        domain_kill_switch: DomainKillSwitch | None = None,
         on_risk_event: Callable[[str, dict], None] | None = None,
     ) -> None:
         self._config = config
@@ -54,9 +54,7 @@ class KillSwitch:
         """
         if self._config.kill_switch:
             return True
-        if self._domain_kill_switch is not None and self._domain_kill_switch.is_active:
-            return True
-        return False
+        return bool(self._domain_kill_switch is not None and self._domain_kill_switch.is_active)
 
     @property
     def state(self) -> bool:

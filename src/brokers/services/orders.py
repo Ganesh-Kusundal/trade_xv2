@@ -9,6 +9,7 @@ from brokers.session import BrokerSession
 
 from ._session import _borrow_session, check_live_actionable
 from .capabilities import _session_gateway
+from .order_port import order_port_from_session
 
 
 def get_news(
@@ -88,10 +89,24 @@ def place_order(
     check_live_actionable(broker)
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
+        port = order_port_from_session(s)
+        if port is not None:
+            px = Decimal(str(price)) if price is not None else None
+            return port.place_order(
+                symbol=symbol,
+                exchange=exchange,
+                side=(side or "BUY").upper(),
+                quantity=quantity,
+                price=px,
+                order_type=order_type,
+                product_type=product_type,
+            )
         inst = s.stock(symbol, exchange=exchange)
         px = Decimal(str(price)) if price is not None else None
         if (side or "BUY").upper() == "SELL":
-            return s.sell(inst, quantity, price=px, order_type=order_type, product_type=product_type)
+            return s.sell(
+                inst, quantity, price=px, order_type=order_type, product_type=product_type
+            )
         return s.buy(inst, quantity, price=px, order_type=order_type, product_type=product_type)
     finally:
         if close:
@@ -108,6 +123,9 @@ def cancel_order(
     check_live_actionable(broker)
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
+        port = order_port_from_session(s)
+        if port is not None and hasattr(port, "cancel_order"):
+            return port.cancel_order(order_id)
         return s.cancel(order_id)
     finally:
         if close:
@@ -131,6 +149,9 @@ def modify_order(
             kw["quantity"] = quantity
         if price is not None:
             kw["price"] = Decimal(str(price))
+        port = order_port_from_session(s)
+        if port is not None and hasattr(port, "modify_order"):
+            return port.modify_order(order_id, **kw)
         return s.modify(order_id, **kw)
     finally:
         if close:

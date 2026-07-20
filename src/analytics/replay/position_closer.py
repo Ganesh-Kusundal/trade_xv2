@@ -16,7 +16,7 @@ from decimal import Decimal
 
 from analytics.oms_fill_price import resolve_oms_fill_price
 from analytics.replay.fill_recorder import FillRecorder
-from analytics.replay.models import ReplayConfig, ReplaySession, SimulatedTrade
+from analytics.replay.models import ReplaySession, SimulatedTrade
 from domain.candles.historical import HistoricalBar
 from domain.enums import Side
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
@@ -98,11 +98,7 @@ class PositionCloser:
         entry_price_d = Decimal(str(view.entry_price))
         commission_d = Decimal(str(commission))
         pnl = (exit_price_d - entry_price_d) * view.quantity - commission_d
-        pnl_pct = (
-            float(((exit_price_d / entry_price_d) - 1) * 100)
-            if entry_price_d > 0
-            else 0.0
-        )
+        pnl_pct = float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
 
         session.capital += notional - commission
         session.trades.append(
@@ -193,11 +189,7 @@ class PositionCloser:
         entry_price_d = Decimal(str(view.entry_price))
         commission_d = Decimal(str(commission))
         pnl = (exit_price_d - entry_price_d) * view.quantity - commission_d
-        pnl_pct = (
-            float(((exit_price_d / entry_price_d) - 1) * 100)
-            if entry_price_d > 0
-            else 0.0
-        )
+        pnl_pct = float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
 
         session.capital += notional - commission
         session.trades.append(

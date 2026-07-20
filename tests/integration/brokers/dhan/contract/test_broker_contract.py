@@ -17,10 +17,10 @@ from brokers.common.contracts.broker_contract import BrokerContractSuite
 from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.execution.orders import IdempotencyCache
-from brokers.dhan.wire import DhanBrokerGateway
-from infrastructure.gateway.factory import bootstrap_gateway
 from brokers.dhan.streaming.connection import DhanConnection
+from brokers.dhan.wire import DhanBrokerGateway
 from domain import MarketDepth, Quote
+from infrastructure.gateway.factory import bootstrap_gateway
 from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
 
 ENV_PATH = Path(__file__).resolve().parents[5] / ".env.local"
@@ -205,7 +205,9 @@ class TestDhanExtendedOrderExecutionSurface:
         trades = offline_gateway.extended.get_trade_history("2026-01-01", "2026-01-31")
         assert isinstance(trades, list)
 
-    def test_get_order_by_correlation_id_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
+    def test_get_order_by_correlation_id_delegates(
+        self, offline_gateway: DhanBrokerGateway
+    ) -> None:
         order = offline_gateway.extended.get_order_by_correlation_id("some-correlation-id")
         assert hasattr(order, "order_id")
 

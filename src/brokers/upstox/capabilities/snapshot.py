@@ -7,11 +7,11 @@ from brokers.common.broker_capabilities import (
     StreamLimitProfile,
 )
 from domain.capabilities.market_surface import (
+    FUTURE_CHAIN,
     LTP,
     OPTION_CHAIN,
     QUOTE,
     RESOLVE,
-    FUTURE_CHAIN,
     MarketCoverage,
 )
 from domain.constants.exchanges import CDS, MCX, NFO, NSE

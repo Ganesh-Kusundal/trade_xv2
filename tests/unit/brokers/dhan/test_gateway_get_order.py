@@ -15,14 +15,13 @@ this test proves the whole chain works without duplicating any logic:
 
 from __future__ import annotations
 
-from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
 
 from brokers.dhan.execution.orders import OrdersAdapter
 from brokers.dhan.wire import DhanBrokerGateway
-from domain import Order, OrderStatus, Side
+from domain import Order, OrderStatus
 
 
 def _make_gateway_with_real_adapter(fake_client, resolver) -> DhanBrokerGateway:
@@ -37,7 +36,7 @@ def _make_gateway_with_real_adapter(fake_client, resolver) -> DhanBrokerGateway:
     conn.orders = adapter
 
     gw = object.__new__(DhanBrokerGateway)
-    gw._conn = conn  # noqa: SLF001
+    gw._conn = conn
     return gw
 
 

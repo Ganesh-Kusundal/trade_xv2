@@ -9,29 +9,15 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from application.oms.capital_provider import FixedCapitalProvider
+from application.oms._internal.risk_manager import RiskConfig
+from application.oms.order_command_mapper import order_intent_to_oms_command
 from application.oms.order_manager import OmsOrderCommand, OrderManager
 from application.oms.order_manager import OrderResult as OmsOrderResult
-from application.oms.position_manager import PositionManager
-from application.oms.risk_manager import RiskConfig, RiskManager
 from domain.entities.order import Order, OrderResponse
 from domain.enums import OrderStatus
 from domain.orders.intent import OrderIntent
 from domain.orders.requests import OrderRequest
 from domain.ports.protocols import ExecutionProvider, OrderResult
-
-
-def _intent_to_command(intent: OrderIntent) -> OmsOrderCommand:
-    return OmsOrderCommand(
-        symbol=intent.symbol,
-        exchange=intent.exchange,
-        side=intent.side,
-        quantity=intent.quantity,
-        price=intent.price,
-        order_type=intent.order_type,
-        product_type=intent.product_type,
-        correlation_id=intent.correlation_id,
-    )
 
 
 def _execution_result_to_order(cmd: OmsOrderCommand, result: OrderResult) -> Order:
@@ -51,7 +37,9 @@ def _execution_result_to_order(cmd: OmsOrderCommand, result: OrderResult) -> Ord
             trigger_price=payload.trigger_price,
             status=payload.status,
             timestamp=payload.timestamp,
-            product_type=payload.product_type if payload.product_type is not None else cmd.product_type,
+            product_type=payload.product_type
+            if payload.product_type is not None
+            else cmd.product_type,
             validity=payload.validity,
             avg_price=payload.avg_price,
             reject_reason=payload.reject_reason,
@@ -155,7 +143,7 @@ class OmsOrderService:
         return self._oms
 
     def place(self, intent: OrderIntent) -> OrderResult:
-        cmd = _intent_to_command(intent)
+        cmd = order_intent_to_oms_command(intent)
         oms_result: OmsOrderResult = self._oms.place_order(cmd, submit_fn=self._submit_fn)
         if oms_result.success and oms_result.order is not None:
             return OrderResult.ok(oms_result.order)
@@ -226,6 +214,7 @@ def build_oms_service(
     execution_provider: ExecutionProvider,
     *,
     event_bus: Any | None = None,
+    processed_trade_repository: Any | None = None,
     capital: Decimal = Decimal("1000000"),
     broker_id: str = "paper",
     allow_unsafe_standalone: bool = False,
@@ -271,8 +260,9 @@ def build_oms_service(
 
     ctx = create_trading_context(
         event_bus=event_bus,
+        processed_trade_repository=processed_trade_repository,
         risk_config=RiskConfig(enable_margin_check=False),
-        capital_fn=FixedCapitalProvider(capital),
+        capital_fn=lambda _c=capital: _c,
         replay_events=False,
     )
 
@@ -292,4 +282,3 @@ def build_oms_service(
 
 
 # Backward-compatible alias (paper-oriented name; same function)
-build_paper_oms_service = build_oms_service

@@ -50,7 +50,9 @@ class UpstoxPortfolioStream:
         self._stopped = False
         self._connected = False
         self._event_bus = event_bus
-        self._last_cumulative_filled: TTLCache = TTLCache(maxsize=10000, ttl=3600)  # 1-hour TTL, bounds memory
+        self._last_cumulative_filled: TTLCache = TTLCache(
+            maxsize=10000, ttl=3600
+        )  # 1-hour TTL, bounds memory
 
     @property
     def is_connected(self) -> bool:

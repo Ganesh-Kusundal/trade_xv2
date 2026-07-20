@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pandas as pd
 
@@ -104,9 +104,7 @@ class PaperDataProvider(DataProvider):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> HistoricalSeries:
-        ref = InstrumentRef(
-            symbol=instrument_id.underlying, exchange=instrument_id.exchange
-        )
+        ref = InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange)
         df = self.get_history(
             instrument_id,
             timeframe=timeframe,

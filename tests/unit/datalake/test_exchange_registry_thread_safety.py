@@ -29,7 +29,7 @@ def test_concurrent_get_active_exchange_code_never_raises():
     def worker(name: str) -> None:
         try:
             results[name] = get_active_exchange_code()
-        except Exception as exc:  # noqa: BLE001 - capturing for assertion below
+        except Exception as exc:
             results[name] = exc
 
     # Repeat several trials with fresh state each time -- a race doesn't
@@ -37,9 +37,7 @@ def test_concurrent_get_active_exchange_code_never_raises():
     for trial in range(10):
         _ExchangeState._active_adapter = None
         _ExchangeState._discovered = False
-        threads = [
-            threading.Thread(target=worker, args=(f"t{trial}_{i}",)) for i in range(10)
-        ]
+        threads = [threading.Thread(target=worker, args=(f"t{trial}_{i}",)) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:

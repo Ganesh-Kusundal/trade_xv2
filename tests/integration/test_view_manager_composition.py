@@ -69,9 +69,7 @@ class TestViewManagerComposition:
 
         # Verify the view is in the list
         view_names = [v["name"] for v in views]
-        assert "test_view" in view_names, (
-            f"test_view should be in views, got: {view_names}"
-        )
+        assert "test_view" in view_names, f"test_view should be in views, got: {view_names}"
 
         # Verify view structure matches ViewRegistry format
         assert "name" in views[0], "View dict must have 'name' key"
@@ -102,9 +100,7 @@ class TestViewManagerComposition:
         vm = ViewManager(catalog_path=temp_catalog)
 
         # Create a source table
-        vm.conn.execute(
-            "CREATE TABLE source_data AS SELECT 'test' as symbol, 100 as price"
-        )
+        vm.conn.execute("CREATE TABLE source_data AS SELECT 'test' as symbol, 100 as price")
 
         # Materialize a table (delegates to CacheManager)
         elapsed = vm.materialize(
@@ -143,9 +139,7 @@ class TestViewManagerComposition:
         assert vm._conn is None, "ViewManager._conn should be None after close()"
 
         # Verify ViewRegistry's connection is released
-        assert vm._registry._conn is None, (
-            "ViewRegistry._conn should be None after close()"
-        )
+        assert vm._registry._conn is None, "ViewRegistry._conn should be None after close()"
 
         # Note: QueryExecutor and CacheManager don't hold their own connections;
         # they receive connection providers from ViewManager, so no need to check them.

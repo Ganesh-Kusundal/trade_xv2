@@ -19,14 +19,11 @@ import pandas as pd
 
 
 def rsi(close: pd.Series, period: int = 14) -> pd.Series:
-    """Relative Strength Index."""
-    delta = close.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.ewm(alpha=1.0 / period, min_periods=period).mean()
-    avg_loss = loss.ewm(alpha=1.0 / period, min_periods=period).mean()
-    rs = avg_gain / avg_loss.replace(0, float("nan"))
-    return 100.0 - (100.0 / (1.0 + rs))
+    """Relative Strength Index — delegates to domain.indicators.rsi (Wilder)."""
+    from domain.indicators.rsi import RSI
+
+    values = RSI(period).calculate(close.astype(float).tolist())
+    return pd.Series(values, index=close.index, dtype=float)
 
 
 def macd(
@@ -35,17 +32,18 @@ def macd(
     slow: int = 26,
     signal: int = 9,
 ) -> pd.DataFrame:
-    """MACD, signal line, and histogram."""
-    ema_fast = close.ewm(span=fast, adjust=False).mean()
-    ema_slow = close.ewm(span=slow, adjust=False).mean()
-    macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-    histogram = macd_line - signal_line
-    return pd.DataFrame({
-        "macd": macd_line,
-        "macd_signal": signal_line,
-        "macd_histogram": histogram,
-    })
+    """MACD — delegates to domain.indicators.macd."""
+    from domain.indicators.macd import MACD
+
+    result = MACD(fast, slow, signal).calculate(close.astype(float).tolist())
+    return pd.DataFrame(
+        {
+            "macd": result["macd"],
+            "macd_signal": result["signal"],
+            "macd_histogram": result["histogram"],
+        },
+        index=close.index,
+    )
 
 
 def roc(close: pd.Series, period: int = 10) -> pd.Series:
@@ -78,11 +76,13 @@ def adx(
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, float("nan"))
     adx_val = dx.ewm(alpha=1.0 / period, min_periods=period).mean()
 
-    return pd.DataFrame({
-        "adx": adx_val,
-        "plus_di": plus_di,
-        "minus_di": minus_di,
-    })
+    return pd.DataFrame(
+        {
+            "adx": adx_val,
+            "plus_di": plus_di,
+            "minus_di": minus_di,
+        }
+    )
 
 
 def cci(
@@ -140,13 +140,15 @@ def bollinger_bands(
     lower = sma - num_std * std
     bandwidth = (upper - lower) / sma
     pct_b = (close - lower) / (upper - lower)
-    return pd.DataFrame({
-        "bb_upper": upper,
-        "bb_mid": sma,
-        "bb_lower": lower,
-        "bb_bandwidth": bandwidth,
-        "bb_pct_b": pct_b,
-    })
+    return pd.DataFrame(
+        {
+            "bb_upper": upper,
+            "bb_mid": sma,
+            "bb_lower": lower,
+            "bb_bandwidth": bandwidth,
+            "bb_pct_b": pct_b,
+        }
+    )
 
 
 def zscore(close: pd.Series, period: int = 20) -> pd.Series:
@@ -159,11 +161,13 @@ def zscore(close: pd.Series, period: int = 20) -> pd.Series:
 def rsi_extremes(close: pd.Series, period: int = 14) -> pd.DataFrame:
     """RSI with oversold/overbought signals."""
     rsi_val = rsi(close, period)
-    return pd.DataFrame({
-        "rsi": rsi_val,
-        "rsi_oversold": (rsi_val < 30).astype(float),
-        "rsi_overbought": (rsi_val > 70).astype(float),
-    })
+    return pd.DataFrame(
+        {
+            "rsi": rsi_val,
+            "rsi_oversold": (rsi_val < 30).astype(float),
+            "rsi_overbought": (rsi_val > 70).astype(float),
+        }
+    )
 
 
 # ── Volatility indicators ────────────────────────────────────────────────
@@ -175,12 +179,12 @@ def atr(
     close: pd.Series,
     period: int = 14,
 ) -> pd.Series:
-    """Average True Range."""
-    tr1 = high - low
-    tr2 = (high - close.shift(1)).abs()
-    tr3 = (low - close.shift(1)).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    return tr.ewm(alpha=1.0 / period, min_periods=period).mean()
+    """Average True Range — delegates to domain.indicators.atr."""
+    from domain.indicators.atr import ATR
+
+    h, l, c = high.astype(float).tolist(), low.astype(float).tolist(), close.astype(float).tolist()
+    values = ATR(period).calculate(h, l, c)
+    return pd.Series(values, index=close.index, dtype=float)
 
 
 def historical_volatility(
@@ -217,9 +221,7 @@ def parkinson_vol(
 ) -> pd.Series:
     """Parkinson volatility estimator (high-low based)."""
     log_hl = np.log(high / low)
-    return (log_hl**2 / (4 * np.log(2))).rolling(period).mean().apply(
-        lambda x: np.sqrt(max(x, 0))
-    )
+    return (log_hl**2 / (4 * np.log(2))).rolling(period).mean().apply(lambda x: np.sqrt(max(x, 0)))
 
 
 def yang_zhang_vol(
@@ -274,10 +276,12 @@ def volume_profile(
     """Volume profile — volume distribution by price level."""
     price_bins = pd.cut(close, bins=bins)
     profile = volume.groupby(price_bins, observed=True).sum()
-    return pd.DataFrame({
-        "price_range": profile.index.astype(str),
-        "volume": profile.values,
-    })
+    return pd.DataFrame(
+        {
+            "price_range": profile.index.astype(str),
+            "volume": profile.values,
+        }
+    )
 
 
 # ── Convenience: compute all features ────────────────────────────────────

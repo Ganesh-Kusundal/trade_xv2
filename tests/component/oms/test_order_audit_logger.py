@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from application.oms.order_audit_logger import AuditEntry, OrderAuditLogger
+from application.oms._internal.order_audit_logger import AuditEntry, OrderAuditLogger
 from domain.types import OrderStatus
 
 

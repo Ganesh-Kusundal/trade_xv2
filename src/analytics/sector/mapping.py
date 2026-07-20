@@ -58,6 +58,7 @@ NSE_INDUSTRY_TO_SECTOR: dict[str, str] = {
 def _nse_industry_to_sector(industry: str) -> str:
     return NSE_INDUSTRY_TO_SECTOR.get(industry, industry)
 
+
 # Default NIFTY sector mapping (embedded for offline use)
 DEFAULT_SECTOR_MAP: dict[str, str] = {
     # IT

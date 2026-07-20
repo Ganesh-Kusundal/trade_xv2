@@ -15,7 +15,7 @@ import contextlib
 import logging
 import threading
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from brokers.dhan.websocket._helpers import _to_sdk_instruments
@@ -98,7 +98,9 @@ class MarketFeedSubscriptionManager:
             logger.info("subscribe: adding %d instruments (total=%d)", len(new_instruments), total)
 
             feed = self._feed_ref._conn.feed if self._feed_ref is not None else None
-            is_connected = self._feed_ref._conn.is_connected if self._feed_ref is not None else False
+            is_connected = (
+                self._feed_ref._conn.is_connected if self._feed_ref is not None else False
+            )
 
             if feed and is_connected:
                 logger.info(
@@ -130,7 +132,9 @@ class MarketFeedSubscriptionManager:
         with self._lock:
             sdk_instruments = _to_sdk_instruments(instruments)
             feed = self._feed_ref._conn.feed if self._feed_ref is not None else None
-            is_connected = self._feed_ref._conn.is_connected if self._feed_ref is not None else False
+            is_connected = (
+                self._feed_ref._conn.is_connected if self._feed_ref is not None else False
+            )
             if feed and is_connected:
                 try:
                     feed.unsubscribe_symbols(sdk_instruments)

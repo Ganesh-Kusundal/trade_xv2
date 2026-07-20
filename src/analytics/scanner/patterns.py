@@ -204,11 +204,7 @@ class PatternEngine:
         hits: list[PatternHit] = []
 
         if "symbol" in df.columns:
-            latest = (
-                df.sort_values("timestamp")
-                .groupby("symbol")
-                .last()
-            )
+            latest = df.sort_values("timestamp").groupby("symbol").last()
             universe_size = latest.shape[0]
             for symbol, row in latest.iterrows():
                 hits.extend(self._hits_for_row(str(symbol), row))

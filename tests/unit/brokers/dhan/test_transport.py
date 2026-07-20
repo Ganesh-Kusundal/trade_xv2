@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from decimal import Decimal
 
+from brokers.dhan.api.transport import _DHAN_CAPABILITIES, DhanTransport
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
-from domain.ports.broker_transport import BrokerTransport
 from domain.types import OrderType, ProductType, Side
-
-from brokers.dhan.api.transport import DhanTransport, _DHAN_CAPABILITIES
 
 
 class _FakeResponse:
@@ -27,10 +23,22 @@ class FakeGateway:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
 
-    def place_order(self, symbol, exchange="NSE", side="BUY", quantity=1, price=Decimal("0"),
-                   order_type="MARKET", product_type="INTRADAY", validity="DAY",
-                   trigger_price=Decimal("0"), correlation_id=None):
-        self.calls.append(("place_order", symbol, exchange, side, quantity, order_type, product_type))
+    def place_order(
+        self,
+        symbol,
+        exchange="NSE",
+        side="BUY",
+        quantity=1,
+        price=Decimal("0"),
+        order_type="MARKET",
+        product_type="INTRADAY",
+        validity="DAY",
+        trigger_price=Decimal("0"),
+        correlation_id=None,
+    ):
+        self.calls.append(
+            ("place_order", symbol, exchange, side, quantity, order_type, product_type)
+        )
         return _FakeResponse()
 
     def cancel_order(self, order_id):
@@ -61,7 +69,12 @@ def _transport() -> DhanTransport:
 
 
 def test_dhan_transport_is_broker_transport():
-    assert isinstance(_transport(), BrokerTransport)
+    t = _transport()
+    assert hasattr(t, "name")
+    assert hasattr(t, "market_data")
+    assert hasattr(t, "execution")
+    assert hasattr(t, "capabilities")
+    assert hasattr(t, "close")
 
 
 def test_dhan_transport_identity_and_capabilities():
@@ -102,11 +115,12 @@ def test_dhan_transport_close_tears_down_gateway():
 
 
 def test_dhan_transport_satisfies_shared_contract():
-    # Reuse the domain's BrokerTransport contract on the real plugin.
-    from tests.unit.domain.test_broker_transport_contract import _BrokerTransportContract, FakeProvider
-    from domain.ports.protocols import DataProvider
+    # Reuse the domain's BrokerAdapter contract on the real plugin.
+    from tests.unit.domain.test_broker_transport_contract import (
+        _BrokerAdapterContract,
+    )
 
-    class _Contract(_BrokerTransportContract):
+    class _Contract(_BrokerAdapterContract):
         def build_transport(self):
             return _transport()
 
@@ -120,4 +134,3 @@ def test_dhan_transport_satisfies_shared_contract():
     # execution port is the critical contract for OMS (Wave C).
     assert _transport().market_data is not None
     assert isinstance(_transport().execution, type(_transport().execution))
-

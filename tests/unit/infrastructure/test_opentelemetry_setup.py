@@ -105,6 +105,7 @@ class TestTraceOperationOTel:
             tracing._otel_active = True
 
             with patch.object(tracing, "_get_tracer", return_value=mock_tracer):
+
                 @tracing.trace_operation("test-span")
                 def my_function():
                     return 42
@@ -156,6 +157,7 @@ class TestTraceOperationOTel:
             tracing._otel_active = True
 
             with patch.object(tracing, "_get_tracer", return_value=mock_tracer):
+
                 @tracing.trace_operation("error-span")
                 def failing_function():
                     raise ValueError("boom")
@@ -189,6 +191,7 @@ class TestTraceOperationOTel:
             tracing._otel_active = True
 
             with patch.object(tracing, "_get_tracer", return_value=mock_tracer):
+
                 @tracing.trace_operation("correlated-op")
                 def correlated_function():
                     return "done"
@@ -220,6 +223,7 @@ class TestTraceOperationOTel:
             tracing._otel_active = True
 
             with patch.object(tracing, "_get_tracer", return_value=mock_tracer):
+
                 @tracing.trace_operation("fn-attr")
                 def my_special_func():
                     return "ok"
@@ -258,6 +262,7 @@ class TestTraceEventHandlerOTel:
             tracing._otel_active = True
 
             with patch.object(tracing, "_get_tracer", return_value=mock_tracer):
+
                 @tracing.trace_event_handler("ORDER_UPDATED")
                 def handle_order(event):
                     return "handled"
@@ -289,6 +294,7 @@ class TestTraceEventHandlerOTel:
             tracing._otel_active = True
 
             with patch.object(tracing, "_get_tracer", return_value=mock_tracer):
+
                 @tracing.trace_event_handler("PAYMENT_FAILED")
                 def failing_handler(event):
                     raise RuntimeError("payment error")

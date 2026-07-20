@@ -11,8 +11,10 @@ from pathlib import Path
 import pandas as pd
 
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
-from domain.symbols import normalize_exchange
 from config.endpoints import Dhan
+from domain.ports.data_catalog import DEFAULT_INSTRUMENT_CACHE_DIR
+from domain.symbols import normalize_exchange
+from infrastructure.paths import project_root_from
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +66,7 @@ class InstrumentLoader:
         if env_cache:
             cache_dir = Path(env_cache)
         else:
-            # Default to project-root/runtime-dev/instruments
-            # loader.py is in brokers/dhan/loader.py, so parents[2] is project root
-            cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
+            cache_dir = project_root_from(__file__) / DEFAULT_INSTRUMENT_CACHE_DIR
 
         cache_dir.mkdir(parents=True, exist_ok=True)
 

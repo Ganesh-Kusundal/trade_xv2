@@ -21,7 +21,6 @@ from analytics.replay.event_publishing import (
 )
 from analytics.replay.models import (
     FillModel,
-    ReplayConfig,
     ReplayResult,
     ReplaySession,
 )
@@ -139,27 +138,31 @@ def run_single(engine, df: pd.DataFrame, symbol: str, ts_col: str) -> ReplayResu
         if window_size > 0:
             if _filled < window_size:
                 # Still growing — data is already in chronological order
-                window_df = pd.DataFrame({
-                    "open": _arr_open[:_filled],
-                    "high": _arr_high[:_filled],
-                    "low": _arr_low[:_filled],
-                    "close": _arr_close[:_filled],
-                    "volume": _arr_volume[:_filled],
-                    "symbol": _arr_symbol[:_filled],
-                    "timestamp": _arr_timestamp[:_filled],
-                })
+                window_df = pd.DataFrame(
+                    {
+                        "open": _arr_open[:_filled],
+                        "high": _arr_high[:_filled],
+                        "low": _arr_low[:_filled],
+                        "close": _arr_close[:_filled],
+                        "volume": _arr_volume[:_filled],
+                        "symbol": _arr_symbol[:_filled],
+                        "timestamp": _arr_timestamp[:_filled],
+                    }
+                )
             else:
                 # Circular buffer full — reorder from oldest to newest
                 _idx = np.arange(_head - window_size, _head) % window_size
-                window_df = pd.DataFrame({
-                    "open": _arr_open[_idx],
-                    "high": _arr_high[_idx],
-                    "low": _arr_low[_idx],
-                    "close": _arr_close[_idx],
-                    "volume": _arr_volume[_idx],
-                    "symbol": _arr_symbol[_idx],
-                    "timestamp": _arr_timestamp[_idx],
-                })
+                window_df = pd.DataFrame(
+                    {
+                        "open": _arr_open[_idx],
+                        "high": _arr_high[_idx],
+                        "low": _arr_low[_idx],
+                        "close": _arr_close[_idx],
+                        "volume": _arr_volume[_idx],
+                        "symbol": _arr_symbol[_idx],
+                        "timestamp": _arr_timestamp[_idx],
+                    }
+                )
         else:
             window_df = pd.DataFrame(_window_data)
 
@@ -194,6 +197,9 @@ def run_single(engine, df: pd.DataFrame, symbol: str, ts_col: str) -> ReplayResu
 
         # Run StrategyPipeline
         signals = engine._strategy.evaluate_single(candidate, features)
+        from application.trading.signal_coordinator import coalesce_strategy_signals
+
+        signals = coalesce_strategy_signals(signals)
 
         # Process signals (P0-2: routes through OMS if available)
         for signal in signals:
@@ -315,6 +321,9 @@ def run_multi_symbol(engine, df: pd.DataFrame, ts_col: str) -> ReplayResult:
                 continue
 
         signals = engine._strategy.evaluate_single(candidate, features)
+        from application.trading.signal_coordinator import coalesce_strategy_signals
+
+        signals = coalesce_strategy_signals(signals)
         for signal in signals:
             session.signals.append(signal)
             if config.fill_model == FillModel.NEXT_OPEN:

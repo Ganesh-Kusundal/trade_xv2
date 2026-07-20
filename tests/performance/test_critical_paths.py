@@ -14,21 +14,17 @@ Thresholds are generous to avoid flakiness on CI; tighten for local profiling.
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
-from unittest.mock import MagicMock
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Self-contained stubs (no production imports that pull heavy deps)
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class _FakeEvent:
@@ -40,7 +36,7 @@ class _FakeEvent:
     sequence_number: int = 0
 
     @classmethod
-    def now(cls, event_type: str, payload: dict | None = None) -> "_FakeEvent":
+    def now(cls, event_type: str, payload: dict | None = None) -> _FakeEvent:
         return cls(
             event_type=event_type,
             timestamp=datetime.now(),
@@ -91,6 +87,7 @@ class _FakeEventBus:
 # 1. Event Bus Throughput
 # ---------------------------------------------------------------------------
 
+
 class TestEventBusThroughput:
     """Measure publish + dispatch throughput on the in-process event bus."""
 
@@ -111,7 +108,7 @@ class TestEventBusThroughput:
     def test_throughput_10_000_events(self) -> None:
         bus = _FakeEventBus()
         count = 0
-        lock = threading.Lock()
+        threading.Lock()
 
         def handler(e: _FakeEvent) -> None:
             nonlocal count
@@ -135,6 +132,7 @@ class TestEventBusThroughput:
         def make_handler(idx: int):
             def h(e: _FakeEvent) -> None:
                 counts[idx] += 1
+
             return h
 
         for i in range(3):
@@ -155,7 +153,7 @@ class TestEventBusThroughput:
         N = 500
 
         start = time.time()
-        for i in range(N):
+        for _i in range(N):
             tok = bus.subscribe("TICK", lambda e: None)
             tokens.append(tok)
         for tok in tokens:
@@ -180,10 +178,11 @@ class TestEventBusThroughput:
 # 2. Order Placement Latency
 # ---------------------------------------------------------------------------
 
+
 class _FakeOrder:
     """Lightweight order value object for benchmarking."""
 
-    __slots__ = ("order_id", "symbol", "side", "quantity", "price", "status")
+    __slots__ = ("order_id", "price", "quantity", "side", "status", "symbol")
 
     def __init__(self, order_id: str, symbol: str, side: str, quantity: int, price: float):
         self.order_id = order_id
@@ -282,6 +281,7 @@ class TestOrderPlacementLatency:
 # 3. Market Data Processing
 # ---------------------------------------------------------------------------
 
+
 class _FakeMarketDataProcessor:
     """Simulates market data tick processing pipeline."""
 
@@ -365,11 +365,18 @@ class TestMarketDataProcessing:
 # 4. Option Chain Calculation
 # ---------------------------------------------------------------------------
 
-class _OptionStrike:
-    __slots__ = ("strike", "call_ltp", "put_ltp", "call_oi", "put_oi")
 
-    def __init__(self, strike: float, call_ltp: float = 0.0, put_ltp: float = 0.0,
-                 call_oi: int = 0, put_oi: int = 0):
+class _OptionStrike:
+    __slots__ = ("call_ltp", "call_oi", "put_ltp", "put_oi", "strike")
+
+    def __init__(
+        self,
+        strike: float,
+        call_ltp: float = 0.0,
+        put_ltp: float = 0.0,
+        call_oi: int = 0,
+        put_oi: int = 0,
+    ):
         self.strike = strike
         self.call_ltp = call_ltp
         self.put_ltp = put_ltp
@@ -390,7 +397,7 @@ class _FakeOptionChainProcessor:
         if option_price <= 0:
             return 0.0
         t = self.days_to_expiry / 365.0
-        moneyness = self.spot / strike
+        self.spot / strike
         # Rough implied vol estimate
         iv = abs(option_price / (self.spot * max(t, 0.01))) * 2.0
         return max(iv, 0.01)
@@ -398,9 +405,8 @@ class _FakeOptionChainProcessor:
     def calculate_greeks(self, strike: float, iv: float, is_call: bool) -> dict:
         """Simplified Greeks calculation."""
         t = self.days_to_expiry / 365.0
-        sqrt_t = t ** 0.5 if t > 0 else 0.001
-        d1 = ((self.spot / strike + 0.5 * iv ** 2 * t) /
-              (iv * sqrt_t)) if iv > 0 else 0.0
+        sqrt_t = t**0.5 if t > 0 else 0.001
+        d1 = ((self.spot / strike + 0.5 * iv**2 * t) / (iv * sqrt_t)) if iv > 0 else 0.0
         delta = 0.5 * (1.0 + d1 / (1.0 + abs(d1)))
         if not is_call:
             delta = delta - 1.0
@@ -417,13 +423,15 @@ class _FakeOptionChainProcessor:
             put_iv = self.calculate_iv(s.put_ltp, s.strike, False) if s.put_ltp else None
             call_greeks = self.calculate_greeks(s.strike, call_iv or 0.2, True) if call_iv else None
             put_greeks = self.calculate_greeks(s.strike, put_iv or 0.2, False) if put_iv else None
-            results.append({
-                "strike": s.strike,
-                "call_iv": call_iv,
-                "put_iv": put_iv,
-                "call_greeks": call_greeks,
-                "put_greeks": put_greeks,
-            })
+            results.append(
+                {
+                    "strike": s.strike,
+                    "call_iv": call_iv,
+                    "put_iv": put_iv,
+                    "call_greeks": call_greeks,
+                    "put_greeks": put_greeks,
+                }
+            )
         return results
 
 

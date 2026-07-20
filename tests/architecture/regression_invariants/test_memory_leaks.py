@@ -31,11 +31,11 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_no_leak_from_rapid_publishes(self):
         """Rapid publishes should not cause unbounded memory growth."""
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 
         tracemalloc.start()
 
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         bus.subscribe("TICK", lambda e: None)
 
         # Measure before
@@ -63,12 +63,12 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_no_leak_from_subscribe_unsubscribe_cycles(self):
         """Subscribe/unsubscribe cycles should not leak handler references."""
-        from infrastructure.event_bus.event_bus import EventBus
+        from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
         tracemalloc.start()
         snapshot1 = tracemalloc.take_snapshot()
 
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
 
         for _ in range(500):
             token = bus.subscribe("TICK", lambda e: None)
@@ -85,7 +85,7 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_handler_reference_released_on_unsubscribe(self):
         """Unsubscribed handlers should be garbage collected."""
-        from infrastructure.event_bus.event_bus import EventBus
+        from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
         class LargeHandler:
             def __init__(self):
@@ -94,7 +94,7 @@ class TestEventBusMemoryBounds:
             def __call__(self, event):
                 pass
 
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
 
         handler = LargeHandler()
         weak_ref = weakref.ref(handler)
@@ -248,7 +248,6 @@ class TestCacheEviction:
         assert "key" not in cache, "Entry should have expired after TTL"
 
 
-
 # ──────────────────────────────────────────────────────────────────────
 # Section 4: Reference Cycles
 # ──────────────────────────────────────────────────────────────────────
@@ -260,10 +259,10 @@ class TestReferenceCycles:
     def test_event_bus_no_reference_cycles(self):
         """EventBus should not create reference cycles."""
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 
         dlq = DeadLetterQueue(max_size=100)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
         token = bus.subscribe("TICK", lambda e: None)
 
         # Collect any existing garbage
@@ -449,7 +448,7 @@ class TestDataFrameMemory:
 
         size = df.memory_usage(deep=True).sum()
         assert size > 0, "memory_usage should return positive value"
-        assert isinstance(size, (int, np.integer)), "memory_usage should return int"
+        assert isinstance(size, int | np.integer), "memory_usage should return int"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -462,15 +461,19 @@ class TestOverallMemoryGrowth:
 
     def test_sustained_event_bus_load_bounded_growth(self):
         """Sustained EventBus load should have bounded memory growth (< 10MB)."""
-        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
+        from infrastructure.observability.event_metrics import EventMetrics
 
         tracemalloc.start()
 
         dlq = DeadLetterQueue(max_size=500)
         metrics = EventMetrics()
-        bus = EventBus(dead_letter_queue=dlq, metrics=metrics, fail_fast=False)
+        bus = EventBus(
+            dead_letter_queue=dlq,
+            metrics=metrics,
+            config=EventBusConfig(fail_fast=False),
+        )
         bus.subscribe("TICK", lambda e: None)
 
         snapshot1 = tracemalloc.take_snapshot()
@@ -503,10 +506,10 @@ class TestOverallMemoryGrowth:
 
     def test_process_memory_stable_after_gc(self):
         """After gc.collect(), process memory should be stable."""
-        from infrastructure.event_bus.event_bus import EventBus
+        from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
         # Create a bus and generate some garbage
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         for _ in range(200):
             token = bus.subscribe("TICK", lambda e: None)
             bus.unsubscribe(token)

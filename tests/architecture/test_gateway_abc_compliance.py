@@ -193,8 +193,8 @@ class TestExceptionHierarchy:
 
         This test will FAIL until Phase 3.5 is complete.
         """
-        from infrastructure.resilience.errors import BrokerError
         from brokers.upstox.auth.exceptions import UpstoxApiError
+        from infrastructure.resilience.errors import BrokerError
 
         if not issubclass(UpstoxApiError, BrokerError):
             pytest.skip("UpstoxApiError does not extend BrokerError. Run Phase 3.5 to fix.")
@@ -203,8 +203,8 @@ class TestExceptionHierarchy:
 
     def test_dhan_exceptions_extend_broker_error(self):
         """Dhan exceptions must extend BrokerError."""
-        from infrastructure.resilience.errors import BrokerError
         from brokers.dhan.exceptions import DhanError
+        from infrastructure.resilience.errors import BrokerError
 
         assert issubclass(DhanError, BrokerError)
 

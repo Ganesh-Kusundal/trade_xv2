@@ -7,6 +7,7 @@ Thread-safe: Uses threading.Lock for all subscription state mutations.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from typing import TYPE_CHECKING, Any
@@ -112,7 +113,9 @@ class StreamManagerAdapter:
                     # WebSocket. Without this filter, subscribing to two+
                     # symbols meant every callback received every other
                     # symbol's ticks too.
-                    payload = raw.get("payload") if isinstance(raw, dict) and "payload" in raw else raw
+                    payload = (
+                        raw.get("payload") if isinstance(raw, dict) and "payload" in raw else raw
+                    )
                     tick_key = TickTranslatorAdapter._extract_instrument_key(payload)
                     if tick_key and tick_key != _key:
                         return
@@ -122,13 +125,28 @@ class StreamManagerAdapter:
                 ws.add_listener(wrapped_listener)
                 self._stream_registry.setdefault(inst_key, []).append((on_tick, wrapped_listener))
 
-            if not ws.is_connected:
+            # is_connected can be True after an ephemeral-loop connect that
+            # already closed — treat a dead task loop as needing reconnect.
+            task = getattr(ws, "_task", None)
+            loop_dead = (
+                task is not None and hasattr(task, "get_loop") and task.get_loop().is_closed()
+            )
+            if not ws.is_connected or loop_dead:
 
                 def _on_connected() -> None:
                     ws.subscribe([inst_key], mode.lower())
 
-                from infrastructure.async_compat import connect_async_then
+                # Long-lived WS read loop must not run on run_coro_sync's
+                # ephemeral loop (it closes when connect() returns).
+                from runtime.event_loop import ensure_runtime_loop_running
+                from infrastructure.io.async_compat import connect_async_then
 
+                ensure_runtime_loop_running()
+                if loop_dead:
+                    with contextlib.suppress(Exception):
+                        # Clear stale connected flag before re-binding to runtime loop.
+                        ws._connected = False
+                        ws._task = None
                 connect_async_then(ws.connect(), _on_connected)
             else:
                 ws.subscribe([inst_key], mode.lower())

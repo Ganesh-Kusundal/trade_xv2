@@ -165,7 +165,9 @@ def _persist_state(settings: UpstoxConnectionSettings, result: dict) -> None:
     if not settings.token_state_file:
         return
     settings.token_state_file.parent.mkdir(parents=True, exist_ok=True)
-    expires_at_ms = int(time.time() * 1000) + int(result.get("expires_in_seconds", SECONDS_PER_DAY)) * 1000
+    expires_at_ms = (
+        int(time.time() * 1000) + int(result.get("expires_in_seconds", SECONDS_PER_DAY)) * 1000
+    )
     state = {
         "access_token": result.get("access_token", ""),
         "refresh_token": result.get("refresh_token"),
@@ -209,8 +211,7 @@ def main(argv: list | None = None) -> int:
 
     if not settings.client_secret:
         logger.error(
-            "UPSTOX_CLIENT_SECRET is required for the OAuth flow. "
-            "Set it in env or in --env-file.",
+            "UPSTOX_CLIENT_SECRET is required for the OAuth flow. Set it in env or in --env-file.",
         )
         return 2
 

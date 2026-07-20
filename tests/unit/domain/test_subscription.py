@@ -36,14 +36,18 @@ def test_subscription_counts_ticks_and_publishes():
     iid = InstrumentId.equity("NSE", "RELIANCE")
     sub = Subscription(iid, event_bus=bus)
     _attach(sub)
-    from domain.entities.market import QuoteSnapshot, MarketDepth
-    from domain.candles.historical import InstrumentRef
-    from domain.provenance import DataProvenance
     from datetime import datetime, timezone
 
-    q = QuoteSnapshot(instrument=InstrumentRef("RELIANCE", "NSE"), ltp=Decimal("10"),
-                      event_time=datetime.now(timezone.utc),
-                      provenance=DataProvenance.now("fake", "r"))
+    from domain.candles.historical import InstrumentRef
+    from domain.entities.market import QuoteSnapshot
+    from domain.provenance import DataProvenance
+
+    q = QuoteSnapshot(
+        instrument=InstrumentRef("RELIANCE", "NSE"),
+        ltp=Decimal("10"),
+        event_time=datetime.now(timezone.utc),
+        provenance=DataProvenance.now("fake", "r"),
+    )
     sub._on_tick(iid, q)
     sub._on_tick(iid, q)
     assert sub.tick_count == 2

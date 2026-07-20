@@ -32,9 +32,11 @@ async def get_indicators(
     Queries DuckDB feature views:
     - atr: v_feature_atr
     - vwap: v_feature_vwap
-    - rsi: v_feature_rsi
     - momentum: v_feature_momentum
     - volume: v_feature_volume
+
+    Note: RSI is now computed by the Python Wilder's RSI implementation
+    (domain/indicators/rsi.py), not by SQL views.
     """
     vm = get_view_manager()
 
@@ -42,7 +44,6 @@ async def get_indicators(
         view_map = {
             "atr": ("v_feature_atr", "atr_14"),
             "vwap": ("v_feature_vwap", "vwap"),
-            "rsi": ("v_feature_rsi", "rsi_14"),
             "momentum": ("v_feature_momentum", "roc_5"),
             "volume": ("v_feature_volume", "relative_volume"),
         }
@@ -249,29 +250,27 @@ async def get_market_breadth():
 @router.get("/strategies")
 async def list_strategies():
     """List registered strategy names."""
-    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
+    from runtime.factory import build_multi_strategy_runtime
 
-    runtime = MultiStrategyRuntime()
+    runtime = build_multi_strategy_runtime()
     return {"strategies": runtime.list_strategies(), "count": len(runtime.list_strategies())}
 
 
 @router.post("/strategies/run")
 async def run_strategies(body: dict):
     """Build a multi-strategy pipeline for the given strategy names."""
-    from analytics.strategy.registry import StrategyRegistry
-    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
+    from runtime.factory import build_multi_strategy_runtime
 
     names = body.get("names") or body.get("strategies") or []
     if not names:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="names required")
-    StrategyRegistry.discover("analytics.strategy.builtins")
-    pipeline = MultiStrategyRuntime.create_pipeline(names)
-    if not pipeline.strategies:
+    runtime = build_multi_strategy_runtime(names)
+    if not runtime.strategies:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No valid strategies in {names}",
         )
     return {
-        "strategy_count": len(pipeline.strategies),
-        "strategies": [s.name for s in pipeline.strategies],
+        "strategy_count": len(runtime.strategies),
+        "strategies": [s.name for s in runtime.strategies],
     }

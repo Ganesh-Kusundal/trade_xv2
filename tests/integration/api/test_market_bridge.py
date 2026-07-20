@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from interface.api.ws.bridge import _BRIDGED_EVENTS, MarketBridge
 from infrastructure.event_bus import DomainEvent
+from interface.api.ws.bridge import _BRIDGED_EVENTS, MarketBridge
 
 
 def _make_event(event_type="QUOTE", symbol="RELIANCE", payload=None):
@@ -32,7 +32,9 @@ class TestFormatMessage:
 
     def test_depth_event(self):
         bridge = MarketBridge(event_bus=MagicMock(), connection_manager=MagicMock())
-        event = _make_event("DEPTH", "RELIANCE", {"depth": {"bids": [], "asks": [], "depth_type": "DEPTH_5"}})
+        event = _make_event(
+            "DEPTH", "RELIANCE", {"depth": {"bids": [], "asks": [], "depth_type": "DEPTH_5"}}
+        )
         msg = bridge._format_message(event)
         assert msg["type"] == "depth"
         assert "bids" in msg
@@ -92,6 +94,7 @@ class TestDropOldest:
         bridge._queue.put_nowait("old-event-2")
 
         on_event = None
+
         def capture_subscribe(event_type, callback):
             nonlocal on_event
             if on_event is None:

@@ -8,10 +8,12 @@ OrderType, ProductType, Validity, FundLimits) live in ``domain``::
 """
 
 # ── Dhan-specific domain types ──────────────────────────────────────────────
-from brokers.dhan.streaming.connection import DhanConnection
+# Registers Dhan-specific status strings (PLACED, TRIGGERED, CLOSED, ...) with
+# StatusMapperRegistry — import is for its registration side effect only.
+import brokers.dhan.status_mapper  # noqa: F401
 from brokers.dhan.domain import (
-    Exchange,
     DhanInstrument,
+    Exchange,
     InstrumentType,
     OptionType,
 )
@@ -40,10 +42,7 @@ from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 from brokers.dhan.resolver import SymbolResolver
-
-# Registers Dhan-specific status strings (PLACED, TRIGGERED, CLOSED, ...) with
-# StatusMapperRegistry — import is for its registration side effect only.
-import brokers.dhan.status_mapper  # noqa: F401
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from domain import Balance, DepthLevel, MarketDepth, Quote, ReconciliationReport
 
@@ -62,6 +61,7 @@ __all__ = [
     "DhanIdentityError",
     "DhanIdentityProvider",
     "DhanIdentitySource",
+    "DhanInstrument",
     "DhanInstrumentRef",
     # WebSocket
     "DhanMarketFeed",
@@ -69,7 +69,6 @@ __all__ = [
     # Reconciliation
     "DhanReconciliationService",
     "Exchange",
-    "DhanInstrument",
     "InstrumentLoader",
     "InstrumentNotFoundError",
     "InstrumentType",
@@ -88,17 +87,17 @@ __all__ = [
 ]
 
 # ── Extension + data/execution self-registration (ADR-007) ────────────────
-from infrastructure.adapter_factory import (
-    register_broker_extensions,
-    register_data_adapter,
-    register_execution_provider,
-)
+from brokers.dhan.api.transport import DhanOrderTransport
 from brokers.dhan.data.data_provider import DhanDataProvider
 from brokers.dhan.extensions.depth20 import DhanDepth20Extension
 from brokers.dhan.extensions.depth200 import DhanDepth200Extension
 from brokers.dhan.extensions.forever_order import DhanForeverOrderExtension
 from brokers.dhan.extensions.super_order import DhanSuperOrderExtension
-from brokers.dhan.api.transport import DhanOrderTransport
+from infrastructure.adapter_factory import (
+    register_broker_extensions,
+    register_data_adapter,
+    register_execution_provider,
+)
 
 register_broker_extensions(
     "dhan",
@@ -114,8 +113,10 @@ register_execution_provider("dhan", DhanOrderTransport)
 
 from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
+
 def _load_dhan_capabilities():
     from brokers.dhan.config.capabilities import dhan_capabilities
+
     return dhan_capabilities()
 
 
@@ -130,7 +131,7 @@ register_broker_plugin(
     )
 )
 
-from domain.market.segment_registry import register_segment_mapper
 from brokers.dhan.segments import DhanSegmentMapper
+from domain.market.segment_registry import register_segment_mapper
 
 register_segment_mapper("dhan", DhanSegmentMapper)

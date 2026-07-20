@@ -16,7 +16,7 @@ from unittest.mock import Mock
 import pytest
 
 # Import directly from submodules to avoid circular import through __init__.py
-from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType
+from brokers.dhan.domain import DhanInstrument, Exchange, InstrumentType
 from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
 from brokers.dhan.resolver import SymbolResolver

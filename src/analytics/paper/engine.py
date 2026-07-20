@@ -87,6 +87,7 @@ class PaperTradingEngine:
         trading_context=None,
         execution_adapter=None,
         oms_adapter: OmsBacktestAdapterPort | None = None,
+        allow_simulate_without_oms: bool = False,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
@@ -104,10 +105,13 @@ class PaperTradingEngine:
                 commission_flat=self._config.commission_flat,
                 execution_adapter=execution_adapter,
             )
+        elif allow_simulate_without_oms:
+            self._oms_adapter = None
+            logger.debug("PaperTradingEngine running in pure-simulate mode (no OMS adapter).")
         else:
             raise TypeError(
                 "PaperTradingEngine requires trading_context (or oms_adapter) for order execution. "
-                "Pass a TradingContext instance from your composition root."
+                "Pass allow_simulate_without_oms=True for research-only mode without OMS."
             )
 
         from analytics.replay.cash_ledger import SimulatedCashLedger
@@ -123,8 +127,8 @@ class PaperTradingEngine:
         self._window_mgr = BarWindowManager(self._pipeline)
         self._signal_processor = PaperSignalProcessor(
             self._config,
-            self._oms_adapter,
             self._record_session_fill,
+            oms_adapter=self._oms_adapter,
             on_cash=self._apply_cash_delta,
         )
         self._closer = PaperPositionCloser(
@@ -143,9 +147,7 @@ class PaperTradingEngine:
         from analytics.replay.parity_risk import feed_parity_risk_state
 
         open_eq = (
-            session.equity_curve[0][1]
-            if session.equity_curve
-            else self._config.initial_capital
+            session.equity_curve[0][1] if session.equity_curve else self._config.initial_capital
         )
         feed_parity_risk_state(
             self._trading_context,
@@ -255,6 +257,9 @@ class PaperTradingEngine:
 
         # Run StrategyPipeline
         signals = self._strategy.evaluate_single(candidate, features)
+        from application.trading.signal_coordinator import coalesce_strategy_signals
+
+        signals = coalesce_strategy_signals(signals)
 
         # Process signals (NEXT_OPEN defers to next bar open — same as ReplayEngine)
         if not hasattr(session, "_pending_signals"):
@@ -354,6 +359,9 @@ class PaperTradingEngine:
             # Construct candidate and evaluate through strategy pipeline
             candidate = Candidate(symbol=bar.symbol, score=50.0, reasons=["paper"])
             signals = self._strategy.evaluate_single(candidate, features)
+            from application.trading.signal_coordinator import coalesce_strategy_signals
+
+            signals = coalesce_strategy_signals(signals)
 
             for signal in signals:
                 signals_all.append(signal)
@@ -377,9 +385,7 @@ class PaperTradingEngine:
             if fill_bar is None:
                 continue
             for sig, _sig_bar in sym_pending:
-                self._signal_processor.process(
-                    sig, fill_bar, session, fill_price=fill_bar.open
-                )
+                self._signal_processor.process(sig, fill_bar, session, fill_price=fill_bar.open)
             sym_pending.clear()
 
         return signals_all

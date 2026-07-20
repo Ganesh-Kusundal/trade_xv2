@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
 from analytics.strategy.registry import StrategyRegistry, StrategySelfCheckError

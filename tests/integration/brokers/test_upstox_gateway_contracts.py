@@ -21,7 +21,6 @@ Fixes pinned:
 
 from __future__ import annotations
 
-import sys
 import time
 
 import pytest
@@ -31,11 +30,12 @@ def _needs_module(module: str) -> None:
     """Skip the calling test if *module* cannot be imported."""
     try:
         __import__(module)
-    except Exception as exc:  # noqa: BLE001 - any import failure => skip
+    except Exception as exc:
         pytest.skip(f"optional module {module!r} unavailable: {exc}")
 
 
 # ── G2 ─────────────────────────────────────────────────────────────────────
+
 
 def _make_broker_and_gateway():
     """Construct a real (offline) UpstoxBroker + gateway, or skip."""
@@ -59,7 +59,7 @@ def test_g2_portfolio_stream_and_stream_order() -> None:
     assert hasattr(broker, "portfolio_stream"), "broker.portfolio_stream missing"
 
     # gateway.stream_order must be reachable and callable without AttributeError.
-    assert callable(getattr(gateway, "stream_order"))
+    assert callable(gateway.stream_order)
 
     # Avoid a real network connect: force the portfolio stream to report
     # "already connected" so stream_order merely registers a listener.
@@ -88,6 +88,7 @@ def test_g2_extended_capabilities() -> None:
 
 
 # ── R4 ─────────────────────────────────────────────────────────────────────
+
 
 def _make_http_client(rate_limiter):
     """Build a UpstoxHttpClient with a controllable rate limiter (no network)."""
@@ -130,7 +131,6 @@ class _FakeSession:
 def test_r4_retries_429_then_succeeds() -> None:
     """429 then 200 must eventually succeed after backoff (R4)."""
     _needs_module("brokers.upstox.auth.http")
-    from brokers.upstox.auth.http import UpstoxHttpClient
 
     class _AcquireTrue:
         def acquire(self, bucket, tokens=1, timeout=None):
@@ -169,6 +169,7 @@ def test_r4_finite_rate_limit_timeout_raises_not_hangs() -> None:
 
 # ── R5 ─────────────────────────────────────────────────────────────────────
 
+
 def test_r5_modify_order_raises_value_error_when_key_unresolved() -> None:
     """modify_order raises ValueError (no bad request) when key can't resolve."""
     _needs_module("brokers.upstox.orders.order_command_adapter")
@@ -196,6 +197,7 @@ def test_r5_modify_order_raises_value_error_when_key_unresolved() -> None:
 
 
 # ── R6 ─────────────────────────────────────────────────────────────────────
+
 
 def test_r6_is_valid_quote_drop_rules() -> None:
     """Shared drop rule backs the fix: zero/negative/missing-symbol dropped."""

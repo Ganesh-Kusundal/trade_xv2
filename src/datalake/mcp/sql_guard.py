@@ -14,15 +14,42 @@ from __future__ import annotations
 import re
 
 _STATEMENT_KEYWORDS = (
-    "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "ATTACH",
-    "DETACH", "COPY", "PRAGMA", "CALL", "EXPORT", "IMPORT", "INSTALL",
-    "LOAD", "SET", "EXECUTE", "TRUNCATE", "GRANT", "REVOKE", "VACUUM",
-    "CHECKPOINT", "MERGE", "REPLACE",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "DROP",
+    "CREATE",
+    "ALTER",
+    "ATTACH",
+    "DETACH",
+    "COPY",
+    "PRAGMA",
+    "CALL",
+    "EXPORT",
+    "IMPORT",
+    "INSTALL",
+    "LOAD",
+    "SET",
+    "EXECUTE",
+    "TRUNCATE",
+    "GRANT",
+    "REVOKE",
+    "VACUUM",
+    "CHECKPOINT",
+    "MERGE",
+    "REPLACE",
 )
 
 _FILESYSTEM_FUNCTIONS = (
-    "read_parquet", "read_csv", "read_json", "read_text", "glob",
-    "read_blob", "sniff_csv", "from_parquet", "from_csv",
+    "read_parquet",
+    "read_csv",
+    "read_json",
+    "read_text",
+    "glob",
+    "read_blob",
+    "sniff_csv",
+    "from_parquet",
+    "from_csv",
 )
 
 _KEYWORD_RE = re.compile(

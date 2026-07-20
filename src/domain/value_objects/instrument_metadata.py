@@ -31,7 +31,7 @@ class CorporateAction:
     """A scheduled corporate action."""
 
     action_type: str  # "DIVIDEND", "SPLIT", "BONUS", "RIGHTS"
-    ex_date: str      # YYYY-MM-DD
+    ex_date: str  # YYYY-MM-DD
     value: Decimal = Decimal("0")
     description: str = ""
 

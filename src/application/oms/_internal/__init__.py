@@ -3,10 +3,13 @@
 Prefer public re-exports from :mod:`application.oms` in application code.
 """
 
+from application.oms._internal.daily_pnl_tracker import DailyPnlTracker
+from application.oms._internal.kill_switch import KillSwitch
 from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
     LossCircuitState,
 )
+from application.oms._internal.margin_checker import MarginChecker
 from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
@@ -16,14 +19,15 @@ from application.oms._internal.risk_types import (
     RiskResult,
     risk_result_from_domain,
 )
-from application.oms._internal.margin_checker import MarginChecker
-from application.oms._internal.kill_switch import KillSwitch
-from application.oms._internal.daily_pnl_tracker import DailyPnlTracker
 
 __all__ = [
+    "DailyPnlTracker",
+    "InstrumentProvider",
+    "KillSwitch",
     # Circuit breaker
     "LossCircuitBreaker",
     "LossCircuitState",
+    "MarginChecker",
     # Audit & logging
     "OrderAuditLogger",
     # Position updates
@@ -33,9 +37,5 @@ __all__ = [
     "RiskConfig",
     "RiskManager",
     "RiskResult",
-    "InstrumentProvider",
     "risk_result_from_domain",
-    "MarginChecker",
-    "KillSwitch",
-    "DailyPnlTracker",
 ]

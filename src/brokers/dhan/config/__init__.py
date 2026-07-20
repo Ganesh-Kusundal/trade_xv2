@@ -1,9 +1,11 @@
 """Dhan configuration — runtime settings, constants, resilience config.
 
-Re-exports all public symbols from ``config`` for backward compatibility::
+Re-exports all public symbols for backward compatibility::
 
     from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
+    from brokers.dhan.config import DhanConfigLoader, load_from_file
 """
+
 from brokers.dhan.config.config import (  # noqa: F401
     DEFAULT_BASE_DELAY_MS,
     DEFAULT_BASE_URL,
@@ -16,9 +18,15 @@ from brokers.dhan.config.config import (  # noqa: F401
     DEFAULT_REFRESH_COOLDOWN_SECONDS,
     DEFAULT_RL_BUCKET_MAP,
     DEFAULT_WRITE_CB_PREFIXES,
+    ENV_KEY_MAPPING,
+    ENV_PREFIX,
     DhanCircuitBreakerConfig,
+    DhanConfigLoader,
     DhanRateLimitConfig,
     DhanResilienceConfig,
     DhanRetryConfig,
     DhanTokenConfig,
+    load_from_env_file,
+    load_from_environment,
+    load_from_file,
 )

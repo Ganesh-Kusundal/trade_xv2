@@ -11,13 +11,14 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root))
 
-from interface.api.config import APIConfig
-from interface.api.main import create_app
 from infrastructure.auth.environment_bootstrap import bootstrap_environment
 from infrastructure.logging_config import configure_logging
 from interface.api.bootstrap import initialize_api_services
-# Side-effect: registers BrokerService factory for runtime.api_compose (F9).
-import interface.ui.services.compose  # noqa: F401
+from interface.api.config import APIConfig
+from interface.api.main import create_app
+from runtime.interface_compose import wire_interface_compose
+
+wire_interface_compose()
 
 logger = logging.getLogger(__name__)
 

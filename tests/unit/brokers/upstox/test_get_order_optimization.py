@@ -9,20 +9,12 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from brokers.upstox.wire import UpstoxBrokerGateway
-from domain import Order, OrderStatus, OrderType, Side
+from domain import OrderStatus
+from tests.fixtures.domain_helpers import make_order
 
 
-def _make_order(order_id: str = "ORD-123", status: OrderStatus = OrderStatus.OPEN) -> Order:
-    """Create a minimal Order for testing."""
-    return Order(
-        order_id=order_id,
-        symbol="RELIANCE",
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.MARKET,
-        quantity=1,
-        status=status,
-    )
+def _make_order(order_id: str = "ORD-123", status: OrderStatus = OrderStatus.OPEN):
+    return make_order(order_id=order_id, status=status, order_type="MARKET", quantity=1)
 
 
 class TestGetOrderDirectLookup:
@@ -105,12 +97,11 @@ class TestCancelOrderPostVerification:
         broker.settings.allow_live_orders = True
 
         from domain import OrderResponse
+
         broker.order_command.cancel_order.return_value = OrderResponse.ok(
             order_id="ORD-123", message="Cancelled"
         )
-        broker.order_query.get_order.return_value = _make_order(
-            "ORD-123", OrderStatus.CANCELLED
-        )
+        broker.order_query.get_order.return_value = _make_order("ORD-123", OrderStatus.CANCELLED)
 
         gw = UpstoxBrokerGateway(broker)
         result = gw.cancel_order("ORD-123")
@@ -125,13 +116,12 @@ class TestCancelOrderPostVerification:
         broker.settings.allow_live_orders = True
 
         from domain import OrderResponse
+
         broker.order_command.cancel_order.return_value = OrderResponse.ok(
             order_id="ORD-123", message="Cancelled"
         )
         # But direct lookup reveals the order was actually FILLED
-        broker.order_query.get_order.return_value = _make_order(
-            "ORD-123", OrderStatus.FILLED
-        )
+        broker.order_query.get_order.return_value = _make_order("ORD-123", OrderStatus.FILLED)
 
         gw = UpstoxBrokerGateway(broker)
         result = gw.cancel_order("ORD-123")

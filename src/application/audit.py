@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
@@ -28,14 +29,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from application.observability import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
 # Audit event dataclass
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class AuditEvent:
@@ -63,6 +63,7 @@ class AuditEvent:
 # ---------------------------------------------------------------------------
 # Abstract store
 # ---------------------------------------------------------------------------
+
 
 class AuditStore(ABC):
     """Abstract base for audit event persistence."""
@@ -93,6 +94,7 @@ class AuditStore(ABC):
 # ---------------------------------------------------------------------------
 # In-memory store (thread-safe)
 # ---------------------------------------------------------------------------
+
 
 class MemoryAuditStore(AuditStore):
     """Thread-safe in-memory audit store."""
@@ -152,6 +154,7 @@ class MemoryAuditStore(AuditStore):
 # ---------------------------------------------------------------------------
 # JSONL file-backed store
 # ---------------------------------------------------------------------------
+
 
 class FileAuditStore(AuditStore):
     """Append-only JSONL file-backed audit store.
@@ -227,6 +230,7 @@ class FileAuditStore(AuditStore):
 # ---------------------------------------------------------------------------
 # AuditLogger facade
 # ---------------------------------------------------------------------------
+
 
 class AuditLogger:
     """High-level audit logging facade.

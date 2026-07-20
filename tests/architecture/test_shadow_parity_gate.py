@@ -16,9 +16,7 @@ from domain.entities import Trade
 from domain.execution_contracts import LedgerFillRecord
 from domain.types import Side
 
-_FIXTURE = (
-    Path(__file__).resolve().parent.parent / "fixtures" / "ledger" / "shadow_parity_24h.json"
-)
+_FIXTURE = Path(__file__).resolve().parent.parent / "fixtures" / "ledger" / "shadow_parity_24h.json"
 
 
 def _parse_fill(row: dict) -> LedgerFillRecord:

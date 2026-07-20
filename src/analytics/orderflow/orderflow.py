@@ -163,9 +163,9 @@ class OrderFlowAnalytics:
         rolling_vol = df["quantity"].rolling(window, min_periods=1).sum()
         rolling_delta = (
             df.apply(
-                lambda r: r["quantity"]
-                if str(r["side"]).upper() in ("BUY", "B")
-                else -r["quantity"],
+                lambda r: (
+                    r["quantity"] if str(r["side"]).upper() in ("BUY", "B") else -r["quantity"]
+                ),
                 axis=1,
             )
             .rolling(window, min_periods=1)

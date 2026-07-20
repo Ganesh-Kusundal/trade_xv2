@@ -7,7 +7,10 @@
 ## 1. Language & Tooling
 
 - **Python** backend (target: 3.11+). Strict typing — mypy in CI (strict-ish).
-- **TypeScript/React** frontend in `web/` (Vite + React 18 + react-router 6 + Vitest).
+- **TypeScript/React** frontend in `web/` is **planned but not yet implemented**
+  (`web/` currently holds only `.env.example`). The conventions below apply
+  once the SPA is scaffolded; do not reference `web/` source files as if they
+  exist today.
 - Format/lint: **ruff** (Python), **Prettier/ESLint-equivalent via Vite** (TS). Run the
   project's pre-commit (`ruff`, `mypy`, `gitleaks`, arch tests) before committing.
 - Quality gates (from `pyproject.toml`): ruff, mypy, bandit, safety, coverage
@@ -26,6 +29,15 @@
 - **File size**: ADR-011 enforces a per-file LOC cap; split god-facades
   (e.g. `UpstoxBroker`) into focused modules.
 - **No mock/fake data** in production code (integration tests only).
+- **Mock policy:** tests may use real protocol fakes (e.g. `FakeHttpClient`,
+  plain stub objects with only the attributes the code reads) but **must not**
+  use `MagicMock` / `unittest.mock.patch` over safety-critical logic. The
+  order/gate/parity path (live-order authority, extended-order executors,
+  parity gate) is **mock-free by CI enforcement**
+  (`tests/architecture/test_no_mock_in_integration.py`) — a mock that silently
+  returns `None` for an unauthorized order is the exact class of real-money bug
+  to avoid. A test that needs a double on that path must use a real fake, not a
+  `MagicMock`.
 
 ## 3. Layering & Imports
 
@@ -44,6 +56,10 @@
 
 ## 5. TypeScript / Web Conventions (`web/`)
 
+> **Status:** The Web SPA is not yet implemented. `web/` contains only
+> `.env.example`. The conventions below are the target for when the SPA is
+> scaffolded; they describe a planned interface, not existing source.
+
 - React 18 function components + hooks. State via hooks; data via `src/api` + generated
   client (`scripts/gen_openapi.py` → `src/api/generated.ts`). Do not hand-edit generated
   types. Regenerate with `npm run api:generate`.
@@ -59,9 +75,12 @@
 - Tests live under `tests/` mirroring `src/`; architecture tests under `tests/architecture/`.
 - New logic leaves one runnable check behind (assert-based demo/self-check or a small
   test file). Trivial one-liners need no test.
+- **Broker regression permanence:** every confirmed live-broker bug must add a permanent
+  regression case to the broker manifest (`tests/integration/brokers/{dhan,upstox}/regression/manifest.py`).
+  CI gates in `test_coverage_manifest.py` enforce P0 coverage — do not remove cases without an ADR.
 
 ## 7. Docs & Graph Sync
 
-- After modifying code files, run `graphify update .` to keep `graphify-out/` current.
+- After modifying code files under `src/`, run `graphify update src` to keep `src/graphify-out/` current.
 - Keep `context/*.md` and `docs/architecture/*` in sync with implementation. If a change
   alters architecture/scope/standards, update the relevant file before continuing.

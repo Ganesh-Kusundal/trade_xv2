@@ -32,6 +32,7 @@ _original_process = BinaryDepthFeed._process_binary_message
 
 response_codes_seen: dict[int, int] = {}  # response_code -> count
 
+
 def _patched_process(self, data: bytes) -> None:
     if len(data) >= 3:
         rc = data[2]
@@ -39,6 +40,7 @@ def _patched_process(self, data: bytes) -> None:
         if response_codes_seen[rc] <= 3:  # Log first 3 of each type
             log.info("DEPTH PACKET: response_code=%d, len=%d bytes", rc, len(data))
     _original_process(self, data)
+
 
 BinaryDepthFeed._process_binary_message = _patched_process
 
@@ -62,8 +64,12 @@ def main():
 
     def on_depth(depth):
         depths.append(depth)
-        log.info("DEPTH UPDATE: bids=%d, asks=%d, type=%s",
-                 len(depth.bids), len(depth.asks), depth.depth_type)
+        log.info(
+            "DEPTH UPDATE: bids=%d, asks=%d, type=%s",
+            len(depth.bids),
+            len(depth.asks),
+            depth.depth_type,
+        )
         if depth.bids:
             log.info("  Best bid: %s x %s", depth.bids[0].price, depth.bids[0].quantity)
         if depth.asks:
@@ -72,8 +78,12 @@ def main():
     # Call depth_20 with callback
     log.info("Calling gw.depth_20('TCS', 'NSE', on_depth=...)")
     depth = gw.depth_20("TCS", "NSE", on_depth=on_depth)
-    log.info("Initial depth: type=%s, bids=%d, asks=%d",
-             depth.depth_type, len(depth.bids), len(depth.asks))
+    log.info(
+        "Initial depth: type=%s, bids=%d, asks=%d",
+        depth.depth_type,
+        len(depth.bids),
+        len(depth.asks),
+    )
 
     # Wait for WebSocket depth updates
     log.info("Waiting 15 seconds for depth updates...")
@@ -89,7 +99,9 @@ def main():
     if 51 in response_codes_seen:
         log.info("ASK PACKETS RECEIVED: count=%d", response_codes_seen[51])
     else:
-        log.warning("NO ASK PACKETS RECEIVED! Only response codes: %s", list(response_codes_seen.keys()))
+        log.warning(
+            "NO ASK PACKETS RECEIVED! Only response codes: %s", list(response_codes_seen.keys())
+        )
 
     # Cleanup
     with contextlib.suppress(Exception):

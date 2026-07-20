@@ -12,9 +12,7 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 @pytest.mark.architecture
 def test_order_lifecycle_publish_is_not_optional_silent() -> None:
     """OMS lifecycle must attempt event publish on money paths."""
-    text = (SRC / "application/oms/_internal/order_lifecycle.py").read_text(
-        encoding="utf-8"
-    )
+    text = (SRC / "application/oms/_internal/order_lifecycle.py").read_text(encoding="utf-8")
     assert "_publish" in text or "publish" in text
     # Ledger authority fail-closed when flag on and ledger missing
     assert "require_execution_ledger" in text or "ledger_authority" in text

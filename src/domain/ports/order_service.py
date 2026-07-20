@@ -23,14 +23,14 @@ class OrderServicePort(Protocol):
     lifecycle before any broker transport call.
     """
 
-    def place(self, intent: "OrderIntent") -> "OrderResult":
+    def place(self, intent: OrderIntent) -> OrderResult:
         """Admit *intent* and return a domain :class:`OrderResult`."""
         ...
 
-    def cancel(self, order_id: str) -> "OrderResult":
+    def cancel(self, order_id: str) -> OrderResult:
         """Cancel an open order by id (OMS book + broker transport)."""
         ...
 
-    def modify(self, request: "ModifyOrderRequest") -> "OrderResult":
+    def modify(self, request: ModifyOrderRequest) -> OrderResult:
         """Modify quantity/price of an open order via OMS."""
         ...

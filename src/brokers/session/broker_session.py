@@ -20,16 +20,24 @@ hidden inside the broker plugin selected by ``BrokerSession``.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from collections.abc import Callable
+from datetime import date
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from brokers.runtime import RuntimeBundle
+from domain.candles.historical import HistoricalSeries
+from domain.ports.broker_session_state import (
+    BrokerSessionState,
+    BrokerSessionStatus,
+    build_session_status,
+    transition_state,
+)
 from domain.instruments.instrument import (
+    ETF,
     Commodity,
     Currency,
     Equity,
-    ETF,
     Future,
     Index,
     Instrument,
@@ -38,8 +46,7 @@ from domain.instruments.instrument import (
 )
 from domain.options.option_chain import OptionChain
 from domain.universe import Session as DomainSession
-from domain.candles.historical import HistoricalSeries, InstrumentRef
-from application.data.historical_coordinator import HistoricalQuery
+from runtime.session_historical import fetch_historical_sync
 from runtime.session_opener import get_session_opener
 
 
@@ -63,6 +70,8 @@ class BrokerSession:
         **kwargs: Any,
     ) -> None:
         self._broker_id = (broker or "paper").lower().strip()
+        self._session_state = BrokerSessionState.CREATED
+        self._session_state = transition_state(self._session_state, BrokerSessionState.INITIALIZING)
         self._session: DomainSession = get_session_opener()(
             self._broker_id,
             mode=mode,
@@ -72,11 +81,17 @@ class BrokerSession:
             run_selftest=run_selftest,
             **kwargs,
         )
+        self._session_state = transition_state(
+            self._session_state, BrokerSessionState.AUTHENTICATING
+        )
+        self._session_state = transition_state(self._session_state, BrokerSessionState.CONNECTED)
+        self._session_state = transition_state(self._session_state, BrokerSessionState.HEALTHY)
         self._runtime = RuntimeBundle(session=self._session)
         self._runtime.record_startup()
+        self._publish_lifecycle_event("BROKER_CONNECTED")
 
     @classmethod
-    def connect(cls, broker: str = "paper", **kwargs: Any) -> "BrokerSession":
+    def connect(cls, broker: str = "paper", **kwargs: Any) -> BrokerSession:
         """Trading OS startup entry: load plugin → auth → symbols → caps → ready.
 
         Equivalent to ``BrokerSession(broker, ...)``; named ``connect`` to match
@@ -109,8 +124,38 @@ class BrokerSession:
         return self._session.provider
 
     @property
-    def status(self) -> Any | None:
-        return self._session.status
+    def session_state(self) -> BrokerSessionState:
+        """Unified broker session FSM state."""
+        return self._session_state
+
+    def _publish_lifecycle_event(self, event_name: str, **payload: Any) -> None:
+        bus = self._session.event_bus
+        if bus is None:
+            return
+        from domain.events.types import DomainEvent, EventType
+
+        try:
+            event_type = EventType[event_name]
+        except KeyError:
+            return
+        event = DomainEvent.now(
+            event_type=event_type.value,
+            payload={"broker_id": self._broker_id, **payload},
+            source=self._broker_id,
+        )
+        bus.publish(event)
+
+    def _set_session_state(self, target: BrokerSessionState) -> None:
+        self._session_state = transition_state(self._session_state, target)
+
+    @property
+    def status(self) -> BrokerSessionStatus:
+        """Unified broker session snapshot (FSM + connect readiness)."""
+        return build_session_status(
+            state=self._session_state,
+            connect_status=self._session.status,
+            broker_id=self._broker_id,
+        )
 
     # ── Instrument builders (return rich domain objects) ──────────────
 
@@ -133,17 +178,11 @@ class BrokerSession:
     def currency(self, symbol: str, exchange: str = "NSE") -> Currency:
         return self._session.universe.currency(symbol, exchange)
 
-    def future(
-        self, symbol: str, *, expiry: date, exchange: str = "NFO"
-    ) -> Future:
+    def future(self, symbol: str, *, expiry: date, exchange: str = "NFO") -> Future:
         return self._session.universe.future(symbol, expiry=expiry, exchange=exchange)
 
-    def commodity(
-        self, symbol: str, *, expiry: date, exchange: str = "MCX"
-    ) -> Commodity:
-        return self._session.universe.commodity(
-            symbol, expiry=expiry, exchange=exchange
-        )
+    def commodity(self, symbol: str, *, expiry: date, exchange: str = "MCX") -> Commodity:
+        return self._session.universe.commodity(symbol, expiry=expiry, exchange=exchange)
 
     def option(
         self,
@@ -167,9 +206,7 @@ class BrokerSession:
         exchange: str = "NSE",
     ) -> OptionChain:
         """Option chain as a rich aggregate composed of ``Option`` instruments."""
-        return self._session.option_chain(
-            underlying, expiry=expiry, exchange=exchange
-        )
+        return self._session.option_chain(underlying, expiry=expiry, exchange=exchange)
 
     # ── Convenience data actions (delegate to the instrument's behavior) ─
 
@@ -192,23 +229,20 @@ class BrokerSession:
         (with explicit ``gaps``) on partial failure rather than raising, so
         callers can inspect ``series.is_degraded``.
         """
-        coordinator = self._build_historical_coordinator()
-        today = date.today()
-        query = HistoricalQuery(
-            instrument=InstrumentRef(symbol=instrument.symbol, exchange=instrument.exchange),
+        return fetch_historical_sync(
+            self._session,
+            symbol=instrument.symbol,
+            exchange=instrument.exchange,
             timeframe=timeframe,
-            from_date=today - timedelta(days=days),
-            to_date=today,
+            days=days,
         )
-        series, _ = coordinator.fetch_sync(query)
-        return series
 
     def history_batch(
         self,
         instruments: list[Instrument],
         timeframe: str = "1D",
         days: int = 120,
-    ) -> dict[str, "HistoricalSeries"]:
+    ) -> dict[str, HistoricalSeries]:
         """Fetch history for multiple instruments via the federated coordinator.
 
         Returns a dict mapping each symbol to its ``HistoricalSeries``. Each
@@ -217,75 +251,23 @@ class BrokerSession:
         """
         if not instruments:
             return {}
-        coordinator = self._build_historical_coordinator()
-        today = date.today()
         result_map: dict[str, HistoricalSeries] = {}
         for inst in instruments:
-            query = HistoricalQuery(
-                instrument=InstrumentRef(symbol=inst.symbol, exchange=inst.exchange),
+            series = fetch_historical_sync(
+                self._session,
+                symbol=inst.symbol,
+                exchange=inst.exchange,
                 timeframe=timeframe,
-                from_date=today - timedelta(days=days),
-                to_date=today,
+                days=days,
             )
-            series, _ = coordinator.fetch_sync(query)
             result_map[inst.symbol] = series
         return result_map
 
     def _build_historical_coordinator(self):
-        """Construct a single-broker ``HistoricalDataCoordinator`` for this session.
+        """Return a session-scoped historical coordinator via composition root."""
+        from runtime.session_historical import build_historical_coordinator
 
-        Wraps this session's wire adapter (``provider._gw``) in the
-        ``BrokerAdapter`` adapter and registers it with a fresh
-        registry/router/quota scheduler. This is the 3-line coordinator
-        construction (registry + router + quota_fn) inlined — no new module.
-        """
-        from application.composer.registry import BrokerRegistry
-        from application.composer.router import BrokerRouter
-        from application.data.historical_coordinator import (
-            HistoricalDataCoordinator,
-        )
-        from application.scheduling.quota_scheduler import QuotaScheduler, PriorityClass
-        from domain.policies.source_selection import auto_dual_broker_policy
-        from infrastructure.adapters.market_data_gateway_adapter import (
-            MarketDataGatewayAdapter,
-        )
-
-        provider = self._session.provider
-        gw = getattr(provider, "_gw", None)
-        if gw is None:
-            raise RuntimeError(
-                f"broker {self._broker_id!r} has no wire adapter (provider._gw is None)"
-            )
-
-        caps_fn = getattr(gw, "capabilities", None)
-        if not callable(caps_fn):
-            raise RuntimeError(
-                f"broker {self._broker_id!r} wire adapter has no capabilities()"
-            )
-        caps = caps_fn()
-        if caps is None or not getattr(caps, "supports_historical_data", False):
-            raise RuntimeError(
-                f"broker {self._broker_id!r} does not support historical data"
-            )
-
-        adapter = MarketDataGatewayAdapter(gw, broker_id=self._broker_id, capabilities=caps)
-        registry = BrokerRegistry()
-        registry.register(adapter)
-        scheduler = QuotaScheduler()
-        for profile in caps.rate_limit_profiles:
-            scheduler.register_profile(self._broker_id, profile)
-        router = BrokerRouter(
-            registry,
-            auto_dual_broker_policy(),
-            quota_headroom_fn=scheduler.headroom_for,
-        )
-        return HistoricalDataCoordinator(
-            registry=registry,
-            router=router,
-            quota_fn=lambda bid, ep, pri: scheduler.acquire(
-                bid, ep, PriorityClass[pri]
-            ),
-        )
+        return build_historical_coordinator(self._session)
 
     def subscribe(
         self,
@@ -354,6 +336,11 @@ class BrokerSession:
         return format_session_capabilities(self, symbol)
 
     def close(self) -> None:
+        from domain.ports.broker_session_state import force_session_state
+
+        self._publish_lifecycle_event("BROKER_DISCONNECTED")
+        if self._session_state != BrokerSessionState.SHUTDOWN:
+            self._session_state = force_session_state(BrokerSessionState.SHUTDOWN)
         self._session.close()
 
     def __repr__(self) -> str:

@@ -16,7 +16,7 @@ refused (ENG-001).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from application.oms.process_context import (
     get_oms_context,
@@ -37,12 +37,12 @@ __all__ = [
 ]
 
 
-def register_process_oms(ctx: "TradingContext") -> None:
+def register_process_oms(ctx: TradingContext) -> None:
     """Register the process-wide OMS (alias of :func:`register_oms_context`)."""
     register_oms_context(ctx)
 
 
-def require_process_oms(*, for_broker: str | None = None) -> "TradingContext":
+def require_process_oms(*, for_broker: str | None = None) -> TradingContext:
     """Return the registered TradingContext or raise with operator guidance.
 
     Parameters

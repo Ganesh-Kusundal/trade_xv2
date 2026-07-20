@@ -68,9 +68,9 @@ class CertificationReport:
 
     def print_report(self) -> None:
         """Print formatted certification report."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Broker Certification Report: {self.broker_id.upper()}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         for result in self.results:
             status = "✓ PASS" if result.passed else "✗ FAIL"
@@ -80,10 +80,10 @@ class CertificationReport:
             if result.error:
                 print(f"  Error: {result.error}")
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         status = "CERTIFIED" if self.is_certified else "NOT CERTIFIED"
         print(f"Result: {status} ({self.passed_tests}/{self.total_tests} tests passed)")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert report to dictionary for JSON serialization."""
@@ -146,7 +146,9 @@ def run_certification(broker_id: str, live_mode: bool = False) -> CertificationR
     }
 
     if broker_id not in broker_test_dirs:
-        raise ValueError(f"Unknown broker: {broker_id}. Must be one of {list(broker_test_dirs.keys())}")
+        raise ValueError(
+            f"Unknown broker: {broker_id}. Must be one of {list(broker_test_dirs.keys())}"
+        )
 
     test_dir = broker_test_dirs[broker_id]
 

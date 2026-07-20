@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
-from infrastructure.resilience.errors import ExitAllError
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
+from infrastructure.resilience.errors import ExitAllError
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,12 @@ class UpstoxExitAllAdapter:
     def __init__(self, kill_switch_client: UpstoxKillSwitchClient) -> None:
         self._kill_switch = kill_switch_client
 
-    def exit_all(self) -> dict[str, Any]:
+    def exit_all(self, authorize: Callable[[], None] | None = None) -> dict[str, Any]:
         """Deactivate all trading segments via the kill switch.
+
+        Args:
+            authorize: Optional live-order authority; called before the wire
+                call. Raises to block.
 
         Returns:
             dict with keys: ``success`` (bool), ``positions_closed`` (int),
@@ -36,7 +41,10 @@ class UpstoxExitAllAdapter:
 
         Raises:
             ExitAllError: If the kill-switch API call fails.
+            LiveBrokerBlockedError / RiskRejectedError: If ``authorize`` blocks.
         """
+        if authorize is not None:
+            authorize()
         updates = [{"segment": "ALL", "status": "DEACTIVATE"}]
         try:
             result = self._kill_switch.set_status(updates)

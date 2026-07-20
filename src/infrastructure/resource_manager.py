@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class _ResourceEntry:
     """Internal record for a registered resource."""
+
     resource: Any
     cleanup_fn: Callable[[], Any] | Callable[[], Awaitable[Any]] | None
     acquired: bool = False
@@ -103,6 +104,7 @@ class ResourceManager:
             If a resource with this name is already registered.
         """
         if cleanup_fn is None:
+
             def cleanup_fn():
                 return None
 
@@ -244,9 +246,7 @@ class ResourceManager:
                 errors.append((name, exc))
 
         if errors:
-            logger.warning(
-                "ResourceManager: %d cleanup errors occurred", len(errors)
-            )
+            logger.warning("ResourceManager: %d cleanup errors occurred", len(errors))
 
     def _health_check(self) -> HealthResult:
         """Health check callback for the HealthRegistry."""

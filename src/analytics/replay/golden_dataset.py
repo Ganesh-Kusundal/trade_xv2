@@ -121,9 +121,7 @@ def compare_results(actual: ReplayResult, expected: dict[str, Any]) -> list[str]
     # Exact matches for integer fields
     for key in ["bars_processed", "signals_generated", "total_trades"]:
         if actual_summary[key] != expected[key]:
-            mismatches.append(
-                f"{key}: expected {expected[key]}, got {actual_summary[key]}"
-            )
+            mismatches.append(f"{key}: expected {expected[key]}, got {actual_summary[key]}")
 
     # Allow small tolerance for floating-point comparisons (0.01%)
     for key in ["final_equity", "total_return_pct", "max_drawdown_pct"]:

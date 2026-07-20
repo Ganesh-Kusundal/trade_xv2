@@ -32,7 +32,6 @@ class StrategyViews:
                 intraday_score,
                 signal,
                 trend,
-                rsi_approx as rsi_14,
                 roc_5,
                 relative_volume,
                 atr_approx as atr_14,
@@ -64,7 +63,6 @@ class StrategyViews:
                 intraday_score,
                 signal,
                 trend,
-                rsi_approx as rsi_14,
                 roc_5,
                 roc_10,
                 roc_20,
@@ -98,7 +96,12 @@ class StrategyViews:
         logger.debug("Created v_strategy_candidates")
 
     def _create_strategy_momentum(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """v_strategy_momentum — momentum signals for intraday."""
+        """v_strategy_momentum — momentum signals for intraday.
+
+        Note: RSI-based filtering removed — RSI is now computed by the
+        Python Wilder's RSI implementation (domain/indicators/rsi.py),
+        not by SQL views.
+        """
         conn.execute("""
             CREATE OR REPLACE VIEW v_strategy_momentum AS
             SELECT
@@ -107,32 +110,31 @@ class StrategyViews:
                 intraday_score,
                 signal,
                 trend,
-                rsi_approx as rsi_14,
                 roc_5,
                 roc_10,
                 relative_volume,
                 atr_approx as atr_14,
-                -- Momentum signal
+                -- Momentum signal (based on trend + momentum + volume)
                 CASE
-                    WHEN rsi_approx < 35 AND roc_5 > 0 AND trend = 'Bullish' AND relative_volume > 1.5
+                    WHEN roc_5 > 0 AND trend = 'Bullish' AND relative_volume > 1.5
                     THEN 'STRONG_BUY'
-                    WHEN rsi_approx < 45 AND roc_5 > 0 AND trend = 'Bullish'
+                    WHEN roc_5 > 0 AND trend = 'Bullish'
                     THEN 'BUY'
-                    WHEN rsi_approx > 70 AND roc_5 < 0
+                    WHEN roc_5 < 0 AND trend = 'Bearish'
                     THEN 'SELL'
-                    WHEN rsi_approx > 60 AND trend = 'Bearish'
+                    WHEN roc_5 < 0 AND trend = 'Bearish' AND relative_volume > 1.5
                     THEN 'STRONG_SELL'
                     ELSE 'NEUTRAL'
                 END as momentum_signal,
                 -- Entry/Exit levels
                 CASE
-                    WHEN rsi_approx < 35 AND roc_5 > 0 THEN ltp - atr_approx
-                    WHEN rsi_approx > 70 AND roc_5 < 0 THEN ltp + atr_approx
+                    WHEN roc_5 > 0 AND trend = 'Bullish' THEN ltp - atr_approx
+                    WHEN roc_5 < 0 AND trend = 'Bearish' THEN ltp + atr_approx
                     ELSE NULL
                 END as entry_level,
                 CASE
-                    WHEN rsi_approx < 35 AND roc_5 > 0 THEN ltp + 2 * atr_approx
-                    WHEN rsi_approx > 70 AND roc_5 < 0 THEN ltp - 2 * atr_approx
+                    WHEN roc_5 > 0 AND trend = 'Bullish' THEN ltp + 2 * atr_approx
+                    WHEN roc_5 < 0 AND trend = 'Bearish' THEN ltp - 2 * atr_approx
                     ELSE NULL
                 END as target_level
             FROM m_intraday_snapshot
@@ -150,7 +152,6 @@ class StrategyViews:
                 intraday_score,
                 signal,
                 trend,
-                rsi_approx as rsi_14,
                 relative_volume,
                 roc_5,
                 atr_approx as atr_14,

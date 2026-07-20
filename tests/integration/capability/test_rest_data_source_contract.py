@@ -21,7 +21,7 @@ _DATA_SOURCE_IMPORT_HINTS: dict[str, tuple[str, ...]] = {
         "data_catalog",
     ),
     "oms": (
-        "get_order_repository",
+        "get_order_manager",
         "get_position_repository",
         "get_risk_manager",
         "get_trading_context",

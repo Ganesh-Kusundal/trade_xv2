@@ -28,9 +28,7 @@ class _FakeGateway:
         self.handle = _FakeDepthHandle()
 
     def stream_depth(self, *, symbol, exchange, levels, on_depth):
-        self.stream_depth_calls.append(
-            {"symbol": symbol, "exchange": exchange, "levels": levels}
-        )
+        self.stream_depth_calls.append({"symbol": symbol, "exchange": exchange, "levels": levels})
         on_depth(
             MarketDepth(
                 symbol=symbol,

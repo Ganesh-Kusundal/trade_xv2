@@ -17,8 +17,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.dhan.data.depth_20 import DhanDepth20Feed
-from brokers.dhan.wire import DhanBrokerGateway
 from brokers.dhan.websocket import DhanMarketFeed
+from brokers.dhan.wire import DhanBrokerGateway
 
 # ── Fix 1: Dual feed path prevention ────────────────────────────────────────
 

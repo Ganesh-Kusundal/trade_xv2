@@ -7,8 +7,8 @@ Mirrors Trade_J ``UpstoxBinaryParser`` / ``UpstoxMarketInfoParser``.
 
 from __future__ import annotations
 
-import struct
 import logging
+import struct
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -93,6 +93,7 @@ class UpstoxV3Decoder:
                     return ParsedFeedFrame(type=frame_type, raw=raw, payload={})
 
                 from .proto.market_feed_pb2 import Feed
+
                 feed = Feed()
                 feed.ParseFromString(payload_bytes)
                 payload = self._feed_to_dict_old(feed)
@@ -161,8 +162,16 @@ class UpstoxV3Decoder:
                     out["best_bid_price"] = mf.marketLevel.bidAskQuote[0].bidP
                     out["best_ask_price"] = mf.marketLevel.bidAskQuote[0].askP
                     out["depth"] = {
-                        "bids": [{"price": b.bidP, "quantity": b.bidQ} for b in mf.marketLevel.bidAskQuote if b.bidP > 0],
-                        "asks": [{"price": b.askP, "quantity": b.askQ} for b in mf.marketLevel.bidAskQuote if b.askP > 0]
+                        "bids": [
+                            {"price": b.bidP, "quantity": b.bidQ}
+                            for b in mf.marketLevel.bidAskQuote
+                            if b.bidP > 0
+                        ],
+                        "asks": [
+                            {"price": b.askP, "quantity": b.askQ}
+                            for b in mf.marketLevel.bidAskQuote
+                            if b.askP > 0
+                        ],
                     }
 
                 if mf.marketOHLC.ohlc:
@@ -170,7 +179,7 @@ class UpstoxV3Decoder:
                         "open": mf.marketOHLC.ohlc[0].open,
                         "high": mf.marketOHLC.ohlc[0].high,
                         "low": mf.marketOHLC.ohlc[0].low,
-                        "close": mf.marketOHLC.ohlc[0].close
+                        "close": mf.marketOHLC.ohlc[0].close,
                     }
             elif union_ff == "indexFF":
                 inf = ff.indexFF
@@ -183,7 +192,7 @@ class UpstoxV3Decoder:
                         "open": inf.marketOHLC.ohlc[0].open,
                         "high": inf.marketOHLC.ohlc[0].high,
                         "low": inf.marketOHLC.ohlc[0].low,
-                        "close": inf.marketOHLC.ohlc[0].close
+                        "close": inf.marketOHLC.ohlc[0].close,
                     }
         return out
 

@@ -5,11 +5,12 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import fetch_history, fetch_quote
+from domain.enums import BrokerId
+from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_history, get_quote
 
 
 def _env_kwargs(broker_id: str) -> dict:
@@ -31,7 +32,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     brokers: list[tuple[str, str]] = []
     for name in (BrokerId.DHAN, BrokerId.UPSTOX):
         try:
-            fetch_quote(None, symbol, default=name, **_env_kwargs(name))
+            get_quote(broker_id_from(None, default=name), symbol, **_env_kwargs(name))
             brokers.append((name.capitalize(), name))
         except Exception:
             pass
@@ -63,7 +64,7 @@ def _compare_quote(brokers: list[tuple[str, str]], symbol: str, console: Console
     for name, broker_id in brokers:
         try:
             t0 = time.time()
-            q = fetch_quote(None, symbol, default=broker_id, **_env_kwargs(broker_id))
+            q = get_quote(broker_id_from(None, default=broker_id), symbol, **_env_kwargs(broker_id))
             latency = (time.time() - t0) * 1000
             bid_str = f"₹{q.bid}" if hasattr(q, "bid") and q.bid else "N/A"
             ask_str = f"₹{q.ask}" if hasattr(q, "ask") and q.ask else "N/A"
@@ -93,7 +94,7 @@ def _compare_ltp(brokers: list[tuple[str, str]], symbol: str, console: Console) 
     for name, broker_id in brokers:
         try:
             t0 = time.time()
-            q = fetch_quote(None, symbol, default=broker_id, **_env_kwargs(broker_id))
+            q = get_quote(broker_id_from(None, default=broker_id), symbol, **_env_kwargs(broker_id))
             ltp = q.ltp
             latency = (time.time() - t0) * 1000
             table.add_row(name, f"₹{ltp}", f"{latency:.0f}ms")
@@ -118,8 +119,8 @@ def _compare_history(brokers: list[tuple[str, str]], symbol: str, console: Conso
     for name, broker_id in brokers:
         try:
             t0 = time.time()
-            series = fetch_history(
-                None, symbol, days=30, default=broker_id, **_env_kwargs(broker_id)
+            series = get_history(
+                broker_id_from(None, default=broker_id), symbol, days=30, **_env_kwargs(broker_id)
             )
             latency = (time.time() - t0) * 1000
             n = getattr(series, "bar_count", 0)

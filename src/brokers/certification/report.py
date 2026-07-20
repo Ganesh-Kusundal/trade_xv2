@@ -101,7 +101,8 @@ class CertificationReport:
             logger.info("  [%s] %s: %s%s", mark, r.area.value, r.detail, lat)
         logger.info(
             "Overall: %d/%d passed -> %s",
-            self.passed, self.total,
+            self.passed,
+            self.total,
             "CERTIFIED" if self.is_certified else "NOT CERTIFIED",
         )
 

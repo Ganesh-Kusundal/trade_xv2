@@ -57,7 +57,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType
+from brokers.dhan.domain import DhanInstrument, Exchange, InstrumentType
 from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT

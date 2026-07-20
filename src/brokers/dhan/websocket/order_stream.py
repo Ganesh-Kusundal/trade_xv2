@@ -9,7 +9,6 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -30,9 +29,9 @@ from domain import (
     Validity,
 )
 from domain.events import DomainEvent
+from domain.lifecycle_health import HealthStatus
 from domain.ports.time_service import get_current_clock
 from infrastructure.event_bus.event_bus import EventBus
-from domain.lifecycle_health import HealthStatus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
 
 logger = logging.getLogger(__name__)
@@ -93,7 +92,9 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         # guarding against tight reconnect storms on a stuck token.
         self._last_auth_refresh_at = 0.0
         # Cumulative filledQty per order — OMS expects incremental TRADE qty.
-        self._last_cumulative_filled: TTLCache = TTLCache(maxsize=10000, ttl=3600)  # 1-hour TTL, bounds memory
+        self._last_cumulative_filled: TTLCache = TTLCache(
+            maxsize=10000, ttl=3600
+        )  # 1-hour TTL, bounds memory
         # Initialise the shared reconnect / message-tracking state
         # owned by the mixin (single source of truth across all
         # Dhan WS services).
@@ -364,6 +365,10 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
     @staticmethod
     def _transform_order(data: dict) -> dict:
         """Transform SDK order data to canonical format."""
+        from brokers.dhan.websocket._helpers import _parse_quote_exchange_time
+        from domain.ports.time_service import get_current_clock
+
+        now = get_current_clock().now()
         return {
             "order_id": str(data.get("orderNo", "")),
             "status": data.get("status", "UNKNOWN"),
@@ -377,6 +382,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
             "product_type": data.get("productType", "INTRADAY"),
             "order_type": data.get("orderType", "MARKET"),
             "validity": data.get("validity", "DAY"),
+            "timestamp": _parse_quote_exchange_time(data, now),
         }
 
     def _publish_order_update(self, data: dict, correlation_id: str | None = None) -> None:
@@ -401,7 +407,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                 product_type=product_type,
                 validity=validity,
                 status=status,
-                timestamp=get_current_clock().now(),
+                timestamp=data.get("timestamp") or get_current_clock().now(),
             )
             self._event_bus.publish(
                 DomainEvent.now(
@@ -431,7 +437,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                     side=side,
                     quantity=incremental,
                     price=avg,
-                    timestamp=get_current_clock().now(),
+                    timestamp=data.get("timestamp") or get_current_clock().now(),
                     product_type=product_type,
                 )
                 self._event_bus.publish(

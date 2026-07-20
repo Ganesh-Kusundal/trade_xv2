@@ -9,9 +9,8 @@ the complete trading workflow:
 3. Run StrategyPipeline.evaluate_single(candidate, features)
 4. Filter actionable signals (signal.is_actionable)
 5. Convert signal to OmsOrderCommand
-6. Place via ExecutionService or PlaceOrderUseCase (never bare OMS)
-7. Publish RISK_APPROVED/RISK_REJECTED events based on OMS result
-8. Publish SIGNAL_EXECUTED event with order_id
+6. Place via ExecutionEngine (never bare OMS)
+7. Publish SIGNAL_EXECUTED on successful placement (RISK_* events come from OrderValidator)
 
 This orchestrator enables autonomous trading while maintaining
 separation of concerns between analytics and execution.
@@ -33,24 +32,20 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from application.execution.execution_engine import ExecutionEngine
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from application.trading.candidate_evaluator import CandidateEvaluator
-from application.trading.execution_planner import ExecutionPlanner, _safe_decimal
+from application.trading.execution_planner import ExecutionPlanner
 from application.trading.models import FeatureFetcher
 from application.trading.order_placer import OrderPlacer
-from domain import Order, OrderType, ProductType, Side
+from domain import OrderType, ProductType
 from domain.events.types import DomainEvent, EventType
-from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, SlicingAlgo
-from domain.orders.placement import build_execution_plan, plan_to_intents
 from domain.orders.requests import OrderRequest
 from domain.ports import EventBusPort
 from domain.ports.risk_manager import RiskManagerPort
@@ -116,7 +111,8 @@ class TradingOrchestrator:
     ----------
     event_bus:
         EventBus for subscribing to candidate events and publishing
-        execution events (SIGNAL_EXECUTED, RISK_APPROVED, RISK_REJECTED).
+        execution events (SIGNAL_EXECUTED). RISK_APPROVED/RISK_REJECTED are
+        published by :class:`OrderValidator` inside the OMS spine.
     order_manager:
         OrderManager for placing orders through the OMS.
     strategy_evaluator:
@@ -133,19 +129,18 @@ class TradingOrchestrator:
         order_manager: OrderManager,
         strategy_evaluator: StrategyEvaluator,
         feature_fetcher: FeatureFetcher,
+        execution_engine: ExecutionEngine,
         config: OrchestratorConfig | None = None,
-        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
-        execution_engine: ExecutionEngine | None = None,
-        order_command_fn: Callable[[OmsOrderCommand], OrderResult] | None = None,
         risk_manager: RiskManagerPort | None = None,
         clock: ClockPort | None = None,
     ) -> None:
+        if execution_engine is None:
+            raise TypeError("execution_engine is required")
         self._event_bus = event_bus
         self._order_manager = order_manager
         self._strategy_evaluator = strategy_evaluator
         self._feature_fetcher = feature_fetcher
         self._config = config or OrchestratorConfig()
-        self._submit_fn = submit_fn
         self._execution_engine = execution_engine
         self._clock = clock or get_current_clock()
         # G7: kill-switch reads via the injected RiskManagerPort, never by
@@ -153,16 +148,17 @@ class TradingOrchestrator:
         # manager's risk manager to stay backward-compatible with existing
         # wiring; pass risk_manager explicitly to decouple fully.
         self._risk_manager: RiskManagerPort | None = risk_manager or order_manager.risk_manager
-        # ADR-012: when wired, signals flow through an injected order-command
-        # function (built by the composition root from the CommandDispatcher) so
-        # the orchestrator never imports or calls the OMS/broker directly.
-        self._order_command_fn = order_command_fn
 
         # ── delegates ────────────────────────────────────────────────────
         self._evaluator = CandidateEvaluator(
             feature_fetcher=self._feature_fetcher,
             strategy_evaluator=self._strategy_evaluator,
             feature_timeout_seconds=self._config.feature_timeout_seconds,
+        )
+        self._order_placer = OrderPlacer(
+            order_manager=self._order_manager,
+            execution_engine=self._execution_engine,
+            on_error=self._inc_error,
         )
         self._planner = ExecutionPlanner(
             min_confidence=self._config.min_confidence,
@@ -171,15 +167,8 @@ class TradingOrchestrator:
             default_product_type=self._config.default_product_type,
             default_exchange=self._config.default_exchange,
             max_position_size_pct=self._config.max_position_size_pct,
-            kill_switch_check=self._is_kill_switch_active,
-            resolve_equity=self._resolve_equity,
-        )
-        self._order_placer = OrderPlacer(
-            order_manager=self._order_manager,
-            submit_fn=self._submit_fn,
-            execution_engine=self._execution_engine,
-            order_command_fn=self._order_command_fn,
-            on_error=self._inc_error,
+            resolve_equity=self._order_placer.resolve_equity,
+            resolve_existing_notional=self._resolve_existing_notional,
         )
 
         self._executed_count: int = 0
@@ -278,14 +267,14 @@ class TradingOrchestrator:
             )
 
             # Fetch features
-            features = self._fetch_features(symbol)
+            features = self._evaluator.fetch_features(symbol)
             if features is None:
                 logger.warning("Feature fetch failed for %s, skipping execution", symbol)
                 self._inc_error()
                 return
 
             # Evaluate through strategy pipeline
-            signals = self._evaluate_candidate(candidate, features)
+            signals = self._evaluator.evaluate_candidate(candidate, features)
 
             # Execute actionable signals
             for signal in signals:
@@ -333,52 +322,6 @@ class TradingOrchestrator:
         # Publish execution events
         self._publish_execution_events(order_results, signal)
 
-    # ── thin delegators (backward-compat for tests) ──────────────────────
-
-    def _fetch_features(self, symbol: str) -> FeatureSet | None:
-        """Fetch feature data for a symbol. Delegates to CandidateEvaluator."""
-        return self._evaluator.fetch_features(symbol)
-
-    def _evaluate_candidate(
-        self,
-        candidate: CandidateDTO,
-        features: FeatureSet,
-    ) -> list[SignalDTO]:
-        """Evaluate candidate through strategy pipeline. Delegates to CandidateEvaluator."""
-        return self._evaluator.evaluate_candidate(candidate, features)
-
-    def _build_plan_context(self, signal: SignalDTO, correlation_id: str) -> object:
-        """Snapshot the runtime inputs the planner needs. Delegates to ExecutionPlanner."""
-        return self._planner.build_plan_context(signal, correlation_id)
-
-    def _signal_to_order_command(
-        self,
-        signal: SignalDTO,
-        correlation_id: str,
-    ) -> OmsOrderCommand:
-        """Convert a SignalDTO to an OmsOrderCommand. Delegates to ExecutionPlanner."""
-        return self._planner.signal_to_order_command(signal, correlation_id)
-
-    def _intent_to_command(self, intent: object, signal: SignalDTO) -> OmsOrderCommand:
-        """Bridge a domain OrderIntent into an OmsOrderCommand. Delegates to ExecutionPlanner."""
-        return self._planner.intent_to_command(intent, signal)
-
-    def _resolve_equity(self) -> float:
-        """Best-effort capital for sizing. Delegates to OrderPlacer."""
-        return self._order_placer.resolve_equity()
-
-    def _calculate_quantity(self, signal: SignalDTO) -> int:
-        """Resolve order quantity. Delegates to ExecutionPlanner."""
-        return self._planner.calculate_quantity(signal)
-
-    def _place_order(
-        self,
-        command: OmsOrderCommand,
-        signal: SignalDTO,
-    ) -> OrderResult:
-        """Place order through OMS. Delegates to OrderPlacer."""
-        return self._order_placer.place(command, signal)
-
     # ── event publishing ─────────────────────────────────────────────────
 
     def _publish_execution_events(
@@ -386,14 +329,10 @@ class TradingOrchestrator:
         results: list[OrderResult],
         signal: SignalDTO,
     ) -> None:
-        """Publish execution events (SIGNAL_EXECUTED, RISK_APPROVED, RISK_REJECTED).
+        """Publish execution events (SIGNAL_EXECUTED only).
 
-        Parameters
-        ----------
-        results:
-            Order placement results (one per plan leg).
-        signal:
-            Original signal that was executed.
+        RISK_APPROVED / RISK_REJECTED are owned by :class:`OrderValidator`
+        in the OMS spine — not duplicated here.
         """
         for result in results:
             if result.success and result.order:
@@ -412,16 +351,6 @@ class TradingOrchestrator:
                     )
                 )
 
-                self._event_bus.publish(
-                    DomainEvent.now(
-                        EventType.RISK_APPROVED.value,
-                        payload={"order_id": result.order.order_id},
-                        symbol=signal.symbol,
-                        source="TradingOrchestrator",
-                        correlation_id=result.order.correlation_id,
-                    )
-                )
-
                 logger.info(
                     "Signal executed: %s %s -> order %s",
                     signal.symbol,
@@ -431,22 +360,6 @@ class TradingOrchestrator:
 
             elif not result.success:
                 self._inc_rejected()
-
-                if result.error:
-                    order_id = result.order.order_id if result.order else "unknown"
-                    self._event_bus.publish(
-                        DomainEvent.now(
-                            EventType.RISK_REJECTED.value,
-                            payload={
-                                "order_id": order_id,
-                                "rule": "risk_check",
-                                "value": str(result.error),
-                                "limit": "0",
-                            },
-                            symbol=signal.symbol,
-                            source="TradingOrchestrator",
-                        )
-                    )
 
                 logger.warning(
                     "Signal execution rejected: %s %s -> %s",
@@ -521,18 +434,6 @@ class TradingOrchestrator:
             )
         )
 
-    # ── kill switch ──────────────────────────────────────────────────────
-
-    def _is_kill_switch_active(self) -> bool:
-        """Check if kill switch is active.
-
-        Delegates to the injected ``RiskManagerPort`` (G7). If no risk manager
-        is configured, returns False (safe default).
-        """
-        if self._risk_manager is None:
-            return False
-        return self._risk_manager.is_kill_switch_active()
-
     # ── lifecycle ────────────────────────────────────────────────────────
 
     def health(self) -> HealthStatus:
@@ -602,6 +503,16 @@ class TradingOrchestrator:
         """Thread-safe increment of error counter."""
         with self._counter_lock:
             self._error_count += 1
+
+    def _resolve_existing_notional(self, symbol: str, exchange: str) -> Decimal:
+        pm = getattr(self._order_manager, "position_manager", None)
+        if pm is None:
+            return Decimal("0")
+        pos = pm.get_position(symbol, exchange)
+        if pos is None or not getattr(pos, "quantity", 0):
+            return Decimal("0")
+        ltp = pos.ltp.to_decimal() if hasattr(pos.ltp, "to_decimal") else Decimal(str(pos.ltp))
+        return ltp * Decimal(str(abs(int(pos.quantity))))
 
 
 __all__ = [

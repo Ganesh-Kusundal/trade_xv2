@@ -41,7 +41,7 @@ class MACD:
         # Build contiguous macd series from first non-None
         first = next((i for i, v in enumerate(macd) if v is not None), None)
         if first is not None:
-            macd_vals = [float(v) if v is not None else 0.0 for v in macd]
+            [float(v) if v is not None else 0.0 for v in macd]
             # Only meaningful after slow period; compute EMA on full series with Nones zeroed after first
             sig = _ema([float(m) if m is not None else 0.0 for m in macd], self.signal)
             for i in range(n):

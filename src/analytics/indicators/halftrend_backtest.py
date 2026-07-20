@@ -307,14 +307,21 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
     for r in results[:10]:
         logger.info(
             "  %s: %+.2f%% | %d trades | Win %.0f%% | Sharpe %.3f",
-            r['symbol'], r['return'], r['trades'], r['win_rate'], r['sharpe'],
+            r["symbol"],
+            r["return"],
+            r["trades"],
+            r["win_rate"],
+            r["sharpe"],
         )
 
     logger.info("Bottom 5:")
     for r in results[-5:]:
         logger.info(
             "  %s: %+.2f%% | %d trades | Win %.0f%%",
-            r['symbol'], r['return'], r['trades'], r['win_rate'],
+            r["symbol"],
+            r["return"],
+            r["trades"],
+            r["win_rate"],
         )
 
 

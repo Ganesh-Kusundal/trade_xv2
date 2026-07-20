@@ -1,4 +1,4 @@
-"""In-memory CommonBrokerGateway implementations for integration tests.
+"""In-memory BrokerAdapter implementations for integration tests.
 
 These are concrete adapter implementations (not unittest.mock) used to exercise
 registry, router, coordinator, and stream orchestrator with real components.
@@ -11,6 +11,11 @@ from collections.abc import Callable, Sequence
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
+from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
@@ -18,12 +23,7 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.provenance import DataProvenance
-from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 
 def _bar(
@@ -71,7 +71,7 @@ class InMemoryStreamHandle:
 
 
 class InMemoryBrokerGateway:
-    """Configurable in-memory gateway implementing CommonBrokerGateway."""
+    """Configurable in-memory gateway implementing BrokerAdapter."""
 
     def __init__(
         self,

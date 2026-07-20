@@ -113,7 +113,7 @@ def conn(tmp_path: Path) -> duckdb.DuckDBPyConnection:
             close_5d,
             close_10d,
             close_20d,
-            50.0 as rsi_approx,
+            0.0 as momentum_5d_pct,
             1.0 as atr_approx,
             0.0 as intraday_score,
             'NEUTRAL' as signal
@@ -151,12 +151,6 @@ class TestFeatureViews:
         result = conn.execute("SELECT COUNT(*) FROM v_feature_volume").fetchone()
         assert result[0] > 0
 
-    def test_create_rsi(self, conn: duckdb.DuckDBPyConnection) -> None:
-        views = FeatureViews()
-        views._create_rsi(conn)
-        result = conn.execute("SELECT COUNT(*) FROM v_feature_rsi").fetchone()
-        assert result[0] > 0
-
     def test_create_momentum(self, conn: duckdb.DuckDBPyConnection) -> None:
         views = FeatureViews()
         views._create_momentum(conn)
@@ -171,12 +165,6 @@ class TestScannerViews:
         result = conn.execute("SELECT COUNT(*) FROM v_intraday_vwap").fetchone()
         assert result[0] > 0
 
-    def test_create_intraday_rsi(self, conn: duckdb.DuckDBPyConnection) -> None:
-        views = ScannerViews()
-        views._create_intraday_rsi(conn)
-        result = conn.execute("SELECT COUNT(*) FROM v_intraday_rsi").fetchone()
-        assert result[0] > 0
-
     def test_create_intraday_atr(self, conn: duckdb.DuckDBPyConnection) -> None:
         views = ScannerViews()
         views._create_intraday_atr(conn)
@@ -186,7 +174,6 @@ class TestScannerViews:
     def test_create_top3_candidates(self, conn: duckdb.DuckDBPyConnection) -> None:
         views = ScannerViews()
         views._create_intraday_vwap(conn)
-        views._create_intraday_rsi(conn)
         views._create_intraday_atr(conn)
         views._create_intraday_snapshot(conn)
         views._create_top3_candidates(conn)

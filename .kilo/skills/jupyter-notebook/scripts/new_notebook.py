@@ -13,7 +13,9 @@ def slugify(value):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create a Jupyter experiment or tutorial notebook.")
+    parser = argparse.ArgumentParser(
+        description="Create a Jupyter experiment or tutorial notebook."
+    )
     parser.add_argument("--kind", choices=("experiment", "tutorial"), default="experiment")
     parser.add_argument("--title", required=True)
     parser.add_argument("--out", type=Path)

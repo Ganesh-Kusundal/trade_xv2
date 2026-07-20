@@ -10,9 +10,8 @@ The rich broker capability matrix lives in
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
-from domain.capabilities import Capability  # noqa: F401
+from domain.capabilities import Capability
 
 
 @dataclass(frozen=True)

@@ -233,42 +233,6 @@ class UpstoxExtendedCapabilities:
             for pnl in pnl_results
         ]
 
-    # ── Forever Orders (GTT) ──────────────────────────────────────────
-
-    def place_forever_order(self, request: Any) -> Any:
-        """Place a forever (GTT) order."""
-        return self._broker.gtt.place_forever_order(request)
-
-    def modify_forever_order(self, order_id: str, request: Any) -> Any:
-        """Modify a forever order."""
-        return self._broker.gtt.modify_forever_order(order_id, request)
-
-    def cancel_forever_order(self, order_id: str) -> bool:
-        """Cancel a forever order."""
-        return self._broker.gtt.cancel_forever_order(order_id)
-
-    def get_all_forever_orders(self) -> list[Any]:
-        """Get all forever orders."""
-        return self._broker.gtt.get_forever_orders()
-
-    # ── Conditional Triggers ──────────────────────────────────────────
-
-    def place_conditional_trigger(self, request: Any) -> Any:
-        """Place a conditional trigger/alert."""
-        return self._broker.alert.place_alert(request)
-
-    def delete_conditional_trigger(self, alert_id: str) -> bool:
-        """Delete a conditional trigger."""
-        return self._broker.alert.delete_alert(alert_id)
-
-    def get_conditional_trigger(self, alert_id: str) -> Any:
-        """Get a conditional trigger by ID."""
-        return self._broker.alert.get_alert(alert_id)
-
-    def get_all_conditional_triggers(self) -> list[Any]:
-        """Get all conditional triggers."""
-        return self._broker.alert.list_alerts()
-
     # ── IP Management ─────────────────────────────────────────────────
 
     def set_ip(self, ip_address: str, ip_type: str = "PRIMARY") -> dict:
@@ -280,4 +244,3 @@ class UpstoxExtendedCapabilities:
     def get_ip(self) -> dict[str, str]:
         """Get configured IP addresses."""
         return self._broker.static_ip.get_static_ip()
-

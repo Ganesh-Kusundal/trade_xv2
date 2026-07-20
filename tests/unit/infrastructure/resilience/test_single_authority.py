@@ -22,26 +22,18 @@ IDEMPOTENCY_DEF_RE = re.compile(r"^class IdempotencyService\b", re.MULTILINE)
 
 
 def _src_py_files():
-    return [p for p in SRC.rglob("*.py")]
+    return list(SRC.rglob("*.py"))
 
 
 def test_exactly_one_retry_executor_definition():
-    matches = [
-        str(p)
-        for p in _src_py_files()
-        if RETRY_DEF_RE.search(p.read_text())
-    ]
+    matches = [str(p) for p in _src_py_files() if RETRY_DEF_RE.search(p.read_text())]
     assert matches == [str(SRC / "infrastructure/resilience/retry_executor.py")], (
         f"Expected exactly one RetryExecutor definition; found: {matches}"
     )
 
 
 def test_exactly_one_idempotency_service_definition():
-    matches = [
-        str(p)
-        for p in _src_py_files()
-        if IDEMPOTENCY_DEF_RE.search(p.read_text())
-    ]
+    matches = [str(p) for p in _src_py_files() if IDEMPOTENCY_DEF_RE.search(p.read_text())]
     assert matches == [str(SRC / "infrastructure/idempotency/service.py")], (
         f"Expected exactly one IdempotencyService definition; found: {matches}"
     )
@@ -50,9 +42,7 @@ def test_exactly_one_idempotency_service_definition():
 def test_event_bus_delegates_dedup_to_idempotency_service():
     # EventBus must reference the single IdempotencyService authority.
     bus_src = (SRC / "infrastructure/event_bus/event_bus.py").read_text()
-    assert "IdempotencyService" in bus_src, (
-        "EventBus should delegate dedup to IdempotencyService"
-    )
+    assert "IdempotencyService" in bus_src, "EventBus should delegate dedup to IdempotencyService"
 
     service = IdempotencyService(MemoryIdempotencyCache())
     bus = EventBus(idempotency=service)

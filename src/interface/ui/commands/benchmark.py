@@ -6,16 +6,13 @@ import logging
 import time
 from pathlib import Path
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import (
-    benchmark_broker,
-    fetch_history,
-    fetch_option_chain,
-    fetch_quote,
-)
+from domain.enums import BrokerId
+from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from runtime.platform_bridge import run_benchmark
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +24,7 @@ def _env_kwargs(broker_id: str) -> dict:
 
 def _broker_available(broker_id: str) -> bool:
     try:
-        fetch_quote(None, "RELIANCE", default=broker_id, **_env_kwargs(broker_id))
+        get_quote(broker_id_from(None, default=broker_id), "RELIANCE", **_env_kwargs(broker_id))
         return True
     except Exception as exc:
         logger.debug("benchmark_open_%s_failed: %s", broker_id, exc)
@@ -80,7 +77,7 @@ def _timed_history(broker_id: str, syms: list[str]) -> float:
     kw = _env_kwargs(broker_id)
     for s in syms:
         try:
-            fetch_history(None, s, days=30, default=broker_id, **kw)
+            get_history(broker_id_from(None, default=broker_id), s, days=30, **kw)
         except Exception as exc:
             logger.debug("benchmark_history_failed: %s", exc)
     return (time.time() - t0) * 1000
@@ -113,7 +110,7 @@ def _timed_quote(broker_id: str, syms: list[str]) -> float:
     kw = _env_kwargs(broker_id)
     for s in syms:
         try:
-            fetch_quote(None, s, default=broker_id, **kw)
+            get_quote(broker_id_from(None, default=broker_id), s, **kw)
         except Exception as exc:
             logger.debug("benchmark_quote_failed: %s", exc)
     return (time.time() - t0) * 1000
@@ -152,7 +149,9 @@ def _bench_option_chain(dhan_ok: bool, console: Console) -> None:
         console.print("  Upstox: N/A (deprecated)")
         return
     t0 = time.time()
-    chain = fetch_option_chain(None, "NIFTY", default=BrokerId.DHAN, **_env_kwargs(BrokerId.DHAN))
+    chain = get_option_chain(
+        broker_id_from(None, default=BrokerId.DHAN), "NIFTY", **_env_kwargs(BrokerId.DHAN)
+    )
     t_dhan = (time.time() - t0) * 1000
     strikes = len(getattr(chain, "strikes", []) or [])
     console.print(f"  Dhan NIFTY: {t_dhan:.0f}ms ({strikes} strikes)")
@@ -169,7 +168,7 @@ def _print_services_benchmark(dhan_ok: bool, upstox_ok: bool, console: Console) 
             console.print(f"  {label}: N/A")
             continue
         try:
-            report = benchmark_broker(None, default=broker_id)
+            report = run_benchmark(broker_id_from(None, default=broker_id))
             avg = (
                 sum(r.latency_ms for r in report.results) / len(report.results)
                 if report.results

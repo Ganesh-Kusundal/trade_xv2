@@ -13,17 +13,16 @@ Two creation paths:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Callable
-from datetime import date, datetime, timedelta as _TIMEDELTA
+from datetime import date, datetime
+from datetime import timedelta as _TIMEDELTA
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from application.data.historical_coordinator import HistoricalDataCoordinator
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.source_selection import SourceSelectionPolicy
-    from domain.ports.broker_gateway import CommonBrokerGateway
+    from domain.ports.broker_adapter import BrokerAdapter
     from domain.ports.broker_infrastructure import BrokerInfrastructurePort
 
 from application.composer.execution import ExecutionComposer
@@ -154,7 +153,7 @@ def _build_default_backfill_callback(
         return None
 
     def _backfill(symbols: Any, from_dt: datetime, to_dt: datetime) -> list[dict]:
-        if isinstance(symbols, (list, tuple, set)):
+        if isinstance(symbols, list | tuple | set):
             keys = [str(k) for k in symbols]
         else:
             keys = [str(symbols)]
@@ -177,14 +176,12 @@ def _build_default_backfill_callback(
     if gap_reconciler is None:
         return _backfill
 
-    def _backfill_with_reconcile(
-        symbols: Any, from_dt: datetime, to_dt: datetime
-    ) -> list[dict]:
+    def _backfill_with_reconcile(symbols: Any, from_dt: datetime, to_dt: datetime) -> list[dict]:
         out = _backfill(symbols, from_dt, to_dt)
         try:
             keys = (
                 [str(k) for k in symbols]
-                if isinstance(symbols, (list, tuple, set))
+                if isinstance(symbols, list | tuple | set)
                 else [str(symbols)]
             )
             # Subtract the range the reconnect backfill just filled.
@@ -200,7 +197,9 @@ def _build_default_backfill_callback(
     return _backfill_with_reconcile
 
 
-def _default_gap_fill_callback(stream_orchestrator: Any | None) -> Callable[[str, list[dict]], None]:
+def _default_gap_fill_callback(
+    stream_orchestrator: Any | None,
+) -> Callable[[str, list[dict]], None]:
     """Best-effort publish sink for reconciled gap bars.
 
     Tries to push bars through the orchestrator's normal delivery path if it
@@ -326,29 +325,52 @@ def _apply_default_backfill(
                 )
 
 
-def create_composers_from_infra(
-    infra: BrokerInfrastructurePort,
-    risk_manager: Any | None = None,
-    order_manager: Any | None = None,
+def _build_composers(
+    *,
+    registry: Any,
+    router: Any,
+    quota_scheduler: Any,
+    historical_coordinator: Any,
+    batch_quote_coordinator: Any,
+    stream_orchestrator: Any,
+    risk_manager: Any | None,
+    order_manager: Any,
+    gateways_for_backfill: list[Any] | None,
 ) -> tuple[MarketDataComposer, ExecutionComposer]:
-    """Create composers from an existing BrokerInfrastructure.
+    """Shared wiring: build composers + backfill + gap reconcile."""
+    market_data = MarketDataComposer(
+        historical_coordinator=historical_coordinator,
+        batch_quote_coordinator=batch_quote_coordinator,
+        stream_orchestrator=stream_orchestrator,
+    )
+    execution = ExecutionComposer(
+        registry=registry,
+        router=router,
+        quota_scheduler=quota_scheduler,
+        risk_manager=risk_manager,
+        order_manager=order_manager,
+    )
+    gap_reconciler = _build_gap_reconciler(
+        historical_coordinator,
+        stream_orchestrator=stream_orchestrator,
+    )
+    _apply_default_backfill(
+        gateways_for_backfill,
+        _build_default_backfill_callback(historical_coordinator, gap_reconciler=gap_reconciler),
+    )
+    _attach_initial_gap_reconcile(market_data, gap_reconciler)
+    return market_data, execution
 
-    This is the preferred creation path when infrastructure is already
-    bootstrapped (e.g. via ``bootstrap_from_gateways``).
 
-    Parameters
-    ----------
-    infra
-        Fully-wired BrokerInfrastructure with registry, router, quota,
-        historical coordinator, stream orchestrator, and extensions.
-    risk_manager
-        Optional risk manager for kill-switch enforcement in ExecutionComposer.
-
-    Returns
-    -------
-    tuple[MarketDataComposer, ExecutionComposer]
-        Wired composer instances ready for use.
-    """
+def _ensure_risk_and_order(
+    risk_manager: Any | None,
+    order_manager: Any | None,
+    *,
+    registry: Any,
+    router: Any,
+    quota_scheduler: Any,
+) -> tuple[Any, Any]:
+    """Create default risk_manager / order_manager when not provided."""
     if risk_manager is None:
         from application.oms._internal.risk_manager import RiskConfig, RiskManager
         from application.oms.position_manager import PositionManager
@@ -358,39 +380,43 @@ def create_composers_from_infra(
         from application.oms.order_manager import OrderManager
 
         order_manager = OrderManager(risk_manager=risk_manager)
+    return risk_manager, order_manager
 
-    market_data = MarketDataComposer(
-        historical_coordinator=infra.historical,
-        batch_quote_coordinator=infra.batch_quotes,
-        stream_orchestrator=infra.streams,
-    )
-    execution = ExecutionComposer(
+
+def create_composers_from_infra(
+    infra: BrokerInfrastructurePort,
+    risk_manager: Any | None = None,
+    order_manager: Any | None = None,
+) -> tuple[MarketDataComposer, ExecutionComposer]:
+    """Create composers from an existing BrokerInfrastructure.
+
+    Preferred when infrastructure is already bootstrapped (e.g. via
+    ``bootstrap_from_gateways``).
+    """
+    risk_manager, order_manager = _ensure_risk_and_order(
+        risk_manager,
+        order_manager,
         registry=infra.registry,
         router=infra.router,
         quota_scheduler=infra.quota,
+    )
+    return _build_composers(
+        registry=infra.registry,
+        router=infra.router,
+        quota_scheduler=infra.quota,
+        historical_coordinator=infra.historical,
+        batch_quote_coordinator=infra.batch_quotes,
+        stream_orchestrator=infra.streams,
         risk_manager=risk_manager,
         order_manager=order_manager,
+        gateways_for_backfill=[
+            infra.registry.get_gateway(bid) for bid in infra.registry.list_brokers()
+        ],
     )
-
-    # Wire a default reconnect-gap backfill so silent data loss on
-    # reconnect is reconciled by default (best-effort; no crash if the
-    # historical source is unconfigured).
-    gap_reconciler = _build_gap_reconciler(
-        infra.historical,
-        stream_orchestrator=infra.streams,
-    )
-    _apply_default_backfill(
-        [infra.registry.get_gateway(bid) for bid in infra.registry.list_brokers()],
-        _build_default_backfill_callback(infra.historical, gap_reconciler=gap_reconciler),
-    )
-    # Also reconcile session gaps once shortly after initial connect/subscribe.
-    _attach_initial_gap_reconcile(market_data, gap_reconciler)
-
-    return market_data, execution
 
 
 def create_composers(
-    gateways: list[CommonBrokerGateway],
+    gateways: list[BrokerAdapter],
     policy: SourceSelectionPolicy | None = None,
     quota_scheduler: QuotaScheduler | None = None,
     risk_manager: Any | None = None,
@@ -399,20 +425,6 @@ def create_composers(
 
     Builds infrastructure internally. Prefer ``create_composers_from_infra``
     when infrastructure is already bootstrapped.
-
-    Parameters
-    ----------
-    gateways
-        List of broker gateway instances to register.
-    policy
-        Source selection policy. Uses default if None.
-    quota_scheduler
-        Quota scheduler instance. Creates new instance with defaults if None.
-
-    Returns
-    -------
-    tuple[MarketDataComposer, ExecutionComposer]
-        Wired composer instances ready for use.
     """
     from application.composer.registry import BrokerRegistry
     from application.composer.router import BrokerRouter
@@ -422,16 +434,13 @@ def create_composers(
     from application.streaming.orchestrator import StreamOrchestrator
     from domain.policies.defaults import default_source_selection_policy
 
-    # 1. Create registry and register gateways
     registry = BrokerRegistry()
     for gw in gateways:
         registry.register(gw)
 
-    # 2. Create policy
     if policy is None:
         policy = default_source_selection_policy()
 
-    # 3. Create quota scheduler
     if quota_scheduler is None:
         quota_scheduler = QuotaSchedulerCls()
         for broker_id in registry.list_brokers():
@@ -439,89 +448,39 @@ def create_composers(
             for profile in caps.rate_limit_profiles:
                 quota_scheduler.register_profile(broker_id, profile)
 
-    # 4. Create router
     router = BrokerRouter(
         registry=registry,
         policy=policy,
         quota_headroom_fn=quota_scheduler.headroom_for,
     )
 
-    # 5. Create historical coordinator
     historical_coordinator = HistoricalDataCoordinator(
         registry=registry,
         router=router,
         quota_fn=quota_scheduler.acquire,
     )
-
-    # 5b. Create batch-quote coordinator
     batch_quote_coordinator = BatchQuoteCoordinator(
         registry=registry,
         router=router,
         quota_fn=quota_scheduler.acquire,
     )
+    stream_orchestrator = StreamOrchestrator(registry=registry, router=router)
 
-    # 6. Create stream orchestrator
-    stream_orchestrator = StreamOrchestrator(
-        registry=registry,
-        router=router,
-    )
-
-    if risk_manager is None:
-        from application.oms._internal.risk_manager import RiskConfig, RiskManager
-        from application.oms.position_manager import PositionManager
-
-        risk_manager = RiskManager(PositionManager(), config=RiskConfig())
-
-    from application.oms.order_manager import OrderManager
-
-    order_manager = OrderManager(risk_manager=risk_manager)
-
-    # 7. Create composers
-    market_data_composer = MarketDataComposer(
-        historical_coordinator=historical_coordinator,
-        batch_quote_coordinator=batch_quote_coordinator,
-        stream_orchestrator=stream_orchestrator,
-    )
-
-    execution_composer = ExecutionComposer(
+    risk_manager, order_manager = _ensure_risk_and_order(
+        risk_manager,
+        None,
         registry=registry,
         router=router,
         quota_scheduler=quota_scheduler,
+    )
+    return _build_composers(
+        registry=registry,
+        router=router,
+        quota_scheduler=quota_scheduler,
+        historical_coordinator=historical_coordinator,
+        batch_quote_coordinator=batch_quote_coordinator,
+        stream_orchestrator=stream_orchestrator,
         risk_manager=risk_manager,
         order_manager=order_manager,
+        gateways_for_backfill=gateways,
     )
-
-    # Wire a default reconnect-gap backfill so silent data loss on
-    # reconnect is reconciled by default (best-effort; no crash if the
-    # historical source is unconfigured).
-    gap_reconciler = _build_gap_reconciler(
-        historical_coordinator,
-        stream_orchestrator=stream_orchestrator,
-    )
-    _apply_default_backfill(
-        gateways,
-        _build_default_backfill_callback(historical_coordinator, gap_reconciler=gap_reconciler),
-    )
-    # Also reconcile session gaps once shortly after initial connect/subscribe.
-    _attach_initial_gap_reconcile(market_data_composer, gap_reconciler)
-
-    return market_data_composer, execution_composer
-
-
-def create_market_data_composer(
-    gateways: list[CommonBrokerGateway],
-    policy: SourceSelectionPolicy | None = None,
-) -> MarketDataComposer:
-    """Create only MarketDataComposer (for read-only market data use cases)."""
-    market_data, _ = create_composers(gateways, policy=policy)
-    return market_data
-
-
-def create_execution_composer(
-    gateways: list[CommonBrokerGateway],
-    policy: SourceSelectionPolicy | None = None,
-    quota_scheduler: QuotaScheduler | None = None,
-) -> ExecutionComposer:
-    """Create only ExecutionComposer (for execution-only use cases)."""
-    _, execution = create_composers(gateways, policy=policy, quota_scheduler=quota_scheduler)
-    return execution

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from application.oms.order_manager import OmsOrderCommand
-from domain import OrderType, ProductType, Side
+from domain import OrderType, ProductType
 from domain.models.trading import SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, PlanContext
 from domain.orders.placement import build_execution_plan, plan_to_intents
@@ -57,28 +57,11 @@ class ExecutionPlanner:
     Responsibilities
     ----------------
     - Signal actionability and confidence gating
-    - Kill-switch check
     - Execution-plan building
     - Intent-to-OmsOrderCommand conversion
 
-    Parameters
-    ----------
-    min_confidence:
-        Minimum confidence for executing a signal (0.0–1.0).
-    dry_run:
-        When ``True``, signals are gated but no commands are produced.
-    default_order_type:
-        Default order type for plans.
-    default_product_type:
-        Default product type for plans.
-    default_exchange:
-        Default exchange segment.
-    max_position_size_pct:
-        Maximum position size as % of equity.  0 = no limit.
-    kill_switch_check:
-        Callable that returns ``True`` when the kill switch blocks orders.
-    resolve_equity:
-        Callable that returns the current available equity (float).
+    Kill-switch enforcement is owned by :class:`OrderMutationGuard` on OMS
+    placement; this planner does not duplicate that check.
     """
 
     def __init__(
@@ -89,8 +72,8 @@ class ExecutionPlanner:
         default_product_type: ProductType = ProductType.INTRADAY,
         default_exchange: str = "NSE",
         max_position_size_pct: float = 0.0,
-        kill_switch_check: Callable[[], bool] | None = None,
         resolve_equity: Callable[[], float] | None = None,
+        resolve_existing_notional: Callable[[str, str], Decimal] | None = None,
     ) -> None:
         self._min_confidence = min_confidence
         self._dry_run = dry_run
@@ -98,26 +81,29 @@ class ExecutionPlanner:
         self._default_product_type = default_product_type
         self._default_exchange = default_exchange
         self._max_position_size_pct = max_position_size_pct
-        self._kill_switch_check = kill_switch_check or (lambda: False)
         self._resolve_equity = resolve_equity or (lambda: 0.0)
+        self._resolve_existing_notional = resolve_existing_notional or (lambda _s, _e: Decimal("0"))
 
     # ── plan context ─────────────────────────────────────────────────────
 
     def build_plan_context(
-        self, signal: SignalDTO, correlation_id: str | None,
+        self,
+        signal: SignalDTO,
+        correlation_id: str | None,
     ) -> PlanContext:
         """Snapshot the runtime inputs the planner needs."""
         base_cid = correlation_id or f"{signal.symbol}:{signal.strategy or 'strategy'}"
         return PlanContext(
             equity=_safe_decimal(self._resolve_equity()),
             max_position_pct=_safe_decimal(self._max_position_size_pct),
-            existing_notional=Decimal("0"),
+            existing_notional=self._resolve_existing_notional(
+                signal.symbol, signal.exchange or self._default_exchange
+            ),
             atr=None,
             default_order_type=self._default_order_type,
             default_product_type=self._default_product_type,
             default_exchange=self._default_exchange,
             min_confidence=_safe_decimal(self._min_confidence),
-            kill_switch_active=self._kill_switch_check(),
             correlation_id=base_cid,
             strategy=signal.strategy or "",
         )
@@ -131,9 +117,8 @@ class ExecutionPlanner:
         The full gating pipeline runs here:
         1. Actionability check
         2. Confidence threshold
-        3. Kill-switch
-        4. Dry-run mode
-        5. Plan construction + intent conversion
+        3. Dry-run mode
+        4. Plan construction + intent conversion
         """
         # 1 — actionability
         if not signal.is_actionable:
@@ -154,14 +139,7 @@ class ExecutionPlanner:
             )
             return PlanResult(commands=[], rejected=True)
 
-        # 3 — kill switch
-        if self._kill_switch_check():
-            logger.warning(
-                "Kill switch active, blocking execution for %s", signal.symbol,
-            )
-            return PlanResult(commands=[], rejected=True)
-
-        # 4 — dry-run
+        # 3 — dry-run
         if self._dry_run:
             logger.info(
                 "DRY RUN: Would execute signal: %s %s (confidence=%.2f, entry=%.2f)",
@@ -172,7 +150,7 @@ class ExecutionPlanner:
             )
             return PlanResult(commands=[], dry_run=True)
 
-        # 5 — build plan
+        # 4 — build plan
         try:
             ctx = self.build_plan_context(signal, correlation_id)
             execution_plan = build_execution_plan(signal, ctx)
@@ -190,9 +168,7 @@ class ExecutionPlanner:
 
         # 6 — convert to OmsOrderCommands
         commands = [
-            self.intent_to_command(intent, signal)
-            for intent in intents
-            if intent.quantity > 0
+            self.intent_to_command(intent, signal) for intent in intents if intent.quantity > 0
         ]
         if not commands:
             return PlanResult(commands=[], plan=execution_plan, rejected=True)
@@ -222,12 +198,11 @@ class ExecutionPlanner:
         intents = plan_to_intents(plan)
         if not intents:
             base_cid = correlation_id or f"{signal.symbol}:{signal.strategy or 'strategy'}"
-            return OmsOrderCommand(
-                symbol=signal.symbol,
+            from application.oms.order_command_mapper import empty_plan_oms_command
+
+            return empty_plan_oms_command(
+                signal,
                 exchange=signal.exchange or self._default_exchange,
-                side=Side.BUY if signal.signal_type in ("BUY", "STRONG_BUY") else Side.SELL,
-                quantity=0,
-                price=Decimal(str(signal.entry_price or signal.price or 0)),
                 order_type=self._default_order_type,
                 product_type=self._default_product_type,
                 correlation_id=f"{base_cid}:{signal.strategy or 'strategy'}",
@@ -236,13 +211,6 @@ class ExecutionPlanner:
 
     def intent_to_command(self, intent: object, signal: SignalDTO) -> OmsOrderCommand:
         """Bridge a domain :class:`OrderIntent` into an :class:`OmsOrderCommand`."""
-        return OmsOrderCommand(
-            symbol=intent.symbol,
-            exchange=intent.exchange,
-            side=intent.side,
-            quantity=intent.quantity,
-            price=intent.price,
-            order_type=intent.order_type,
-            product_type=intent.product_type,
-            correlation_id=intent.correlation_id,
-        )
+        from application.oms.order_command_mapper import order_intent_to_oms_command
+
+        return order_intent_to_oms_command(intent)

@@ -78,11 +78,7 @@ class ExtensionRegistry:
         instrument_id:
             Canonical instrument identifier.
         """
-        return [
-            ext
-            for ext in self._extensions.values()
-            if ext.is_available_for(instrument_id)
-        ]
+        return [ext for ext in self._extensions.values() if ext.is_available_for(instrument_id)]
 
     def capabilities_for(self, instrument_id: InstrumentId) -> list[Capability]:
         """Get all capabilities available for a given instrument.

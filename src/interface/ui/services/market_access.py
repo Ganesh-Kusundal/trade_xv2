@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from domain.universe import Session as DomainSession
 
 if TYPE_CHECKING:
-    from brokers.session import BrokerSession
+    from runtime.platform_bridge import broker_session_type as BrokerSession
 
     SessionLike = DomainSession | BrokerSession
 else:
@@ -65,7 +65,9 @@ def fetch_history(
 ) -> Any:
     """Historical series via domain instrument."""
     if hasattr(session, "history"):
-        return session.history(session.stock(symbol, exchange=exchange), timeframe=timeframe, days=days)
+        return session.history(
+            session.stock(symbol, exchange=exchange), timeframe=timeframe, days=days
+        )
     inst = session.universe.equity(symbol, exchange)
     return inst.history(timeframe=timeframe, days=days)
 
@@ -86,9 +88,7 @@ def fetch_history_df(
     days: int = 30,
 ) -> Any:
     """Historical OHLCV as a DataFrame via domain instrument."""
-    series = fetch_history(
-        session, symbol, exchange=exchange, timeframe=timeframe, days=days
-    )
+    series = fetch_history(session, symbol, exchange=exchange, timeframe=timeframe, days=days)
     if hasattr(series, "to_dataframe"):
         return series.to_dataframe()
     return series

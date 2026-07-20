@@ -35,7 +35,7 @@ def test_no_duplicate_settings_modules():
     """No duplicate settings modules should exist inside src/config/.
 
     The config package may contain focused sub-modules (schema, validator,
-    feature_flags, …) but must NOT contain multiple competing 'settings'
+    profiles, …) but must NOT contain multiple competing 'settings'
     files that each define their own config loading logic.
     """
     py_files = list(_CONFIG_DIR.glob("*.py"))
@@ -88,12 +88,13 @@ def test_no_competing_config_in_runtime():
 @pytest.mark.architecture
 def test_config_is_dataclass_or_pydantic():
     """Config should be a structured type (dataclass or Pydantic model)."""
-    from config.schema import AppConfig
     import dataclasses
 
-    assert dataclasses.is_dataclass(AppConfig) or hasattr(
-        AppConfig, "model_fields"
-    ), "AppConfig must be a dataclass or Pydantic model, not a plain dict"
+    from config.schema import AppConfig
+
+    assert dataclasses.is_dataclass(AppConfig) or hasattr(AppConfig, "model_fields"), (
+        "AppConfig must be a dataclass or Pydantic model, not a plain dict"
+    )
 
 
 # ── 4. AppConfig is the canonical central config ─────────────────────────
@@ -111,6 +112,12 @@ def test_app_config_is_central():
 
 
 # ── 5. No scattered os.getenv in non-config modules ─────────────────────
+
+
+@pytest.mark.architecture
+def test_feature_flags_module_removed():
+    """FeatureFlags subsystem removed; toggles live in config.schema env vars."""
+    assert not (_CONFIG_DIR / "feature_flags.py").exists()
 
 
 @pytest.mark.architecture
@@ -139,17 +146,15 @@ def test_no_scattered_env_reads_in_domain():
                 func = node.func
                 # os.getenv(...) or os.environ.get(...)
                 if isinstance(func, ast.Attribute) and func.attr in ("getenv", "get"):
-                    if isinstance(func.value, ast.Name) and func.value.id == "os":
-                        violations.append((str(py_file.relative_to(_PROJECT_ROOT)), node.lineno))
-                    elif isinstance(func.value, ast.Attribute):
-                        if (
+                    if (isinstance(func.value, ast.Name) and func.value.id == "os") or (
+                        isinstance(func.value, ast.Attribute)
+                        and (
                             isinstance(func.value.value, ast.Name)
                             and func.value.value.id == "os"
                             and func.value.attr == "environ"
-                        ):
-                            violations.append(
-                                (str(py_file.relative_to(_PROJECT_ROOT)), node.lineno)
-                            )
+                        )
+                    ):
+                        violations.append((str(py_file.relative_to(_PROJECT_ROOT)), node.lineno))
 
     assert not violations, (
         "Domain layer must not call os.getenv/os.environ.get directly. "

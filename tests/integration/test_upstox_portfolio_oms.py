@@ -1,7 +1,6 @@
 """Upstox portfolio stream integration with OMS handlers."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import asyncio
 from datetime import datetime, timezone
@@ -9,10 +8,10 @@ from decimal import Decimal
 
 import pytest
 
-from application.oms import create_trading_context
-from tests.unit.brokers.upstox.test_websocket_safety import _fake_authorizer, _FakeSocket
 from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from domain import Order, OrderStatus, OrderType, ProductType, Side
+from tests.conftest import build_test_trading_context
+from tests.unit.brokers.upstox.test_websocket_safety import _fake_authorizer, _FakeSocket
 
 
 @pytest.mark.asyncio

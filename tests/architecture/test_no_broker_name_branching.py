@@ -69,9 +69,8 @@ def test_oms_has_no_live_broker_name_literals():
             # Match a quoted literal: "dhan" / 'dhan' / ="dhan"
             if f'"{name}"' in text or f"'{name}'" in text:
                 violations.append(f"{path.relative_to(REPO_ROOT)}: literal {name!r}")
-    assert not violations, (
-        "OMS branches on concrete broker names (DR-B1 violated):\n"
-        + "\n".join(violations)
+    assert not violations, "OMS branches on concrete broker names (DR-B1 violated):\n" + "\n".join(
+        violations
     )
 
 
@@ -91,12 +90,9 @@ def test_oms_has_no_broker_name_comparisons():
                 continue
             token = m.group(3) or m.group(5)
             if token in LIVE_BROKER_NAMES:
-                violations.append(
-                    f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}"
-                )
+                violations.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
     assert not violations, (
-        "OMS compares against concrete broker names (DR-B1 violated):\n"
-        + "\n".join(violations)
+        "OMS compares against concrete broker names (DR-B1 violated):\n" + "\n".join(violations)
     )
 
 
@@ -109,14 +105,9 @@ def test_cert_suite_no_broker_name_branch():
     # checking only code-ish lines is overkill; the only legitimate mention is
     # the explanatory docstring, so we target comparisons specifically).
     pattern = re.compile(r'broker_id\s*==\s*["\'](paper|dhan|upstox)["\']')
-    hits = [
-        f"{i}: {ln.strip()}"
-        for i, ln in enumerate(text.splitlines(), 1)
-        if pattern.search(ln)
-    ]
-    assert not hits, (
-        "Cert suite still branches on broker name (DR-B2 violated):\n"
-        + "\n".join(hits)
+    hits = [f"{i}: {ln.strip()}" for i, ln in enumerate(text.splitlines(), 1) if pattern.search(ln)]
+    assert not hits, "Cert suite still branches on broker name (DR-B2 violated):\n" + "\n".join(
+        hits
     )
 
 
@@ -129,14 +120,9 @@ def test_rate_limiter_no_broker_name_branch():
         r'broker_id\s*==\s*["\'](dhan|upstox)["\']'
         r'|import_module\(\s*["\']brokers\.(dhan|upstox)'
     )
-    hits = [
-        f"{i}: {ln.strip()}"
-        for i, ln in enumerate(text.splitlines(), 1)
-        if pattern.search(ln)
-    ]
-    assert not hits, (
-        "Rate limiter still branches on broker name (DR-B3 violated):\n"
-        + "\n".join(hits)
+    hits = [f"{i}: {ln.strip()}" for i, ln in enumerate(text.splitlines(), 1) if pattern.search(ln)]
+    assert not hits, "Rate limiter still branches on broker name (DR-B3 violated):\n" + "\n".join(
+        hits
     )
 
 

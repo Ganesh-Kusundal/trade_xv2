@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from infrastructure.config.env_loader import load_env_file
+from infrastructure.io.environment_bootstrap import load_env_file
 
 CANONICAL_ENV_FILES: dict[str, str | None] = {
     "dhan": ".env.local",

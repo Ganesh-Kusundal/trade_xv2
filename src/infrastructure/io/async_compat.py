@@ -57,8 +57,8 @@ def run_async_compat(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # No running loop — sync context via runtime event-loop boundary.
-        from runtime.event_loop import run_coro_sync
+        # No running loop — sync context via application port boundary.
+        from domain.ports.async_bridge import run_coro_sync
 
         return run_coro_sync(coro, timeout=timeout)
 
@@ -83,8 +83,8 @@ def connect_async_then(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Sync context — connect via runtime boundary, then run callback.
-        from runtime.event_loop import run_coro_sync
+        # Sync context — connect via application port boundary, then run callback.
+        from domain.ports.async_bridge import run_coro_sync
 
         run_coro_sync(connect_coro)
         on_connected()

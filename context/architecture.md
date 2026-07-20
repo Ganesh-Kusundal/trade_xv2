@@ -1,19 +1,11 @@
 # Architecture — TradeXV2 / TradeX Trading OS
 
-> Part of the **Six-File Context System**. This is the most important file: it defines
-> the layering contract and invariants the codebase must never violate. Grounded in
-> `docs/architecture/target-layering.md` (the enforced contract) and `baseline.md`.
-> Do not change architecture without an ADR in `docs/architecture/adr/`.
->
-> **End-to-end specification (Nautilus-referenced):**  
-> `docs/architecture/e2e-spec/README.md` — kernel, domain, event catalog, data/execution
-> flows, risk, time/parity, reconciliation, ports, and migration. Prefer that suite for
-> flow-level design; this file remains the layering + invariant contract.
->
-> **Code-derived audit (2026-07-13, graphify-first):**  
-> `docs/architecture/CURRENT-STATE.md` · `PRIORITIZED-AUDIT.md` · `TARGET-STATE.md`.
-> Prefer these for as-built flows, P0–P3 findings (F1–F9), and the Phase 0–4 migration.
-> Older `docs/architecture/AUDIT-*` files are superseded for audit purposes.
+> Part of the **Six-File Context System**. This file summarizes the layering contract.
+> **Canonical architecture:** [`docs/constitution/`](../docs/constitution/) — start with
+> `01-architecture-constitution.md` (principles P1–P12) and `02a-runtime-execution-model.md`.
+> **Gap analysis:** `docs/constitution/07-gap-analysis.md` (platform-wide);
+> `docs/constitution/09-broker-subsystem-gap-analysis.md` (broker plugins).
+> Do not change invariants without an ADR.
 
 ## 1. Stack Table (layer → technology → role)
 
@@ -25,7 +17,7 @@
 | Runtime | Python | Composition root — the ONLY layer touching concrete brokers/plugins. |
 | Brokers | Python (plugins) | Dhan / Upstox / Paper adapters satisfying `BrokerAdapter`. |
 | Datalake | Python + DuckDB | Ingestion, quality, storage, analytics, research. |
-| Interface | Python (FastAPI/Textual/Click) + React/TS | Web SPA, API, TUI, CLI, two MCP servers. |
+| Interface | Python (FastAPI/Textual/Click) | API, TUI, CLI, two MCP servers. (A React/TS Web SPA under `web/` is planned but not yet implemented — `web/` holds only `.env.example`.) |
 | Config | Pydantic `AppConfig` | Single config schema (`src/config/schema.py`). |
 
 ## 2. System Boundaries (folder → responsibility)
@@ -40,7 +32,7 @@
 | `src/datalake/` | Data ingestion/quality/storage/analytics. |
 | `src/interface/` | Presentation layers over the `tradex` SDK. |
 | `src/config/` | Single `AppConfig` schema. |
-| `web/` | React/TS SPA (Tier 3-I Web Trading UI). |
+| `web/` | Placeholder for a planned React/TS SPA — currently only `.env.example` exists. |
 | `tradex/` | Public package + CLI + session wiring. |
 
 ## 3. Dependency Rule (enforced by import-linter — CI-blocking for rules 1–4)
@@ -86,18 +78,21 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 ## 7. Invariants (rules the codebase must NEVER violate)
 
 1. **Zero-parity rule** — backtest, replay, and live execution share identical logic.
-2. **Single composition root** — only `runtime/` imports concrete brokers/plugins.
-3. **No string broker branching** — broker selected by `broker_id` enum, once, at startup.
-4. **Domain purity** — `domain/` imports nothing inward (stdlib + itself only).
-5. **Risk gate is a port** — pre-trade approval/rejection flows through `RiskGate`,
+2. **Paper-only execution (ADR-0012)** — operator paths use `ExecutionTargetKind.PAPER`;
+   broker plugins supply market data only; OMS owns paper capital/orders/positions.
+   Only `runtime/execution_target.py` may branch on execution target kind.
+3. **Single composition root** — only `runtime/` imports concrete brokers/plugins.
+4. **No string broker branching** — broker selected by `broker_id` enum, once, at startup.
+5. **Domain purity** — `domain/` imports nothing inward (stdlib + itself only).
+6. **Risk gate is a port** — pre-trade approval/rejection flows through `RiskGate`,
    never a reflection `getattr` kill-switch.
-6. **Reconciliation on hot path** — local state heals against broker truth via
+7. **Reconciliation on hot path** — local state heals against broker truth via
    `ReconciliationPolicy`, not a detached service.
-7. **No orphaned shadow copies** — the repo-root `brokers/dhan/*` duplicates are
+8. **No orphaned shadow copies** — the repo-root `brokers/dhan/*` duplicates are
    deleted (ADR-001/G2); `src/brokers/_bootstrap.py` path hack is a stopgap, not a pattern.
-8. **No real-money mocks** — tests are integration tests against real components;
+9. **No real-money mocks** — tests are integration tests against real components;
    no mock data, stubs, or placeholders in production code.
-9. **Graphify stays current** — run `graphify update .` after modifying code files.
+10. **Graphify stays current** — run `graphify update src` after modifying code files under `src/` (graph lives in `src/graphify-out/`).
 
 ## 8. Known Architectural Violations (tracked, do not add more)
 
@@ -110,7 +105,19 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 | G5 | Duplicated infra (dual event bus, triple idempotency, two MCP) | ⚠️ | ✅ DONE — event bus unified to `EventBusPort` Protocol (3→1); dead idempotency backends deleted (~1095 lines); Upstox alias removed |
 | G6 | Reconciliation off hot path | ⚠️ | ✅ DONE — `request_reconciliation()` wakes loop on TRADE_APPLIED/ORDER_UPDATED events; periodic timer retained as safety net |
 | G7 | Reflection `getattr` kill-switch | ⚠️ | ✅ DONE — uses `RiskManagerPort` injection |
-| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; doc refs updated in `web/README.md`, `src/config/README.md`, `src/interface/api/bootstrap.py` |
+| G8 | Ad-hoc scripts at repo root | ⚠️ | ✅ DONE — `api_server.py` moved to `scripts/run_api_server.py`; config docs at `docs/config/README.md` |
+
+## Views vs pipeline ownership (OE-01)
+
+| Path | Role | Canonical for |
+|---|---|---|
+| `analytics/pipeline/` (`FeaturePipeline`) | In-process feature compute on DataFrames | Replay, backtest, live operator parity paths |
+| `analytics/views/` (SQL) | DuckDB views — `v_feature_*`, `v_top3_candidates`, materialized `m_intraday` | Batch/API/MCP datalake-at-scale queries |
+| `analytics/scanner/` (Python) | Scanner orchestration over pipeline | Replay-parity scanner paths |
+
+**Parity gate:** `tests/integration/quant/test_views_pipeline_parity.py` — overlapping `v_feature_*` columns must match `FeaturePipeline` ± float tolerance on a fixed OHLCV window before either stack is deprecated for a use case (see `docs/architecture/OE-01-views-pipeline-ownership.md`).
+
+Domain indicators (`domain/indicators/`) are canonical; pipeline wraps domain; views SQL may lag (document equivalence gaps in `QualityViews` materialization notes).
 
 ## Architectural Migration Progress
 

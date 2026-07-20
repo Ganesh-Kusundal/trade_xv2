@@ -50,9 +50,7 @@ def test_render_kv_rich() -> None:
 def test_render_records_rich() -> None:
     buf = StringIO()
     c = Console(file=buf, width=120)
-    _render_records(
-        [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}], "Rows", c
-    )
+    _render_records([{"a": 1, "b": "x"}, {"a": 2, "b": "y"}], "Rows", c)
     out = buf.getvalue()
     assert "a" in out and "x" in out and "y" in out
 

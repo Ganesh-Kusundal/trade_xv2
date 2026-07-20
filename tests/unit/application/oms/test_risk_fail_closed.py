@@ -1,23 +1,29 @@
-import pytest
-from unittest.mock import MagicMock
+from datetime import datetime, timezone
 from decimal import Decimal
+from unittest.mock import MagicMock
 
-from domain import Order
-from domain.enums import OrderStatus
-from domain.types import Side, OrderType, ProductType, Validity
 from application.oms._internal.risk_manager import RiskManager
-from application.oms._internal.risk_types import RiskConfig, RiskResult
+from application.oms._internal.risk_types import RiskConfig
 from application.oms.capital_provider import FixedCapitalProvider
 from application.oms.position_manager import PositionManager
-from datetime import datetime, timezone
+from domain import Order
+from domain.enums import OrderStatus
+from domain.types import OrderType, ProductType, Side, Validity
 
 
 def _make_order(symbol: str = "RELIANCE") -> Order:
     return Order(
-        order_id="test-1", symbol=symbol, exchange="NSE",
-        side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
-        price=2500.0, trigger_price=0.0, product_type=ProductType.CNC,
-        validity=Validity.DAY, status=OrderStatus.OPEN,
+        order_id="test-1",
+        symbol=symbol,
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=2500.0,
+        trigger_price=0.0,
+        product_type=ProductType.CNC,
+        validity=Validity.DAY,
+        status=OrderStatus.OPEN,
         timestamp=datetime.now(timezone.utc),
     )
 

@@ -58,26 +58,30 @@ def to_dataframe(state: dict) -> pd.DataFrame:
     if window_size > 0:
         filled = state["filled"]
         if filled < window_size:
-            return pd.DataFrame({
-                "open": state["open"][:filled],
-                "high": state["high"][:filled],
-                "low": state["low"][:filled],
-                "close": state["close"][:filled],
-                "volume": state["volume"][:filled],
-                "symbol": state["symbol"][:filled],
-                "timestamp": state["timestamp"][:filled],
-            })
+            return pd.DataFrame(
+                {
+                    "open": state["open"][:filled],
+                    "high": state["high"][:filled],
+                    "low": state["low"][:filled],
+                    "close": state["close"][:filled],
+                    "volume": state["volume"][:filled],
+                    "symbol": state["symbol"][:filled],
+                    "timestamp": state["timestamp"][:filled],
+                }
+            )
         head = state["head"]
         idx = np.arange(head - window_size, head) % window_size
-        return pd.DataFrame({
-            "open": state["open"][idx],
-            "high": state["high"][idx],
-            "low": state["low"][idx],
-            "close": state["close"][idx],
-            "volume": state["volume"][idx],
-            "symbol": state["symbol"][idx],
-            "timestamp": state["timestamp"][idx],
-        })
+        return pd.DataFrame(
+            {
+                "open": state["open"][idx],
+                "high": state["high"][idx],
+                "low": state["low"][idx],
+                "close": state["close"][idx],
+                "volume": state["volume"][idx],
+                "symbol": state["symbol"][idx],
+                "timestamp": state["timestamp"][idx],
+            }
+        )
     return pd.DataFrame(state["data"])
 
 

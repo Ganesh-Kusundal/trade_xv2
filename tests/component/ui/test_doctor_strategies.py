@@ -142,7 +142,8 @@ class TestBrokerRegistryCheck:
 
     def test_empty_registry(self):
         with patch(
-            "interface.ui.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]
+            "interface.ui.commands.doctor.strategies.broker_registry.list_available_brokers",
+            return_value=[],
         ):
             strategy = BrokerRegistryCheck()
             results = strategy.execute(None)
@@ -191,7 +192,9 @@ class TestGatewayCreationCheck:
             patch(
                 "interface.ui.commands.doctor.strategies.gateway_creation.list_available_brokers"
             ) as mock_list,
-            patch("interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot,
+            patch(
+                "interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway"
+            ) as mock_boot,
         ):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
@@ -236,7 +239,9 @@ class TestGatewayCreationCheck:
             patch(
                 "interface.ui.commands.doctor.strategies.gateway_creation.list_available_brokers"
             ) as mock_list,
-            patch("interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot,
+            patch(
+                "interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway"
+            ) as mock_boot,
         ):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
@@ -353,7 +358,9 @@ class TestMarketDataCheck:
         quote.close = 2440.00
         quote.volume = 1500000
 
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
             with patch("interface.ui.services.market_access.refresh_quote", return_value=quote):
                 strategy = MarketDataCheck(quick_mode=True)
                 results = strategy.execute(mock_broker_service)
@@ -366,7 +373,9 @@ class TestMarketDataCheck:
         quote = MagicMock()
         quote.ltp = 0
 
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
             with patch("interface.ui.services.market_access.refresh_quote", return_value=quote):
                 strategy = MarketDataCheck(quick_mode=True)
                 results = strategy.execute(mock_broker_service)
@@ -379,7 +388,9 @@ class TestMarketDataCheck:
         quote = MagicMock()
         quote.ltp = 2450.50
 
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
             with patch("interface.ui.services.market_access.refresh_quote", return_value=quote):
                 strategy = MarketDataCheck(quick_mode=True)
                 results = strategy.execute(mock_broker_service)
@@ -449,8 +460,12 @@ class TestPortfolioCheck:
         funds.sod_limit = 50000.0
         mock_acct.funds = funds
 
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
-            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
+            with patch(
+                "interface.ui.services.market_access.refresh_account", return_value=mock_acct
+            ):
                 strategy = PortfolioCheck()
                 results = strategy.execute(mock_broker_service)
 
@@ -468,8 +483,12 @@ class TestPortfolioCheck:
         funds.available_balance = None
         mock_acct.funds = funds
 
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
-            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
+            with patch(
+                "interface.ui.services.market_access.refresh_account", return_value=mock_acct
+            ):
                 strategy = PortfolioCheck()
                 results = strategy.execute(mock_broker_service)
 

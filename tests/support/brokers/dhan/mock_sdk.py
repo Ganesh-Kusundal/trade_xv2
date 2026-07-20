@@ -4,11 +4,12 @@ Centralizes the mock patching of _sdk_market_feed_class and
 _sdk_order_update_class so that a rename in product code only
 requires updating this one file.
 """
-from __future__ import annotations
-from contextlib import ExitStack, contextmanager
-from unittest.mock import patch, MagicMock
-from typing import Iterator
 
+from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
+from unittest.mock import MagicMock, patch
 
 # All known import locations for _sdk_market_feed_class.
 # Patching at the source alone is not enough: modules that do
@@ -53,10 +54,6 @@ def mock_order_update_class() -> Iterator[MagicMock]:
 def mock_both_sdk_classes() -> Iterator[tuple[MagicMock, MagicMock]]:
     """Patch both SDK classes simultaneously at all known import locations."""
     with ExitStack() as stack:
-        feed_mocks = [
-            stack.enter_context(patch(t)) for t in _FEED_PATCH_TARGETS
-        ]
-        order_mocks = [
-            stack.enter_context(patch(t)) for t in _ORDER_PATCH_TARGETS
-        ]
+        feed_mocks = [stack.enter_context(patch(t)) for t in _FEED_PATCH_TARGETS]
+        order_mocks = [stack.enter_context(patch(t)) for t in _ORDER_PATCH_TARGETS]
         yield feed_mocks[0], order_mocks[0]

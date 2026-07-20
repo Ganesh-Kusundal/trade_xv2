@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
-
+from brokers.common.broker_capabilities import BrokerCapabilities
 from domain import (
     Balance,
     FutureChain,
@@ -17,18 +18,12 @@ from domain import (
     Order,
     OrderResponse,
     OrderStatus,
-    OrderType,
     Position,
-    ProductType,
     Quote,
-    Side,
     Trade,
-    Validity,
 )
-from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 from domain.constants import DEFAULT_EXCHANGE
-
-from brokers.common.broker_capabilities import BrokerCapabilities
+from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_market_data import PaperMarketData
 from .paper_orders import PaperOrders
@@ -36,10 +31,11 @@ from .paper_portfolio import PaperPortfolio
 
 
 class PaperGateway:
-    """Unified paper-trading API for testing and development.
+    """Synthetic market-data adapter for tests — NOT authoritative for OMS state.
 
-    All market-data, order, and portfolio calls delegate to the
-    corresponding adapter objects (``market_data``, ``orders``, ``portfolio``).
+    ponytail: ADR-0012 — PaperGateway supplies quotes/history only. Paper orders,
+    capital, positions, and risk authority live in the OMS + PaperFillSource path.
+    Do not use ``portfolio``/``funds()`` output as production risk capital.
     """
 
     def __init__(
@@ -146,12 +142,8 @@ class PaperGateway:
         # Map values if they are enums
         mapped_changes = {}
         for k, v in changes.items():
-            if k == "order_type":
-                mapped_changes[k] = v.value if hasattr(v, 'value') else str(v)
-            elif k == "validity":
-                mapped_changes[k] = v.value if hasattr(v, 'value') else str(v)
-            elif k == "product_type":
-                mapped_changes[k] = v.value if hasattr(v, 'value') else str(v)
+            if k == "order_type" or k == "validity" or k == "product_type":
+                mapped_changes[k] = v.value if hasattr(v, "value") else str(v)
             else:
                 mapped_changes[k] = v
 
@@ -177,7 +169,7 @@ class PaperGateway:
         to_date: str | None = None,
     ) -> pd.DataFrame:
         import hashlib
-        from datetime import datetime, timedelta, timezone
+        from datetime import timedelta
 
         import numpy as np
 
@@ -309,7 +301,6 @@ class PaperGateway:
             }
         )
 
-
     def future_chain(
         self,
         underlying: str,
@@ -318,12 +309,13 @@ class PaperGateway:
         import numpy as np
 
         base = float(self._market_data.get_ltp(underlying, "NSE"))
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         from domain.ports.time_service import get_current_clock
 
         expiries = [
-            (get_current_clock().now() + timedelta(days=30 * i)).strftime("%Y-%m-%d") for i in range(1, 4)
+            (get_current_clock().now() + timedelta(days=30 * i)).strftime("%Y-%m-%d")
+            for i in range(1, 4)
         ]
         contracts = []
         for exp in expiries:
@@ -403,10 +395,6 @@ class PaperGateway:
     # Trading
     # =======================================================================
 
-
-
-
-
     def seed_orders(self, orders: list[Order]) -> None:
         self._orders._orders = orders
 
@@ -432,8 +420,6 @@ class PaperGateway:
             Order if found, None if not in orderbook
         """
         return self._orders.get_order(order_id)
-
-
 
     def get_orderbook(self) -> list[Order]:
         return self._orders.get_orderbook()
@@ -571,10 +557,14 @@ class PaperGateway:
             max_batch_size=100,
             market_surfaces=frozenset(
                 {
-                    MarketCoverage(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
+                    MarketCoverage(
+                        AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})
+                    ),
                     MarketCoverage(AssetKind.OPTIONS, "NFO", "NIFTY", frozenset({OPTION_CHAIN})),
                     MarketCoverage(AssetKind.FUTURES, "NFO", "NIFTY", frozenset({FUTURE_CHAIN})),
-                    MarketCoverage(AssetKind.FUTURES, "MCX", "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
+                    MarketCoverage(
+                        AssetKind.FUTURES, "MCX", "GOLD", frozenset({FUTURE_CHAIN, QUOTE})
+                    ),
                 }
             ),
         )

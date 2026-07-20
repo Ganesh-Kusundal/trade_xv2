@@ -89,4 +89,3 @@ class TestOrderPreview:
         p = OrderPreview(valid=False, errors=["Insufficient margin"])
         assert not p.valid
         assert len(p.errors) == 1
-

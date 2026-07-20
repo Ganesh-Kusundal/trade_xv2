@@ -13,7 +13,7 @@ from domain.errors import NotConfiguredError
 from domain.instruments.instrument import Equity
 from domain.ports.provider_registry import get_default_provider, set_default_provider
 from domain.ports.session_context import get_ambient_session
-from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+from domain.provenance import DataProvenance, SourceIdentity
 from domain.universe import Session
 
 

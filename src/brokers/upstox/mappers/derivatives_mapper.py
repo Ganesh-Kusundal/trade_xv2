@@ -8,7 +8,7 @@ modification payloads — all shared across futures and options flows.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import timezone
 from decimal import Decimal
 from typing import Any
 
@@ -25,25 +25,25 @@ from domain import (
 )
 from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.ports.time_service import get_current_clock
-from domain.provenance import DataProvenance, ProvenanceConfidence
+from domain.provenance import DataProvenance
 from domain.status_mapper import UnmappedBrokerStatusError
 
 from ._base import (
+    PROVIDER_ALGO_NAME,
     PROVIDER_IS_AMO,
     PROVIDER_MARKET_PROTECTION,
-    PROVIDER_ALGO_NAME,
-    wire_status_to_domain_status,
-    product_to_wire,
-    product_from_wire,
-    validity_to_wire,
-    validity_from_wire,
-    order_type_to_wire,
     order_type_from_wire,
-    txn_to_wire,
-    txn_from_wire,
+    order_type_to_wire,
+    parse_iso,
+    product_from_wire,
+    product_to_wire,
     str_or_none,
     to_int,
-    parse_iso,
+    txn_from_wire,
+    txn_to_wire,
+    validity_from_wire,
+    validity_to_wire,
+    wire_status_to_domain_status,
 )
 from .price_parser import UpstoxPriceParser
 
@@ -65,11 +65,7 @@ def to_place_payload(
     price_value = (
         0
         if is_market
-        else (
-            to_wire_float(request.price)
-            if request.price and request.price > 0
-            else 0
-        )
+        else (to_wire_float(request.price) if request.price and request.price > 0 else 0)
     )
     payload: dict[str, Any] = {
         "quantity": request.quantity,
@@ -80,9 +76,7 @@ def to_place_payload(
         "order_type": order_type_to_wire(request.order_type),
         "transaction_type": txn_to_wire(request.transaction_type),
         "disclosed_quantity": int(getattr(request, "disclosed_quantity", 0) or 0),
-        "trigger_price": to_wire_float(request.trigger_price)
-        if request.trigger_price
-        else 0,
+        "trigger_price": to_wire_float(request.trigger_price) if request.trigger_price else 0,
         PROVIDER_IS_AMO: bool(provider_metadata.get(PROVIDER_IS_AMO, False)),
     }
     tag = request.correlation_id or request.tag
@@ -118,9 +112,11 @@ def to_modify_payload(
         payload["quantity"] = int(quantity)
     if price is not None:
         from domain.value_objects.price import to_wire_float
+
         payload["price"] = to_wire_float(price)
     if trigger_price is not None:
         from domain.value_objects.price import to_wire_float
+
         payload["trigger_price"] = to_wire_float(trigger_price)
     if order_type is not None:
         payload["order_type"] = order_type_to_wire(order_type)
@@ -159,18 +155,12 @@ def to_order_response(payload: Any) -> OrderResponse:
         _logger = logging.getLogger(__name__)
         _logger.error(
             "unmapped_order_status_in_response",
-            extra={
-                "order_id": order_id,
-                "raw_status": status_str,
-                "error": str(exc)
-            }
+            extra={"order_id": order_id, "raw_status": status_str, "error": str(exc)},
         )
         status = OrderStatus.OPEN
 
     return OrderResponse.ok(
-        order_id=order_id,
-        message=str(data) if data is not None else "",
-        status=status
+        order_id=order_id, message=str(data) if data is not None else "", status=status
     )
 
 
@@ -187,7 +177,9 @@ def to_historical_candle(
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     return HistoricalBar(
-        instrument=InstrumentRef(symbol=symbol or str(payload.get("symbol", "")), exchange=exchange),
+        instrument=InstrumentRef(
+            symbol=symbol or str(payload.get("symbol", "")), exchange=exchange
+        ),
         timeframe=timeframe,
         event_time=ts,
         open=UpstoxPriceParser.parse(payload.get("open") or 0),
@@ -246,7 +238,9 @@ def to_historical_candles(
                 )
             )
         elif isinstance(row, dict):
-            candles.append(to_historical_candle(row, symbol=symbol, exchange=exchange, timeframe=timeframe))
+            candles.append(
+                to_historical_candle(row, symbol=symbol, exchange=exchange, timeframe=timeframe)
+            )
     return candles
 
 
@@ -305,17 +299,13 @@ def to_order(payload: Any) -> Order:
         quantity=to_int(payload.get("quantity")),
         price=UpstoxPriceParser.parse(payload.get("price") or 0),
         trigger_price=UpstoxPriceParser.parse(payload.get("trigger_price") or 0),
-        order_type=order_type_from_wire(
-            str(payload.get("order_type") or "MARKET")
-        ),
+        order_type=order_type_from_wire(str(payload.get("order_type") or "MARKET")),
         product_type=product_from_wire(str(payload.get("product") or "I")),
         validity=validity_from_wire(str(payload.get("validity") or "DAY")),
         status=wire_status_to_domain_status(str(payload.get("status") or "")),
         filled_quantity=to_int(payload.get("filled_quantity")),
         avg_price=UpstoxPriceParser.parse(payload.get("average_price") or 0),
         timestamp=parse_iso(payload.get("order_timestamp")),
-        reject_reason=str_or_none(
-            payload.get("status_message") or payload.get("rejection_reason")
-        )
+        reject_reason=str_or_none(payload.get("status_message") or payload.get("rejection_reason"))
         or "",
     )

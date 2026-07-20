@@ -51,7 +51,7 @@ def normalize_timeframe(timeframe: str) -> str:
     raw = str(timeframe).strip()
     if not raw:
         raise ValueError("Empty timeframe")
-    key = raw.upper() if raw.upper() in _TF_MAP else raw
+    raw.upper() if raw.upper() in _TF_MAP else raw
     # try exact, then upper, then lower
     if raw in _TF_MAP:
         return _TF_MAP[raw]

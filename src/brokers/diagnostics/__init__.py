@@ -13,14 +13,14 @@ from brokers.diagnostics.doctor import DoctorReport, run_doctor
 from brokers.diagnostics.health import HealthReport, run_health
 
 __all__ = [
+    "BenchmarkReport",
     "BrokerDiagnostics",
     "CheckResult",
     "CheckStatus",
     "DiagnosticReport",
     "DoctorReport",
     "HealthReport",
-    "BenchmarkReport",
+    "run_benchmark",
     "run_doctor",
     "run_health",
-    "run_benchmark",
 ]

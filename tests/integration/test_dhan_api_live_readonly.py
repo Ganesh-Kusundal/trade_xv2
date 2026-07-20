@@ -43,6 +43,7 @@ _live_env_loaded = False
 if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_ENV_PATH, override=True)
         _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
     except ImportError:
@@ -59,6 +60,7 @@ pytestmark = [
 
 
 # ── App + gateway fixture ─────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="module")
 def live_app():
@@ -98,6 +100,7 @@ def client(live_app):
 
 
 # ── Off-market safe: REST routes ──────────────────────────────────────────
+
 
 @pytest.mark.off_market_safe
 class TestApiLiveMarketRoutes:

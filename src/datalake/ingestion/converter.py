@@ -46,6 +46,7 @@ def _detect_source_timezone(bar_time_ms: pd.Series) -> str:
 
     adapter = get_active_adapter()
     from datalake.exchange_registry import _get_calendar
+
     open_t, close_t = _get_calendar().session_bounds(None)
 
     as_utc = pd.to_datetime(sample, unit="ms", utc=True)
@@ -182,7 +183,9 @@ def convert_tradej_directory(
     if symbols:
         symbol_set = {normalize_symbol_for_storage(s) for s in symbols}
         symbol_dirs = [
-            d for d in symbol_dirs if normalize_symbol_for_storage(d.name.replace("symbol=", "")) in symbol_set
+            d
+            for d in symbol_dirs
+            if normalize_symbol_for_storage(d.name.replace("symbol=", "")) in symbol_set
         ]
 
     for sym_dir in symbol_dirs:

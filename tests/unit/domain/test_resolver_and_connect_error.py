@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from domain.connect_errors import ConnectError, OMS_REQUIRED
+from domain.connect_errors import OMS_REQUIRED, ConnectError
 from domain.instruments.resolver import InstrumentResolver
 
 

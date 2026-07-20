@@ -179,7 +179,9 @@ class TestTotpBootstrap:
 
     @patch("brokers.upstox.auth.login.perform_login")
     @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
-    def test_bootstrap_totp_fallback_to_interactive_oauth(self, mock_totp_client_class, mock_perform_login):
+    def test_bootstrap_totp_fallback_to_interactive_oauth(
+        self, mock_totp_client_class, mock_perform_login
+    ):
         """Test that TOTP bootstrap failure falls back to interactive browser OAuth login."""
         mock_totp_client_class.side_effect = Exception("TOTP API error")
         mock_perform_login.return_value = {
@@ -194,6 +196,7 @@ class TestTotpBootstrap:
 
         # Force in_test=False check using patch.dict on sys.modules
         import sys
+
         with patch.dict("sys.modules"):
             sys.modules.pop("pytest", None)
             sys.modules.pop("unittest", None)
@@ -204,7 +207,6 @@ class TestTotpBootstrap:
         assert state.expires_at_ms == 1000 + 86400 * 1000
         assert state.source == "OAUTH"
         mock_perform_login.assert_called_once_with(settings, timeout=120)
-
 
 
 class TestTotpModeDetection:

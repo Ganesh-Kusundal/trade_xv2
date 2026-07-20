@@ -30,12 +30,12 @@ import pytest
 def _import_runtime():
     """Lazy-import the (gitignored) runtime module; skip if unimportable."""
     try:
-        from application.streaming.tick_router import (
-            _parse_exchange_time,
-        )
         from application.streaming.orchestrator import (
             MarketTick,
             StreamOrchestrator,
+        )
+        from application.streaming.tick_router import (
+            _parse_exchange_time,
         )
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"runtime module not importable: {exc}")
@@ -113,9 +113,6 @@ def test_dhan_dedup_identical_dropped_different_ltp_kept():
     orch = StreamOrchestrator(registry=None, router=None)
 
     ts = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-    f1 = {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 100.0, "timestamp": ts, "sequence": 1}
-    f2 = {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 100.0, "timestamp": ts, "sequence": 2}
-    f3 = {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 101.0, "timestamp": ts, "sequence": 3}
 
     # First tick is recorded (not dropped).
     assert orch._dedup_drop("RELIANCE:NSE", ts, 1, ltp=100.0, trusted_time=False) is False

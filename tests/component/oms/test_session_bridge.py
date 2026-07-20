@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from application.oms.session_bridge import OmsOrderService, build_paper_oms_service, make_submit_fn
+import pytest
+
+from application.oms import register_oms_context, reset_oms_context
+from application.oms.session_bridge import build_oms_service, make_submit_fn
 from domain.entities.order import OrderResponse
 from domain.enums import OrderStatus, OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.orders.requests import OrderRequest
 from domain.ports.protocols import OrderResult
+from tests.conftest import build_test_trading_context
 
 
 class FakeExecutionProvider:
@@ -46,9 +50,28 @@ class FakeExecutionProvider:
         return None
 
 
-def test_build_paper_oms_places_via_execution():
+@pytest.fixture
+def registered_paper_oms():
+    """Wire process OMS context (composition-root path under test)."""
+    reset_oms_context()
+    ctx = build_test_trading_context(replay_events=False)
+    register_oms_context(ctx)
+    yield ctx
+    reset_oms_context()
+
+
+@pytest.fixture
+def standalone_oms_wiring():
+    """Infrastructure deps for explicit standalone build_oms_service tests."""
+    from infrastructure.event_bus import EventBus
+    from infrastructure.event_bus.processed_trade_repository import ProcessedTradeRepository
+
+    return EventBus(), ProcessedTradeRepository()
+
+
+def test_build_paper_oms_places_via_execution(registered_paper_oms):
     exec_p = FakeExecutionProvider()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",
@@ -68,9 +91,9 @@ def test_build_paper_oms_places_via_execution():
     assert exec_p.requests[0].symbol == "RELIANCE"
 
 
-def test_oms_idempotent_on_correlation_id():
+def test_oms_idempotent_on_correlation_id(registered_paper_oms):
     exec_p = FakeExecutionProvider()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",
@@ -86,9 +109,9 @@ def test_oms_idempotent_on_correlation_id():
     assert len(exec_p.requests) == 1  # second call must not re-submit
 
 
-def test_risk_kill_switch_blocks_before_execution():
+def test_risk_kill_switch_blocks_before_execution(registered_paper_oms):
     exec_p = FakeExecutionProvider()
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     service.order_manager.risk_manager.set_kill_switch(True)
     intent = OrderIntent(
         symbol="RELIANCE",
@@ -103,10 +126,10 @@ def test_risk_kill_switch_blocks_before_execution():
     assert exec_p.requests == []
 
 
-def test_execution_failure_surfaces_as_order_result():
+def test_execution_failure_surfaces_as_order_result(registered_paper_oms):
     exec_p = FakeExecutionProvider()
     exec_p.reject = True
-    service = build_paper_oms_service(exec_p)
+    service = build_oms_service(exec_p)
     intent = OrderIntent(
         symbol="RELIANCE",
         exchange="NSE",
@@ -142,7 +165,6 @@ def test_make_submit_fn_maps_order_response():
 
 def test_live_standalone_oms_refused_without_context():
     """ENG-001: live brokers must not get phantom-capital OMS by default."""
-    from application.oms.process_context import reset_oms_context
     from application.oms.session_bridge import build_oms_service
 
     reset_oms_context()
@@ -154,14 +176,19 @@ def test_live_standalone_oms_refused_without_context():
         assert "ENG-001" in str(exc) or "phantom" in str(exc).lower() or "composition" in str(exc)
 
 
-def test_live_standalone_allowed_with_explicit_flag():
-    from application.oms.process_context import reset_oms_context
+def test_live_standalone_allowed_with_explicit_flag(standalone_oms_wiring):
     from application.oms.session_bridge import build_oms_service
 
+    event_bus, processed_trades = standalone_oms_wiring
     reset_oms_context()
     exec_p = FakeExecutionProvider()
     service = build_oms_service(
-        exec_p, broker_id="upstox", allow_unsafe_standalone=True, capital=Decimal("50000")
+        exec_p,
+        broker_id="upstox",
+        allow_unsafe_standalone=True,
+        capital=Decimal("50000"),
+        event_bus=event_bus,
+        processed_trade_repository=processed_trades,
     )
     intent = OrderIntent(
         symbol="RELIANCE",
@@ -175,13 +202,18 @@ def test_live_standalone_allowed_with_explicit_flag():
     assert result.success is True
 
 
-def test_paper_standalone_still_builds():
-    from application.oms.process_context import reset_oms_context
+def test_paper_standalone_still_builds(standalone_oms_wiring):
     from application.oms.session_bridge import build_oms_service
 
+    event_bus, processed_trades = standalone_oms_wiring
     reset_oms_context()
     exec_p = FakeExecutionProvider()
-    service = build_oms_service(exec_p, broker_id="paper")
+    service = build_oms_service(
+        exec_p,
+        broker_id="paper",
+        event_bus=event_bus,
+        processed_trade_repository=processed_trades,
+    )
     assert service is not None
 
 

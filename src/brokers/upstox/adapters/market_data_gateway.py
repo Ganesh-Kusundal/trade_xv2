@@ -101,9 +101,7 @@ class MarketDataGateway:
 
     # ── Batch helpers ───────────────────────────────────────────────────
 
-    def _resolve_keys(
-        self, symbols: list[str], exchange: str
-    ) -> tuple[dict[str, str], list[str]]:
+    def _resolve_keys(self, symbols: list[str], exchange: str) -> tuple[dict[str, str], list[str]]:
         """Return (instrument_key → symbol, ordered keys)."""
         key_to_sym: dict[str, str] = {}
         keys: list[str] = []
@@ -139,11 +137,7 @@ class MarketDataGateway:
                 if cand and str(cand) in symbol_set:
                     sym = str(cand)
             if sym is None:
-                tail = (
-                    str(key).split(":")[-1]
-                    if ":" in str(key)
-                    else str(key).split("|")[-1]
-                )
+                tail = str(key).split(":")[-1] if ":" in str(key) else str(key).split("|")[-1]
                 if tail in symbol_set:
                     sym = tail
             if sym is not None:
@@ -325,16 +319,6 @@ class MarketDataGateway:
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
         """Resolve canonical symbol to Upstox instrument_key (broker-internal)."""
-        segment = self._resolve_exchange_segment(symbol, exchange)
-        inst = self._broker.instruments.resolve(symbol=symbol, exchange_segment=segment)
-        if inst and inst.instrument_key:
-            return inst.instrument_key
-        return f"{segment}|{symbol}"
-
-    def _resolve_exchange_segment(self, symbol: str, exchange: str) -> str:
-        # Fallback heuristic for exchange segments
-        if exchange.upper() == "NSE":
-            if symbol.upper() in {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"}:
-                return "IDX_I"
-            return "NSE_EQ"
-        return "NSE_EQ"
+        # Service owns segment mapping + master lookup; do not pass
+        # exchange_segment= (UpstoxInstrumentService.resolve takes exchange=).
+        return self._broker.instruments.resolve_instrument_key(symbol, exchange)

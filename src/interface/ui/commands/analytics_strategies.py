@@ -5,13 +5,13 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
-from application.trading.multi_strategy_runtime import MultiStrategyRuntime
+from runtime.factory import build_multi_strategy_runtime
 
 
 def run_strategies(args: list[str], console: Console) -> None:
     """List or run registered strategies."""
     if not args or args[0] == "list":
-        runtime = MultiStrategyRuntime()
+        runtime = build_multi_strategy_runtime()
         names = runtime.list_strategies()
         table = Table(title="Registered Strategies")
         table.add_column("Name")
@@ -27,8 +27,8 @@ def run_strategies(args: list[str], console: Console) -> None:
                 "[yellow]Usage: tradex analytics strategies run <name> [name...][/yellow]"
             )
             return
-        pipeline = MultiStrategyRuntime.create_pipeline(names)
-        console.print(f"[green]Pipeline ready with {len(pipeline.strategies)} strategies[/green]")
+        runtime = build_multi_strategy_runtime(names)
+        console.print(f"[green]Pipeline ready with {len(runtime.strategies)} strategies[/green]")
         return
 
     console.print("[yellow]Usage: tradex analytics strategies list | run <name>...[/yellow]")

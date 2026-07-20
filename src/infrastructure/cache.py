@@ -36,24 +36,19 @@ class Cache(ABC):
     """Abstract cache interface."""
 
     @abstractmethod
-    def get(self, key: str) -> Any | None:
-        ...
+    def get(self, key: str) -> Any | None: ...
 
     @abstractmethod
-    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        ...
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None: ...
 
     @abstractmethod
-    def delete(self, key: str) -> None:
-        ...
+    def delete(self, key: str) -> None: ...
 
     @abstractmethod
-    def clear(self) -> None:
-        ...
+    def clear(self) -> None: ...
 
     @abstractmethod
-    def has(self, key: str) -> bool:
-        ...
+    def has(self, key: str) -> bool: ...
 
 
 class MemoryCache(Cache):
@@ -107,8 +102,7 @@ class MemoryCache(Cache):
         """Remove all expired entries. Must be called with lock held."""
         now = time.monotonic()
         expired_keys = [
-            k for k, (_, expires_at) in self._store.items()
-            if expires_at and now > expires_at
+            k for k, (_, expires_at) in self._store.items() if expires_at and now > expires_at
         ]
         for k in expired_keys:
             del self._store[k]
@@ -165,7 +159,9 @@ def cached(cache: Cache | None = None, ttl: int = 300) -> Callable[[F], F]:
             result = func(*args, **kwargs)
             cache_instance.set(key, result, ttl=ttl)
             return result
+
         return wrapper  # type: ignore
+
     return decorator
 
 
@@ -183,19 +179,10 @@ def async_cached(cache: Cache | None = None, ttl: int = 300) -> Callable[[F], F]
             result = await func(*args, **kwargs)
             cache_instance.set(key, result, ttl=ttl)
             return result
+
         return wrapper  # type: ignore
+
     return decorator
 
 
 memory_cache = MemoryCache()
-
-
-def create_cache() -> Cache:
-    """Pick Redis or Memory cache based on environment.
-
-    Returns :class:`RedisCache` when ``REDIS_URL`` is set **and** the
-    ``redis`` package is installed; otherwise returns :class:`MemoryCache`.
-    """
-    from infrastructure.cache_redis import get_redis_cache
-
-    return get_redis_cache()

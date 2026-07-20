@@ -26,17 +26,19 @@ def sample_ohlcv():
     """Sample OHLCV data spanning a split date."""
     dates = pd.date_range("2023-06-01", periods=100, freq="1D")
     prices = 1000.0 + np.arange(100, dtype=float)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": "TESTSYM",
-        "exchange": "NSE",
-        "open": prices,
-        "high": prices + 10,
-        "low": prices - 10,
-        "close": prices,
-        "volume": [100000] * 100,
-        "oi": [0] * 100,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": "TESTSYM",
+            "exchange": "NSE",
+            "open": prices,
+            "high": prices + 10,
+            "low": prices - 10,
+            "close": prices,
+            "volume": [100000] * 100,
+            "oi": [0] * 100,
+        }
+    )
 
 
 class TestRecordActions:
@@ -116,7 +118,8 @@ class TestApplyAdjustment:
         adjusted = store.apply_adjustment(sample_ohlcv, "NODATA")
         assert "adj_close" in adjusted.columns
         pd.testing.assert_series_equal(
-            adjusted["adj_close"], sample_ohlcv["close"].rename("adj_close"),
+            adjusted["adj_close"],
+            sample_ohlcv["close"].rename("adj_close"),
             check_names=False,
         )
 

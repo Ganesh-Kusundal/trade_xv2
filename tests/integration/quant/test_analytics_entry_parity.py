@@ -73,12 +73,12 @@ def test_analytics_entry_points_parity_equivalence() -> None:
     df = _ohlcv()
     symbol = "PARITY"
 
-    common_kwargs = dict(
-        initial_capital=100_000,
-        warmup_bars=5,
-        max_position_pct=100.0,
-        slippage_pct=0.0,
-    )
+    common_kwargs = {
+        "initial_capital": 100_000,
+        "warmup_bars": 5,
+        "max_position_pct": 100.0,
+        "slippage_pct": 0.0,
+    }
 
     replay = ReplayEngine(
         pipeline,
@@ -108,19 +108,19 @@ def test_analytics_entry_points_parity_equivalence() -> None:
     bt_replay = backtest_result.replay
 
     assert replay_result.bars_processed == bt_replay.bars_processed == paper_result.bars_processed
-    assert replay_result.signals_generated == bt_replay.signals_generated == paper_result.signals_generated
+    assert (
+        replay_result.signals_generated
+        == bt_replay.signals_generated
+        == paper_result.signals_generated
+    )
 
     r_trades = replay_result.session.trades
     b_trades = bt_replay.session.trades
     p_trades = paper_result.session.trades
 
     assert len(r_trades) == len(b_trades) == len(p_trades)
-    assert [_trade_fingerprint(t) for t in r_trades] == [
-        _trade_fingerprint(t) for t in b_trades
-    ]
-    assert [_trade_fingerprint(t) for t in r_trades] == [
-        _trade_fingerprint(t) for t in p_trades
-    ]
+    assert [_trade_fingerprint(t) for t in r_trades] == [_trade_fingerprint(t) for t in b_trades]
+    assert [_trade_fingerprint(t) for t in r_trades] == [_trade_fingerprint(t) for t in p_trades]
 
     # Equity curve: same length, final equity within float tolerance.
     r_eq = replay_result.session.equity_curve
@@ -140,7 +140,7 @@ def test_analytics_entry_points_parity_rejects_risk_blocked_order() -> None:
     """
     from decimal import Decimal
 
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
     from domain.events.types import EventType
 
     pipeline = FeaturePipeline()
@@ -148,12 +148,12 @@ def test_analytics_entry_points_parity_rejects_risk_blocked_order() -> None:
     df = _ohlcv()
     symbol = "RISKBLK"
 
-    common_kwargs = dict(
-        initial_capital=100_000,
-        warmup_bars=5,
-        max_position_pct=100.0,  # size full equity — oversized vs RiskConfig below
-        slippage_pct=0.0,
-    )
+    common_kwargs = {
+        "initial_capital": 100_000,
+        "warmup_bars": 5,
+        "max_position_pct": 100.0,  # size full equity — oversized vs RiskConfig below
+        "slippage_pct": 0.0,
+    }
 
     pure = ReplayEngine(
         pipeline,
@@ -234,7 +234,7 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     from decimal import Decimal
 
     from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
     from domain.events.types import EventType
 
     pipeline = FeaturePipeline()
@@ -242,13 +242,13 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     df = _declining_ohlcv()
     symbol = "LOSSY"
 
-    common_kwargs = dict(
-        initial_capital=100_000,
-        warmup_bars=5,
-        max_position_pct=10.0,  # leave cash so CB capital isn't near-zero
-        slippage_pct=0.0,
-        commission_flat=0.0,
-    )
+    common_kwargs = {
+        "initial_capital": 100_000,
+        "warmup_bars": 5,
+        "max_position_pct": 10.0,  # leave cash so CB capital isn't near-zero
+        "slippage_pct": 0.0,
+        "commission_flat": 0.0,
+    }
 
     rejected: list[object] = []
     ctx = build_test_trading_context(
@@ -277,9 +277,7 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     result = engine.run(df, symbol=symbol)
     session = result.session
 
-    assert len(session.trades) >= 1, (
-        "OMS mid-run sells must append SimulatedTrade (trade journal)"
-    )
+    assert len(session.trades) >= 1, "OMS mid-run sells must append SimulatedTrade (trade journal)"
     assert [_trade_fingerprint(t) for t in session.trades]
     # Risk capital is FIXED account size — it must NOT track declining session cash.
     risk_capital = ctx.risk_manager.capital_provider.get_available_balance()
@@ -315,7 +313,7 @@ def test_paper_flipflop_journals_trades_and_binds_capital() -> None:
     from decimal import Decimal
 
     from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
 
     pipeline = FeaturePipeline()
     strategy = StrategyPipeline(strategies=[FlipFlopStrategy()])
@@ -363,19 +361,19 @@ def test_analytics_parity_scope_restores_context() -> None:
     """
     from decimal import Decimal
 
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
 
     pipeline = FeaturePipeline()
     strategy = StrategyPipeline(strategies=[AlwaysBuyStrategy()])
     df = _ohlcv()
     symbol = "RESTORE"
 
-    common_kwargs = dict(
-        initial_capital=100_000,
-        warmup_bars=5,
-        max_position_pct=100.0,
-        slippage_pct=0.0,
-    )
+    common_kwargs = {
+        "initial_capital": 100_000,
+        "warmup_bars": 5,
+        "max_position_pct": 100.0,
+        "slippage_pct": 0.0,
+    }
 
     for factory in (
         lambda c: ReplayEngine(
@@ -406,4 +404,3 @@ def test_analytics_parity_scope_restores_context() -> None:
             "analytics_parity_scope must restore the original risk capital provider"
         )
         assert ctx.risk_manager.capital_provider.get_available_balance() == Decimal("100000")
-

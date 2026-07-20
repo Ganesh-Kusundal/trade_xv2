@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ValidationAudit:
     """Audit trail for dropped/flagged rows during validation."""
+
     total_rows: int = 0
     valid_rows: int = 0
     dropped_rows: int = 0
@@ -203,13 +204,18 @@ def validate_candles(
                 df = df[is_bool].copy()
 
     # Check temporal causality: published_at >= event_time
-    if "published_at" in df.columns and "event_time" in df.columns and pd.api.types.is_datetime64_any_dtype(df.get("published_at")) and pd.api.types.is_datetime64_any_dtype(df.get("event_time")):
-            causality_violation = df["published_at"] < df["event_time"]
-            if causality_violation.any():
-                n = int(causality_violation.sum())
-                issues.append(f"{n} published_at < event_time (causality violation)")
-                if drop_invalid:
-                    df = df[~causality_violation].copy()
+    if (
+        "published_at" in df.columns
+        and "event_time" in df.columns
+        and pd.api.types.is_datetime64_any_dtype(df.get("published_at"))
+        and pd.api.types.is_datetime64_any_dtype(df.get("event_time"))
+    ):
+        causality_violation = df["published_at"] < df["event_time"]
+        if causality_violation.any():
+            n = int(causality_violation.sum())
+            issues.append(f"{n} published_at < event_time (causality violation)")
+            if drop_invalid:
+                df = df[~causality_violation].copy()
 
     audit.issues = issues
     audit.valid_rows = len(df)
@@ -230,26 +236,7 @@ def validate_candles(
 
 
 def validate_parquet_file(path: str | Path, symbol: str = "") -> dict:
-    """Validate a Parquet file and return a report.
+    """Validate a Parquet file and return a report."""
+    from datalake.quality.contract import validate_parquet_file as _validate
 
-    Returns
-    -------
-    Dict with keys: total_rows, valid_rows, invalid_rows, issues
-    """
-    df = pd.read_parquet(path)
-    if df.empty:
-        return {"total_rows": 0, "valid_rows": 0, "invalid_rows": 0, "issues": []}
-
-    total = len(df)
-    validated = validate_candles(df, symbol=symbol, drop_invalid=False)
-    issues = []
-
-    if validated.empty:
-        issues.append("all rows failed validation")
-
-    return {
-        "total_rows": total,
-        "valid_rows": len(validated),
-        "invalid_rows": total - len(validated),
-        "issues": issues,
-    }
+    return _validate(path, symbol=symbol)

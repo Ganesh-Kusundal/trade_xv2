@@ -72,9 +72,7 @@ class InstrumentTradingMixin:
     ) -> OrderResult:
         """Place a market order via OMS only."""
         s = side if isinstance(side, Side) else Side(str(side).upper())
-        return self._place(
-            s, quantity, None, OrderType.MARKET, product_type, correlation_id
-        )
+        return self._place(s, quantity, None, OrderType.MARKET, product_type, correlation_id)
 
     def limit(
         self,
@@ -87,9 +85,7 @@ class InstrumentTradingMixin:
     ) -> OrderResult:
         """Place a limit order via OMS only."""
         s = side if isinstance(side, Side) else Side(str(side).upper())
-        return self._place(
-            s, quantity, price, OrderType.LIMIT, product_type, correlation_id
-        )
+        return self._place(s, quantity, price, OrderType.LIMIT, product_type, correlation_id)
 
     def stop_loss(
         self,
@@ -201,8 +197,7 @@ class InstrumentTradingMixin:
         except Exception:
             pass
         raise NotConfiguredError(
-            "Instrument has no OrderServicePort (OMS). "
-            "Use tradex.connect(..., mode='sim'|'trade')."
+            "Instrument has no OrderServicePort (OMS). Use tradex.connect(..., mode='sim'|'trade')."
         )
 
     def _place(
@@ -216,8 +211,6 @@ class InstrumentTradingMixin:
         *,
         trigger_price: Decimal | None = None,
     ) -> OrderResult:
-        from domain.errors import NotConfiguredError
-
         ot = order_type if isinstance(order_type, OrderType) else OrderType(str(order_type).upper())
         pt = (
             product_type

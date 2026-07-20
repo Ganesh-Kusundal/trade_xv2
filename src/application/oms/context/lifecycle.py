@@ -8,31 +8,36 @@ cancellation.
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any  # Only for signal handler frame type
 
 from application.oms.context._types import CancellationResult
-from application.oms.protocols import IBrokerGateway
-from infrastructure.lifecycle.lifecycle import ManagedService
+from domain.lifecycle_health import HealthState, HealthStatus
+from domain.ports.lifecycle import ManagedServicePort
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
 
-class TradingContextLifecycleMixin(ManagedService):
+class TradingContextLifecycleMixin(ManagedServicePort):
     """Mixin providing lifecycle / shutdown methods for TradingContext.
 
-    Inherits ManagedService so TradingContext satisfies the protocol
-    without the main __init__.py needing to list it as a base class.
+    Implements the domain ``ManagedServicePort`` (structural Protocol) so the
+    application layer never imports the infrastructure ``ManagedService``
+    concrete class — preserving the Application↛Infrastructure layering
+    contract. No base class from ``infrastructure`` is used.
+
+    Note: ``ManagedServicePort`` is a Protocol; explicit subclassing is only a
+    typing aid and adds no runtime dependency.
     """
 
     # ManagedService protocol attributes
     name: str = "oms.trading_context"
-    _shutdown_gateway: IBrokerGateway | None = None  # Injectable gateway for testing
+    _shutdown_gateway: Any | None = None  # Injectable gateway for testing
 
     async def shutdown(
         self,
         cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> dict:
         """Graceful shutdown sequence.
 
@@ -69,7 +74,7 @@ class TradingContextLifecycleMixin(ManagedService):
     def _execute_shutdown_sequence(
         self,
         cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> dict:
         """Shared shutdown steps — delegates to :class:`ShutdownCoordinator`."""
         effective_gateway = gateway or self._shutdown_gateway
@@ -80,7 +85,7 @@ class TradingContextLifecycleMixin(ManagedService):
 
     def cancel_all_open_orders(
         self,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> CancellationResult:
         """Cancel all open orders, optionally via a broker gateway.
 
@@ -103,6 +108,25 @@ class TradingContextLifecycleMixin(ManagedService):
 
     # ── ManagedService protocol implementation ──────────────────────────
 
+    def health(self) -> HealthStatus:
+        """Return a point-in-time health snapshot for the lifecycle manager.
+
+        Reports HEALTHY while the context is live; UNHEALTHY if a shutdown is
+        already in progress (no new orders should be placed).
+        """
+        if getattr(self, "_shutdown_in_progress", False):
+            state = HealthState.UNHEALTHY
+            detail = "shutdown in progress"
+        else:
+            state = HealthState.HEALTHY
+            detail = "live"
+        return HealthStatus(
+            state=state,
+            service=self.name,
+            last_check=get_current_clock().now(),
+            detail=detail,
+        )
+
     def start(self) -> None:
         """Start the trading context. Idempotent.
 
@@ -124,9 +148,7 @@ class TradingContextLifecycleMixin(ManagedService):
             try:
                 from application.ports import run_coro_sync
 
-                run_coro_sync(
-                    self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway)
-                )
+                run_coro_sync(self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway))
             except RuntimeError:
                 self._sync_shutdown()
         except Exception as exc:

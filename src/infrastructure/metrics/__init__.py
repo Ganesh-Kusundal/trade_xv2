@@ -19,7 +19,6 @@ Usage:
         place_order()
 """
 
-from infrastructure.metrics.prometheus import PrometheusExporter
 from infrastructure.metrics.registry import MetricsRegistry, metrics_registry
 from infrastructure.metrics.types import (
     Counter,
@@ -39,7 +38,6 @@ __all__ = [
     "LabelledGauge",
     "LabelledHistogram",
     "MetricsRegistry",
-    "PrometheusExporter",
     "Timer",
     "metrics_registry",
 ]

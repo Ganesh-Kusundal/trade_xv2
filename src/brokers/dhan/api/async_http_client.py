@@ -39,29 +39,45 @@ from typing import Any
 
 import httpx
 
-from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitState
-from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
+from brokers.dhan.api.http_client import (
+    _MAX_RETRIES,
+    _RATE_LIMIT_BACKOFF_SECONDS,
+    _REFRESH_COOLDOWN_SECONDS,
+    _categorize_endpoint,
+    _parse_retry_after,
+    _rate_limit_bucket,
+)
+from brokers.dhan.api.http_client import _match_rate_limit as _match_static_rate_limit
+from brokers.dhan.config import DEFAULT_CONFIG
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 from brokers.dhan.resilience.metrics import (
     dhan_errors_total,
     dhan_request_duration_seconds,
     dhan_request_total,
 )
-from brokers.dhan.api.http_client import (
-    _MAX_DELAY_MS,
-    _MAX_RETRIES,
-    _RATE_LIMIT_BACKOFF_SECONDS,
-    _REFRESH_COOLDOWN_SECONDS,
-    _categorize_endpoint,
-    _rate_limit_bucket,
-)
-from brokers.dhan.api.http_client import _match_rate_limit as _match_static_rate_limit
-from brokers.dhan.api.http_client import _parse_retry_after
 from config.endpoints import Dhan
+from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitState
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = Dhan.REST_BASE
+
+
+class _DhanAsyncRateLimitAdapter:
+    """Adapt async MultiBucketRateLimiter to ResilientHttpTransport (DP-01)."""
+
+    def __init__(self, client: "DhanAsyncHttpClient") -> None:
+        self._client = client
+
+    async def acquire_async(self, bucket: str, tokens: int = 1, timeout: float = 5.0) -> bool:
+        limiter = self._client._rate_limiter
+        if limiter is None:
+            return True
+        try:
+            return bool(await limiter.acquire_async(bucket, tokens=tokens, timeout=timeout))
+        except ValueError:
+            return True
 
 
 class DhanAsyncHttpClient:
@@ -120,6 +136,18 @@ class DhanAsyncHttpClient:
 
         self._last_refresh_time: float = 0.0
         self._refresh_backoff_until: float = 0.0
+        from brokers.common.http.resilient_transport import ResilientHttpTransport
+
+        self._resilient_transport = ResilientHttpTransport(
+            rate_limiter=_DhanAsyncRateLimitAdapter(self),
+            circuit_breaker=None,
+        )
+
+    def _endpoint_policy(self, endpoint: str):
+        from brokers.common.http.resilient_transport import EndpointPolicy
+
+        category = _rate_limit_bucket(endpoint, DEFAULT_CONFIG)
+        return EndpointPolicy(bucket=category, is_write=category == "orders")
 
     # ── Context manager support ──────────────────────────────────────────
 
@@ -176,7 +204,7 @@ class DhanAsyncHttpClient:
         json: dict | None = None,
     ) -> dict[str, Any]:
         """Execute an HTTP request with circuit-breaker, rate-limiter, and retry."""
-        client = self._ensure_client()
+        self._ensure_client()
 
         # Circuit breaker check — fast-fail if the category-specific
         # breaker for this endpoint is OPEN.
@@ -184,9 +212,12 @@ class DhanAsyncHttpClient:
         if cb is not None and cb.state == CircuitState.OPEN and not cb.allow_request():
             raise DhanError(f"Circuit breaker open: {method} {endpoint}")
 
-        # Rate limit token acquisition (async)
-        if not await self._acquire_rate_limit_token(endpoint):
-            raise DhanError(f"Rate limit timeout: {method} {endpoint}")
+        # Rate limit via shared transport shell (DP-01)
+        policy = self._endpoint_policy(endpoint)
+        try:
+            await self._resilient_transport.before_request_async(policy)
+        except RuntimeError as exc:
+            raise DhanError(f"Rate limit timeout: {method} {endpoint}") from exc
 
         # Throttle — wait for per-endpoint minimum interval
         await self._throttle(endpoint)
@@ -286,7 +317,9 @@ class DhanAsyncHttpClient:
                         await asyncio.sleep(delay)
                         continue
                     body = resp.text[:200]
-                    raise DhanError(f"Dhan API {method} {url} failed: HTTP {resp.status_code} — {body}")
+                    raise DhanError(
+                        f"Dhan API {method} {url} failed: HTTP {resp.status_code} — {body}"
+                    )
 
                 # 4xx — check for Dhan-specific token errors (DH-906/DH-808 returned as 400)
                 if resp.status_code >= 400:
@@ -310,7 +343,9 @@ class DhanAsyncHttpClient:
                             "body": body,
                         },
                     )
-                    raise DhanError(f"Dhan API {method} {url} failed: HTTP {resp.status_code} — {body}")
+                    raise DhanError(
+                        f"Dhan API {method} {url} failed: HTTP {resp.status_code} — {body}"
+                    )
 
                 # Success path
                 try:
@@ -433,6 +468,7 @@ class DhanAsyncHttpClient:
 def _match_prefix(endpoint: str) -> str | None:
     """Return the matching rate-limit prefix key for endpoint, or None."""
     from brokers.dhan.api.http_client import _RATE_LIMITS
+
     if endpoint in _RATE_LIMITS:
         return endpoint
     for prefix in _RATE_LIMITS:

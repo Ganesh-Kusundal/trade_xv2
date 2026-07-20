@@ -1,4 +1,5 @@
 """Context flags for execution submission — shared across broker adapters and OMS."""
+
 from __future__ import annotations
 
 import contextlib
@@ -6,7 +7,8 @@ import contextvars
 from collections.abc import Generator
 
 _oms_managed_submit: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "_oms_managed_submit", default=False,
+    "_oms_managed_submit",
+    default=False,
 )
 
 

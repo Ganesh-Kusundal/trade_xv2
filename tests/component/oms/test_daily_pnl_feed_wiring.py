@@ -12,16 +12,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import MagicMock
 
+from application.oms import PositionManager, RiskManager, TradingContext
+from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
+from application.oms._internal.risk_manager import RiskConfig
 from domain.entities.order import Order
 from domain.entities.trade import Trade
 from domain.enums import OrderType, ProductType, Side
 from domain.events.types import DomainEvent, EventType
-
-from application.oms import PositionManager, RiskManager, TradingContext
-from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-from application.oms.risk_manager import RiskConfig
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.event_bus.processed_trade_repository import ProcessedTradeRepository
 
@@ -48,7 +46,12 @@ def _publish_trade_applied(bus: EventBus, trade: Trade) -> None:
     )
 
 
-def _build_context(capital: Decimal, loss_threshold_pct: Decimal, bus: EventBus, processed_trade_repository: ProcessedTradeRepository) -> TradingContext:
+def _build_context(
+    capital: Decimal,
+    loss_threshold_pct: Decimal,
+    bus: EventBus,
+    processed_trade_repository: ProcessedTradeRepository,
+) -> TradingContext:
     risk_config = RiskConfig(max_daily_loss_pct=loss_threshold_pct)
     loss_cb_config = LossCircuitBreakerConfig(
         loss_threshold_pct=loss_threshold_pct,
@@ -92,8 +95,6 @@ def test_loss_circuit_breaker_trips_on_live_loss(event_bus, processed_trade_repo
     # A single 1000 INR loss is 0.1% of capital -> exceeds 0.05% threshold.
     _publish_trade_applied(ctx.event_bus, _make_trade("T1", Side.BUY, Decimal("2500")))
     _publish_trade_applied(ctx.event_bus, _make_trade("T2", Side.SELL, Decimal("2400")))
-
-    from domain.entities.order import Order
 
     order = Order(
         order_id="ORD-X",

@@ -7,10 +7,15 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from interface.api.auth import require_auth
-from interface.api.deps import get_data_catalog, get_datalake_gateway, get_trading_context, get_view_manager
-from interface.api.schemas import ScannerCandidatesResponse, ScannerSnapshot
 from datalake.research.scan_store import get_recent_scans, save_scan_result
+from interface.api.auth import require_auth
+from interface.api.deps import (
+    get_data_catalog,
+    get_datalake_gateway,
+    get_trading_context,
+    get_view_manager,
+)
+from interface.api.schemas import ScannerCandidatesResponse, ScannerSnapshot
 
 logger = logging.getLogger(__name__)
 

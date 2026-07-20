@@ -103,6 +103,5 @@ class BrokerId(str, Enum):
             return cls(key)
         except ValueError as exc:
             raise ValueError(
-                f"Broker '{name}' is not registered. "
-                f"Use one of: {', '.join(b.value for b in cls)}"
+                f"Broker '{name}' is not registered. Use one of: {', '.join(b.value for b in cls)}"
             ) from exc

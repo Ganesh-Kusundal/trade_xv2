@@ -43,9 +43,13 @@ class UpstoxWebSocketService(ManagedService):
                 return
             self._started = True
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
+            from runtime.event_loop import ensure_runtime_loop_running
 
-            run_async_compat(self._mux.connect())
+            # connect() schedules a long-lived read loop — must not use
+            # run_coro_sync's ephemeral loop (closed when connect returns).
+            ensure_runtime_loop_running()
+            run_async_compat(self._mux.connect(), fire_and_forget=False)
             logger.info("upstox_websocket_started", extra={"service": self.name})
         except Exception as exc:
             with self._lock:
@@ -59,7 +63,7 @@ class UpstoxWebSocketService(ManagedService):
                 return
             self._started = False
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
 
             run_async_compat(self._mux.disconnect())
             logger.info("upstox_websocket_stopped", extra={"service": self.name})
@@ -99,9 +103,11 @@ class UpstoxPortfolioStreamService(ManagedService):
                 return
             self._started = True
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
+            from runtime.event_loop import ensure_runtime_loop_running
 
-            run_async_compat(self._stream.connect())
+            ensure_runtime_loop_running()
+            run_async_compat(self._stream.connect(), fire_and_forget=False)
             logger.info("upstox_portfolio_stream_started", extra={"service": self.name})
         except Exception as exc:
             with self._lock:
@@ -114,7 +120,7 @@ class UpstoxPortfolioStreamService(ManagedService):
                 return
             self._started = False
         try:
-            from infrastructure.async_compat import run_async_compat
+            from infrastructure.io.async_compat import run_async_compat
 
             run_async_compat(self._stream.disconnect())
             logger.info("upstox_portfolio_stream_stopped", extra={"service": self.name})

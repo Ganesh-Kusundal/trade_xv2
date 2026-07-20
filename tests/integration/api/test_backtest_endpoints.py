@@ -39,12 +39,12 @@ def isolate_backtest_state():
     """Reset backtest cache and container before each test."""
     import interface.api.routers.backtest as bt_mod
 
-    with bt_mod._backtest_cache_lock:
-        bt_mod._backtest_cache.clear()
+    with bt_mod._BacktestCache._lock:
+        bt_mod._BacktestCache._cache.clear()
     reset_container()
     yield
-    with bt_mod._backtest_cache_lock:
-        bt_mod._backtest_cache.clear()
+    with bt_mod._BacktestCache._lock:
+        bt_mod._BacktestCache._cache.clear()
     reset_container()
 
 
@@ -66,12 +66,12 @@ class TestBacktestRunRealEngine:
     def setup_isolation(self):
         import interface.api.routers.backtest as bt_mod
 
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
         yield
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
 
     def test_run_backtest_produces_real_metrics(self):
@@ -91,8 +91,8 @@ class TestBacktestRunRealEngine:
             assert "run_id" in data
             assert data["symbol"] == "RELIANCE"
             assert data["timeframe"] == "1d"
-            assert data["research_mode"] == "pure_sim"
-            assert data["research_only"] is True
+            assert data["research_mode"] == "parity"
+            assert data["research_only"] is False
             metrics = data["metrics"]
             assert "total_return_pct" in metrics
             assert "sharpe_ratio" in metrics
@@ -146,15 +146,14 @@ class TestBacktestRunRealEngine:
             assert response.status_code == 200
 
     def test_run_backtest_deterministic(self):
-        with _make_client_with_gateway() as tc:
-            _build_sample_ohlcv(200)
-            results = []
-            for _ in range(2):
-                reset_container()
-                import interface.api.routers.backtest as bt_mod
+        sample = _build_sample_ohlcv(200)
+        results = []
+        for _ in range(2):
+            import interface.api.routers.backtest as bt_mod
 
-                with bt_mod._backtest_cache_lock:
-                    bt_mod._backtest_cache.clear()
+            with bt_mod._BacktestCache._lock:
+                bt_mod._BacktestCache._cache.clear()
+            with _make_client_with_gateway(sample_df=sample) as tc:
                 resp = tc.post(
                     "/api/v1/backtest/run",
                     json={
@@ -168,7 +167,7 @@ class TestBacktestRunRealEngine:
                 assert resp.status_code == 200
                 results.append(resp.json())
 
-            assert results[0]["metrics"]["total_trades"] == results[1]["metrics"]["total_trades"]
+        assert results[0]["metrics"]["total_trades"] == results[1]["metrics"]["total_trades"]
 
 
 class TestBacktestErrorHandling:
@@ -176,18 +175,18 @@ class TestBacktestErrorHandling:
     def setup_isolation(self):
         import interface.api.routers.backtest as bt_mod
 
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
         yield
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
 
     def test_no_historical_data_returns_404(self):
-        with _make_client_with_gateway() as client:
-            gateway = MagicMock()
-            gateway.history.return_value = pd.DataFrame()
+        gateway = MagicMock()
+        gateway.history.return_value = pd.DataFrame()
+        with _make_client_with_gateway(gateway=gateway) as client:
             response = client.post(
                 "/api/v1/backtest/run",
                 json={
@@ -216,9 +215,9 @@ class TestBacktestErrorHandling:
             assert response.status_code == 503
 
     def test_gateway_exception_returns_500(self):
-        with _make_client_with_gateway() as client:
-            gateway = MagicMock()
-            gateway.history.side_effect = RuntimeError("Data lake connection failed")
+        gateway = MagicMock()
+        gateway.history.side_effect = RuntimeError("Data lake connection failed")
+        with _make_client_with_gateway(gateway=gateway) as client:
             response = client.post(
                 "/api/v1/backtest/run",
                 json={
@@ -247,12 +246,12 @@ class TestBacktestMetricsCorrectness:
     def setup_isolation(self):
         import interface.api.routers.backtest as bt_mod
 
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
         yield
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
 
     def test_metrics_fields_are_numeric(self):
@@ -318,12 +317,12 @@ class TestBacktestValidation:
     def setup_isolation(self):
         import interface.api.routers.backtest as bt_mod
 
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
         yield
-        with bt_mod._backtest_cache_lock:
-            bt_mod._backtest_cache.clear()
+        with bt_mod._BacktestCache._lock:
+            bt_mod._BacktestCache._cache.clear()
         reset_container()
 
     def test_years_too_large(self):

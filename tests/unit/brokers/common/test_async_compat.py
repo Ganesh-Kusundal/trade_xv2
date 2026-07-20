@@ -9,7 +9,7 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 import pytest
 
-from infrastructure.async_compat import connect_async_then, run_async_compat
+from infrastructure.io.async_compat import connect_async_then, run_async_compat
 from tests.support.wait_utils import wait_until
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -127,7 +127,6 @@ class TestAsyncContext:
 
     def test_fire_and_forget_schedules_and_returns_none(self, _loop_thread: None) -> None:
         """fire_and_forget=True should schedule the coroutine and return None."""
-        import time
 
         result = self._run_on_loop(lambda: run_async_compat(_async_add(3, 4), fire_and_forget=True))
         assert result is None

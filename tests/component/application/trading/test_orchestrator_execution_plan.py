@@ -1,9 +1,8 @@
 """Orchestrator now converts signals via ExecutionPlan.
 
 Guarantees: gating (kill-switch / min-confidence / ENG-003 refusal) is
-preserved; EXECUTION_PLAN_BUILT + ORDER_REQUESTED are published; and the
-original risk/execution events (RISK_APPROVED / SIGNAL_EXECUTED /
-RISK_REJECTED) still fire.
+preserved; EXECUTION_PLAN_BUILT + ORDER_REQUESTED are published; and
+SIGNAL_EXECUTED still fires. RISK_* events are owned by OrderValidator.
 """
 
 from __future__ import annotations
@@ -59,13 +58,16 @@ def _orch(bus: _Bus, kill_switch: bool = False, min_confidence: float = 0.7, ord
     rm.is_kill_switch_active.return_value = kill_switch
     om = MagicMock()
     om.risk_manager = rm
+    engine = MagicMock()
+    if order_fn is not None:
+        engine.place_order.side_effect = lambda cmd: order_fn(cmd)
     return TradingOrchestrator(
         event_bus=bus,
         order_manager=om,
         strategy_evaluator=MagicMock(),
         feature_fetcher=MagicMock(),
         config=OrchestratorConfig(min_confidence=min_confidence),
-        order_command_fn=order_fn,
+        execution_engine=engine,
     )
 
 
@@ -82,7 +84,7 @@ def test_execute_signal_publishes_plan_built_and_order_requested():
     assert EventType.EXECUTION_PLAN_BUILT.value in types
     assert EventType.ORDER_REQUESTED.value in types
     assert EventType.SIGNAL_EXECUTED.value in types
-    assert EventType.RISK_APPROVED.value in types
+    assert EventType.RISK_APPROVED.value not in types
     assert orch.executed_count == 1
 
 
@@ -108,15 +110,16 @@ def test_order_requested_event_is_typed_parseable():
     assert typed.request.slicing_algo == "NONE"
 
 
-def test_kill_switch_blocks_and_publishes_no_plan():
+def test_kill_switch_no_longer_pre_blocks_at_orchestrator():
+    """Phase A: kill-switch enforcement lives in OMS, not orchestrator gating."""
     bus = _Bus()
     orch = _orch(bus, kill_switch=True, order_fn=_ok_fn)
     orch._execute_signal(_signal(), "corr-1")
 
     types = [e.event_type for e in bus.events]
-    assert EventType.EXECUTION_PLAN_BUILT.value not in types
-    assert EventType.SIGNAL_EXECUTED.value not in types
-    assert orch.rejected_count == 1
+    assert EventType.EXECUTION_PLAN_BUILT.value in types
+    assert EventType.SIGNAL_EXECUTED.value in types
+    assert orch.executed_count == 1
 
 
 def test_low_confidence_is_rejected_before_plan():
@@ -141,7 +144,7 @@ def test_eng003_refuses_signal_with_no_size():
     assert orch.rejected_count == 1
 
 
-def test_risk_rejection_publishes_risk_rejected_event():
+def test_risk_rejection_does_not_publish_orchestrator_risk_rejected():
     def _fail(cmd):
         return OrderResult(success=False, error="position limit exceeded")
 
@@ -150,6 +153,6 @@ def test_risk_rejection_publishes_risk_rejected_event():
     orch._execute_signal(_signal(), "corr-1")
 
     types = [e.event_type for e in bus.events]
-    assert EventType.RISK_REJECTED.value in types
+    assert EventType.RISK_REJECTED.value not in types
     assert EventType.SIGNAL_EXECUTED.value not in types
     assert orch.rejected_count == 1

@@ -215,14 +215,16 @@ def baseline_replay_pnl(mode: str) -> dict:
         commission_flat=20.0,
     )
 
-    # Create mock OMS adapter for baseline testing
-    class _MockOmsAdapter:
-        def open_long(self, **kw): return "mock-order-id"
-        def close_long(self, **kw): return "mock-order-id"
-        def get_position(self, **kw): return None
-        def get_orders(self, **kw): return []
+    from runtime.paper_session import build_paper_session
 
-    engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_MockOmsAdapter())
+    session = build_paper_session(initial_capital=config.initial_capital)
+    engine = ReplayEngine(
+        pipeline,
+        strategy,
+        config,
+        trading_context=session.trading_context,
+        oms_adapter=session.oms_adapter,
+    )
 
     # Run 5 times to verify determinism
     runs = []

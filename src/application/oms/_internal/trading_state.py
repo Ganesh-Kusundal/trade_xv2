@@ -5,6 +5,7 @@ Modeled after Nautilus RiskEngine trading state:
 - REDUCING: only risk-reducing orders allowed (e.g., sell to close)
 - HALTED: no new orders allowed
 """
+
 from __future__ import annotations
 
 from enum import Enum
@@ -41,7 +42,5 @@ class TradingState:
                 return False
             if side == "SELL" and current_qty > 0 and new_qty <= current_qty:
                 return True
-            if side == "BUY" and current_qty < 0 and new_qty >= abs(current_qty):
-                return True
-            return False
+            return bool(side == "BUY" and current_qty < 0 and new_qty >= abs(current_qty))
         return False

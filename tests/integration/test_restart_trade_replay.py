@@ -1,16 +1,15 @@
 """Restart replay must not duplicate trades when ledger is persisted."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
 
-from application.oms import create_trading_context
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from infrastructure.event_bus import ProcessedTradeRepository, TradeIdKey
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture(autouse=True)

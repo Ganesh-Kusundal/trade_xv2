@@ -127,6 +127,8 @@ class OrderGateway:
         try:
             response = self._order_command.place_order(request)
         except Exception as e:
+            from brokers.common.transport_errors import order_response_from_transport_error
+
             logger.warning(
                 "order_placement_failed",
                 extra={
@@ -136,7 +138,7 @@ class OrderGateway:
                     "error": str(e),
                 },
             )
-            return OrderResponse.fail(str(e))
+            return order_response_from_transport_error(e)
 
         # Log failed responses from adapter (risk checks, validation, etc.)
         if not response.success:
@@ -262,7 +264,9 @@ class OrderGateway:
             )
             return OrderResponse.fail(message)
         except Exception as exc:
-            return OrderResponse.fail(str(exc))
+            from brokers.common.transport_errors import order_response_from_transport_error
+
+            return order_response_from_transport_error(exc)
 
     # ── Order / Trade book ─────────────────────────────────────────────
 

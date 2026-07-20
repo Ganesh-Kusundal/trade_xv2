@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from application.oms.order_manager import OrderManager
-from application.oms.risk_manager import RiskConfig, RiskManager
 from domain import OrderStatus, OrderType, ProductType, Side
 
 
@@ -151,9 +151,9 @@ class TestPositionManagerStress:
         - Final position correctness
         """
         from application.oms.position_manager import PositionManager
-        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus import EventBus
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.observability.event_metrics import EventMetrics
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue(max_size=1000)

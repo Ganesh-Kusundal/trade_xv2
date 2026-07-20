@@ -128,6 +128,30 @@ changed mid-process.
 
 ---
 
+## Broker API scheduling & cache ownership
+
+**Rate-limit call path (as-built):**
+
+1. Application `QuotaScheduler` (`application/scheduling/quota_scheduler.py`) — global priority
+   classes with max-wait deadlines for cross-broker coordination.
+2. Per-broker HTTP clients acquire `MultiBucketRateLimiter` tokens from
+   `infrastructure/resilience/rate_limiter.py` using `RateLimitProfile` entries in
+   `BrokerCapabilities`.
+
+Both layers may apply; callers should not bypass either at the transport boundary.
+
+**Cache ownership:**
+
+| Cache | Owner |
+|---|---|
+| Instrument master (file + resolver) | Broker plugin + `domain/ports/data_catalog.py` |
+| Token persistence | Per-broker auth modules |
+| Idempotency (orders) | `brokers/common/idempotency.py` |
+| Historical bars (canonical) | Datalake / `HistoricalDataCoordinator` — not broker-local |
+| Quote snapshots | Instrument refresh path — no shared broker quote cache |
+
+---
+
 ## As-built gap tracking
 
 See `docs/architecture/backlog.md` (2026-07-13 re-verification) for current status of the

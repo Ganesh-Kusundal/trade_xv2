@@ -68,9 +68,7 @@ class DhanDataProvider(DataProvider):
         except Exception:
             return None
 
-    def get_quotes_batch(
-        self, instrument_ids: list[InstrumentId]
-    ) -> list[QuoteSnapshot | None]:
+    def get_quotes_batch(self, instrument_ids: list[InstrumentId]) -> list[QuoteSnapshot | None]:
         """Batch quotes; groups by exchange and uses gateway quote_batch when present."""
         if not instrument_ids:
             return []
@@ -160,9 +158,7 @@ class DhanDataProvider(DataProvider):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> HistoricalSeries:
-        ref = InstrumentRef(
-            symbol=instrument_id.underlying, exchange=instrument_id.exchange
-        )
+        ref = InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange)
         df = self._history_dataframe(
             instrument_id,
             timeframe=timeframe,
@@ -171,9 +167,7 @@ class DhanDataProvider(DataProvider):
             to_date=to_date,
         )
         if df is None or getattr(df, "empty", True):
-            return HistoricalSeries(
-                bars=[], coverage=None, instrument=ref, timeframe=timeframe
-            )
+            return HistoricalSeries(bars=[], coverage=None, instrument=ref, timeframe=timeframe)
         return HistoricalSeries.from_broker_df(
             df,
             ref,

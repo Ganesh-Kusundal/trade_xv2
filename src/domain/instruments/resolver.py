@@ -6,8 +6,8 @@ No broker/gateway imports.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from difflib import get_close_matches
-from typing import Iterable, Sequence
 
 from domain.instruments.display_names import format_display_name, parse_display_name
 from domain.instruments.instrument_id import InstrumentId
@@ -44,9 +44,7 @@ class InstrumentResolver:
                     matches[0], default_exchange=exch, default_year=default_year
                 )
         try:
-            return parse_display_name(
-                name, default_exchange=exch, default_year=default_year
-            )
+            return parse_display_name(name, default_exchange=exch, default_year=default_year)
         except ValueError:
             if self._known and token:
                 matches = get_close_matches(token, self._known, n=1, cutoff=0.6)

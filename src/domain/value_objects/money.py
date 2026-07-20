@@ -41,10 +41,7 @@ class TickSize:
 
     def is_valid_price(self, price: Decimal | Money | float | int | str) -> bool:
         """True if *price* is an integer multiple of this tick."""
-        if isinstance(price, Money):
-            price = price.to_decimal()
-        else:
-            price = Decimal(str(price))
+        price = price.to_decimal() if isinstance(price, Money) else Decimal(str(price))
         if self.value == 0:
             return False
         q = price / self.value

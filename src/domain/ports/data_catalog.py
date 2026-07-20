@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ContextManager, Protocol, runtime_checkable
 
 # Canonical constants — single source of truth for all consumers.
 # These are the legacy defaults; prefer DataPaths for new code.
@@ -18,6 +17,9 @@ DEFAULT_DATA_ROOT: str = "data/lake"
 
 DEFAULT_CATALOG_PATH: Path = Path("data/lake/catalog.duckdb")
 """Default path for DuckDB catalog database."""
+
+DEFAULT_INSTRUMENT_CACHE_DIR: Path = Path("data/cache/instruments")
+"""On-disk instrument master CSV cache (broker symbol downloads)."""
 
 
 @dataclass(frozen=True)
@@ -93,23 +95,3 @@ class DataPaths:
 # Module-level default instance for backward compatibility.
 # New code should receive DataPaths via injection, not import this.
 DEFAULT_DATA_PATHS = DataPaths()
-
-
-@runtime_checkable
-class DuckDBCatalogPort(Protocol):
-    """Protocol for DuckDB connection pool access.
-
-    Implemented by ``datalake.core.duckdb_utils`` singletons.
-    """
-
-    def get_pool(self) -> Any:
-        """Return the read-write DuckDB connection pool."""
-        ...
-
-    def get_read_pool(self) -> Any:
-        """Return the read-only DuckDB connection pool."""
-        ...
-
-    def duckdb_connection(self, *, read_only: bool = False) -> ContextManager:
-        """Context manager that yields a DuckDB connection."""
-        ...

@@ -195,6 +195,7 @@ def migrate_legacy_to_curated(
     """
     if root is None:
         from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
         root = DEFAULT_DATA_PATHS.lake_root
     try:
         from scripts.migration.migrate_to_curated_layout import migrate

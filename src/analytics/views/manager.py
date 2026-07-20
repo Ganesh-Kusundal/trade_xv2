@@ -27,11 +27,11 @@ logger = logging.getLogger(__name__)
 
 # Re-export constants for public/test compatibility
 __all__ = [
-    "ViewManager",
-    "MATERIALIZED_DIR",
-    "VERSION_KEEP_COUNT",
-    "MIN_SYMBOLS_FOR_FULL_DAY",
     "DAILY_LOOKBACK_DAYS",
+    "MATERIALIZED_DIR",
+    "MIN_SYMBOLS_FOR_FULL_DAY",
+    "VERSION_KEEP_COUNT",
+    "ViewManager",
 ]
 
 

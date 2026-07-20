@@ -72,7 +72,9 @@ class _FakeGateway:
         return SimpleNamespace(available_balance=Decimal("100000"))
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Any:
-        return SimpleNamespace(ltp=Decimal("2500"), bid=Decimal("2499"), ask=Decimal("2501"), volume=0)
+        return SimpleNamespace(
+            ltp=Decimal("2500"), bid=Decimal("2499"), ask=Decimal("2501"), volume=0
+        )
 
     def close(self) -> None:
         pass

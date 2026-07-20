@@ -6,8 +6,8 @@ import inspect
 
 import pytest
 
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.capability_manifest import CAPABILITY_SURFACES, abc_gateway_methods, surface_by_id
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
 def _abstract_methods() -> set[str]:

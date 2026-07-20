@@ -6,22 +6,21 @@ Protected by one ``threading.RLock`` and uses immutable ``Position`` values.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import deque
 from decimal import Decimal
 
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Position, Trade
-from domain.portfolio_projection import project_trade
 from domain.events.types import DomainEvent, EventType
+from domain.portfolio_projection import project_trade
+from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
+from domain.state_machine import IllegalTransitionError, StateMachine
 from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
-from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
-from application.observability import get_logger
-from domain.state_machine import IllegalTransitionError, StateMachine
-from application.observability import trace_operation
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PositionManager:
@@ -73,7 +72,6 @@ class PositionManager:
 
     # ── Public API ──────────────────────────────────────────────────────────
 
-    @trace_operation("position_manager.apply_trade")
     def apply_trade(self, trade: Trade) -> Position:
         """Apply a trade to the position book and return the new position.
 
@@ -101,7 +99,7 @@ class PositionManager:
             was_flat = current.quantity == 0
             projected = project_trade(current, trade)
             new_quantity = projected.quantity
-            delta = new_quantity - current.quantity
+            new_quantity - current.quantity
             will_be_flat = new_quantity == 0
 
             if was_flat and not will_be_flat:
@@ -228,9 +226,10 @@ class PositionManager:
                 for p in self._positions.values()
             ]
 
-    def get_net_pnl(self) -> "Decimal":
+    def get_net_pnl(self) -> Decimal:
         """Sum of unrealized PnL across all open positions. Returns Decimal('0') if empty."""
         from decimal import Decimal
+
         total = Decimal("0")
         for pos in self.get_positions():
             # Try common field names in order
@@ -276,9 +275,7 @@ class PositionManager:
                 if ltp:
                     pos = pos.with_ltp(ltp)
                 self._positions[key] = pos
-                self._publish(
-                    EventType.POSITION_UPDATED.value, pos
-                )
+                self._publish(EventType.POSITION_UPDATED.value, pos)
                 return pos
             # Update existing position
             delta = quantity - current.quantity
@@ -286,9 +283,7 @@ class PositionManager:
             if ltp:
                 updated = updated.with_ltp(ltp)
             self._positions[key] = updated
-            self._publish(
-                EventType.POSITION_UPDATED.value, updated
-            )
+            self._publish(EventType.POSITION_UPDATED.value, updated)
             return updated
 
     def reset(self) -> None:
@@ -298,7 +293,6 @@ class PositionManager:
 
     # ── Event handlers ───────────────────────────────────────────────────────
 
-    @trace_operation("position_manager.on_trade")
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the event bus.
 

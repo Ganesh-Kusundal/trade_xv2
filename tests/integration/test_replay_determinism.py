@@ -2,11 +2,10 @@
 
 Same catalog + FakeClock must produce identical order intent streams.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -22,7 +21,7 @@ def fixed_clock():
 def _make_order_intent(correlation_id: str, symbol: str = "RELIANCE"):
     from domain import Order
     from domain.enums import OrderStatus
-    from domain.types import Side, OrderType, ProductType, Validity
+    from domain.types import OrderType, ProductType, Side, Validity
 
     return Order(
         order_id="",

@@ -8,11 +8,9 @@ from typing import TYPE_CHECKING, Any
 from domain.enums import OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.orders.placement import build_order_intent, place_via_order_service
-from domain.orders.requests import OrderRequest
 
 if TYPE_CHECKING:
     from domain.instruments.instrument import Instrument
-    from domain.ports.order_service import OrderServicePort
     from domain.ports.protocols import OrderResult
 
 
@@ -80,23 +78,8 @@ class SessionTradingMixin:
         if self._order_service is not None:
             return place_via_order_service(self._order_service, intent)
 
-        if self._execution_provider is not None:
-            return self._execution_provider.place_order(
-                OrderRequest(
-                    symbol=intent.symbol,
-                    exchange=intent.exchange,
-                    transaction_type=intent.side,
-                    quantity=intent.quantity,
-                    price=intent.price,
-                    order_type=intent.order_type,
-                    product_type=intent.product_type,
-                    trigger_price=intent.trigger_price,
-                    correlation_id=intent.correlation_id,
-                )
-            )
-
         raise RuntimeError(
-            "No order_service (OMS) or execution_provider configured for this session. "
+            "No order_service (OMS) configured for this session. "
             "Use tradex.connect(...) which wires OrderIntent → Risk → OMS → Execution."
         )
 
@@ -134,7 +117,11 @@ class SessionTradingMixin:
             raise RuntimeError("OrderServicePort does not implement modify()")
         ot = None
         if order_type is not None:
-            ot = order_type if isinstance(order_type, OrderType) else OrderType(str(order_type).upper())
+            ot = (
+                order_type
+                if isinstance(order_type, OrderType)
+                else OrderType(str(order_type).upper())
+            )
         return modify(
             ModifyOrderRequest(
                 order_id=order_id,
@@ -176,9 +163,7 @@ class SessionTradingMixin:
         product_type: str | ProductType = ProductType.INTRADAY,
     ) -> Any:
         """Place a buy order (OrderIntent → OMS when wired)."""
-        return self._place_order(
-            instrument, Side.BUY, quantity, price, order_type, product_type
-        )
+        return self._place_order(instrument, Side.BUY, quantity, price, order_type, product_type)
 
     def sell(
         self,
@@ -189,9 +174,7 @@ class SessionTradingMixin:
         product_type: str | ProductType = ProductType.INTRADAY,
     ) -> Any:
         """Place a sell order (OrderIntent → OMS when wired)."""
-        return self._place_order(
-            instrument, Side.SELL, quantity, price, order_type, product_type
-        )
+        return self._place_order(instrument, Side.SELL, quantity, price, order_type, product_type)
 
     def market(
         self,
@@ -201,9 +184,7 @@ class SessionTradingMixin:
     ) -> Any:
         """Place a market order for the given instrument."""
         resolved = _as_side(side)
-        return self._place_order(
-            instrument, resolved, quantity, order_type=OrderType.MARKET
-        )
+        return self._place_order(instrument, resolved, quantity, order_type=OrderType.MARKET)
 
     def limit(
         self,

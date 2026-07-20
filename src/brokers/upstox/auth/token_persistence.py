@@ -11,13 +11,13 @@ import os
 import sys
 import time
 
-from infrastructure.auth.jwt_expiry import JwtExpiry
-
 from domain.constants import SECONDS_PER_DAY
+from infrastructure.auth.jwt_expiry import JwtExpiry
 
 from .exceptions import UpstoxAuthError
 from .holders import TokenSnapshot, UpstoxStaticTokenHolder
 from .token_expiry import UpstoxTokenExpiry
+
 try:
     from .totp_client import UpstoxTotpClient
 except Exception:  # pragma: no cover - totp_client imports optional deps lazily
@@ -88,7 +88,9 @@ class TokenPersistence:
             with m._lock:
                 m._state = state
                 m._holder.replace(
-                    UpstoxStaticTokenHolder(s.access_token, analytics_only=False, label="Upstox token")
+                    UpstoxStaticTokenHolder(
+                        s.access_token, analytics_only=False, label="Upstox token"
+                    )
                 )
                 self._m._persist(state)
             return state
@@ -209,7 +211,9 @@ class TokenPersistence:
             # Fallback to interactive browser OAuth login on local machine if not disabled and not in tests.
             in_test = "pytest" in sys.modules or "unittest" in sys.modules
             if os.getenv("UPSTOX_DISABLE_INTERACTIVE_FALLBACK") != "1" and not in_test:
-                logger.warning("TOTP authentication failed. Falling back to interactive browser login...")
+                logger.warning(
+                    "TOTP authentication failed. Falling back to interactive browser login..."
+                )
                 try:
                     from brokers.upstox.auth.login import perform_login
 

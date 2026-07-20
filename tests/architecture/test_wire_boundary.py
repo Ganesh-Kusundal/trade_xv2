@@ -41,10 +41,7 @@ def test_application_domain_do_not_import_wire_modules() -> None:
                     continue
                 for prefix in FORBIDDEN_IMPORT_PREFIXES:
                     if mod == prefix or mod.startswith(prefix + "."):
-                        violations.append(
-                            f"{path.relative_to(SRC)}: imports {mod}"
-                        )
-    assert not violations, (
-        "application/domain import wire modules (ADR-021):\n"
-        + "\n".join(violations)
+                        violations.append(f"{path.relative_to(SRC)}: imports {mod}")
+    assert not violations, "application/domain import wire modules (ADR-021):\n" + "\n".join(
+        violations
     )

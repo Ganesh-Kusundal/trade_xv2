@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Callable
-
-from domain.events.types import EventType
 
 from application.oms._internal.loss_circuit_breaker import LossCircuitBreaker
 from application.oms._internal.risk_types import RiskConfig
+from domain.events.types import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +109,10 @@ class DailyPnlTracker:
         from datetime import datetime
 
         from domain.constants.market import IST as ist
+        from domain.ports.time_service import get_current_clock
 
         reset_date = datetime.fromtimestamp(self._last_reset_at, tz=ist).date()
-        today = datetime.now(ist).date()
+        today = get_current_clock().exchange_now("NSE").date()
         return reset_date < today
 
     def _maybe_publish_risk_limit_breach(self, pnl: Decimal, capital: Decimal) -> None:
@@ -121,11 +121,7 @@ class DailyPnlTracker:
         (edge-triggered, not level-triggered, so this doesn't spam the
         event bus on every single MTM update while still in breach).
         """
-        if (
-            self._on_risk_event is None
-            or capital <= 0
-            or self._config.max_daily_loss_pct <= 0
-        ):
+        if self._on_risk_event is None or capital <= 0 or self._config.max_daily_loss_pct <= 0:
             return
         loss_budget = capital * (self._config.max_daily_loss_pct / Decimal("100"))
         if loss_budget <= 0:

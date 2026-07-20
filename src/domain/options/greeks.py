@@ -17,7 +17,7 @@ class Greeks:
     rho: Decimal = Decimal("0")
 
     @classmethod
-    def from_dict(cls, data: dict | None) -> "Greeks":
+    def from_dict(cls, data: dict | None) -> Greeks:
         if not data:
             return cls.zero()
 
@@ -36,5 +36,5 @@ class Greeks:
         )
 
     @classmethod
-    def zero(cls) -> "Greeks":
+    def zero(cls) -> Greeks:
         return cls()

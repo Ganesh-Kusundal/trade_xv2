@@ -1,17 +1,17 @@
 """Scanner run endpoint integration tests."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
+from datalake.gateway import DataLakeGateway
+from datalake.storage.catalog import DataCatalog
 from interface.api.config import APIConfig
 from interface.api.deps import reset_container
 from interface.api.main import create_app
-from datalake.storage.catalog import DataCatalog
-from datalake.gateway import DataLakeGateway
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture
@@ -55,7 +55,6 @@ class TestScannerRunIntegration:
         monkeypatch.chdir(tmp_path)
         client = TestClient(app)
 
-        from application.oms.context import TradingContext
         from infrastructure.event_bus.event_bus import EventBus
 
         reset_container()

@@ -11,9 +11,9 @@ import asyncio
 import threading
 from urllib.parse import parse_qs, urlparse
 
-from tests.support.wait_utils import wait_until as _shared_wait_until
-
 import pytest
+
+from tests.support.wait_utils import wait_until as _shared_wait_until
 
 pytestmark = [
     pytest.mark.integration,

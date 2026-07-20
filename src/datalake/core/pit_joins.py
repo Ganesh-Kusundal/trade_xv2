@@ -107,8 +107,7 @@ def as_of_join(
         lookahead_warnings = validate_no_lookahead(sql)
         if lookahead_warnings:
             raise ValueError(
-                "Look-ahead patterns detected in query:\n"
-                + "\n".join(lookahead_warnings)
+                "Look-ahead patterns detected in query:\n" + "\n".join(lookahead_warnings)
             )
 
     return conn.execute(sql).fetchdf()
@@ -127,8 +126,6 @@ def pit_query(
     warnings = validate_no_lookahead(substituted)
 
     if config.strict and warnings:
-        raise ValueError(
-            "Look-ahead patterns detected:\n" + "\n".join(warnings)
-        )
+        raise ValueError("Look-ahead patterns detected:\n" + "\n".join(warnings))
 
     return conn.execute(substituted, [as_of_time]).fetchdf()

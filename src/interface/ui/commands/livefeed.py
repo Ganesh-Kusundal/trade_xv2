@@ -8,6 +8,7 @@ ticks/depth arrive within a window, no errors, guaranteed teardown.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -22,7 +23,7 @@ from interface.ui.services.active_session import get_active_session
 from interface.ui.services.feed_probe import FeedProbe
 
 if TYPE_CHECKING:
-    from domain.universe import Session
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,8 @@ def run(args: list[str], broker_service: Any, console: Console) -> None:
     if "--duration" in rest:
         i = rest.index("--duration")
         if i + 1 < len(rest):
-            try:
+            with contextlib.suppress(ValueError):
                 duration = float(rest[i + 1])
-            except ValueError:
-                pass
     depth = "--depth" in rest
 
     def _flag(name: str) -> str | None:
@@ -100,9 +99,7 @@ def run(args: list[str], broker_service: Any, console: Console) -> None:
 def _render(result, console: Console) -> None:
     healthy = result.is_healthy()
     status = "[green]PASS[/green]" if healthy else "[red]FAIL[/red]"
-    tbl = Table(
-        title=f"Live Feed Smoke: {result.instrument_id}", header_style="bold cyan"
-    )
+    tbl = Table(title=f"Live Feed Smoke: {result.instrument_id}", header_style="bold cyan")
     tbl.add_column("Check", style="bold white")
     tbl.add_column("Result", justify="right")
     tbl.add_row("Health", status)
@@ -118,9 +115,7 @@ def _render(result, console: Console) -> None:
         console.print("[red]Errors:[/red]")
         for e in result.errors:
             console.print(f"  [red]• {e}[/red]")
-    console.print(
-        f"{status} — {result.total_frames} frame(s) in {result.duration_s:g}s"
-    )
+    console.print(f"{status} — {result.total_frames} frame(s) in {result.duration_s:g}s")
 
 
 def _usage(console: Console) -> None:

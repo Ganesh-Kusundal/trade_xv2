@@ -36,32 +36,16 @@ def _ensure_columns(df: pd.DataFrame, columns: list[str]) -> None:
 
 @dataclass(frozen=True)
 class ATR:
-    """Average True Range.
-
-    NOTE: This implementation uses SMA (simple moving average) for
-    smoothing, not Wilder's exponential moving average. This differs
-    from the standard ATR used in TradingView, AmiBroker, and most
-    technical analysis literature. The HalfTrend indicator in
-    analytics/indicators/halftrend.py uses Wilder's smoothing.
-
-    For Wilder's ATR, use the HalfTrend indicator's ATR calculation.
-    """
+    """Average True Range (Wilder smoothing via domain.indicators)."""
 
     name: str = "atr"
     period: int = 14
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["high", "low", "close"])
-        prev_close = df["close"].shift(1)
-        tr = pd.concat(
-            [
-                df["high"] - df["low"],
-                (df["high"] - prev_close).abs(),
-                (df["low"] - prev_close).abs(),
-            ],
-            axis=1,
-        ).max(axis=1)
-        df[self.name] = tr.rolling(window=self.period, min_periods=self.period).mean()
+        from domain.indicators.atr import ATR as DomainATR  # noqa: N811
+
+        df[self.name] = DomainATR(period=self.period).calculate_frame(df)
         return df
 
 
@@ -73,29 +57,15 @@ class VWAP:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["high", "low", "close", "volume"])
-        typical = (df["high"] + df["low"] + df["close"]) / 3
-        cum_tp_vol = (typical * df["volume"]).cumsum()
-        cum_vol = df["volume"].cumsum().replace(0, math.inf)
-        df[self.name] = cum_tp_vol / cum_vol
+        from domain.indicators.vwap import VWAP as DomainVWAP  # noqa: N811
+
+        df[self.name] = DomainVWAP().calculate_frame(df)
         return df
 
 
 @dataclass(frozen=True)
 class RSI:
-    """Relative Strength Index.
-
-    NOTE: This implementation uses SMA (simple moving average) for
-    smoothing gains/losses, not Wilder's exponential moving average.
-    This differs from the standard RSI used in TradingView, AmiBroker,
-    and most technical analysis literature.
-
-    Wilder's RSI uses exponential smoothing: avg_gain = (prev_avg * (period-1) + current_gain) / period.
-    This SMA version uses: avg_gain = mean(gains over period).
-
-    The SMA version produces smoother, less responsive RSI values.
-    Strategies migrating from other platforms should be aware of this
-    deviation.
-    """
+    """Relative Strength Index (Wilder smoothing via domain.indicators)."""
 
     name: str = "rsi"
     period: int = 14
@@ -118,7 +88,9 @@ class SMA:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source])
-        df[self.name] = df[self.source].rolling(window=self.period, min_periods=1).mean()
+        from domain.indicators.moving_averages import SMA as DomainSMA  # noqa: N811
+
+        df[self.name] = DomainSMA(period=self.period).calculate_frame(df, self.source)
         return df
 
 
@@ -132,7 +104,9 @@ class EMA:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source])
-        df[self.name] = df[self.source].ewm(span=self.period, adjust=False).mean()
+        from domain.indicators.moving_averages import EMA as DomainEMA  # noqa: N811
+
+        df[self.name] = DomainEMA(period=self.period).calculate_frame(df, self.source)
         return df
 
 
@@ -171,14 +145,12 @@ class MACD:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close"])
-        ema_fast = df["close"].ewm(span=self.fast, adjust=False).mean()
-        ema_slow = df["close"].ewm(span=self.slow, adjust=False).mean()
-        macd_line = ema_fast - ema_slow
-        signal_line = macd_line.ewm(span=self.signal, adjust=False).mean()
-        histogram = macd_line - signal_line
-        df[f"{self.prefix}_line"] = macd_line
-        df[f"{self.prefix}_signal"] = signal_line
-        df[f"{self.prefix}_histogram"] = histogram
+        from domain.indicators.macd import MACD as DomainMACD  # noqa: N811
+
+        out = DomainMACD(self.fast, self.slow, self.signal).calculate_frame(df)
+        df[f"{self.prefix}_line"] = out["macd"]
+        df[f"{self.prefix}_signal"] = out["signal"]
+        df[f"{self.prefix}_histogram"] = out["histogram"]
         return df
 
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from domain import Quote
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from domain import Quote
 
 
 class _Frame:

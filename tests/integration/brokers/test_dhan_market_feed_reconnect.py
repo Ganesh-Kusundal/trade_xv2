@@ -23,9 +23,6 @@ import inspect
 import os
 import textwrap
 
-import pytest
-
-
 # =============================================================================
 # R1 — Depth200ConnectionPool.get_feed must not busy-wait / sleep-forever
 # =============================================================================

@@ -20,12 +20,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.resilience.broker_health_monitor import (
     BrokerHealthMonitor,
 )
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
 # ──────────────────────────────────────────────────────────────────────
 # Chaos injection helpers
@@ -126,10 +126,6 @@ class TestBrokerAPIMidOrderFailure:
         )
 
 
-
-
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Section 2: WebSocket Disconnects During Subscription
 # ──────────────────────────────────────────────────────────────────────
@@ -140,7 +136,7 @@ class TestWebSocketDisconnectChaos:
 
     def test_event_bus_continues_after_handler_crash(self):
         """If one handler crashes, other handlers should still receive events."""
-        bus = EventBus(fail_fast=True)
+        bus = EventBus(config=EventBusConfig(fail_fast=True))
         received = {"good_handler": []}
 
         def crashing_handler(event):
@@ -166,7 +162,7 @@ class TestWebSocketDisconnectChaos:
     def test_dead_letter_queue_captures_handler_failure(self):
         """Failed handler events should end up in the DLQ."""
         dlq = DeadLetterQueue(max_size=100)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         def failing_handler(event):
             raise RuntimeError("Handler crashed")
@@ -183,7 +179,11 @@ class TestWebSocketDisconnectChaos:
         """Handler failures should be counted in metrics."""
         metrics = EventMetrics()
         dlq = DeadLetterQueue(max_size=100)
-        bus = EventBus(metrics=metrics, dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(
+            metrics=metrics,
+            dead_letter_queue=dlq,
+            config=EventBusConfig(fail_fast=False),
+        )
 
         def failing_handler(event):
             raise ValueError("Bad handler")
@@ -201,7 +201,7 @@ class TestWebSocketDisconnectChaos:
         """After a handler stops crashing, bus should work normally."""
         call_count = {"count": 0}
         dlq = DeadLetterQueue(max_size=100)
-        bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+        bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
         def flaky_handler(event):
             call_count["count"] += 1
@@ -227,7 +227,7 @@ class TestWebSocketDisconnectChaos:
 
     def test_event_bus_unsubscribe_during_dispatch(self):
         """Handler unsubscribing itself during dispatch should not corrupt state."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         token_holder = {"token": None}
         received = []
 
@@ -264,7 +264,7 @@ class TestConnectionLostDuringWrite:
         bus = EventBus(
             event_log=event_log,
             dead_letter_queue=dlq,
-            fail_fast=False,
+            config=EventBusConfig(fail_fast=False),
         )
 
         received = []
@@ -282,7 +282,7 @@ class TestConnectionLostDuringWrite:
         """When fail_fast=True, log failures should propagate."""
         event_log = MagicMock()
         event_log.append.side_effect = ConnectionError("DB down")
-        bus = EventBus(event_log=event_log, fail_fast=True)
+        bus = EventBus(event_log=event_log, config=EventBusConfig(fail_fast=True))
 
         event = DomainEvent.now("TICK", {"price": 100.0})
 
@@ -299,7 +299,7 @@ class TestConnectionLostDuringWrite:
             event_log=event_log,
             dead_letter_queue=dlq,
             metrics=metrics,
-            fail_fast=False,
+            config=EventBusConfig(fail_fast=False),
         )
 
         event = DomainEvent.now("ORDER", {"id": "1"})
@@ -374,7 +374,7 @@ class TestNetworkLatencySpikes:
 
     def test_latency_does_not_affect_event_bus_dispatch_order(self):
         """Slow handlers should not affect dispatch ordering of other handlers."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         order = []
 
         def slow_handler(event):
@@ -395,10 +395,9 @@ class TestNetworkLatencySpikes:
             "Both handlers should be dispatched regardless of latency"
         )
 
-
     def test_event_bus_publish_latency_does_not_block_subscribers(self):
         """Multiple publishes with varying latency should not block subscribers."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
 
         def collector(event):
@@ -434,12 +433,10 @@ class TestPartialFailures:
         assert not monitor.is_healthy("dhan"), "Dhan should be unhealthy"
         assert monitor.is_healthy("upstox"), "Upstox should be healthy"
 
-
     def test_event_bus_handles_mixed_handler_results(self):
         """Some handlers succeed, some fail — all should be attempted."""
-        bus = EventBus(fail_fast=False)
         dlq = DeadLetterQueue(max_size=100)
-        bus._dead_letter_queue = dlq
+        bus = EventBus(config=EventBusConfig(fail_fast=False), dead_letter_queue=dlq)
 
         results = {"success": [], "failure": []}
 
@@ -474,10 +471,9 @@ class TestPartialFailures:
             "Mutating snapshot should not affect internal state"
         )
 
-
     def test_repeated_publishes_do_not_corrupt_subscription_state(self):
         """Rapid publishes should not corrupt internal subscriber dict."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received_count = {"count": 0}
 
         def handler(event):
@@ -493,7 +489,7 @@ class TestPartialFailures:
 
     def test_chaos_event_bus_with_no_subscribers(self):
         """Publishing with no subscribers should be a no-op, not an error."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         event = DomainEvent.now("TICK", {"data": "orphan"})
 
         # Should not raise

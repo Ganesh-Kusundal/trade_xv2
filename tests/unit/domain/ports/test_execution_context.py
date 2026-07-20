@@ -1,4 +1,5 @@
 """Tests for domain.ports.execution_context — OMS-managed submit context."""
+
 from __future__ import annotations
 
 from domain.ports.execution_context import is_oms_managed_submit, oms_managed

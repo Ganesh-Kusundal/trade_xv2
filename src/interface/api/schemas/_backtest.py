@@ -15,6 +15,10 @@ class BacktestRunRequest(BaseModel):
     timeframe: str = "1d"
     initial_capital: float = 100_000
     strategy: str = Field(..., description="Strategy name")
+    research_only: bool = Field(
+        False,
+        description="If true, run PURE_SIM research mode without OMS parity.",
+    )
 
 
 __all__ = ["BacktestMetrics", "BacktestResultResponse", "BacktestRunRequest"]

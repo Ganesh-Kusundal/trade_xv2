@@ -58,7 +58,7 @@ class TestDatalakeDoesNotImportAnalytics:
 
         assert not violations, (
             "Production datalake must not import analytics "
-            f"(breaks layering / creates cycles):\n" + "\n".join(violations)
+            "(breaks layering / creates cycles):\n" + "\n".join(violations)
         )
 
 

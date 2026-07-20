@@ -11,7 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from domain.instruments.instrument_id import InstrumentId
-from tests.unit.domain._fakes import FakeProvider, make_quote
+from tests.unit.domain._fakes import FakeProvider
 
 
 class _DataProviderContract:

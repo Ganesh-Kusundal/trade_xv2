@@ -24,8 +24,7 @@ def normalize_order_status(raw: object | None) -> OrderStatus:
 class BrokerTranslator(Protocol):
     """Protocol for broker-specific wire → domain translators."""
 
-    def status(self, raw: object | None) -> OrderStatus:
-        ...
+    def status(self, raw: object | None) -> OrderStatus: ...
 
 
 class DefaultBrokerTranslator:

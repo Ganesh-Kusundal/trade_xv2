@@ -10,25 +10,26 @@ from typing import Any
 
 import pandas as pd
 
-from domain import Balance, MarketDepth, OrderResponse, Quote
-from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
-from domain.entities.options import FutureChain
+from brokers.common.broker_capabilities import BrokerCapabilities
+from brokers.common.capabilities_validator import enforce_gateway_capabilities
 from brokers.common.streaming import DepthStreamHandle
-from brokers.dhan.streaming.connection import DhanConnection
+from brokers.common.wire_base import BaseWireAdapter
 from brokers.dhan.domain import (
     Holding,
     Order,
     Position,
     Trade,
 )
-from brokers.common.capabilities_validator import enforce_gateway_capabilities
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
-from brokers.common.broker_capabilities import BrokerCapabilities
+from brokers.dhan.config.capabilities import DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION
+from brokers.dhan.streaming.connection import DhanConnection
+from domain import Balance, MarketDepth, OrderResponse, Quote
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
+from domain.entities.options import FutureChain
 
 logger = logging.getLogger(__name__)
 
 
-class DhanWireAdapter:
+class DhanWireAdapter(BaseWireAdapter):
     """Unified Dhan broker API — all calls delegate to connection adapters."""
 
     # BrokerAdapter port requires a stable broker_id attribute.
@@ -39,18 +40,20 @@ class DhanWireAdapter:
         self._stream_lock = threading.Lock()
         enforce_gateway_capabilities(self)
 
-    @property
-    def is_connected(self) -> bool:
-        """Best-effort transport liveness (BrokerAdapter contract).
+    def _transport_connected(self) -> bool:
+        """Authenticated + transport alive.
 
-        Delegates to the connection's market feed when present; the
-        connection owns the real socket state, the wire adapter only
-        surfaces it. Falls back to False rather than guessing connected.
+        A REST-only session (no WS feed yet) is connected when the HTTP client
+        holds a usable access token. If a market feed exists, its socket state
+        is authoritative.
         """
         conn = self._conn
         feed = getattr(conn, "market_feed", None) or getattr(conn, "_market_feed", None)
         if feed is not None and hasattr(feed, "is_connected"):
             return bool(feed.is_connected)
+        client = getattr(conn, "_client", None)
+        if client is not None:
+            return bool((getattr(client, "access_token", None) or "").strip())
         return False
 
     def authenticate(self) -> bool:
@@ -103,6 +106,7 @@ class DhanWireAdapter:
         option/futures listing, order validation).
         """
         from brokers.dhan.extended import DhanExtendedCapabilities
+
         return DhanExtendedCapabilities(self._conn)
 
     # ── Order shortcuts ──
@@ -150,9 +154,9 @@ class DhanWireAdapter:
             except ImportError:
                 pass
         # OrdersAdapter expects BrokerOrderPayload (not flat kwargs).
+        from brokers.common.order_wire import order_request_to_payload
         from domain.enums import OrderType, ProductType, Side, Validity
         from domain.orders.requests import OrderRequest
-        from brokers.common.order_wire import order_request_to_payload
 
         side_e = side if isinstance(side, Side) else Side(str(side).upper())
         if isinstance(order_type, OrderType):
@@ -171,9 +175,7 @@ class DhanWireAdapter:
             if isinstance(product_type, ProductType)
             else ProductType(str(product_type).upper())
         )
-        val_e = (
-            validity if isinstance(validity, Validity) else Validity(str(validity).upper())
-        )
+        val_e = validity if isinstance(validity, Validity) else Validity(str(validity).upper())
         req = OrderRequest(
             symbol=symbol,
             exchange=exchange,
@@ -191,13 +193,14 @@ class DhanWireAdapter:
         payload = order_request_to_payload(req, "dhan")
         return self._conn.orders.place_order(payload)
 
-
     def cancel_order(self, order_id: str) -> OrderResponse:
         result = self._conn.orders.cancel_order(order_id)
         if result.success:
             order = self.get_order(order_id)
             if order and order.status.name == "FILLED":
-                from domain import OrderResponse as DomainOrderResponse, OrderStatus
+                from domain import OrderResponse as DomainOrderResponse
+                from domain import OrderStatus
+
                 return DomainOrderResponse(
                     success=False,
                     order_id=order_id,
@@ -280,7 +283,7 @@ class DhanWireAdapter:
         exchange: str = DEFAULT_EXCHANGE,
         levels: int = 5,
         on_depth: Any | None = None,
-    ) -> "DepthStreamHandle":
+    ) -> DepthStreamHandle:
         """Canonical depth-streaming entry point — dispatches by *levels*.
 
         Mirrors Upstox's ``stream_depth(levels=...)`` so callers can treat
@@ -378,14 +381,10 @@ class DhanWireAdapter:
         from_str = from_date or str(from_d)
         tf = timeframe.upper() if timeframe else "1D"
         if isinstance(symbol, str):
-            return self._conn.historical.get_historical(
-                symbol, exchange, from_str, to_str, tf
-            )
+            return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, tf)
         frames = []
         for sym in symbol:
-            df = self._conn.historical.get_historical(
-                sym, exchange, from_str, to_str, tf
-            )
+            df = self._conn.historical.get_historical(sym, exchange, from_str, to_str, tf)
             frames.append(df)
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -395,8 +394,10 @@ class DhanWireAdapter:
         exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
         expiry: str | None = None,
     ) -> dict:
-        """Get option chain. Delegates MCX-specific expiry lookup to extended."""
-        return self.extended.get_option_chain(underlying, exchange, expiry)
+        """Get option chain. Delegates MCX-specific expiry lookup to data sub-facade."""
+        from brokers.dhan.extended_data import DhanDataCapabilities
+
+        return DhanDataCapabilities(self._conn).get_option_chain(underlying, exchange, expiry)
 
     def future_chain(
         self,
@@ -435,11 +436,6 @@ class DhanWireAdapter:
     def holdings(self) -> list[Holding]:
         return self._conn.portfolio.get_holdings()
 
-    def trades(self) -> list[Trade]:
-        return self.get_trade_book()
-
-
-
     def describe(self) -> dict:
         instruments = self._conn.instruments
         return {
@@ -451,6 +447,7 @@ class DhanWireAdapter:
             "options": "available",
             "futures": "available",
             "streaming": "available",
+            "depth_200_max_instruments_per_connection": DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION,
         }
 
     def capabilities(self) -> BrokerCapabilities:
@@ -482,7 +479,9 @@ class DhanWireAdapter:
         ``security_id`` values are never exposed to the caller — mapping is
         internal to the connection.
         """
-        return self._conn.subscription_engine.subscribe_market(symbol, exchange, mode=mode, on_tick=on_tick)
+        return self._conn.subscription_engine.subscribe_market(
+            symbol, exchange, mode=mode, on_tick=on_tick
+        )
 
     def unstream(
         self,
@@ -510,21 +509,20 @@ class DhanWireAdapter:
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:
-        """Fetch history for multiple symbols in parallel."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        frames = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {
-                executor.submit(self.history, sym, exchange, timeframe, lookback_days): sym
-                for sym in symbols
-            }
-            for future in as_completed(futures):
-                try:
-                    df = future.result()
-                    if not df.empty:
-                        frames.append(df)
-                except Exception as exc:
-                    logger.debug("history_batch_future_failed: %s", exc)
+        """Fetch history for multiple symbols in parallel.
+
+        Routes through the shared ``batch_execute`` helper (same engine Upstox
+        uses) so both brokers share one parallel-fetch implementation.
+        """
+        from infrastructure.batch_executor import batch_execute
+
+        per_symbol = batch_execute(
+            symbols,
+            lambda sym: self.history(sym, exchange, timeframe, lookback_days),
+            max_workers=5,
+            on_error=lambda sym, exc: logger.debug("history_batch_future_failed: %s", exc),
+        )
+        frames = [df for df in per_symbol.values() if not df.empty]
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
@@ -533,9 +531,10 @@ def create_wire_adapter(connection: DhanConnection | DhanWireAdapter) -> DhanWir
         return connection
     return DhanWireAdapter(connection)
 
+
 __all__ = [
-    "DhanWireAdapter",
     "DhanBrokerGateway",
+    "DhanWireAdapter",
     "create_wire_adapter",
 ]
 

@@ -12,22 +12,19 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from datetime import time as dt_time
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import pandas as pd
 import pyarrow as pa
 
-from infrastructure.batch_executor import batch_execute
-from datalake.core.paths import symbol_partition_path
 from datalake.core.io import atomic_parquet_write
+from datalake.core.paths import symbol_partition_path
 from datalake.core.schema import enforce_canonical_schema
-from datalake.ingestion.broker_selection import _TIMEFRAME_ALIASES, select_historical_source
-
 from datalake.core.symbols import normalize_symbol_for_storage
-from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
-from datalake.quality.validation import validate_candles
+from datalake.exchange_registry import get_active_exchange_code
+from datalake.ingestion.broker_selection import _TIMEFRAME_ALIASES, select_historical_source
+from infrastructure.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +32,7 @@ logger = logging.getLogger(__name__)
 def _session_bounds():
     """Return (open, close) from the active trading calendar."""
     from datalake.exchange_registry import _get_calendar
+
     return _get_calendar().session_bounds(None)
 
 
@@ -58,6 +56,7 @@ class HistoricalDataLoader:
     def __init__(self, root: str | None = None, catalog=None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog = catalog
@@ -153,7 +152,10 @@ class HistoricalDataLoader:
         result = self._write_parquet(df, symbol, timeframe)
         logger.info(
             "Downloaded %s: %d rows fetched (%d invalid dropped), %d total on disk",
-            symbol, result.rows, result.invalid_dropped, result.total_rows,
+            symbol,
+            result.rows,
+            result.invalid_dropped,
+            result.total_rows,
         )
 
         # Register in catalog — reflects the merged on-disk state, not just
@@ -231,7 +233,9 @@ class HistoricalDataLoader:
             logger.error("Failed to download %s: %s", sym, exc)
 
         raw_results = batch_execute(
-            symbols, _download_one, on_error=_on_error,
+            symbols,
+            _download_one,
+            on_error=_on_error,
         )
 
         # Normalize keys (download_symbol also normalizes internally)
@@ -240,7 +244,9 @@ class HistoricalDataLoader:
         total_rows = sum(r["rows"] for r in results.values())
         logger.info(
             "Universe %s: %d symbols, %d total rows",
-            universe, len(results), total_rows,
+            universe,
+            len(results),
+            total_rows,
         )
         return results
 
@@ -270,22 +276,37 @@ class HistoricalDataLoader:
         existing_path = self._parquet_path(symbol, timeframe)
         if not existing_path.exists():
             return self.download_symbol(
-                symbol, gateway, years=5, timeframe=timeframe, exchange=exchange,
-                gateways=gateways, fetch_fn=fetch_fn
+                symbol,
+                gateway,
+                years=5,
+                timeframe=timeframe,
+                exchange=exchange,
+                gateways=gateways,
+                fetch_fn=fetch_fn,
             )["rows"]
 
         try:
             existing = pd.read_parquet(existing_path)
         except Exception:
             return self.download_symbol(
-                symbol, gateway, years=5, timeframe=timeframe, exchange=exchange,
-                gateways=gateways, fetch_fn=fetch_fn
+                symbol,
+                gateway,
+                years=5,
+                timeframe=timeframe,
+                exchange=exchange,
+                gateways=gateways,
+                fetch_fn=fetch_fn,
             )["rows"]
 
         if existing.empty:
             return self.download_symbol(
-                symbol, gateway, years=5, timeframe=timeframe, exchange=exchange,
-                gateways=gateways, fetch_fn=fetch_fn
+                symbol,
+                gateway,
+                years=5,
+                timeframe=timeframe,
+                exchange=exchange,
+                gateways=gateways,
+                fetch_fn=fetch_fn,
             )["rows"]
 
         ts = pd.to_datetime(existing["timestamp"])
@@ -326,8 +347,13 @@ class HistoricalDataLoader:
         lookback_days = max(days_missing, 1) + 2
         logger.info("%s: downloading %d missing days", symbol, max(days_missing, 1))
         rows = self.download_symbol(
-            symbol, gateway, timeframe=timeframe, exchange=exchange,
-            gateways=gateways, fetch_fn=fetch_fn, lookback_days=lookback_days,
+            symbol,
+            gateway,
+            timeframe=timeframe,
+            exchange=exchange,
+            gateways=gateways,
+            fetch_fn=fetch_fn,
+            lookback_days=lookback_days,
         )["rows"]
         if rows == 0:
             # A gap was detected (we're past the days_missing<=0 check above),
@@ -400,7 +426,9 @@ class HistoricalDataLoader:
                 return window.max_chunk_days
         return default
 
-    def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str, timeframe: str = "1m") -> pd.DataFrame:
+    def _normalize(
+        self, df: pd.DataFrame, symbol: str, exchange: str, timeframe: str = "1m"
+    ) -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""
         from datalake.ingestion.normalize import (
             normalize_to_canonical,
@@ -416,10 +444,16 @@ class HistoricalDataLoader:
 
         df = normalize_to_canonical(df, symbol, exchange)
 
-        # Validate (drops invalid rows, logs)
-        df = validate_candles(df, symbol=symbol, drop_invalid=True, timeframe=timeframe)
-
         return df
+
+    def merge_live_bar(self, bar: Any, df: pd.DataFrame) -> WriteResult:
+        """Merge one live aggregated bar into hive-partitioned parquet.
+
+        Used by :mod:`datalake.ingestion.live_bar_sink` (MD-001 increment 2).
+        """
+        if df.empty:
+            return WriteResult(0, 0, 0, None, None)
+        return self._write_parquet(df, bar.symbol, bar.timeframe)
 
     def _write_parquet(self, df: pd.DataFrame, symbol: str, timeframe: str) -> WriteResult:
         """Write DataFrame to hive-partitioned Parquet, merging with any
@@ -433,10 +467,12 @@ class HistoricalDataLoader:
         """
         target = self._parquet_path(symbol, timeframe)
 
+        from datalake.quality.contract import validate_at_ingest
+
         invalid_count = 0
-        before = len(df)
-        df = validate_candles(df, symbol=symbol, drop_invalid=True, timeframe=timeframe)
-        invalid_count = before - len(df)
+        len(df)
+        df, audit = validate_at_ingest(df, symbol=symbol, timeframe=timeframe, drop_invalid=True)
+        invalid_count = audit.dropped_rows
         fetched_rows = len(df)
 
         merged = df
@@ -469,7 +505,9 @@ class HistoricalDataLoader:
         )
 
     def _parquet_path(self, symbol: str, timeframe: str = "1m") -> Path:
-        return symbol_partition_path(str(self._root), normalize_symbol_for_storage(symbol), timeframe)
+        return symbol_partition_path(
+            str(self._root), normalize_symbol_for_storage(symbol), timeframe
+        )
 
     def _check_intraday_completeness(self, df: pd.DataFrame, timeframe: str) -> float:
         """Check intraday data completeness.

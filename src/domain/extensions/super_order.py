@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
-from domain.ports.broker_gateway import QuotaToken
 from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
+from domain.ports.broker_gateway import QuotaToken
 
 
 @dataclass(frozen=True)

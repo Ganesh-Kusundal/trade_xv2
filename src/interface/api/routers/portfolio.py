@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from application.portfolio.portfolio_service import PortfolioService
 from interface.api.auth import require_auth
 from interface.api.deps import (
     get_event_bus,
@@ -24,8 +25,6 @@ from interface.api.schemas import (
     Position,
     PositionsResponse,
 )
-from application.portfolio.portfolio_service import PortfolioService
-from domain.repositories import PositionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ async def get_holdings():
 
 @router.get("/summary", response_model=PortfolioSummary)
 async def get_portfolio_summary(
-    position_repo: PositionRepository = Depends(get_position_repository),
+    position_repo=Depends(get_position_repository),
     risk_manager=Depends(get_risk_manager),
 ):
     """Get portfolio summary with key metrics.
@@ -193,7 +192,7 @@ async def get_pnl_history(
     to_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     group_by: str = Query("day", description="Group by: day, week, month"),
     journal=Depends(get_trade_journal),
-    position_repo: PositionRepository = Depends(get_position_repository),
+    position_repo=Depends(get_position_repository),
 ):
     """Get historical P&L curve.
 
@@ -311,12 +310,17 @@ async def square_off_positions(
             "failed": summary.failed,
             "details": {
                 "squared_off": [
-                    {"symbol": r.symbol, "quantity": r.quantity, "side": r.side, "order_id": r.order_id}
-                    for r in summary.details if r.success
+                    {
+                        "symbol": r.symbol,
+                        "quantity": r.quantity,
+                        "side": r.side,
+                        "order_id": r.order_id,
+                    }
+                    for r in summary.details
+                    if r.success
                 ],
                 "failed": [
-                    {"symbol": r.symbol, "error": r.error}
-                    for r in summary.details if not r.success
+                    {"symbol": r.symbol, "error": r.error} for r in summary.details if not r.success
                 ],
             },
         }

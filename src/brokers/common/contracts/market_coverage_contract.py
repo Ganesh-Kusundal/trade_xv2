@@ -64,9 +64,7 @@ class MarketCoverageContract:
         # Cross-broker parity lane required by the asset-coverage audit.
         from domain.instruments.asset_kind import AssetKind
 
-        assert capabilities.serves(AssetKind.FUTURES, "MCX"), (
-            "MCX futures lane must be declared"
-        )
+        assert capabilities.serves(AssetKind.FUTURES, "MCX"), "MCX futures lane must be declared"
 
     # ── Live: behavioral assertion for every (surface, operation) lane ────
 

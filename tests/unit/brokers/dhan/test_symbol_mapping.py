@@ -485,8 +485,6 @@ class TestContractSymbolBuilder:
     Dhan symbol."""
 
     def test_equity_passthrough(self):
-        from datetime import date
-
         from brokers.dhan.data.instrument_adapter import to_dhan_symbol
         from domain.instruments.instrument_id import InstrumentId
 

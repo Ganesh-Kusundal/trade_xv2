@@ -29,7 +29,7 @@ sys.path[:] = [str(SRC), str(SCRIPTS), str(ROOT)] + [
 ]
 os.chdir(ROOT)
 
-import requests  # noqa: E402
+import requests
 
 ENV = ROOT / ".env.local"
 
@@ -43,8 +43,14 @@ def _load_env() -> dict[str, str]:
                 out[k.strip()] = v.strip()
     # Environment variables take precedence.
     for k, v in os.environ.items():
-        if k in ("DHAN_CLIENT_ID", "DHAN_ACCESS_TOKEN", "UPSTOX_ACCESS_TOKEN",
-                 "UPSTOX_API_KEY", "UPSTOX_BASE_V2", "UPSTOX_BASE_URL"):
+        if k in (
+            "DHAN_CLIENT_ID",
+            "DHAN_ACCESS_TOKEN",
+            "UPSTOX_ACCESS_TOKEN",
+            "UPSTOX_API_KEY",
+            "UPSTOX_BASE_V2",
+            "UPSTOX_BASE_URL",
+        ):
             out[k] = v
     return out
 
@@ -140,7 +146,9 @@ def _probe_upstox(env: dict[str, str]) -> bool:
                     ex = str(getattr(o, "exchange", ""))
                     it = str(getattr(o, "instrument_type", ""))
                     if "NFO" in ex or "FUT" in it:
-                        k = getattr(o, "instrument_key", None) or getattr(o, "instrument_token", None)
+                        k = getattr(o, "instrument_key", None) or getattr(
+                            o, "instrument_token", None
+                        )
                         if k:
                             fno_key = str(k)
                             break
@@ -186,9 +194,7 @@ def _probe_upstox(env: dict[str, str]) -> bool:
         if r2.status_code == 200:
             eq_data = (r2.json().get("data") or {}).get("NSE_EQ|INE002A01018")
             if eq_data:
-                eq_q = UpstoxDomainMapper.to_quote(
-                    {"data": {"NSE_EQ:RELIANCE": eq_data}}
-                )
+                eq_q = UpstoxDomainMapper.to_quote({"data": {"NSE_EQ:RELIANCE": eq_data}})
                 print(f"  RELIANCE mapped oi={eq_q.oi}")
                 assert eq_q.oi == 0, f"equity oi must be 0, got {eq_q.oi}"
                 print("  ✓ Equity quote oi == 0")

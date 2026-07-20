@@ -56,8 +56,6 @@ class HalfTrend:
     name: str = "halftrend"
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
-        import pandas as pd
-
         """Compute HalfTrend and add columns to DataFrame.
 
         Adds:

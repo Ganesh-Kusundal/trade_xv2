@@ -8,7 +8,6 @@ brokers/upstox/orders/order_command_adapter.py.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 from domain.constants.market import DEFAULT_TICK_SIZE
 

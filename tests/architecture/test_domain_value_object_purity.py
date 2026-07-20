@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 import pytest
@@ -22,9 +21,8 @@ def test_value_objects_no_direct_datetime_now() -> None:
         text = path.read_text(encoding="utf-8")
         if "datetime.now(" in text:
             violations.append(str(path.relative_to(SRC)))
-    assert not violations, (
-        "datetime.now() in domain value_objects (TOS-P1-003):\n"
-        + "\n".join(violations)
+    assert not violations, "datetime.now() in domain value_objects (TOS-P1-003):\n" + "\n".join(
+        violations
     )
 
 

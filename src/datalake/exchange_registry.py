@@ -120,7 +120,7 @@ def discover_exchanges() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _get_calendar() -> "TradingCalendar":
+def _get_calendar() -> TradingCalendar:
     """Return the active adapter's TradingCalendar, or raise."""
     from domain.ports.exchange_calendar import TradingCalendar
 
@@ -134,17 +134,15 @@ def _get_calendar() -> "TradingCalendar":
     return calendar
 
 
-def get_market_open_time() -> "time":
+def get_market_open_time() -> time:
     """Return the market open time for the active exchange."""
-    from datetime import time
 
     bounds = _get_calendar().session_bounds(None)
     return bounds[0]
 
 
-def get_market_close_time() -> "time":
+def get_market_close_time() -> time:
     """Return the market close time for the active exchange."""
-    from datetime import time
 
     bounds = _get_calendar().session_bounds(None)
     return bounds[1]

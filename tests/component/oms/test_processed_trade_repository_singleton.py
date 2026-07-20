@@ -276,4 +276,3 @@ class TestProcessedTradeRepositoryBackwardCompatibility:
         om = OrderManager()
         # Composition root / TradingContext must inject the repository.
         assert om.processed_trade_repository is None
-

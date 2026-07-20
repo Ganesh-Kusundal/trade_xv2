@@ -20,6 +20,7 @@ def _skip_if_import_error(fn):
 # Lightweight fakes
 # ─────────────────────────────────────────────────────────────────────────
 
+
 class _FakeExchange:
     def __init__(self, value):
         self.value = value
@@ -141,11 +142,10 @@ class _FakeOrdersAdapter:
 # G1: gateway methods / stream routing / init
 # ─────────────────────────────────────────────────────────────────────────
 
+
 def test_g1_gateway_has_modify_and_cancel_all_methods():
     gateway_mod = _skip_if_import_error(
-        lambda: __import__(
-            "brokers.dhan.wire", fromlist=["DhanBrokerGateway"]
-        ).DhanBrokerGateway
+        lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"]).DhanBrokerGateway
     )
     assert callable(getattr(gateway_mod, "modify_order", None))
     assert callable(getattr(gateway_mod, "cancel_all_orders", None))
@@ -160,8 +160,8 @@ def test_g1_gateway_init_runs_without_raising():
     gw = DhanBrokerGateway(conn)  # must not raise
     assert gw is not None
     # The delegated methods should be present on the instance.
-    assert callable(getattr(gw, "modify_order"))
-    assert callable(getattr(gw, "cancel_all_orders"))
+    assert callable(gw.modify_order)
+    assert callable(gw.cancel_all_orders)
 
 
 def test_g1_stream_routes_through_create_market_feed():
@@ -186,6 +186,7 @@ def test_g1_stream_routes_through_create_market_feed():
 # ─────────────────────────────────────────────────────────────────────────
 # R3: idempotency / non-blocking lock
 # ─────────────────────────────────────────────────────────────────────────
+
 
 def _make_adapter(client, allow_live=True):
     """Build a real OrdersAdapter around fakes (lazy import)."""
@@ -222,8 +223,7 @@ def test_r3_same_correlation_id_issues_one_post():
 
     cid = "same-cid"
     threads = [
-        threading.Thread(target=adapter.place_order, args=(_payload(cid),))
-        for _ in range(8)
+        threading.Thread(target=adapter.place_order, args=(_payload(cid),)) for _ in range(8)
     ]
     for t in threads:
         t.start()
@@ -240,10 +240,7 @@ def test_r3_distinct_correlation_ids_issue_n_posts():
 
     n = 6
     threads = [
-        threading.Thread(
-            target=adapter.place_order, args=(_payload(f"cid-{i}"),)
-        )
-        for i in range(n)
+        threading.Thread(target=adapter.place_order, args=(_payload(f"cid-{i}"),)) for i in range(n)
     ]
     for t in threads:
         t.start()
@@ -300,6 +297,7 @@ def test_r3_hung_post_does_not_block_other_placements():
 # ─────────────────────────────────────────────────────────────────────────
 # R1-adjacent: cancel_all_orders guards non-dict responses
 # ─────────────────────────────────────────────────────────────────────────
+
 
 def test_r1_cancel_all_orders_accepts_non_dict_response():
     client = _FakeClient()

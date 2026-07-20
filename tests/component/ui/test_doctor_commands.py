@@ -212,7 +212,8 @@ class TestBrokerRegistryCheck:
 
     def test_check_broker_registry_empty(self):
         with patch(
-            "interface.ui.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]
+            "interface.ui.commands.doctor.strategies.broker_registry.list_available_brokers",
+            return_value=[],
         ):
             results = cmd_doctor._check_broker_registry()
             assert any(r.status == "FAIL" for r in results)
@@ -226,7 +227,9 @@ class TestGatewayCreationCheck:
             patch(
                 "interface.ui.commands.doctor.strategies.gateway_creation.list_available_brokers"
             ) as mock_list,
-            patch("interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_bootstrap,
+            patch(
+                "interface.ui.commands.doctor.strategies.gateway_creation.bootstrap_gateway"
+            ) as mock_bootstrap,
         ):
             from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
             from interface.ui.commands.doctor.strategies import GatewayCreationCheck
@@ -273,9 +276,13 @@ class TestMarketDataChecks:
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
         mock_session = MagicMock()
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
             with patch("interface.ui.services.market_access.refresh_quote") as mock_quote:
-                mock_quote.return_value = MagicMock(ltp=100.0, open=99.0, high=101.0, low=98.0, close=100.0, volume=1000)
+                mock_quote.return_value = MagicMock(
+                    ltp=100.0, open=99.0, high=101.0, low=98.0, close=100.0, volume=1000
+                )
                 results = MarketDataCheck(quick_mode=True).execute(mock_broker_service)
         assert any("quote" in r.name.lower() for r in results)
 
@@ -285,7 +292,9 @@ class TestMarketDataChecks:
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
         mock_session = MagicMock()
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
             with patch("interface.ui.services.market_access.refresh_quote"):
                 with patch("interface.ui.services.market_access.fetch_depth") as mock_depth:
                     mock_depth.return_value = MagicMock(bids=[MagicMock()], asks=[MagicMock()])
@@ -298,7 +307,9 @@ class TestMarketDataChecks:
         mock_broker_service = MagicMock()
         mock_broker_service.active_broker = mock_gateway
         mock_session = MagicMock()
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
             with patch("interface.ui.services.market_access.refresh_quote"):
                 with patch("interface.ui.services.market_access.fetch_depth"):
                     with patch("interface.ui.services.market_access.fetch_history") as mock_hist:
@@ -345,8 +356,12 @@ class TestPortfolioChecks:
         mock_acct.positions = []
         mock_acct.holdings = []
         mock_acct.funds = MagicMock(available_balance=100000.0, sod_limit=None)
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
-            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
+            with patch(
+                "interface.ui.services.market_access.refresh_account", return_value=mock_acct
+            ):
                 results = PortfolioCheck().execute(mock_broker_service)
         assert any("holding" in r.name.lower() for r in results)
 
@@ -360,8 +375,12 @@ class TestPortfolioChecks:
         mock_acct.positions = []
         mock_acct.holdings = []
         mock_acct.funds = MagicMock(available_balance=100000.0, sod_limit=None)
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
-            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
+            with patch(
+                "interface.ui.services.market_access.refresh_account", return_value=mock_acct
+            ):
                 results = PortfolioCheck().execute(mock_broker_service)
         assert any("position" in r.name.lower() for r in results)
 
@@ -375,8 +394,12 @@ class TestPortfolioChecks:
         mock_acct.positions = []
         mock_acct.holdings = []
         mock_acct.funds = MagicMock(available_balance=100000.0, sod_limit=None)
-        with patch("interface.ui.services.active_session.get_active_session", return_value=mock_session):
-            with patch("interface.ui.services.market_access.refresh_account", return_value=mock_acct):
+        with patch(
+            "interface.ui.services.active_session.get_active_session", return_value=mock_session
+        ):
+            with patch(
+                "interface.ui.services.market_access.refresh_account", return_value=mock_acct
+            ):
                 results = PortfolioCheck().execute(mock_broker_service)
         assert any("balance" in r.name.lower() or "fund" in r.name.lower() for r in results)
 

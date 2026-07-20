@@ -19,7 +19,7 @@ RUNTIME_DIR = ROOT / "src" / "runtime"
 
 # Patterns that constitute a broker string-branch (forbidden in src/runtime).
 _FORBIDDEN = [
-    ("_active_name string comparison", r'_\w*active_name\w*\s*[!=]='),
+    ("_active_name string comparison", r"_\w*active_name\w*\s*[!=]="),
     ("getattr reach-through to _active_name", r'getattr\([^)]*["\']_active_name["\']'),
 ]
 

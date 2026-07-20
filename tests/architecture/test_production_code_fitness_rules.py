@@ -97,6 +97,7 @@ class TestExceptionHierarchy:
             pytest.skip("Validation script not found")
 
         import subprocess
+
         result = subprocess.run(
             [sys.executable, str(script)],
             capture_output=True,
@@ -159,9 +160,7 @@ class TestBusinessLayerIsolation:
                 if not is_known:
                     violations.append(filepath)
 
-        assert not violations, (
-            f"Business layer files creating threads directly: {violations}"
-        )
+        assert not violations, f"Business layer files creating threads directly: {violations}"
 
 
 class TestInfrastructureOwnership:
@@ -171,7 +170,9 @@ class TestInfrastructureOwnership:
         """Broker layer must not define cross-cutting infrastructure."""
         broker_files = _get_python_files("brokers")
         infra_patterns = [
-            "class.*Retry", "class.*Cache", "class.*Metrics",
+            "class.*Retry",
+            "class.*Cache",
+            "class.*Metrics",
             "class.*HealthCheck",
         ]
         violations = []
@@ -182,9 +183,7 @@ class TestInfrastructureOwnership:
                 if pattern in content:
                     violations.append(f"{filepath}: {pattern}")
 
-        assert not violations, (
-            f"Broker layer defining infrastructure patterns: {violations}"
-        )
+        assert not violations, f"Broker layer defining infrastructure patterns: {violations}"
 
 
 class TestImportRules:
@@ -197,28 +196,42 @@ class TestImportRules:
             for imp, _src in _get_imports(filepath):
                 if (
                     (imp.startswith("src/application") or imp.startswith("domain"))
-                    and not imp.startswith((
-                        "domain.events", "domain.types", "domain.enums",
-                        "domain.constants", "domain.lifecycle_health", "domain.ports",
-                        "domain.correlation", "domain.exceptions", "domain.entities",
-                        "domain.provenance", "domain.symbols", "domain.instruments.instrument_id",
-                        "domain.market_enums", "domain.orders", "domain.parsing",
-                        "domain.status_mapper",
-                        "domain.ports.protocols", "domain.candles.historical",
-                        "domain.errors",
-                        "domain.policies",
-                        "domain.orders", "domain.parsing", "domain.status_mapper",
-                        "domain.market_enums", "domain.exchange_segments",
-                        "domain.extensions",
-                        "domain.capabilities",
-                    ))
+                    and not imp.startswith(
+                        (
+                            "domain.events",
+                            "domain.types",
+                            "domain.enums",
+                            "domain.constants",
+                            "domain.lifecycle_health",
+                            "domain.ports",
+                            "domain.correlation",
+                            "domain.exceptions",
+                            "domain.entities",
+                            "domain.provenance",
+                            "domain.symbols",
+                            "domain.instruments.instrument_id",
+                            "domain.market_enums",
+                            "domain.orders",
+                            "domain.parsing",
+                            "domain.status_mapper",
+                            "domain.ports.protocols",
+                            "domain.candles.historical",
+                            "domain.errors",
+                            "domain.policies",
+                            "domain.orders",
+                            "domain.parsing",
+                            "domain.status_mapper",
+                            "domain.market_enums",
+                            "domain.exchange_segments",
+                            "domain.extensions",
+                            "domain.capabilities",
+                        )
+                    )
                     and "/tests/" not in filepath
                 ):
                     violations.append(f"{filepath}: imports {imp}")
 
-        assert not violations, (
-            f"Infrastructure layer importing business modules: {violations}"
-        )
+        assert not violations, f"Infrastructure layer importing business modules: {violations}"
 
     def test_broker_not_importing_other_brokers(self):
         """Broker implementations must not import from other brokers."""
@@ -227,13 +240,11 @@ class TestImportRules:
         for i, b1 in enumerate(broker_dirs):
             for filepath in _get_python_files(b1):
                 for imp, _src in _get_imports(filepath):
-                    for b2 in broker_dirs[i + 1:]:
+                    for b2 in broker_dirs[i + 1 :]:
                         if imp.startswith(b2.replace("/", ".")) and "/tests/" not in filepath:
                             violations.append(f"{filepath}: imports {imp}")
 
-        assert not violations, (
-            f"Broker implementations importing from other brokers: {violations}"
-        )
+        assert not violations, f"Broker implementations importing from other brokers: {violations}"
 
 
 class TestNoDuplication:
@@ -273,7 +284,10 @@ class TestConfigurationValidation:
         """Production code must not contain hardcoded credentials."""
         violations = []
         patterns_to_check = [
-            "api_key = \"", "api_secret = \"", "password = \"", "secret = \"",
+            'api_key = "',
+            'api_secret = "',
+            'password = "',
+            'secret = "',
         ]
         for directory in ALL_SOURCE_DIRS:
             if directory == "tests":
@@ -286,13 +300,15 @@ class TestConfigurationValidation:
                         stripped = line.strip()
                         if any(pattern in stripped for pattern in patterns_to_check):
                             # Ignore env var lookups and documentation
-                            if "os.environ" in stripped or "env" in stripped or "# example" in stripped:
+                            if (
+                                "os.environ" in stripped
+                                or "env" in stripped
+                                or "# example" in stripped
+                            ):
                                 continue
                             violations.append(f"{filepath}:{i}: {stripped[:80]}")
 
-        assert not violations, (
-            "Hardcoded credential patterns found:\n" + "\n".join(violations)
-        )
+        assert not violations, "Hardcoded credential patterns found:\n" + "\n".join(violations)
 
 
 class TestRetryUsage:
@@ -301,11 +317,21 @@ class TestRetryUsage:
     def test_no_manual_retry_loops(self):
         """Production code must not implement manual retry loops."""
         violations = []
-        for directory in ["src/application", "src/brokers", "src/interface/api", "src/interface/ui"]:
+        for directory in [
+            "src/application",
+            "src/brokers",
+            "src/interface/api",
+            "src/interface/ui",
+        ]:
             for filepath in _get_python_files(directory):
                 with open(filepath) as f:
                     content = f.read()
-                if re.search(r'\bimport time(?:\s|$)', content) and "sleep(" in content and "@retry" not in content and "retry(" not in content:
+                if (
+                    re.search(r"\bimport time(?:\s|$)", content)
+                    and "sleep(" in content
+                    and "@retry" not in content
+                    and "retry(" not in content
+                ):
                     violations.append(filepath)
 
         # Known exceptions - files that legitimately use sleep
@@ -331,11 +357,10 @@ class TestRetryUsage:
             "src/interface/ui/services/feed_probe.py",  # Live-feed probe window (not HTTP retry)
             "src/interface/ui/utils/retry_handler.py",  # Shared UI retry helper
             "src/brokers/services/market_data.py",  # Subscribe probe window (not HTTP retry)
+            "src/brokers/upstox/orders/order_command_adapter.py",  # Broker poll between slice legs
+            "src/brokers/dhan/data/depth_feed_base/connection.py",  # Depth WS reconnect poll
         ]
-        violations = [
-            v for v in violations
-            if not any(exc in v for exc in known_exceptions)
-        ]
+        violations = [v for v in violations if not any(exc in v for exc in known_exceptions)]
 
         assert not violations, (
             f"Manual retry loops (time.sleep) without @retry decorator: {violations}"

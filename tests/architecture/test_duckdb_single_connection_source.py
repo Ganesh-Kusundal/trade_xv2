@@ -8,8 +8,8 @@ especially ``duckdb.connect(":memory:")`` — bypasses the pool and, for
 ``:memory:``, cannot see the catalog/views, silently returning wrong or empty
 results.
 
-This is a RATCHET, not a big-bang: the drift sites that exist today are listed
-in ``EXEMPTIONS`` with the phase that removes them. The test fails if:
+This is a RATCHET, not a big-bang: drift sites are listed in ``EXEMPTIONS``
+with the phase that removes them. The test fails if:
   * a NEW file introduces ``duckdb.connect(`` (drift prevention — the point), or
   * an ``EXEMPTIONS`` entry is stale (the file no longer calls it — tighten the
     ratchet by deleting the entry).
@@ -25,27 +25,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = ROOT / "src"
 
-# The single sanctioned owner of raw ``duckdb.connect`` (wraps it in
-# ``connect_with_retry`` + the pools). Everything else must go through a pool.
 SANCTIONED = {"datalake/core/duckdb_utils.py"}
 
-# Drift sites present when the roadmap was written. Each must be routed through
-# datalake.core.duckdb_utils and its entry deleted in the noted phase.
-# Format: relative_path -> reason.
-EXEMPTIONS: dict[str, str] = {
-    "datalake/adapters/analytics_provider.py": "Provider.query() uses :memory: (broken — cannot see catalog); fix in Phase 1",
-    "analytics/scanner/scanner_queries.py": "Scanner SQL uses :memory:; route through pool in Phase 1/2",
-    "analytics/intraday/afternoon_expansion.py": "Intraday scan uses ad-hoc connect; route through pool in Phase 1",
-    "datalake/mcp/tools.py": "MCP tool builds a per-call connection; route through pool in Phase 1",
-    "datalake/normalize.py": "Ingestion normalize uses :memory:; route through pool in Phase 1",
-    "datalake/ingestion/sync_options.py": "Options sync opens a raw read-only connection; route through pool in Phase 1",
-    "datalake/quality/health_check.py": "Health check opens a raw read-only connection; route through pool in Phase 1",
-    "datalake/quality/monitor.py": "Quality monitor's default connect_fn uses raw connect; route through pool in Phase 1",
-}
+# Empty after Phase D — all former drift sites use duckdb_utils pools.
+EXEMPTIONS: dict[str, str] = {}
 
-EXEMPTION_METADATA: dict[str, dict[str, str]] = {
-    path: {"owner": "team-analytics", "phase": "P1"} for path in EXEMPTIONS
-}
+EXEMPTION_METADATA: dict[str, dict[str, str]] = {}
 
 _CONNECT = re.compile(r"\bduckdb\.connect\s*\(")
 
@@ -82,7 +67,8 @@ def test_no_stale_exemptions() -> None:
 
 def test_exemptions_have_owner_and_phase() -> None:
     missing = sorted(
-        p for p in EXEMPTIONS
+        p
+        for p in EXEMPTIONS
         if not EXEMPTION_METADATA.get(p, {}).get("owner")
         or not EXEMPTION_METADATA.get(p, {}).get("phase")
     )

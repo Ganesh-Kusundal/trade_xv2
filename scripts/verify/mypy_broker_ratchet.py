@@ -23,7 +23,7 @@ def count_errors() -> int:
         cwd=ROOT,
         capture_output=True,
         text=True,
-        env={**dict(**{k: v for k, v in __import__("os").environ.items()}), "PYTHONPATH": str(ROOT / "src")},
+        env={**dict(**dict(__import__("os").environ.items())), "PYTHONPATH": str(ROOT / "src")},
     )
     text = proc.stdout + proc.stderr
     m = re.search(r"Found (\d+) error", text)

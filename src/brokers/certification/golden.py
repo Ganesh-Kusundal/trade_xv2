@@ -121,5 +121,5 @@ def _check_case(session: BrokerSession, case: GoldenCase) -> tuple[bool, str]:
             if sid is not None and str(sid) != str(case.expected_security_id):
                 return False, f"security_id {sid} != {case.expected_security_id}"
         return True, "matches golden"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return False, f"{type(exc).__name__}: {exc}"

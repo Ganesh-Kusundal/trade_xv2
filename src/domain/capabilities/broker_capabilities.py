@@ -100,7 +100,7 @@ class StreamLimitProfile:
 class BrokerCapabilities:
     """Runtime capability matrix for a single broker connection.
 
-    Returned by ``CommonBrokerGateway.list_capabilities()`` and cached in
+    Returned by ``BrokerAdapter.list_capabilities()`` and cached in
     ``BrokerRegistry``.  All routing and feature-gating decisions must go
     through this object — never through ``if broker_id == "dhan"`` branches.
 
@@ -207,22 +207,17 @@ class BrokerCapabilities:
             return False
         return lookback_days <= constraint.max_lookback_days
 
-    def serves(self, asset_kind: "AssetKind | str", exchange: str) -> bool:
+    def serves(self, asset_kind: AssetKind | str, exchange: str) -> bool:
         """Return True if this broker serves the given (asset_kind, exchange) lane.
 
         ``asset_kind`` may be an :class:`AssetKind` or a string (parsed leniently
         via ``AssetKind.parse``). Used by coverage contracts and routing to avoid
         ``if broker_id == "dhan"`` branches.
         """
-        if isinstance(asset_kind, AssetKind):
-            ak = asset_kind
-        else:
-            ak = AssetKind.parse(asset_kind)
+        ak = asset_kind if isinstance(asset_kind, AssetKind) else AssetKind.parse(asset_kind)
         if ak is None:
             return False
-        return any(
-            s.asset_kind == ak and s.exchange == exchange for s in self.market_surfaces
-        )
+        return any(s.asset_kind == ak and s.exchange == exchange for s in self.market_surfaces)
 
 
 # ---------------------------------------------------------------------------

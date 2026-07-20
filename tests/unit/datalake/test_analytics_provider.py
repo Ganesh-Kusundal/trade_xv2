@@ -1,7 +1,7 @@
 """Tests for :class:`datalake.adapters.DataLakeMarketDataProvider`.
 
 Validates that the adapter:
-- Satisfies the :class:`~domain.ports.market_data.MarketDataPort` protocol.
+- Has the required data access methods.
 - Delegates correctly to the underlying :class:`~datalake.gateway.DataLakeGateway`.
 - Handles empty symbols gracefully.
 - Batch operations return correct DataFrames.
@@ -14,13 +14,10 @@ from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
-import pytest
 
 from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
-from datalake.gateway import DataLakeGateway
 from datalake.core.io import atomic_parquet_write
-from domain.ports.market_data import MarketDataPort
-
+from datalake.gateway import DataLakeGateway
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -53,17 +50,20 @@ def _write_symbol(root: Path, symbol: str, timeframe: str = "1m", n: int = 10) -
 # ── Protocol compliance ──────────────────────────────────────────────────
 
 
-class TestMarketDataPortCompliance:
-    """Verify the adapter satisfies MarketDataPort structurally."""
-
-    def test_isinstance_check(self, tmp_path: Path):
-        _write_symbol(tmp_path, "RELIANCE")
-        provider = DataLakeMarketDataProvider(root=str(tmp_path))
-        assert isinstance(provider, MarketDataPort)
+class TestMarketDataProviderCompliance:
+    """Verify the adapter has the required data access methods."""
 
     def test_has_all_required_methods(self, tmp_path: Path):
         provider = DataLakeMarketDataProvider(root=str(tmp_path))
-        required = {"history", "option_chain", "future_chain", "ltp", "history_batch", "list_symbols", "query"}
+        required = {
+            "history",
+            "option_chain",
+            "future_chain",
+            "ltp",
+            "history_batch",
+            "list_symbols",
+            "query",
+        }
         for method_name in required:
             assert hasattr(provider, method_name), f"Missing method: {method_name}"
             assert callable(getattr(provider, method_name))

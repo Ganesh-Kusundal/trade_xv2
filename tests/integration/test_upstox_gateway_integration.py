@@ -24,7 +24,6 @@ from decimal import Decimal
 
 import pytest
 
-from domain.capabilities.broker_capabilities import BrokerCapabilities
 from brokers.upstox.wire import UpstoxBrokerGateway
 from domain import (
     Balance,
@@ -32,6 +31,7 @@ from domain import (
     OrderResponse,
     Quote,
 )
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 from tests.integration.fixtures.upstox import (
     make_depth_response,
     make_instrument_defn,
@@ -382,8 +382,6 @@ class TestPortfolioIntegration:
         result = gateway.trades()
 
         assert isinstance(result, list)
-
-
 
 
 # ─── Capabilities & Metadata ──────────────────────────────────────────────

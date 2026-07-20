@@ -8,6 +8,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from datalake.core.duckdb_utils import get_memory_pool as get_pool
+from datalake.core.paths import DEFAULT_DATA_ROOT
 from interface.api.auth import require_auth
 from interface.api.deps import get_view_manager
 from interface.api.schemas import (
@@ -17,8 +19,6 @@ from interface.api.schemas import (
     OptionContract,
     PCRResponse,
 )
-from datalake.core.paths import DEFAULT_DATA_ROOT
-from infrastructure.db.duckdb_pool import get_pool
 
 logger = logging.getLogger(__name__)
 

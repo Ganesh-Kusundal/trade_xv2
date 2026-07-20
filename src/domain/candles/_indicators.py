@@ -57,13 +57,15 @@ class SeriesIndicators:
         from domain.indicators.patterns import CandlestickPatterns
 
         idx = [b.event_time for b in self._series.bars]
-        df = pd.DataFrame({
-            "open": [float(b.open) for b in self._series.bars],
-            "high": [float(b.high) for b in self._series.bars],
-            "low": [float(b.low) for b in self._series.bars],
-            "close": [float(b.close) for b in self._series.bars],
-            "volume": [float(b.volume) for b in self._series.bars],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [float(b.open) for b in self._series.bars],
+                "high": [float(b.high) for b in self._series.bars],
+                "low": [float(b.low) for b in self._series.bars],
+                "close": [float(b.close) for b in self._series.bars],
+                "volume": [float(b.volume) for b in self._series.bars],
+            }
+        )
         out = CandlestickPatterns().compute(df)
         out.index = pd.DatetimeIndex(idx, tz="UTC")
         return out

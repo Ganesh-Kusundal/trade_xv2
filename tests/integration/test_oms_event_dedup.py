@@ -1,4 +1,5 @@
 """Integration test: exactly 1 ORDER_PLACED event through OMS submit path."""
+
 from __future__ import annotations
 
 from domain.ports.execution_context import is_oms_managed_submit, oms_managed

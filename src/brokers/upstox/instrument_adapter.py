@@ -156,5 +156,6 @@ def _extract_underlying_from_key(key: str) -> str:
     # Remove date and strike patterns
     # NIFTY22MAY2524000CE → extract NIFTY
     import re
+
     match = re.match(r"^([A-Z]+)", key)
     return match.group(1) if match else key

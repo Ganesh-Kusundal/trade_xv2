@@ -124,9 +124,7 @@ class UpstoxApiUrlResolver:
         interval: int,
         to_date: str,
     ) -> str:
-        return self._delegate.intraday_candle_v3_url(
-            instrument_key, unit, interval, to_date
-        )
+        return self._delegate.intraday_candle_v3_url(instrument_key, unit, interval, to_date)
 
     # ── WebSocket authorize (v2/v3, HFT) ───────────────────────────
     def feed_authorize_v2_url(self) -> str:

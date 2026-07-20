@@ -5,7 +5,6 @@ trades, runs the verifier, and asserts it classifies the state correctly.
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import subprocess
 import sys
@@ -15,7 +14,6 @@ from pathlib import Path
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from infrastructure.observability.event_metrics import EventMetrics
 from domain import (
     Order,
     OrderStatus,
@@ -27,6 +25,8 @@ from domain import (
 from domain.events.types import EventType  # P1-3: EventType enum
 from infrastructure.event_bus import DomainEvent, ProcessedTradeRepository
 from infrastructure.event_log import EventLog
+from infrastructure.observability.event_metrics import EventMetrics
+from tests.conftest import build_test_trading_context
 
 
 def _bootstrap_context(

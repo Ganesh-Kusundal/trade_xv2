@@ -6,8 +6,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
 from domain.entities.options import OptionChain as OptionChainVO
 from domain.entities.options import OptionLeg, OptionStrike
 from domain.instruments.derivatives_math import (
@@ -20,7 +18,6 @@ from domain.instruments.derivatives_math import (
 )
 from domain.instruments.instrument import Future, Option
 from domain.instruments.instrument_id import InstrumentId
-from domain.options.option_chain import OptionChain
 from domain.orders.intent import OrderIntent
 from domain.ports.protocols import OrderResult
 from domain.universe import Session
@@ -114,9 +111,7 @@ class _ChainProv:
         return FutureChain(
             underlying=getattr(underlying, "underlying", "NIFTY"),
             exchange=getattr(underlying, "exchange", "NFO"),
-            contracts=(
-                FutureContract(symbol="NIFTY", expiry="2027-01-28", ltp=Decimal("25100")),
-            ),
+            contracts=(FutureContract(symbol="NIFTY", expiry="2027-01-28", ltp=Decimal("25100")),),
         )
 
     def subscribe(self, *a, **k):

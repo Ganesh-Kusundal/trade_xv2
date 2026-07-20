@@ -7,14 +7,13 @@ longer depend on loosely-typed ``Any``.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from decimal import Decimal
 from pathlib import Path
 
+from application.portfolio import PortfolioContext, PortfolioService
 from domain import Balance, Position, Trade
 from domain.primitives.value_objects import Money
-from application.portfolio import PortfolioContext, PortfolioService
 
 SRC = Path(__file__).resolve().parents[4] / "src"
 PORTFOLIO_SERVICE = SRC / "application/portfolio/portfolio_service.py"

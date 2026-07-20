@@ -12,9 +12,7 @@ from domain.models.trading import CandidateDTO, SignalDTO
 class StrategyEvaluator(Protocol):
     """Evaluate a candidate with pre-computed features."""
 
-    def evaluate_single(
-        self, candidate: CandidateDTO, features: FeatureSet
-    ) -> list[SignalDTO]: ...
+    def evaluate_single(self, candidate: CandidateDTO, features: FeatureSet) -> list[SignalDTO]: ...
 
 
 __all__ = ["StrategyEvaluator"]

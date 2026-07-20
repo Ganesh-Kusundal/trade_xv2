@@ -6,8 +6,9 @@ instead of hard-coding broker ifs for defaults / env files / live flags.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -17,9 +18,7 @@ class BrokerPlugin:
     broker_id: str
     env_file: str | None = None
     default_mode: str = "market"  # sim | market | trade
-    supported_modes: frozenset[str] = field(
-        default_factory=lambda: frozenset({"market", "trade"})
-    )
+    supported_modes: frozenset[str] = field(default_factory=lambda: frozenset({"market", "trade"}))
     is_live: bool = True
     # Optional factories (gateway via bootstrap_gateway / require_gateway)
     data_provider_factory: Callable[[Any], Any] | None = None

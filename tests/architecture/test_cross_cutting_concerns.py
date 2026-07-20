@@ -519,9 +519,9 @@ class TestGuardrailNoInlineUpstoxUrls:
                 for line_no, line in enumerate(content.splitlines(), start=1):
                     for pattern in self.INLINE_PATTERNS:
                         if pattern in line:
-                            violations.setdefault(
-                                str(filepath.relative_to(ROOT)), []
-                            ).append((line_no, line.strip()[:80]))
+                            violations.setdefault(str(filepath.relative_to(ROOT)), []).append(
+                                (line_no, line.strip()[:80])
+                            )
             except (UnicodeDecodeError, OSError):
                 continue
         assert not violations, (
@@ -615,6 +615,7 @@ class TestPhase8Guardrails:
         separate, non-OMS bus, which was a silent safety bug.
         """
         import ast
+
         violations: dict[str, list[int]] = {}
         for path in _walk_production_files():
             try:
@@ -624,14 +625,10 @@ class TestPhase8Guardrails:
             for node in ast.walk(tree):
                 # Look for Attribute access: ``X.simulate_event``
                 if isinstance(node, ast.Attribute) and node.attr == "simulate_event":
-                    violations.setdefault(
-                        str(path.relative_to(ROOT)), []
-                    ).append(node.lineno)
+                    violations.setdefault(str(path.relative_to(ROOT)), []).append(node.lineno)
                 # Or a Name: ``simulate_event(...)``
                 if isinstance(node, ast.Name) and node.id == "simulate_event":
-                    violations.setdefault(
-                        str(path.relative_to(ROOT)), []
-                    ).append(node.lineno)
+                    violations.setdefault(str(path.relative_to(ROOT)), []).append(node.lineno)
         assert not violations, (
             "simulate_event() is forbidden in production code. "
             "EventBusService must mirror the canonical OMS bus, never fabricate events. "
@@ -651,6 +648,7 @@ class TestPhase8Guardrails:
         ``__init__``) are allowed.
         """
         import ast
+
         violations: dict[str, list[int]] = {}
         for path in _walk_production_files():
             try:
@@ -671,9 +669,7 @@ class TestPhase8Guardrails:
                         # __init__ (the legitimate dataclass-style setter).
                         continue
                     # ``reconciliation._oms = ...`` is the banned pattern.
-                    violations.setdefault(
-                        str(path.relative_to(ROOT)), []
-                    ).append(node.lineno)
+                    violations.setdefault(str(path.relative_to(ROOT)), []).append(node.lineno)
         assert not violations, (
             "Direct reconciliation._oms assignment is forbidden (Phase 1.4). "
             "Use TradingContext.attach_reconciliation_service() instead. "
@@ -685,9 +681,7 @@ class TestPhase8Guardrails:
 
         D6: OmsService retired — gate lives on CliBrokerFacade (via BrokerService).
         """
-        facade_path = (
-            ROOT / "src" / "interface" / "ui" / "services" / "cli_broker_facade.py"
-        )
+        facade_path = ROOT / "src" / "interface" / "ui" / "services" / "cli_broker_facade.py"
         if not facade_path.exists():
             pytest.skip("CliBrokerFacade source not found")
         text = facade_path.read_text()

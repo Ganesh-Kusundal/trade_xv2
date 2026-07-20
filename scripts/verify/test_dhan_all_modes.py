@@ -20,9 +20,12 @@ PROJECT_ROOT = Path(__file__).parent.parent
 def main() -> int:
     """Run the e2e smoke suite via pytest and forward the exit code."""
     cmd = [
-        sys.executable, "-m", "pytest",
+        sys.executable,
+        "-m",
+        "pytest",
         "tests/integration/brokers/dhan/regression/test_e2e_smoke.py",
-        "-v", "--tb=short",
+        "-v",
+        "--tb=short",
     ]
     result = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
     return result.returncode
@@ -35,6 +38,7 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 # Legacy function retained so that anything importing this module still works.
 # ---------------------------------------------------------------------------
+
 
 def test_all_modes_options_futures_depth():
     """Legacy entry point — now delegates to pytest."""
@@ -157,10 +161,18 @@ def _legacy_placeholder():
 
                 if tick_count > 0:
                     sample = ticks[0]
-                    ltp_val = sample.get("ltp", "?") if isinstance(sample, dict) else getattr(sample, "ltp", "?")
-                    console.print(f"  [green]✓ FULL mode: {tick_count} ticks received, LTP={ltp_val}[/green]")
+                    ltp_val = (
+                        sample.get("ltp", "?")
+                        if isinstance(sample, dict)
+                        else getattr(sample, "ltp", "?")
+                    )
+                    console.print(
+                        f"  [green]✓ FULL mode: {tick_count} ticks received, LTP={ltp_val}[/green]"
+                    )
                 else:
-                    console.print(f"  [yellow]⚠ FULL mode: 0 ticks in 5s (market may be closed)[/yellow]")
+                    console.print(
+                        f"  [yellow]⚠ FULL mode: 0 ticks in 5s (market may be closed)[/yellow]"
+                    )
 
             except Exception as e:
                 console.print(f"  [red]✗ FULL mode failed: {e}[/red]")
@@ -187,11 +199,11 @@ def _legacy_placeholder():
                 console.print(f"  [green]✓ Options chain retrieved ({latency:.0f}ms)[/green]")
 
                 # Check strikes
-                if hasattr(chain, 'strikes'):
+                if hasattr(chain, "strikes"):
                     console.print(f"  [green]  - Strikes: {len(chain.strikes)}[/green]")
 
                 # Check if it has expiries
-                if hasattr(chain, 'expiries'):
+                if hasattr(chain, "expiries"):
                     console.print(f"  [green]  - Expiries: {len(chain.expiries)}[/green]")
                     if chain.expiries:
                         console.print(f"  [dim]    Nearest: {chain.expiries[0]}[/dim]")
@@ -202,7 +214,9 @@ def _legacy_placeholder():
                     ext = gateway.extended
                     expiries = ext.get_option_expiries(underlying, exchange)
                     if expiries:
-                        console.print(f"  [green]  - Extended API: {len(expiries)} expiries available[/green]")
+                        console.print(
+                            f"  [green]  - Extended API: {len(expiries)} expiries available[/green]"
+                        )
                 except Exception as e:
                     console.print(f"  [yellow]  ⚠ Extended expiries failed: {e}[/yellow]")
 
@@ -231,12 +245,14 @@ def _legacy_placeholder():
                 console.print(f"  [green]✓ Futures chain retrieved ({latency:.0f}ms)[/green]")
 
                 # Check contracts
-                if hasattr(futures, 'contracts'):
+                if hasattr(futures, "contracts"):
                     console.print(f"  [green]  - Contracts: {len(futures.contracts)}[/green]")
                     if futures.contracts:
                         first = futures.contracts[0]
-                        console.print(f"  [dim]    First: {first.symbol if hasattr(first, 'symbol') else 'N/A'} "
-                                    f"(expiry: {first.expiry if hasattr(first, 'expiry') else 'N/A'})[/dim]")
+                        console.print(
+                            f"  [dim]    First: {first.symbol if hasattr(first, 'symbol') else 'N/A'} "
+                            f"(expiry: {first.expiry if hasattr(first, 'expiry') else 'N/A'})[/dim]"
+                        )
 
             except Exception as e:
                 console.print(f"  [red]✗ Futures chain failed: {e}[/red]")
@@ -266,11 +282,15 @@ def _legacy_placeholder():
                 )
 
                 if depth.bids:
-                    console.print(f"  [dim]    Top Bid: ₹{depth.bids[0].price}, "
-                                f"Qty: {depth.bids[0].quantity}[/dim]")
+                    console.print(
+                        f"  [dim]    Top Bid: ₹{depth.bids[0].price}, "
+                        f"Qty: {depth.bids[0].quantity}[/dim]"
+                    )
                 if depth.asks:
-                    console.print(f"  [dim]    Top Ask: ₹{depth.asks[0].price}, "
-                                f"Qty: {depth.asks[0].quantity}[/dim]")
+                    console.print(
+                        f"  [dim]    Top Ask: ₹{depth.asks[0].price}, "
+                        f"Qty: {depth.asks[0].quantity}[/dim]"
+                    )
 
             except Exception as e:
                 console.print(f"  [red]✗ REST Depth failed: {e}[/red]")
@@ -311,12 +331,15 @@ def _legacy_placeholder():
                         f"last: {len(last_depth.bids)} bids, {len(last_depth.asks)} asks[/green]"
                     )
                 else:
-                    console.print(f"  [yellow]⚠ Depth-20: 0 WebSocket updates in 5s "
-                                f"(using REST fallback)[/yellow]")
+                    console.print(
+                        f"  [yellow]⚠ Depth-20: 0 WebSocket updates in 5s "
+                        f"(using REST fallback)[/yellow]"
+                    )
 
             except Exception as e:
                 console.print(f"  [red]✗ Depth-20 failed: {e}[/red]")
                 import traceback
+
                 traceback.print_exc()
 
             time.sleep(0.3)
@@ -344,6 +367,7 @@ def _legacy_placeholder():
     except Exception as e:
         console.print(f"\n[red]✗ Test failed: {e}[/red]")
         import traceback
+
         traceback.print_exc()
         return False
 

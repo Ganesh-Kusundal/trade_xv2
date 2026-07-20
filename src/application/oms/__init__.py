@@ -5,6 +5,7 @@ from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreakerConfig,
     LossCircuitState,
 )
+from application.oms._internal.risk_manager import RiskConfig, RiskManager, RiskResult
 from application.oms.context import TradingContext
 from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
 from application.oms.errors import OrderBlockedError
@@ -18,11 +19,9 @@ from application.oms.process_context import (
     reset_oms_context,
 )
 from application.oms.reconciliation_service import ReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager, RiskResult
 from application.oms.session_bridge import (
     OmsOrderService,
     build_oms_service,
-    build_paper_oms_service,
 )
 
 __all__ = [
@@ -42,7 +41,6 @@ __all__ = [
     "RiskResult",
     "TradingContext",
     "build_oms_service",
-    "build_paper_oms_service",
     "create_trading_context",
     "get_oms_context",
     "has_oms_context",

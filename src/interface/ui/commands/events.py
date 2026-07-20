@@ -9,13 +9,94 @@ events from the OMS ``TradingContext.event_bus`` when one is available.
 
 from __future__ import annotations
 
+import contextlib
 import time
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from interface.ui.services.event_bus_service import EventBusService
+if TYPE_CHECKING:
+    from infrastructure.event_bus import EventBus
+
+
+class EventBusService:
+    """Read-only mirror over the canonical OMS EventBus."""
+
+    def __init__(self, event_bus: EventBus | None = None) -> None:
+        self.event_bus = event_bus
+        self._counters: dict[str, int] = {
+            "MARKET": 0,
+            "ORDER": 0,
+            "POSITION": 0,
+            "RISK": 0,
+        }
+        self._logs: list[str] = []
+        self._max_logs = 500
+        if event_bus is not None:
+            with contextlib.suppress(AttributeError):
+                event_bus.subscribe_all(self._on_event)
+
+    def _on_event(self, event) -> None:
+        event_type = getattr(event, "event_type", "")
+        category = self._categorise(event_type)
+        self._counters[category] = self._counters.get(category, 0) + 1
+        line = self._format(event)
+        self._logs.append(line)
+        if len(self._logs) > self._max_logs:
+            self._logs.pop(0)
+
+    @staticmethod
+    def _categorise(event_type: str) -> str:
+        upper = event_type.upper()
+        if "TICK" in upper or "QUOTE" in upper or "DEPTH" in upper or "MARKET" in upper:
+            return "MARKET"
+        if "ORDER" in upper:
+            return "ORDER"
+        if "POSITION" in upper or "TRADE" in upper:
+            return "POSITION"
+        if "RISK" in upper:
+            return "RISK"
+        return "MARKET"
+
+    @staticmethod
+    def _format(event) -> str:
+        event_type = getattr(event, "event_type", "")
+        symbol = getattr(event, "symbol", "") or ""
+        source = getattr(event, "source", "") or ""
+        ts = getattr(event, "timestamp", None)
+        ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+        payload = getattr(event, "payload", {}) or {}
+        order = payload.get("order")
+        trade = payload.get("trade")
+        if order is not None:
+            detail = (
+                f"{getattr(order, 'symbol', symbol)} "
+                f"{getattr(order, 'side', '')} "
+                f"{getattr(order, 'quantity', '')} @ "
+                f"{getattr(order, 'price', '')} "
+                f"status={getattr(order, 'status', '')}"
+            )
+            return f"[ORDER] {ts_str} {event_type} {detail}"
+        if trade is not None:
+            detail = (
+                f"{getattr(trade, 'symbol', symbol)} "
+                f"{getattr(trade, 'side', '')} "
+                f"qty={getattr(trade, 'quantity', '')} "
+                f"@ {getattr(trade, 'price', '')}"
+            )
+            return f"[POSITION] {ts_str} {event_type} {detail}"
+        return f"[{source or 'EVENT'}] {ts_str} {event_type} symbol={symbol}"
+
+    def get_counters(self) -> dict[str, int]:
+        return dict(self._counters)
+
+    def get_logs(self, limit: int = 50) -> list[str]:
+        return self._logs[-limit:]
+
+    def has_real_bus(self) -> bool:
+        return self.event_bus is not None
 
 
 def generate_event_table(event_bus_service: EventBusService) -> Table:

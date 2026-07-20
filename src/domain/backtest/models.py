@@ -30,5 +30,5 @@ class BacktestResultResponse(BaseModel):
     timeframe: str
     metrics: BacktestMetrics
     trades: list[dict[str, Any]] | None = None
-    research_mode: str = "pure_sim"
-    research_only: bool = True
+    research_mode: str = "parity"
+    research_only: bool = False

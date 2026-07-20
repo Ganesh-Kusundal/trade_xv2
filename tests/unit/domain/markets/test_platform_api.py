@@ -13,10 +13,10 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
+from domain.candles.historical import InstrumentRef
 from domain.entities.market import DepthLevel, MarketDepth, QuoteSnapshot
 from domain.entities.options import OptionChain, OptionLeg, OptionStrike
-from domain.candles.historical import InstrumentRef
-from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+from domain.provenance import DataProvenance, SourceIdentity
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +43,9 @@ class FakeDataProvider:
 
     def get_quote(self, instrument_id):
         return QuoteSnapshot(
-            instrument=InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange),
+            instrument=InstrumentRef(
+                symbol=instrument_id.underlying, exchange=instrument_id.exchange
+            ),
             ltp=self._ltp,
             event_time=datetime.now(tz=timezone.utc),
             provenance=DataProvenance(
@@ -56,7 +58,9 @@ class FakeDataProvider:
             volume=1000,
         )
 
-    def get_history(self, instrument_id, *, timeframe="1D", lookback_days=120, from_date=None, to_date=None):
+    def get_history(
+        self, instrument_id, *, timeframe="1D", lookback_days=120, from_date=None, to_date=None
+    ):
         return pd.DataFrame({"close": [self._ltp]})
 
     def get_history_series(
@@ -97,10 +101,30 @@ class FakeDataProvider:
             strikes.append(
                 OptionStrike(
                     strike=st,
-                    call=OptionLeg(ltp=Decimal("10"), oi=1000, iv=Decimal("0.2"),
-                                   greeks={"delta": 0.5, "gamma": 0.01, "theta": -1.0, "vega": 2.0, "rho": 0.5}),
-                    put=OptionLeg(ltp=Decimal("10"), oi=800, iv=Decimal("0.2"),
-                                  greeks={"delta": -0.5, "gamma": 0.01, "theta": -1.0, "vega": 2.0, "rho": 0.5}),
+                    call=OptionLeg(
+                        ltp=Decimal("10"),
+                        oi=1000,
+                        iv=Decimal("0.2"),
+                        greeks={
+                            "delta": 0.5,
+                            "gamma": 0.01,
+                            "theta": -1.0,
+                            "vega": 2.0,
+                            "rho": 0.5,
+                        },
+                    ),
+                    put=OptionLeg(
+                        ltp=Decimal("10"),
+                        oi=800,
+                        iv=Decimal("0.2"),
+                        greeks={
+                            "delta": -0.5,
+                            "gamma": 0.01,
+                            "theta": -1.0,
+                            "vega": 2.0,
+                            "rho": 0.5,
+                        },
+                    ),
                 )
             )
         return OptionChain(
@@ -145,8 +169,7 @@ def test_instruments_does_not_import_brokers():
     import domain.instruments.instrument  # noqa: F401
 
     new_broker_mods = [
-        n for n in (set(sys.modules) - before)
-        if n == "brokers" or n.startswith("brokers.")
+        n for n in (set(sys.modules) - before) if n == "brokers" or n.startswith("brokers.")
     ]
     assert new_broker_mods == [], f"markets must not import brokers: {new_broker_mods}"
 
@@ -212,7 +235,6 @@ def test_broker_extension_depth20():
     ``MarketDepth`` without the caller importing anything from ``brokers.*``.
     """
     from domain.entities.market import DepthLevel, MarketDepth
-    from domain.instruments.instrument_id import InstrumentId
     from domain.value_objects.capability import Capability
 
     class StubDepthGateway:
@@ -256,11 +278,13 @@ def test_broker_extension_depth20():
     assert depth.depth_type == "DEPTH_20"
 
 
-@pytest.mark.xfail(reason="Instrument event_bus wiring deferred (object-model later phase)", strict=False)
+@pytest.mark.xfail(
+    reason="Instrument event_bus wiring deferred (object-model later phase)", strict=False
+)
 def test_instrument_publishes_events():
+    from domain.events.null_bus import NullEventBus
     from domain.instruments.instrument import Equity
     from domain.ports.provider_registry import set_default_provider
-    from domain.events.null_bus import NullEventBus
 
     events = []
 

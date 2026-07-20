@@ -18,28 +18,36 @@ from datalake.quality.validation import validate_candles
 
 class TestValidationAudit:
     def test_audit_clean_data(self):
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=5),
-            "open": [100.0] * 5, "high": [101.0] * 5,
-            "low": [99.0] * 5, "close": [100.0] * 5,
-            "volume": [1000] * 5,
-            "event_time": pd.date_range("2024-01-01", periods=5),
-            "published_at": pd.date_range("2024-01-01 00:00:01", periods=5),
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=5),
+                "open": [100.0] * 5,
+                "high": [101.0] * 5,
+                "low": [99.0] * 5,
+                "close": [100.0] * 5,
+                "volume": [1000] * 5,
+                "event_time": pd.date_range("2024-01-01", periods=5),
+                "published_at": pd.date_range("2024-01-01 00:00:01", periods=5),
+            }
+        )
         _result, audit = validate_candles(df, "TEST", return_audit=True)
         assert audit.is_clean
         assert audit.dropped_rows == 0
 
     def test_audit_catches_causality_violation(self):
         ts = pd.date_range("2024-01-01", periods=5)
-        df = pd.DataFrame({
-            "timestamp": ts,
-            "open": [100.0] * 5, "high": [101.0] * 5,
-            "low": [99.0] * 5, "close": [100.0] * 5,
-            "volume": [1000] * 5,
-            "event_time": ts,
-            "published_at": ts - pd.Timedelta(hours=1),
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": ts,
+                "open": [100.0] * 5,
+                "high": [101.0] * 5,
+                "low": [99.0] * 5,
+                "close": [100.0] * 5,
+                "volume": [1000] * 5,
+                "event_time": ts,
+                "published_at": ts - pd.Timedelta(hours=1),
+            }
+        )
         _result, audit = validate_candles(df, "TEST", return_audit=True)
         assert audit.dropped_rows == 5
         assert any("causality" in i for i in audit.issues)
@@ -81,6 +89,7 @@ class TestPathTraversal:
 class TestReadPoolCap:
     def test_max_connections_enforced(self):
         from datalake.core.duckdb_utils import DuckDBReadPool
+
         pool = DuckDBReadPool(max_per_path=2)
         # Acquiring 3 should fail on the 3rd
         # (We can't easily test this without a real DB file, so test the logic)
@@ -102,6 +111,7 @@ class TestNSECalendar:
 
     def test_early_close(self):
         from datalake.core.nse_calendar import is_early_close
+
         assert not is_early_close(date(2024, 1, 15))
 
     def test_expected_candles(self):
@@ -117,15 +127,17 @@ class TestNSECalendar:
         # Cross-checked against zero-candle days in the datalake and NSE's
         # official yearly "Trading holidays" circulars.
         for d in [
-            date(2021, 7, 21),   # Bakri Id 2021 (shifted from originally notified Jul 20)
-            date(2021, 9, 10),   # Ganesh Chaturthi 2021
-            date(2021, 11, 5),   # Diwali-Balipratipada 2021
-            date(2022, 8, 31),   # Ganesh Chaturthi 2022
-            date(2022, 10, 24),  # Diwali-Laxmi Pujan 2022 (regular session closed; Muhurat trading only)
+            date(2021, 7, 21),  # Bakri Id 2021 (shifted from originally notified Jul 20)
+            date(2021, 9, 10),  # Ganesh Chaturthi 2021
+            date(2021, 11, 5),  # Diwali-Balipratipada 2021
+            date(2022, 8, 31),  # Ganesh Chaturthi 2022
+            date(
+                2022, 10, 24
+            ),  # Diwali-Laxmi Pujan 2022 (regular session closed; Muhurat trading only)
             date(2022, 10, 26),  # Diwali-Balipratipada 2022
-            date(2024, 1, 22),   # Ram Mandir Pran Pratishtha (ad-hoc Maharashtra holiday)
-            date(2024, 5, 20),   # Lok Sabha election polling day (Mumbai)
-            date(2026, 1, 15),   # Maharashtra civic body elections (ad-hoc holiday)
+            date(2024, 1, 22),  # Ram Mandir Pran Pratishtha (ad-hoc Maharashtra holiday)
+            date(2024, 5, 20),  # Lok Sabha election polling day (Mumbai)
+            date(2026, 1, 15),  # Maharashtra civic body elections (ad-hoc holiday)
         ]:
             assert not is_trading_day(d), f"{d} should be an NSE holiday"
 
@@ -133,9 +145,9 @@ class TestNSECalendar:
         # Days next to holidays, and dates previously miscoded as holidays
         # that are in fact regular trading days.
         for d in [
-            date(2021, 7, 20),   # originally-notified Bakri Id date; actual holiday was Jul 21
+            date(2021, 7, 20),  # originally-notified Bakri Id date; actual holiday was Jul 21
             date(2022, 10, 25),  # trading day between the two Diwali holidays
-            date(2026, 3, 6),    # previously miscoded as Holi; real Holi 2026 is Mar 3
+            date(2026, 3, 6),  # previously miscoded as Holi; real Holi 2026 is Mar 3
         ]:
             assert is_trading_day(d), f"{d} should be a regular trading day"
 

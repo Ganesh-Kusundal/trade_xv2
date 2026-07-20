@@ -1,183 +1,89 @@
-"""Base profile definition for environment-specific configuration.
-
-All environment profiles inherit from this base class and override
-specific settings.
-"""
+"""Environment profile — one dataclass + env table."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
 @dataclass
-class EnvironmentProfile(ABC):
-    """Abstract base class for environment profiles."""
+class EnvironmentProfile:
+    """Environment-specific configuration."""
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Profile name (dev/staging/prod)."""
-        pass
-
-    @property
-    @abstractmethod
-    def log_level(self) -> str:
-        """Logging level for this environment."""
-        pass
-
-    @property
-    @abstractmethod
-    def debug_enabled(self) -> bool:
-        """Whether debug features are enabled."""
-        pass
-
-    @property
-    @abstractmethod
-    def mock_brokers_allowed(self) -> bool:
-        """Whether mock/sandbox brokers are allowed."""
-        pass
-
-    @property
-    @abstractmethod
-    def strict_validation(self) -> bool:
-        """Whether strict configuration validation is enforced."""
-        pass
-
-    @property
-    @abstractmethod
-    def allow_live_orders_by_default(self) -> bool:
-        """Whether live orders are allowed by default."""
-        pass
-
-    @property
-    def encryption_required(self) -> bool:
-        """Whether encryption is required for token state files."""
-        return False
-
-    @property
-    def api_auth_required(self) -> bool:
-        """Whether API authentication is required."""
-        return False
-
-    @property
-    def rate_limit_enabled(self) -> bool:
-        """Whether rate limiting is enabled."""
-        return False
-
-    @property
-    def rate_limit_per_minute(self) -> int:
-        """Rate limit requests per minute."""
-        return 0
-
-    @property
-    def cors_origins(self) -> list[str]:
-        """Allowed CORS origins."""
-        return ["http://localhost:5173", "http://localhost:3000"]
-
-    @property
-    def observability_enabled(self) -> bool:
-        """Whether observability features are enabled."""
-        return False
-
-    @property
-    def metrics_endpoint(self) -> str | None:
-        """Metrics endpoint URL (if enabled)."""
-        return None
+    name: str = "base"
+    log_level: str = "INFO"
+    debug_enabled: bool = False
+    mock_brokers_allowed: bool = False
+    strict_validation: bool = True
+    allow_live_orders_by_default: bool = False
+    encryption_required: bool = False
+    api_auth_required: bool = False
+    rate_limit_enabled: bool = False
+    rate_limit_per_minute: int = 0
+    cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
+    observability_enabled: bool = False
+    metrics_endpoint: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert profile to dictionary.
-
-        Returns:
-            Dict representation of profile settings.
-        """
-        return {
-            "name": self.name,
-            "log_level": self.log_level,
-            "debug_enabled": self.debug_enabled,
-            "mock_brokers_allowed": self.mock_brokers_allowed,
-            "strict_validation": self.strict_validation,
-            "allow_live_orders_by_default": self.allow_live_orders_by_default,
-            "encryption_required": self.encryption_required,
-            "api_auth_required": self.api_auth_required,
-            "rate_limit_enabled": self.rate_limit_enabled,
-            "rate_limit_per_minute": self.rate_limit_per_minute,
-            "cors_origins": self.cors_origins,
-            "observability_enabled": self.observability_enabled,
-            "metrics_endpoint": self.metrics_endpoint,
-        }
+        return asdict(self)
 
 
-@dataclass
-class BaseProfile(EnvironmentProfile):
-    """Base profile with common defaults.
+_PROFILE_TABLE: dict[str, dict[str, Any]] = {
+    "base": {},
+    "dev": {
+        "name": "dev",
+        "log_level": "DEBUG",
+        "debug_enabled": True,
+        "mock_brokers_allowed": True,
+        "strict_validation": False,
+        "cors_origins": [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ],
+    },
+    "staging": {
+        "name": "staging",
+        "log_level": "INFO",
+        "debug_enabled": True,
+        "encryption_required": True,
+        "api_auth_required": True,
+        "rate_limit_enabled": True,
+        "rate_limit_per_minute": 120,
+        "cors_origins": [
+            "https://staging.tradexv2.com",
+            "http://localhost:5173",
+        ],
+        "observability_enabled": True,
+        "metrics_endpoint": "http://localhost:9090/metrics",
+    },
+    "prod": {
+        "name": "prod",
+        "log_level": "WARNING",
+        "encryption_required": True,
+        "api_auth_required": True,
+        "rate_limit_enabled": True,
+        "rate_limit_per_minute": 60,
+        "cors_origins": ["https://app.tradexv2.com"],
+        "observability_enabled": True,
+    },
+}
 
-    Subclasses should override specific properties.
-    """
 
-    _name: str = "base"
-    _log_level: str = "INFO"
-    _debug_enabled: bool = False
-    _mock_brokers_allowed: bool = False
-    _strict_validation: bool = True
-    _allow_live_orders_by_default: bool = False
-    _encryption_required: bool = False
-    _api_auth_required: bool = False
-    _rate_limit_enabled: bool = False
-    _rate_limit_per_minute: int = 0
-    _cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173"])
-    _observability_enabled: bool = False
-    _metrics_endpoint: str | None = None
+def _make_profile_type(env_name: str, class_name: str) -> type[EnvironmentProfile]:
+    spec = _PROFILE_TABLE[env_name]
 
-    @property
-    def name(self) -> str:
-        return self._name
+    class _Profile(EnvironmentProfile):
+        def __init__(self) -> None:
+            super().__init__(**spec)
 
-    @property
-    def log_level(self) -> str:
-        return self._log_level
+    _Profile.__name__ = class_name
+    _Profile.__qualname__ = class_name
+    return _Profile
 
-    @property
-    def debug_enabled(self) -> bool:
-        return self._debug_enabled
 
-    @property
-    def mock_brokers_allowed(self) -> bool:
-        return self._mock_brokers_allowed
-
-    @property
-    def strict_validation(self) -> bool:
-        return self._strict_validation
-
-    @property
-    def allow_live_orders_by_default(self) -> bool:
-        return self._allow_live_orders_by_default
-
-    @property
-    def encryption_required(self) -> bool:
-        return self._encryption_required
-
-    @property
-    def api_auth_required(self) -> bool:
-        return self._api_auth_required
-
-    @property
-    def rate_limit_enabled(self) -> bool:
-        return self._rate_limit_enabled
-
-    @property
-    def rate_limit_per_minute(self) -> int:
-        return self._rate_limit_per_minute
-
-    @property
-    def cors_origins(self) -> list[str]:
-        return self._cors_origins
-
-    @property
-    def observability_enabled(self) -> bool:
-        return self._observability_enabled
-
-    @property
-    def metrics_endpoint(self) -> str | None:
-        return self._metrics_endpoint
+BaseProfile = _make_profile_type("base", "BaseProfile")
+DevProfile = _make_profile_type("dev", "DevProfile")
+StagingProfile = _make_profile_type("staging", "StagingProfile")
+ProdProfile = _make_profile_type("prod", "ProdProfile")

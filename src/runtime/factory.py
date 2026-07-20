@@ -1,8 +1,6 @@
 """Single composition root (ADR-017).
 
-All runtime wiring lives here.  ``TradingRuntimeFactory`` in
-``trading_runtime_factory.py`` is a deprecated re-export kept for backward
-compatibility until all call sites migrate.
+All runtime wiring lives here.
 """
 
 from __future__ import annotations
@@ -14,12 +12,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from application.oms.context import TradingContext
-from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from infrastructure.lifecycle import LifecycleManager
 
 if TYPE_CHECKING:
     from application.trading.trading_orchestrator import TradingOrchestrator
-    from infrastructure.broker_infrastructure import BrokerInfrastructure
+    from runtime.broker_infrastructure import BrokerInfrastructure
     from infrastructure.event_bus.event_bus import EventBus
     from runtime.resilience import ResilienceConfig
 
@@ -51,6 +49,7 @@ class Runtime:
     event_bus: EventBus | None = None
     resilience: ResilienceConfig | None = None
     pattern_engine: Any | None = None
+    service_registry: Any | None = None
     extra: dict[str, Any] = field(default_factory=dict)
     _streams_started: bool = field(default=False, init=False, repr=False)
 
@@ -86,8 +85,31 @@ class BuildOptions:
 
 
 # ---------------------------------------------------------------------------
-# Private wiring helpers (extracted from TradingRuntimeFactory)
+# Private wiring helpers
 # ---------------------------------------------------------------------------
+
+
+def _quote_fn_from_gateway(gateway: MarketDataGateway | None):
+    """Resolve LTP for paper fills from the active market-data gateway."""
+    if gateway is None:
+        return None
+    from decimal import Decimal
+
+    from domain.exceptions import QuoteUnavailableError
+
+    def _quote(symbol: str, exchange: str) -> Decimal:
+        try:
+            q = gateway.quote(symbol, exchange)
+            return Decimal(str(q.ltp))
+        except Exception:
+            try:
+                return Decimal(str(gateway.ltp(symbol, exchange)))
+            except Exception as exc2:
+                raise QuoteUnavailableError(
+                    f"quote unavailable for {symbol}/{exchange}"
+                ) from exc2
+
+    return _quote
 
 
 def _both_brokers_available(broker_service: Any) -> bool:
@@ -105,15 +127,17 @@ def _wire_trading_orchestrator(
     from analytics.pipeline.features import ATR, RSI, SMA, CandlestickPattern
     from analytics.pipeline.pipeline import FeaturePipeline
     from analytics.scanner.patterns import PatternEngine, PatternStrategy
+    from analytics.strategy.evaluator_bridge import StrategyPipelineEvaluator
     from analytics.strategy.pipeline import StrategyPipeline
     from application.trading.feature_fetcher import PipelineFeatureFetcher
-    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
     from application.trading.trading_orchestrator import (
         OrchestratorConfig,
         TradingOrchestrator,
     )
     from infrastructure.event_bus import EventType
-    from runtime.commands import build_order_dispatcher
+
+    from runtime.execution_config import resolve_execution_target_kind
+    from runtime.execution_target import build_execution_engine
 
     pipeline = (
         FeaturePipeline()
@@ -123,8 +147,8 @@ def _wire_trading_orchestrator(
         .add(CandlestickPattern())
     )
 
-    multi = MultiStrategyRuntime()
-    strategy_instances = [*multi.pipeline.strategies, PatternStrategy()]
+    multi = build_multi_strategy_runtime()
+    strategy_instances = [*multi.strategies, PatternStrategy()]
     strategy_pipeline = StrategyPipeline(strategies=strategy_instances)
 
     pattern_engine = PatternEngine()
@@ -135,18 +159,19 @@ def _wire_trading_orchestrator(
         dry_run=orchestrator_dry_run,
     )
 
-    _, order_command_fn = build_order_dispatcher(
-        tc.order_manager,
-        event_bus=tc.event_bus,
+    kind = resolve_execution_target_kind()
+    quote_fn = _quote_fn_from_gateway(gateway)
+    execution_engine = build_execution_engine(
+        tc, kind, gateway=None, quote_fn=quote_fn
     )
 
     orchestrator = TradingOrchestrator(
         event_bus=tc.event_bus,
         order_manager=tc.order_manager,
-        strategy_evaluator=strategy_pipeline,
+        strategy_evaluator=StrategyPipelineEvaluator(strategy_pipeline),
         feature_fetcher=feature_fetcher,
+        execution_engine=execution_engine,
         config=config,
-        order_command_fn=order_command_fn,
     )
     tc.event_bus.subscribe(EventType.CANDIDATE_GENERATED, orchestrator.on_candidate)
     lifecycle.register(orchestrator)
@@ -206,6 +231,16 @@ def build_from_broker_service(
     wire_domain_port_sinks()
     validate_production_config(surface="runtime")
 
+    event_bus_for_sink = getattr(broker_service, "_event_bus", None)
+    if event_bus_for_sink is None:
+        tc_pre = getattr(broker_service, "trading_context", None)
+        if tc_pre is not None:
+            event_bus_for_sink = tc_pre.event_bus
+    if event_bus_for_sink is not None:
+        from runtime.live_datalake_wiring import wire_live_bar_sink
+
+        wire_live_bar_sink(event_bus_for_sink)
+
     # ADR-012 appendix: resilience subsystem is a visible kernel dependency.
     from runtime.resilience import ResilienceConfig
 
@@ -214,6 +249,15 @@ def build_from_broker_service(
     if opts.skip_parity_gate and is_production_environment():
         raise RuntimeError(
             "skip_parity_gate=True is forbidden in production "
+            "(quant parity must pass before live boot)"
+        )
+
+    # In live environments the parity gate is mandatory and cannot be disabled
+    # via config (parity_gate_enabled=False) or code (skip_parity_gate). The
+    # gate always runs; only non-live dev/test environments may opt out.
+    if is_production_environment() and not resilience.parity_gate_enabled:
+        raise RuntimeError(
+            "parity_gate_enabled=False is forbidden in production/staging "
             "(quant parity must pass before live boot)"
         )
 
@@ -244,12 +288,17 @@ def build_from_broker_service(
     broker_infrastructure = None
     if wire_intelligent_gateway or _both_brokers_available(broker_service):
         broker_infrastructure = _build_broker_infrastructure(broker_service)
+        if event_bus is not None:
+            from runtime.live_datalake_wiring import wire_stream_orchestrator_ticks
+
+            wire_stream_orchestrator_ticks(broker_infrastructure.streams, event_bus)
 
     orchestrator = None
     pattern_engine = None
     orchestrator_dry_run = opts.orchestrator_dry_run
     if orchestrator_dry_run is None:
-        orchestrator_dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "1") == "1"
+        # Paper-only: place OMS paper orders unless operator opts into dry-run.
+        orchestrator_dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "0") == "1"
 
     if opts.wire_orchestrator and tc is not None:
         orchestrator, pattern_engine = _wire_trading_orchestrator(
@@ -273,6 +322,19 @@ def build_from_broker_service(
         resilience=resilience,
         pattern_engine=pattern_engine,
     )
+    from runtime.service_registry import ServiceRegistry
+
+    registry = ServiceRegistry()
+    registry.register("lifecycle", broker_service.lifecycle)
+    if tc is not None:
+        registry.register("trading_context", tc)
+    if event_bus is not None:
+        registry.register("event_bus", event_bus)
+    if gateway is not None:
+        registry.register("gateway", gateway)
+    if orchestrator is not None:
+        registry.register("trading_orchestrator", orchestrator)
+    runtime.service_registry = registry
     if opts.extra:
         runtime.extra.update(opts.extra)
     return runtime
@@ -309,3 +371,45 @@ def build(
     runtime = build_from_broker_service(broker_service, options=opts)
     runtime.extra.setdefault("mode", mode)
     return runtime
+
+
+@dataclass
+class MultiStrategyRuntime:
+    """Hold a pre-built strategy pipeline and its strategy names."""
+
+    pipeline: Any = field(default=None)
+    strategy_names: list[str] = field(default_factory=list)
+
+    @property
+    def strategies(self) -> list[Any]:
+        return list(self.pipeline.strategies)
+
+    def list_strategies(self) -> list[str]:
+        return list(self.strategy_names)
+
+
+def build_multi_strategy_runtime(names: list[str] | None = None) -> MultiStrategyRuntime:
+    """Build a :class:`MultiStrategyRuntime` with an injected strategy pipeline.
+
+    Lives in the composition root (``runtime``) so ``application.trading`` does
+    not import ``analytics`` — the pipeline is constructed here from the
+    analytics strategy registry and injected into the holder. ``runtime`` is
+    permitted to depend on analytics; ``application`` is not.
+    """
+    from analytics.strategy.pipeline import StrategyPipeline
+    from analytics.strategy.registry import StrategyRegistry
+
+    if not names:
+        StrategyRegistry.discover("analytics.strategy.builtins")
+        names = StrategyRegistry.list()
+
+    strategies = []
+    for name in names:
+        try:
+            strategies.append(StrategyRegistry.create(name))
+        except KeyError:
+            logging.getLogger(__name__).warning(
+                "build_multi_strategy_runtime: unknown strategy %s", name
+            )
+    pipeline = StrategyPipeline(strategies=strategies)
+    return MultiStrategyRuntime(pipeline=pipeline, strategy_names=list(names))

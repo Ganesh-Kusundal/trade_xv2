@@ -12,7 +12,8 @@ composition root (cli / api / runtime).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator, Protocol, runtime_checkable
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from domain.events.types import TradeIdKey

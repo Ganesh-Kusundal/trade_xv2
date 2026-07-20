@@ -8,9 +8,9 @@ from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
-from application.oms.order_manager import OmsOrderCommand
-from application.oms.protocols import IOrderManager
+from application.oms.order_manager import OmsOrderCommand, OrderManager
 from domain import Order, OrderStatus, ProductType, Side, Trade
+from domain.ports.time_service import get_current_clock
 from domain.trading_costs import apply_slippage  # noqa: F401  (intentional re-export)
 
 # Re-export from domain.trading_costs (single source of truth)
@@ -37,7 +37,7 @@ def make_simulated_submit_fn(
             price=req.price,
             product_type=req.product_type,
             status=OrderStatus.OPEN,
-            timestamp=timestamp,
+            timestamp=timestamp if timestamp is not None else get_current_clock().now(),
             correlation_id=req.correlation_id,
         )
 
@@ -64,7 +64,7 @@ def build_backtest_correlation_id(
 
 
 def record_simulated_trade(
-    order_manager: IOrderManager,
+    order_manager: OrderManager,
     *,
     order_id: str,
     symbol: str,

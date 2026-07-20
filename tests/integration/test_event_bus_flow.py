@@ -15,13 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from infrastructure.observability.event_metrics import EventMetrics
-from infrastructure.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_bus.persistent_dead_letter_queue import (
     PersistentDeadLetterQueue,
 )
 from infrastructure.event_log import EventLog
+from infrastructure.observability.event_metrics import EventMetrics
 
 pytestmark = pytest.mark.integration
 
@@ -57,7 +57,9 @@ def event_log(tmp_path: Path) -> EventLog:
 @pytest.fixture()
 def event_bus(event_log: EventLog) -> EventBus:
     """Function-scoped EventBus wired to a real EventLog."""
-    return EventBus(event_log=event_log, logging_enabled=False, fail_fast=False)
+    return EventBus(
+        event_log=event_log, config=EventBusConfig(logging_enabled=False, fail_fast=False)
+    )
 
 
 # ── 1. Fan-out correctness ───────────────────────────────────────────────
@@ -90,7 +92,7 @@ def test_event_reaches_all_subscribers(event_bus: EventBus) -> None:
 def test_handler_exception_routes_to_dlq() -> None:
     """A handler that raises is caught and the event lands in the DLQ."""
     dlq = DeadLetterQueue(max_size=100)
-    bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+    bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
     def bad_handler(event: DomainEvent) -> None:
         raise ValueError("simulated handler crash")
@@ -157,7 +159,7 @@ def test_event_ordering_preserved(event_bus: EventBus) -> None:
 def test_dlq_size_bounded() -> None:
     """DeadLetterQueue drops oldest entries when capacity is exceeded."""
     dlq = DeadLetterQueue(max_size=3)
-    bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
+    bus = EventBus(dead_letter_queue=dlq, config=EventBusConfig(fail_fast=False))
 
     bus.subscribe("ORDER_PLACED", lambda e: (_ for _ in ()).throw(RuntimeError("boom")))
 
@@ -183,7 +185,7 @@ def test_dlq_size_bounded() -> None:
 def test_event_metrics_recorded() -> None:
     """EventBus increments published / dispatched counters on EventMetrics."""
     metrics = EventMetrics()
-    bus = EventBus(metrics=metrics, fail_fast=False)
+    bus = EventBus(metrics=metrics, config=EventBusConfig(fail_fast=False))
 
     bus.subscribe("ORDER_PLACED", lambda e: None)
     bus.subscribe("ORDER_PLACED", lambda e: None)
@@ -227,7 +229,7 @@ def test_dead_letter_queue_persistent(tmp_path: Path) -> None:
 
     # --- "first process" ---
     dlq1 = PersistentDeadLetterQueue(max_size=100, db_path=db_path)
-    bus1 = EventBus(dead_letter_queue=dlq1, fail_fast=False)
+    bus1 = EventBus(dead_letter_queue=dlq1, config=EventBusConfig(fail_fast=False))
     bus1.subscribe("ORDER_PLACED", lambda e: (_ for _ in ()).throw(RuntimeError("fatal")))
 
     bus1.publish(_make_event(event_id="evt-persist-dlq"))

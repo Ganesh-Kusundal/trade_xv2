@@ -15,9 +15,7 @@ import pytest
 
 from application.oms.order_manager import OrderManager, OrderRequest
 from domain import (
-    Order,
     OrderStatus,
-    OrderType,
     Side,
     Trade,
 )
@@ -28,15 +26,15 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
 )
 from infrastructure.observability.event_metrics import EventMetrics
+from tests.fixtures.domain_helpers import make_order
 
 
-def _make_order(symbol: str = "RELIANCE", quantity: int = 10) -> Order:
-    return Order(
+def _make_order(symbol: str = "RELIANCE", quantity: int = 10):
+    return make_order(
         order_id="O1",
         symbol=symbol,
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.MARKET,
+        side="BUY",
+        order_type="MARKET",
         quantity=quantity,
         price="2500",
         status=OrderStatus.OPEN,
@@ -67,7 +65,9 @@ def bus() -> EventBus:
 
 
 @pytest.fixture
-def order_manager(bus: EventBus, processed_trade_repository: ProcessedTradeRepository) -> OrderManager:
+def order_manager(
+    bus: EventBus, processed_trade_repository: ProcessedTradeRepository
+) -> OrderManager:
     return OrderManager(
         event_bus=bus,
         processed_trade_repository=processed_trade_repository,
@@ -98,7 +98,9 @@ def test_duplicate_trade_returns_false_and_does_not_double_fill(
     assert order.filled_quantity == 5  # NOT 10
 
 
-def test_trade_with_empty_id_is_rejected(processed_trade_repository: ProcessedTradeRepository) -> None:
+def test_trade_with_empty_id_is_rejected(
+    processed_trade_repository: ProcessedTradeRepository,
+) -> None:
     om = OrderManager(processed_trade_repository=processed_trade_repository)
     order_manager = om
     with pytest.raises(ValueError):
@@ -148,7 +150,9 @@ def test_metrics_record_trade_outcomes(
     assert metrics.get("TRADE", "trade_duplicated") == 1
 
 
-def test_on_trade_event_is_idempotent(bus: EventBus, processed_trade_repository: ProcessedTradeRepository) -> None:
+def test_on_trade_event_is_idempotent(
+    bus: EventBus, processed_trade_repository: ProcessedTradeRepository
+) -> None:
     om = OrderManager(
         event_bus=bus,
         processed_trade_repository=processed_trade_repository,
@@ -158,9 +162,7 @@ def test_on_trade_event_is_idempotent(bus: EventBus, processed_trade_repository:
     bus.subscribe(EventType.TRADE.value, om.on_trade)
 
     trade = _make_trade("T1")
-    event = DomainEvent.now(
-        EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"
-    )
+    event = DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE")
     bus.publish(event)
     bus.publish(event)  # duplicate
     bus.publish(event)  # duplicate

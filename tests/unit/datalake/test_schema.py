@@ -50,7 +50,9 @@ class TestOptionalColumns:
 
 class TestArrowSchema:
     def test_field_count(self) -> None:
-        assert len(ARROW_SCHEMA) == len(CANONICAL_COLUMNS) + len(TEMPORAL_COLUMNS) - 1  # event_time in both
+        assert (
+            len(ARROW_SCHEMA) == len(CANONICAL_COLUMNS) + len(TEMPORAL_COLUMNS) - 1
+        )  # event_time in both
 
     def test_field_names_contain_canonical(self) -> None:
         field_names = [f.name for f in ARROW_SCHEMA]

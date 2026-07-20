@@ -190,7 +190,9 @@ class TestEncryptedTokenStore:
 class TestBackwardCompatibility:
     """Test backward compatibility with unencrypted tokens."""
 
-    def test_load_unencrypted_when_encryption_enabled(self, temp_token_file, encryption_key, monkeypatch):
+    def test_load_unencrypted_when_encryption_enabled(
+        self, temp_token_file, encryption_key, monkeypatch
+    ):
         """Should load unencrypted file with warning when encryption is enabled."""
         # First save unencrypted
         monkeypatch.delenv("SECRET_ENCRYPTION_KEY", raising=False)

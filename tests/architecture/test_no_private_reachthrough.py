@@ -8,7 +8,9 @@ Targets the 3 highest-risk sites that were fixed to use public accessors:
 Also enforces a broader scan of domain/, application/, and infrastructure/
 layers to prevent new private getattr reach-throughs from being introduced.
 """
+
 import subprocess
+
 import pytest
 
 
@@ -42,11 +44,11 @@ def test_sm04_no_private_reachthrough_regression():
     for filepath, forbidden, description in blocked:
         result = subprocess.run(
             ["grep", "-n", forbidden, filepath],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         matches = [
-            line for line in result.stdout.strip().split("\n")
-            if line and "# noqa" not in line
+            line for line in result.stdout.strip().split("\n") if line and "# noqa" not in line
         ]
         assert not matches, (
             f"SM-04 regression: {description}\n"
@@ -110,10 +112,7 @@ def _is_allowed(line: str) -> bool:
     # Allow comments and noqa
     if stripped.startswith("#") or "# noqa" in stripped:
         return True
-    for pattern in _ALLOWLIST_PATTERNS:
-        if pattern in stripped:
-            return True
-    return False
+    return any(pattern in stripped for pattern in _ALLOWLIST_PATTERNS)
 
 
 @pytest.mark.architecture
@@ -124,8 +123,9 @@ def test_no_private_reachthrough_in_important_layers():
     for lazily-attached attrs, report/VO fallback) are permitted.
     """
     result = subprocess.run(
-        ["grep", "-rn", '--include=*.py', 'getattr(.*"_[a-z]', *_SCAN_PATHS],
-        capture_output=True, text=True,
+        ["grep", "-rn", "--include=*.py", 'getattr(.*"_[a-z]', *_SCAN_PATHS],
+        capture_output=True,
+        text=True,
     )
     if not result.stdout.strip():
         return  # no hits at all — clean

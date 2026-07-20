@@ -25,11 +25,12 @@ from infrastructure.resilience import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
-    NoBackoff,
     RetryConfig,
     RetryExecutor,
 )
 from infrastructure.resilience.backoff import ExponentialBackoff
+
+_ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)
 from infrastructure.event_bus import DeadLetterQueue, DomainEvent, EventBus
 from tests.e2e.fixtures.event_capturer import EventCapturer
 from tests.e2e.fixtures.trading_context_factory import create_test_trading_context
@@ -112,7 +113,7 @@ def test_token_expiry_detection(auth_refresh_broker: MockAuthRefreshBroker) -> N
             max_attempts=3,
             retryable_exceptions=(AuthenticationError,),
         ),
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
         on_retry=on_retry,
     )
 
@@ -140,7 +141,7 @@ def test_order_retry_after_token_refresh(
             max_attempts=3,
             retryable_exceptions=(AuthenticationError,),
         ),
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
         on_retry=on_retry,
     )
 
@@ -170,7 +171,7 @@ def test_circuit_breaker_not_trip_on_auth(
             retryable_exceptions=(AuthenticationError,),
         ),
         circuit_breaker=cb,
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
     )
 
     result = executor.execute(lambda: auth_refresh_broker.place_order(None))
@@ -197,7 +198,7 @@ def test_retry_executor_backoff(fast_exp_backoff: ExponentialBackoff) -> None:
 
     captured_delays: list[float] = []
 
-    with patch("infrastructure.resilience.retry.time.sleep") as mock_sleep:
+    with patch("infrastructure.resilience.retry_executor.time.sleep") as mock_sleep:
         mock_sleep.side_effect = lambda d: captured_delays.append(d)
         result = executor.execute(lambda: broker.place_order(None))
 
@@ -209,7 +210,7 @@ def test_retry_executor_backoff(fast_exp_backoff: ExponentialBackoff) -> None:
     for i in range(len(captured_delays) - 1):
         assert captured_delays[i + 1] > captured_delays[i], (
             f"Delay must increase: delay[{i}]={captured_delays[i]}, "
-            f"delay[{i+1}]={captured_delays[i+1]}"
+            f"delay[{i + 1}]={captured_delays[i + 1]}"
         )
 
 
@@ -237,7 +238,7 @@ def test_order_eventually_placed(
             retryable_exceptions=(RuntimeError,),
         ),
         circuit_breaker=cb,
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
         on_retry=on_retry,
     )
 
@@ -293,7 +294,7 @@ def test_order_fails_after_retry_exhaustion() -> None:
             max_attempts=3,
             retryable_exceptions=(RuntimeError,),
         ),
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
         on_failure=on_failure,
     )
 
@@ -340,7 +341,7 @@ def test_reconciliation_after_auth_recovery(
             retryable_exceptions=(RuntimeError,),
         ),
         circuit_breaker=cb,
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
         on_retry=on_retry,
     )
 

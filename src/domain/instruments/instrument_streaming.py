@@ -6,14 +6,16 @@ Extracted from the Instrument god class (KD-202).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.value_objects.state import SubscriptionState, SubscriptionStatus
 
 if TYPE_CHECKING:
     import threading
+
     from domain.instruments.instrument_id import InstrumentId
     from domain.ports.protocols import DataProvider, SubscriptionHandle
     from domain.value_objects.state import InstrumentState

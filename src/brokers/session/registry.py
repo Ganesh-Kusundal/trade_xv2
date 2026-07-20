@@ -20,9 +20,9 @@ from runtime.broker_discovery import discover_broker_plugins
 
 __all__ = [
     "BrokerPlugin",
+    "discover_broker_plugins",
     "ensure_core_plugins",
     "get_broker_plugin",
     "list_broker_plugins",
     "register_broker_plugin",
-    "discover_broker_plugins",
 ]

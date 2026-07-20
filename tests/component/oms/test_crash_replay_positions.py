@@ -59,9 +59,7 @@ def test_replay_skips_position_when_order_unknown():
         replay_events=False,
         enable_durable_orders=False,
     )
-    ctx._position_manager.on_trade_applied = MagicMock(
-        wraps=ctx._position_manager.on_trade_applied
-    )
+    ctx._position_manager.on_trade_applied = MagicMock(wraps=ctx._position_manager.on_trade_applied)
     ctx._replay_log_into_oms()
 
     ctx._position_manager.on_trade_applied.assert_not_called()

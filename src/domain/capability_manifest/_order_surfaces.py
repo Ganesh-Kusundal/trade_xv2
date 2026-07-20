@@ -31,7 +31,14 @@ ORDER_SURFACES = (
         dhan="orders.cancel_order",
         upstox="order_command.cancel_order",
         cli=(("cancel-order", "src/interface/ui/commands/order_placement.py"),),
-        rest=(("DELETE", "/api/v1/orders/{order_id}", "src/interface/api/routers/orders.py", "live_broker"),),
+        rest=(
+            (
+                "DELETE",
+                "/api/v1/orders/{order_id}",
+                "src/interface/api/routers/orders.py",
+                "live_broker",
+            ),
+        ),
         cli_data_source="oms",
         severity_if_gap="P1",
     ),
@@ -42,7 +49,14 @@ ORDER_SURFACES = (
         dhan="orders.modify_order",
         upstox="order_command.modify_order",
         cli=(("modify-order", "src/interface/ui/commands/order_placement.py"),),
-        rest=(("PUT", "/api/v1/orders/{order_id}", "src/interface/api/routers/orders.py", "live_broker"),),
+        rest=(
+            (
+                "PUT",
+                "/api/v1/orders/{order_id}",
+                "src/interface/api/routers/orders.py",
+                "live_broker",
+            ),
+        ),
         severity_if_gap="P1",
     ),
     surface(
@@ -59,7 +73,12 @@ ORDER_SURFACES = (
         rest=(
             ("GET", "/api/v1/orders", "src/interface/api/routers/orders.py", "oms"),
             ("GET", "/api/v1/orders/{order_id}", "src/interface/api/routers/orders.py", "oms"),
-            ("GET", "/api/v1/live/orders", "src/interface/api/routers/live/orders.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/live/orders",
+                "src/interface/api/routers/live/orders.py",
+                "live_broker",
+            ),
         ),
         notes="REST OMS routes coexist with /live/orders broker orderbook",
     ),
@@ -74,7 +93,12 @@ ORDER_SURFACES = (
         rest=(
             ("GET", "/api/v1/orders/trades", "src/interface/api/routers/orders.py", "oms"),
             ("GET", "/api/v1/orders/tradebook", "src/interface/api/routers/orders.py", "oms"),
-            ("GET", "/api/v1/live/trades", "src/interface/api/routers/live/orders.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/live/trades",
+                "src/interface/api/routers/live/orders.py",
+                "live_broker",
+            ),
         ),
     ),
     surface(
@@ -87,7 +111,12 @@ ORDER_SURFACES = (
         cli=(("positions", "src/interface/ui/commands/portfolio.py"),),
         rest=(
             ("GET", "/api/v1/portfolio/positions", "src/interface/api/routers/portfolio.py", "oms"),
-            ("GET", "/api/v1/live/positions", "src/interface/api/routers/live/portfolio.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/live/positions",
+                "src/interface/api/routers/live/portfolio.py",
+                "live_broker",
+            ),
         ),
     ),
     surface(
@@ -100,7 +129,12 @@ ORDER_SURFACES = (
         cli=(("holdings", "src/interface/ui/commands/portfolio.py"),),
         rest=(
             ("GET", "/api/v1/portfolio/holdings", "src/interface/api/routers/portfolio.py", "oms"),
-            ("GET", "/api/v1/live/holdings", "src/interface/api/routers/live/portfolio.py", "live_broker"),
+            (
+                "GET",
+                "/api/v1/live/holdings",
+                "src/interface/api/routers/live/portfolio.py",
+                "live_broker",
+            ),
         ),
     ),
     surface(
@@ -114,7 +148,14 @@ ORDER_SURFACES = (
             ("account", "src/interface/ui/commands/account.py"),
             ("funds", "src/interface/ui/commands/account.py"),
         ),
-        rest=(("GET", "/api/v1/live/funds", "src/interface/api/routers/live/portfolio.py", "live_broker"),),
+        rest=(
+            (
+                "GET",
+                "/api/v1/live/funds",
+                "src/interface/api/routers/live/portfolio.py",
+                "live_broker",
+            ),
+        ),
     ),
     surface(
         "portfolio.trades_alias",
@@ -138,7 +179,9 @@ ORDER_SURFACES = (
             ("search", "src/interface/ui/commands/search.py"),
             ("instruments lookup", "src/interface/ui/commands/instruments.py"),
         ),
-        rest=(("GET", "/api/v1/symbols/search", "src/interface/api/routers/symbols.py", "datalake"),),
+        rest=(
+            ("GET", "/api/v1/symbols/search", "src/interface/api/routers/symbols.py", "datalake"),
+        ),
     ),
     surface(
         "instruments.load",

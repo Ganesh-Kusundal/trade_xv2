@@ -13,37 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from interface.api.auth import require_auth
 from interface.api.candle_mapper import series_to_api_candles
+from interface.api.session_state import get_session, set_session
 from interface.api.routers.live.headers import apply_live_headers
-from domain.universe import Session
 
 router = APIRouter(dependencies=[Depends(require_auth)])
-
-
-class _SessionState:
-    """Module-level session state (set once at startup)."""
-
-    _session: Session | None = None
-
-    @classmethod
-    def set(cls, session: Session) -> None:
-        cls._session = session
-
-    @classmethod
-    def get(cls) -> Session:
-        if cls._session is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Session not wired — call set_session() at startup",
-            )
-        return cls._session
-
-
-def set_session(session: Session) -> None:
-    _SessionState.set(session)
-
-
-def _get_session() -> Session:
-    return _SessionState.get()
 
 
 @router.get("/quote/{symbol}")
@@ -52,7 +25,7 @@ async def live_quote(
     exchange: str = Query("NSE"),
     response: Response = None,
 ) -> dict[str, Any]:
-    instrument = _get_session().universe.equity(symbol, exchange)
+    instrument = get_session().universe.equity(symbol, exchange)
     q = instrument.refresh()
     if q is None:
         raise HTTPException(
@@ -81,7 +54,7 @@ async def live_ltp(
     exchange: str = Query("NSE"),
     response: Response = None,
 ) -> dict[str, Any]:
-    instrument = _get_session().universe.equity(symbol, exchange)
+    instrument = get_session().universe.equity(symbol, exchange)
     q = instrument.refresh()
     ltp = float(q.ltp) if q else 0.0
     if response:
@@ -95,7 +68,7 @@ async def live_depth(
     exchange: str = Query("NSE"),
     response: Response = None,
 ) -> dict[str, Any]:
-    instrument = _get_session().universe.equity(symbol, exchange)
+    instrument = get_session().universe.equity(symbol, exchange)
     d = instrument.depth()
     if response:
         apply_live_headers(response, "domain")
@@ -116,7 +89,7 @@ async def live_candles(
     response: Response = None,
     exchange: str = Query("NSE"),
 ) -> dict[str, Any]:
-    instrument = _get_session().universe.equity(symbol, exchange)
+    instrument = get_session().universe.equity(symbol, exchange)
     end = date.today()
     start = end - timedelta(days=days)
     series = instrument.history(timeframe=timeframe, start=start.isoformat(), end=end.isoformat())

@@ -9,7 +9,6 @@ Verifies that:
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -17,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
+from infrastructure.event_bus import EventBus
 from interface.api.deps import (
     get_broker_service,
     get_container,
@@ -31,8 +31,7 @@ from interface.api.deps import (
     initialize_all_services,
     set_container,
 )
-from application.oms.context import TradingContext
-from infrastructure.event_bus import EventBus
+from tests.conftest import build_test_trading_context
 
 
 class TestServiceContainerInitialization:
@@ -43,18 +42,12 @@ class TestServiceContainerInitialization:
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def teardown_method(self):
         """Clean up container after each test."""
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def test_set_container_initializes_container(self):
         """set_container should set the global container."""
@@ -114,31 +107,23 @@ class TestServiceContainerInitialization:
         assert "missing" in caplog.text.lower() or "Services initialized" in caplog.text
 
 
-class TestDIContainerIntegration:
-    """Test that services are stored in the DI container (single source of truth)."""
+class TestServiceContainerIntegration:
+    """Test that services are stored in the SimpleNamespace container."""
 
     def setup_method(self):
         """Reset container before each test."""
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def teardown_method(self):
         """Clean up container after each test."""
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
 
-        di.reset()
-
-    def test_services_registered_in_di_container(self):
-        """Services should be accessible via di_container.resolve()."""
-        from infrastructure.di import container as di
-
+    def test_services_accessible_via_container(self):
+        """Services should be accessible via get_container()."""
         event_bus = EventBus()
         mock_gateway = MagicMock()
         initialize_all_services(
@@ -146,18 +131,18 @@ class TestDIContainerIntegration:
             event_bus=event_bus,
         )
 
-        assert di.resolve("datalake_gateway") is mock_gateway
-        assert di.resolve("event_bus") is event_bus
+        container = get_container()
+        assert container.datalake_gateway is mock_gateway
+        assert container.event_bus is event_bus
 
-    def test_di_container_has_all_registered_services(self):
-        """di_container.has() should return True for registered services."""
-        from infrastructure.di import container as di
-
+    def test_container_has_all_registered_services(self):
+        """Container should have all registered services as attributes."""
         event_bus = EventBus()
         initialize_all_services(event_bus=event_bus)
 
-        assert di.has("event_bus")
-        assert di.has("datalake_gateway")
+        container = get_container()
+        assert hasattr(container, "event_bus")
+        assert hasattr(container, "datalake_gateway")
 
     def test_get_container_returns_simple_namespace(self):
         """get_container should return a SimpleNamespace with service attributes."""
@@ -178,18 +163,12 @@ class TestDIDependencies:
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def teardown_method(self):
         """Clean up container after each test."""
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def test_get_container_raises_503_when_not_initialized(self):
         """get_container should raise 503 when container is None."""
@@ -255,39 +234,64 @@ class TestDIDependencies:
         assert "TradingContext not initialized" in detail
         assert "event_bus" in detail.lower() or "trading_context" in detail.lower()
 
-    def test_get_order_manager_error_message_is_actionable(self):
-        """Error message should tell user how to fix the issue."""
-        # First initialize container with None trading_context
+    def test_get_order_manager_raises_503_when_unconfigured(self):
+        """get_order_manager should raise 503 when OMS is not wired."""
         initialize_all_services()
 
         with pytest.raises(HTTPException) as exc_info:
             get_order_manager()
 
-        detail = exc_info.value.detail
-        assert "OrderManager" in detail or "order" in detail.lower()
-        assert "event_bus" in detail.lower() or "trading_context" in detail.lower()
+        assert exc_info.value.status_code == 503
 
-    def test_get_position_manager_error_message_is_actionable(self):
-        """Error message should tell user how to fix the issue."""
-        # First initialize container with None trading_context
+    def test_get_order_manager_falls_back_to_trading_context(self):
+        """get_order_manager should fall back to TradingContext when not directly registered."""
+        from infrastructure.event_bus import EventBus
+        from tests.conftest import build_test_trading_context
+
+        event_bus = EventBus()
+        ctx = build_test_trading_context(event_bus=event_bus)
+
+        # Initialize with trading_context but explicitly set order_manager to None
+        from types import SimpleNamespace
+
+        import interface.api.deps as deps
+
+        ns = SimpleNamespace(
+            datalake_gateway=None,
+            view_manager=None,
+            data_catalog=None,
+            event_bus=event_bus,
+            broker_service=None,
+            trading_context=ctx,
+            order_manager=None,
+            position_manager=None,
+            risk_manager=None,
+            market_data_composer=None,
+            execution_composer=None,
+            extra={},
+        )
+        deps._container = ns
+
+        result = get_order_manager()
+        assert result is ctx.order_manager
+
+    def test_get_position_manager_raises_503_when_unconfigured(self):
+        """get_position_manager should raise 503 when OMS is not wired."""
         initialize_all_services()
 
         with pytest.raises(HTTPException) as exc_info:
             get_position_manager()
 
-        detail = exc_info.value.detail
-        assert "PositionManager" in detail or "position" in detail.lower()
+        assert exc_info.value.status_code == 503
 
-    def test_get_risk_manager_error_message_is_actionable(self):
-        """Error message should tell user how to fix the issue."""
-        # First initialize container with None trading_context
+    def test_get_risk_manager_raises_503_when_unconfigured(self):
+        """get_risk_manager should raise 503 when OMS is not wired."""
         initialize_all_services()
 
         with pytest.raises(HTTPException) as exc_info:
             get_risk_manager()
 
-        detail = exc_info.value.detail
-        assert "RiskManager" in detail or "risk" in detail.lower()
+        assert exc_info.value.status_code == 503
 
 
 class TestDIFallbackBehavior:
@@ -298,18 +302,12 @@ class TestDIFallbackBehavior:
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def teardown_method(self):
         """Clean up container after each test."""
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def test_order_manager_falls_back_to_trading_context(self):
         """get_order_manager should fall back to TradingContext.order_manager."""
@@ -351,20 +349,18 @@ class TestDIFallbackBehavior:
         result = get_risk_manager()
         assert result is ctx.risk_manager
 
-    def test_direct_registration_takes_precedence(self):
-        """Directly registered manager should take precedence over TradingContext."""
+    def test_trading_context_order_manager_used(self):
+        """When trading_context is provided, its order_manager is used."""
         event_bus = EventBus()
         ctx = build_test_trading_context(event_bus=event_bus)
-        mock_order_manager = MagicMock()
 
         initialize_all_services(
             event_bus=event_bus,
             trading_context=ctx,
-            order_manager=mock_order_manager,
         )
 
         result = get_order_manager()
-        assert result is mock_order_manager  # Should use direct, not ctx.order_manager
+        assert result is ctx.order_manager
 
 
 class TestThreadSafety:
@@ -375,18 +371,12 @@ class TestThreadSafety:
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def teardown_method(self):
         """Clean up container after each test."""
         import interface.api.deps as deps
 
         deps._container = None
-        from infrastructure.di import container as di
-
-        di.reset()
 
     def test_concurrent_reads_are_safe(self):
         """Multiple threads reading container should not crash."""

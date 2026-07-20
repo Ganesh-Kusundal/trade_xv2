@@ -20,21 +20,25 @@ from domain.errors import (  # noqa: F401 — re-exports
     AuthenticationError,
     BrokerDegradedError,
     BrokerError,
+    CapabilityError,
     CircuitBreakerOpenError,
     ExitAllError,
+    InstrumentError,
     InstrumentNotFoundError,
+    MappingError,
     NetworkError,
     NonRetryableError,
     NotSupportedError,
     OrderError,
     RateLimitError,
+    RejectedOrderError,
     RetryableError,
     TradeXV2RecoverableError,
 )
-from domain.exceptions import ConfigError as ConfigError  # noqa: F401
-from domain.exceptions import DataError as DataError  # noqa: F401
-from domain.exceptions import TradeXV2Error as TradeXV2Error  # noqa: F401
-from domain.exceptions import ValidationError as ValidationError  # noqa: F401
+from domain.exceptions import ConfigError as ConfigError
+from domain.exceptions import DataError as DataError
+from domain.exceptions import TradeXV2Error as TradeXV2Error
+from domain.exceptions import ValidationError as ValidationError
 
 F = TypeVar("F", bound=Callable[..., Any])
 

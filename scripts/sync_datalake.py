@@ -55,7 +55,9 @@ def _existing_symbols(root: str, asset: str, timeframe: str) -> list[str]:
     if not base.exists():
         return []
     return sorted(
-        p.name.removeprefix("symbol=") for p in base.iterdir() if p.is_dir() and p.name.startswith("symbol=")
+        p.name.removeprefix("symbol=")
+        for p in base.iterdir()
+        if p.is_dir() and p.name.startswith("symbol=")
     )
 
 
@@ -149,9 +151,11 @@ def main() -> int:
     if args.limit:
         symbols = symbols[: args.limit]
 
-    print(f"Syncing {len(symbols)} equity symbols @ timeframe={args.timeframe}, "
-          f"mode={args.mode}, workers={args.workers} "
-          f"(indices synced separately -- different exchange code)")
+    print(
+        f"Syncing {len(symbols)} equity symbols @ timeframe={args.timeframe}, "
+        f"mode={args.mode}, workers={args.workers} "
+        f"(indices synced separately -- different exchange code)"
+    )
 
     start = time.time()
     results: dict[str, int] = {}
@@ -159,9 +163,7 @@ def main() -> int:
 
     def _sync_one(entry: str) -> int:
         symbol, _asset = entry.split("|", 1)
-        return loader.repair_missing(
-            symbol, gateway, timeframe=args.timeframe, fetch_fn=fetch_fn
-        )
+        return loader.repair_missing(symbol, gateway, timeframe=args.timeframe, fetch_fn=fetch_fn)
 
     def _on_error(entry: str, exc: Exception) -> None:
         symbol, _ = entry.split("|", 1)

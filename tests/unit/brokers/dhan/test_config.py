@@ -25,15 +25,13 @@ from brokers.dhan.config import (
     DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
     DEFAULT_RATE_LIMITS,
     DEFAULT_REFRESH_COOLDOWN_SECONDS,
+    ENV_PREFIX,
     DhanCircuitBreakerConfig,
+    DhanConfigLoader,
     DhanRateLimitConfig,
     DhanResilienceConfig,
     DhanRetryConfig,
     DhanTokenConfig,
-)
-from brokers.dhan.config.config_loader import (
-    ENV_PREFIX,
-    DhanConfigLoader,
     load_from_environment,
     load_from_file,
 )
@@ -157,25 +155,6 @@ class TestDhanRateLimitConfig:
 class TestDhanRetryConfig:
     """Tests for DhanRetryConfig dataclass."""
 
-    def test_calculate_backoff_first_attempt(self):
-        """Test backoff calculation for first attempt."""
-        config = DhanRetryConfig(base_delay_ms=500, max_delay_ms=5000)
-        delay = config.calculate_backoff(1)
-        assert delay == 0.5  # 500ms = 0.5s
-
-    def test_calculate_backoff_second_attempt(self):
-        """Test backoff calculation for second attempt."""
-        config = DhanRetryConfig(base_delay_ms=500, max_delay_ms=5000)
-        delay = config.calculate_backoff(2)
-        assert delay == 1.0  # 1000ms = 1s
-
-    def test_calculate_backoff_capped(self):
-        """Test that backoff is capped at max_delay_ms."""
-        config = DhanRetryConfig(base_delay_ms=500, max_delay_ms=5000)
-        # After many attempts, delay should be capped
-        delay = config.calculate_backoff(10)
-        assert delay == 5.0  # 5000ms = 5s (capped)
-
 
 class TestDhanCircuitBreakerConfig:
     """Tests for DhanCircuitBreakerConfig dataclass."""
@@ -255,7 +234,7 @@ class TestConfigLoader:
         # Save original env
         original_env = os.environ.copy()
         # Clear DHAN_RESILIENCE_* vars
-        to_clear = [k for k in os.environ.keys() if k.startswith(ENV_PREFIX)]
+        to_clear = [k for k in os.environ if k.startswith(ENV_PREFIX)]
         for key in to_clear:
             del os.environ[key]
 

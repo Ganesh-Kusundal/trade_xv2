@@ -7,7 +7,7 @@ as immutable snapshots, replacing state atomically under a lock.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 
 

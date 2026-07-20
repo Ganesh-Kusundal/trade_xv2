@@ -13,6 +13,7 @@ _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
 sys.path.insert(0, str(_REPO / "scripts"))
 from _connect import bootstrap_or_exit
+
 from brokers.dhan.config.settings import DhanSettingsLoader
 
 
@@ -46,6 +47,7 @@ def main():
     except Exception as e:
         print(f"❌ Failed to create gateway: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -112,9 +114,15 @@ def main():
             print(f"\n✅ History endpoint working")
             print(f"   Retrieved {len(df)} candles")
             print(f"   Columns: {', '.join(df.columns.tolist())}")
-            print(f"   Date range: {df.index[0]} to {df.index[-1]}" if df.index.name else f"   First row: {df.iloc[0].to_dict()}")
+            print(
+                f"   Date range: {df.index[0]} to {df.index[-1]}"
+                if df.index.name
+                else f"   First row: {df.iloc[0].to_dict()}"
+            )
         else:
-            print(f"❌ History returned invalid data: {type(df)}, len={len(df) if hasattr(df, '__len__') else 'N/A'}")
+            print(
+                f"❌ History returned invalid data: {type(df)}, len={len(df) if hasattr(df, '__len__') else 'N/A'}"
+            )
             return False
     except Exception as e:
         print(f"❌ History endpoint failed: {e}")
@@ -122,7 +130,11 @@ def main():
 
     # Test 6: Batch LTP endpoint
     if test_exchange == "MCX":
-        test_symbols = ["CRUDEOIL-20Jul2026-FUT", "NATURALGAS-28Jul2026-FUT", "SILVER-03Jul2026-FUT"]
+        test_symbols = [
+            "CRUDEOIL-20Jul2026-FUT",
+            "NATURALGAS-28Jul2026-FUT",
+            "SILVER-03Jul2026-FUT",
+        ]
     else:
         test_symbols = ["RELIANCE", "TCS", "INFY"]
     try:
@@ -141,10 +153,14 @@ def main():
 
     # Test 7: History batch endpoint
     try:
-        batch_df = gateway.history_batch(test_symbols[:2], test_exchange, timeframe="1D", lookback_days=3)
+        batch_df = gateway.history_batch(
+            test_symbols[:2], test_exchange, timeframe="1D", lookback_days=3
+        )
         if isinstance(batch_df, pd.DataFrame) and len(batch_df) > 0:
             print(f"\n✅ History batch endpoint working")
-            print(f"   Retrieved {len(batch_df)} total rows across {batch_df['symbol'].nunique()} symbols")
+            print(
+                f"   Retrieved {len(batch_df)} total rows across {batch_df['symbol'].nunique()} symbols"
+            )
             for sym in batch_df["symbol"].unique():
                 count = len(batch_df[batch_df["symbol"] == sym])
                 print(f"   {sym}: {count} rows")

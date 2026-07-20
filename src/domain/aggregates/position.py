@@ -70,10 +70,7 @@ class PositionAggregate:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, PositionAggregate):
             return NotImplemented
-        return (
-            self._account_id == other._account_id
-            and self.instrument_id == other.instrument_id
-        )
+        return self._account_id == other._account_id and self.instrument_id == other.instrument_id
 
     def __hash__(self) -> int:
         return hash((self._account_id, self.instrument_id))

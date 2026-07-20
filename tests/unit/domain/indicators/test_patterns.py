@@ -43,37 +43,45 @@ def test_shooting_star_detected() -> None:
 
 
 def test_bullish_engulfing_detected() -> None:
-    out = _compute([
-        {"open": 102.0, "high": 103.0, "low": 99.0, "close": 100.0, "volume": 1000},
-        {"open": 99.5, "high": 103.0, "low": 99.0, "close": 102.5, "volume": 1000},
-    ])
+    out = _compute(
+        [
+            {"open": 102.0, "high": 103.0, "low": 99.0, "close": 100.0, "volume": 1000},
+            {"open": 99.5, "high": 103.0, "low": 99.0, "close": 102.5, "volume": 1000},
+        ]
+    )
     assert out["cdl_engulfing_bull"].iloc[-1]
     assert not out["cdl_engulfing_bear"].iloc[-1]
     assert out["cdl_direction"].iloc[-1] == "BULL"
 
 
 def test_bearish_engulfing_detected() -> None:
-    out = _compute([
-        {"open": 99.0, "high": 103.0, "low": 99.0, "close": 101.0, "volume": 1000},
-        {"open": 101.5, "high": 102.0, "low": 98.0, "close": 98.5, "volume": 1000},
-    ])
+    out = _compute(
+        [
+            {"open": 99.0, "high": 103.0, "low": 99.0, "close": 101.0, "volume": 1000},
+            {"open": 101.5, "high": 102.0, "low": 98.0, "close": 98.5, "volume": 1000},
+        ]
+    )
     assert out["cdl_engulfing_bear"].iloc[-1]
     assert out["cdl_direction"].iloc[-1] == "BEAR"
 
 
 def test_bullish_harami_detected() -> None:
-    out = _compute([
-        {"open": 102.0, "high": 103.0, "low": 97.0, "close": 98.0, "volume": 1000},
-        {"open": 99.5, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000},
-    ])
+    out = _compute(
+        [
+            {"open": 102.0, "high": 103.0, "low": 97.0, "close": 98.0, "volume": 1000},
+            {"open": 99.5, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000},
+        ]
+    )
     assert out["cdl_harami_bull"].iloc[-1]
 
 
 def test_bearish_harami_detected() -> None:
-    out = _compute([
-        {"open": 98.0, "high": 103.0, "low": 97.0, "close": 102.0, "volume": 1000},
-        {"open": 100.5, "high": 101.0, "low": 99.0, "close": 99.5, "volume": 1000},
-    ])
+    out = _compute(
+        [
+            {"open": 98.0, "high": 103.0, "low": 97.0, "close": 102.0, "volume": 1000},
+            {"open": 100.5, "high": 101.0, "low": 99.0, "close": 99.5, "volume": 1000},
+        ]
+    )
     assert out["cdl_harami_bear"].iloc[-1]
 
 
@@ -95,15 +103,19 @@ def test_empty_frame_returns_columns() -> None:
 
 def test_compute_is_pure_no_lookahead() -> None:
     """A pattern flagged at bar i must not change when later bars are appended."""
-    base = _compute([
-        {"open": 102.0, "high": 103.0, "low": 99.0, "close": 100.0, "volume": 1000},
-        {"open": 99.5, "high": 103.0, "low": 99.0, "close": 102.5, "volume": 1000},
-    ])
-    extended = _compute([
-        {"open": 102.0, "high": 103.0, "low": 99.0, "close": 100.0, "volume": 1000},
-        {"open": 99.5, "high": 103.0, "low": 99.0, "close": 102.5, "volume": 1000},
-        {"open": 200.0, "high": 201.0, "low": 50.0, "close": 60.0, "volume": 1000},
-    ])
+    base = _compute(
+        [
+            {"open": 102.0, "high": 103.0, "low": 99.0, "close": 100.0, "volume": 1000},
+            {"open": 99.5, "high": 103.0, "low": 99.0, "close": 102.5, "volume": 1000},
+        ]
+    )
+    extended = _compute(
+        [
+            {"open": 102.0, "high": 103.0, "low": 99.0, "close": 100.0, "volume": 1000},
+            {"open": 99.5, "high": 103.0, "low": 99.0, "close": 102.5, "volume": 1000},
+            {"open": 200.0, "high": 201.0, "low": 50.0, "close": 60.0, "volume": 1000},
+        ]
+    )
     for col in PatternColumns.ALL:
         assert base[col].iloc[-1] == extended[col].iloc[1], col
 

@@ -34,7 +34,11 @@ class MappingReport:
         for r in self.results:
             logger.info(
                 "  [%s] %s/%s %s: %s",
-                "PASS" if r.passed else "FAIL", r.asset, r.exchange, r.symbol, r.detail,
+                "PASS" if r.passed else "FAIL",
+                r.asset,
+                r.exchange,
+                r.symbol,
+                r.detail,
             )
         logger.info("Overall: %s", "PASS" if self.all_passed else "MAPPING ERRORS")
 
@@ -97,7 +101,7 @@ def _round_trip(
         inst = _resolve(session, asset, exchange, symbol)
     except NotImplementedError:
         return True, "not implemented (accepted)"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return False, f"resolve failed: {type(exc).__name__}: {exc}"
 
     if inst is None:

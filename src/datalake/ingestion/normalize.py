@@ -76,9 +76,7 @@ def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def convert_paise_to_rupees(
-    df: pd.DataFrame, *, source_unit: str = "auto"
-) -> pd.DataFrame:
+def convert_paise_to_rupees(df: pd.DataFrame, *, source_unit: str = "auto") -> pd.DataFrame:
     """Convert price columns from the exchange's native unit to base currency.
 
     Uses the active exchange adapter's ``price_scale`` (e.g. 100 for NSE paise→INR)

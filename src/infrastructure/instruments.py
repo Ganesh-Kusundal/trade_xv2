@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 
-from domain.market_enums import ExchangeSegment, InstrumentType
 from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 from domain.exchange_segments import canonical_exchange_short, parse_segment
+from domain.market_enums import ExchangeSegment, InstrumentType
 from domain.symbols import normalize_exchange, normalize_symbol
 
 # Exchange suffixes to strip for canonical symbol (matches datalake.core.symbols)
@@ -117,7 +117,9 @@ class InstrumentRegistry:
             symbol=canonical,
             exchange=exchange.upper(),
             security_id=broker_identifier or "",
-            instrument_type=asset_class.value if hasattr(asset_class, 'value') else str(asset_class),
+            instrument_type=asset_class.value
+            if hasattr(asset_class, "value")
+            else str(asset_class),
             lot_size=lot_size,
             tick_size=self._decimal(tick_size),
             option_type=option_type.upper() if option_type else None,
@@ -162,7 +164,9 @@ class InstrumentRegistry:
     def resolve_by_broker_identifier(
         self, broker_identifier: str, exchange: str
     ) -> InstrumentRecord | None:
-        return self._by_broker_identifier.get((str(broker_identifier), normalize_exchange(exchange)))
+        return self._by_broker_identifier.get(
+            (str(broker_identifier), normalize_exchange(exchange))
+        )
 
     def canonical_symbol(self, broker_identifier: str, exchange: str) -> str:
         instrument = self.resolve_by_broker_identifier(broker_identifier, exchange)

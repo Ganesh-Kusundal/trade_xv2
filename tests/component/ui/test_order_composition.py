@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from domain import Order, OrderStatus, Side
 from interface.ui.commands.order_composition import (
     place_basket_order,
     place_bracket_order,
     place_oco_order,
 )
-from domain import Order, OrderStatus, Side
 
 
 @pytest.fixture()
@@ -58,8 +58,12 @@ class TestBracketOrder:
 
     def test_bracket_order_success(self, mock_broker_service, mock_console, mock_order):
         """Test successful bracket order placement."""
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -117,8 +121,12 @@ class TestBracketOrder:
 
     def test_bracket_order_sell(self, mock_broker_service, mock_console, mock_order):
         """Test bracket order for sell side."""
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -145,8 +153,12 @@ class TestOcoOrder:
 
     def test_oco_order_success(self, mock_broker_service, mock_console, mock_order):
         """Test successful OCO order placement."""
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -190,8 +202,12 @@ class TestOcoOrder:
 
     def test_oco_order_buy_side(self, mock_broker_service, mock_console, mock_order):
         """Test OCO order for buy side."""
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -220,8 +236,12 @@ TCS,BUY,15"""
         csv_file = tmp_path / "basket.csv"
         csv_file.write_text(csv_content)
 
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -275,8 +295,15 @@ TCS,BUY,15"""
                 raise RuntimeError("Order rejected")
             return _make_order_response(f"BASKET-{call_count[0]:03d}")
 
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context", side_effect=mock_await_in_sync_context):
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch(
+                "interface.ui.commands.order_composition._await_in_sync_context",
+                side_effect=mock_await_in_sync_context,
+            ),
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
 
@@ -311,8 +338,12 @@ class TestCompositionEdgeCases:
 
     def test_bracket_order_large_quantity(self, mock_broker_service, mock_console, mock_order):
         """Test bracket order with large quantity."""
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -330,8 +361,12 @@ class TestCompositionEdgeCases:
 
     def test_oco_order_decimal_prices(self, mock_broker_service, mock_console, mock_order):
         """Test OCO order with decimal prices."""
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = [
@@ -361,8 +396,12 @@ INVALID_SYMBOL,BUY,10"""
         csv_file = tmp_path / "invalid.csv"
         csv_file.write_text(csv_content)
 
-        with patch("interface.ui.commands.order_composition._get_execution_composer") as mock_composer_fn, \
-             patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run:
+        with (
+            patch(
+                "interface.ui.commands.order_composition._get_execution_composer"
+            ) as mock_composer_fn,
+            patch("interface.ui.commands.order_composition._await_in_sync_context") as mock_run,
+        ):
             mock_composer = MagicMock()
             mock_composer_fn.return_value = mock_composer
             mock_run.side_effect = ValueError("Symbol not found")

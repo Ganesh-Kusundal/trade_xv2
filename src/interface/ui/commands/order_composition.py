@@ -20,13 +20,13 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
+from domain import OrderType, ProductType, Side
+from domain.orders.requests import OrderRequest
 from infrastructure.io.async_compat import run_async_compat
 from interface.ui.commands.argparse_helpers import parse_flag
 from interface.ui.commands.registry import CommandResult
 from interface.ui.composer_helpers import get_execution_composer
 from interface.ui.services.broker_service import BrokerService
-from domain import OrderType, ProductType, Side
-from domain.orders.requests import OrderRequest
 
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
@@ -275,8 +275,12 @@ def place_oco_order(
         table.add_column("Price", justify="right")
         table.add_column("Status")
 
-        table.add_row("Order 1", order1_response.order_id, f"₹{order1_price:,.2f}", order1_response.status)
-        table.add_row("Order 2", order2_response.order_id, f"₹{order2_price:,.2f}", order2_response.status)
+        table.add_row(
+            "Order 1", order1_response.order_id, f"₹{order1_price:,.2f}", order1_response.status
+        )
+        table.add_row(
+            "Order 2", order2_response.order_id, f"₹{order2_price:,.2f}", order2_response.status
+        )
 
         console.print(table)
         console.print("[yellow]Note: Manually cancel the other order when one fills[/yellow]")

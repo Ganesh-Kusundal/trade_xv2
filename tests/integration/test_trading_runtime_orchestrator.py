@@ -4,18 +4,17 @@ REF: Task 6.3 — Converted from MagicMock to FakeTradingOrchestrator and protoc
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import pytest
 
-from analytics.strategy.evaluator_bridge import StrategyPipelineEvaluator
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
-from application.oms.factory import create_trading_context
 from domain.models.features import FeatureSet
 from infrastructure.event_bus import DomainEvent, EventType
 from infrastructure.lifecycle import LifecycleManager
 from runtime.factory import BuildOptions, build_from_broker_service
+from tests.conftest import build_test_trading_context
+from tests.integration._strategy_pipeline_evaluator import StrategyPipelineEvaluator
 
 
 class _StaticFeatureFetcher:
@@ -43,6 +42,7 @@ def mock_broker_service():
 
     # Use a minimal mock only for non-critical broker-specific attributes
     from unittest.mock import MagicMock
+
     bs = MagicMock()
     bs.active_broker = MagicMock()
     bs.trading_context = tc

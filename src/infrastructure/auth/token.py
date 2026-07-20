@@ -22,11 +22,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from infrastructure.auth.jwt_expiry import JwtExpiry
 from domain.constants import (
     TOKEN_CLOCK_SKEW_SECONDS,
     TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS,
 )
+from infrastructure.auth.jwt_expiry import JwtExpiry
 
 
 class TokenSource(str, Enum):

@@ -93,7 +93,9 @@ class TestBasicReplayExecution:
 
     def test_replay_processes_all_bars(self, trending_data, basic_pipeline, momentum_strategy):
         """Replay should process all bars after warmup."""
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
@@ -147,7 +149,9 @@ class TestBasicReplayExecution:
 
     def test_replay_equity_curve_populated(self, trending_data, basic_pipeline, momentum_strategy):
         """Equity curve should be populated throughout replay."""
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
@@ -458,7 +462,9 @@ class TestBacktestMetrics:
 
     def test_summary_contains_all_metrics(self, trending_data, basic_pipeline, momentum_strategy):
         """Summary should contain all expected metrics."""
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
@@ -672,7 +678,11 @@ class TestDeterminism:
     def test_replay_is_deterministic(self, basic_pipeline, momentum_strategy):
         """Same data + same config should produce identical results."""
         data = generate_trending_data(n_bars=100, symbol="TEST", seed=42)
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL, slippage_pct=0.05)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS,
+            initial_capital=DEFAULT_INITIAL_CAPITAL,
+            slippage_pct=0.05,
+        )
 
         engine1 = ReplayEngine(
             pipeline=basic_pipeline,
@@ -833,7 +843,9 @@ class TestMultiSymbolBacktestParity:
         data_hdfc = generate_trending_data(n_bars=100, symbol="HDFCBANK", seed=44)
 
         # Run separate replays for each symbol
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
 
         results = {}
         for sym, data in [("RELIANCE", data_rel), ("TCS", data_tcs), ("HDFCBANK", data_hdfc)]:
@@ -923,7 +935,9 @@ class TestReplayEdgeCases:
             }
         )
 
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
@@ -941,7 +955,9 @@ class TestReplayEdgeCases:
         data.loc[10, "close"] = np.nan
         data.loc[20, "volume"] = np.nan
 
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
@@ -961,7 +977,9 @@ class TestReplayEdgeCases:
         data = generate_trending_data(n_bars=100, symbol="ZEROVOL", seed=42)
         data.loc[10:15, "volume"] = 0.0
 
-        config = ReplayConfig(warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL)
+        config = ReplayConfig(
+            warmup_bars=DEFAULT_WARMUP_BARS, initial_capital=DEFAULT_INITIAL_CAPITAL
+        )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),

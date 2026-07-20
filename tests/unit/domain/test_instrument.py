@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-import pandas as pd
-
 from domain.entities.options import OptionChain as OptionChainVO
 from domain.entities.options import OptionStrike
 from domain.instruments.instrument import Equity
@@ -54,7 +52,6 @@ def test_history_returns_historical_series():
     assert not df.empty or series.bar_count == 0  # fakes may return empty
 
 
-
 def test_depth_returns_market_depth():
     instr, _ = _new_equity()
     depth = instr.depth()
@@ -69,10 +66,17 @@ def test_option_chain_returns_rich_object():
         OptionStrike(strike=Decimal("2500")),
         OptionStrike(strike=Decimal("2600")),
     ]
-    fp.seed_chain("RELIANCE", "NSE", OptionChainVO(
-        underlying="RELIANCE", exchange="NSE", expiry="2026-07-31", strikes=tuple(strikes),
-        spot=Decimal("2500"),
-    ))
+    fp.seed_chain(
+        "RELIANCE",
+        "NSE",
+        OptionChainVO(
+            underlying="RELIANCE",
+            exchange="NSE",
+            expiry="2026-07-31",
+            strikes=tuple(strikes),
+            spot=Decimal("2500"),
+        ),
+    )
     chain = instr.option_chain(date(2026, 7, 31))
     assert isinstance(chain, OptionChain)
     assert chain.underlying == "RELIANCE"

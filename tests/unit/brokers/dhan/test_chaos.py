@@ -26,6 +26,24 @@ DEFAULT_OPEN_DURATION_MS = 100
 DEFAULT_RATE_PER_SECOND = 25.0
 DEFAULT_CAPACITY = 50
 
+from brokers.dhan.resilience import (
+    DhanRateLimiterFactory,
+    DhanRateLimiterMetrics,
+    create_rate_limiter,
+)
+from brokers.dhan.resilience.circuit_breaker import (
+    DhanCircuitBreakerFactory,
+    create_circuit_breakers,
+)
+from brokers.dhan.resilience.retry_policies import (
+    ADMIN_POLICY,
+    MARKET_DATA_POLICY,
+    ORDERS_POLICY,
+    PORTFOLIO_POLICY,
+    create_retry_executor,
+)
+from brokers.dhan.streaming.connection import DhanConnection
+from brokers.dhan.wire import DhanBrokerGateway
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -40,25 +58,7 @@ from infrastructure.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
 )
-from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanBrokerGateway
-from brokers.dhan.resilience.circuit_breaker import (
-    DhanCircuitBreakerFactory,
-    create_circuit_breakers,
-)
-from brokers.dhan.resilience import (
-    DhanRateLimiterFactory,
-    DhanRateLimiterMetrics,
-    create_rate_limiter,
-)
-from brokers.dhan.resilience.retry_executor import (
-    ADMIN_POLICY,
-    MARKET_DATA_POLICY,
-    ORDERS_POLICY,
-    PORTFOLIO_POLICY,
-    create_retry_executor,
-)
-from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
+from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
 
 
 @pytest.fixture()
@@ -118,7 +118,9 @@ class TestCircuitBreakerBasic:
         assert cb.state == CircuitState.OPEN
 
     def test_circuit_half_open_after_timeout(self):
-        config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
+        config = CircuitBreakerConfig(
+            failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS
+        )
         cb = CircuitBreaker("test", config)
 
         cb.on_failure()
@@ -147,7 +149,9 @@ class TestCircuitBreakerBasic:
         assert cb.state == CircuitState.CLOSED
 
     def test_circuit_reopens_on_failure_in_half_open(self):
-        config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
+        config = CircuitBreakerConfig(
+            failure_threshold=2, open_duration_ms=DEFAULT_OPEN_DURATION_MS
+        )
         cb = CircuitBreaker("test", config)
 
         cb.on_failure()
@@ -251,7 +255,9 @@ class TestCircuitBreakerThreadSafety:
 
     def test_concurrent_state_reads(self):
         """Multiple threads reading state should not block or corrupt."""
-        config = CircuitBreakerConfig(failure_threshold=100, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
+        config = CircuitBreakerConfig(
+            failure_threshold=100, open_duration_ms=DEFAULT_OPEN_DURATION_MS
+        )
         cb = CircuitBreaker("test", config)
         states = []
 
@@ -636,7 +642,9 @@ class TestConcurrentFailures:
 
     def test_thundering_herd_prevention(self):
         """Circuit breaker should prevent thundering herd after failure."""
-        config = CircuitBreakerConfig(failure_threshold=5, open_duration_ms=DEFAULT_OPEN_DURATION_MS)
+        config = CircuitBreakerConfig(
+            failure_threshold=5, open_duration_ms=DEFAULT_OPEN_DURATION_MS
+        )
         cb = CircuitBreaker("test", config)
 
         # Simulate failures from multiple threads

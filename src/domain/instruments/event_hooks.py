@@ -20,7 +20,7 @@ from domain.events.types import DomainEvent
 if TYPE_CHECKING:
     from domain.ports.event_publisher import EventBusPort
 
-__all__ = ["InstrumentEvent", "EventHooks"]
+__all__ = ["EventHooks", "InstrumentEvent"]
 
 
 class InstrumentEvent(str, Enum):
@@ -89,7 +89,7 @@ class EventHooks:
         for cb in handlers:
             try:
                 cb(payload)
-            except Exception as exc:  # noqa: BLE001 - isolate listener failures
+            except Exception as exc:
                 warnings.warn(
                     f"EventHooks listener for {event.value!r} raised: {exc!r}",
                     RuntimeWarning,
@@ -100,7 +100,7 @@ class EventHooks:
         for cb in wildcards:
             try:
                 cb(event, payload)
-            except Exception as exc:  # noqa: BLE001 - isolate listener failures
+            except Exception as exc:
                 warnings.warn(
                     f"EventHooks on_any listener raised for {event.value!r}: {exc!r}",
                     RuntimeWarning,
@@ -111,7 +111,7 @@ class EventHooks:
         if self._bus is not None:
             try:
                 self._bus.publish(DomainEvent.now(event.value, payload))
-            except Exception as exc:  # noqa: BLE001 - bus failures must not break dispatch
+            except Exception as exc:
                 warnings.warn(
                     f"EventHooks bus publish for {event.value!r} raised: {exc!r}",
                     RuntimeWarning,

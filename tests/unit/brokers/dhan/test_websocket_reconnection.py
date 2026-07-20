@@ -128,6 +128,7 @@ class TestDhanMarketFeedStalenessDetection:
 
         # Set last message to 120 seconds ago (stale)
         from datetime import timedelta
+
         feed._last_message_at = datetime.now(timezone.utc) - timedelta(seconds=120)
         feed._message_count = 10  # Was active
 
@@ -238,6 +239,14 @@ class TestDhanMarketFeedChaosScenarios:
             )
             feed._conn._feed = mock_sdk_instance
 
+            # _build_sdk_feed_locked tries to instantiate a real SDK feed
+            # after each failure. Replace it so the mock is reused directly.
+            def _fake_build():
+                feed._conn._feed = mock_sdk_instance
+                return mock_sdk_instance
+
+            feed._conn._build_sdk_feed_locked = _fake_build
+
             # Run reconnect loop
             thread = threading.Thread(target=feed._run, daemon=True)
             thread.start()
@@ -285,6 +294,14 @@ class TestDhanMarketFeedChaosScenarios:
                 access_token="test_token",
             )
             feed._conn._feed = mock_sdk_instance
+
+            # _build_sdk_feed_locked tries to instantiate a real SDK feed
+            # after each failure. Replace it so the mock is reused directly.
+            def _fake_build():
+                feed._conn._feed = mock_sdk_instance
+                return mock_sdk_instance
+
+            feed._conn._build_sdk_feed_locked = _fake_build
 
             thread = threading.Thread(target=feed._run, daemon=True)
             thread.start()

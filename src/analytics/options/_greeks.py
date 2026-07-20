@@ -39,13 +39,17 @@ def _vega(spot: float, t: float, iv: float, d1: float) -> float:
     return spot * _norm_pdf(d1) * math.sqrt(t) / 100.0
 
 
-def _call_theta(spot: float, strike: float, t: float, r: float, iv: float, d1: float, d2: float) -> float:
+def _call_theta(
+    spot: float, strike: float, t: float, r: float, iv: float, d1: float, d2: float
+) -> float:
     term1 = -(spot * _norm_pdf(d1) * iv) / (2 * math.sqrt(t))
     term2 = r * strike * math.exp(-r * t) * _norm_cdf(d2)
     return term1 - term2
 
 
-def _put_theta(spot: float, strike: float, t: float, r: float, iv: float, d1: float, d2: float) -> float:
+def _put_theta(
+    spot: float, strike: float, t: float, r: float, iv: float, d1: float, d2: float
+) -> float:
     term1 = -(spot * _norm_pdf(d1) * iv) / (2 * math.sqrt(t))
     term2 = -r * strike * math.exp(-r * t) * _norm_cdf(-d2)
     return term1 + term2

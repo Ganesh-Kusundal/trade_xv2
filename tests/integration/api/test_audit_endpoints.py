@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from application.audit import audit_logger
 from interface.api.config import APIConfig
 from interface.api.main import create_app
-from application.audit import audit_logger
 
 
 @pytest.fixture(autouse=True)

@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from domain import MarketDepth
-from domain.constants.segments import nse_eligible_segments
 from domain.constants.exchanges import NSE
+from domain.constants.segments import nse_eligible_segments
 from domain.extensions.base import Extension
 from domain.value_objects.capability import Capability
 
@@ -61,7 +61,7 @@ class DhanDepth200Extension(Extension):
             on_depth=on_depth,
         )
 
-    def for_instrument(self, symbol: str, exchange: str = NSE) -> "DhanDepth200Extension":
+    def for_instrument(self, symbol: str, exchange: str = NSE) -> DhanDepth200Extension:
         """Bind the extension to a specific instrument for method calls."""
         ext = DhanDepth200Extension(self._gw)
         ext._symbol = symbol  # type: ignore[attr-defined]

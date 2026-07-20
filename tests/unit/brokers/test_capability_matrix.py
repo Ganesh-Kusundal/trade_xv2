@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
-
 import pytest
 
 from brokers.dhan.config.capabilities import dhan_capabilities
@@ -64,11 +62,13 @@ def test_supported_features_have_service_or_allowlist(broker_id: str, caps_fn) -
         if feature in _NOT_EXPOSED:
             continue
         service_name = _SERVICE_FOR_FEATURE[feature]
-        assert hasattr(services_core, service_name), f"{broker_id}: missing services.{service_name} for {feature}"
+        assert hasattr(services_core, service_name), (
+            f"{broker_id}: missing services.{service_name} for {feature}"
+        )
         assert callable(getattr(services_core, service_name))
 
     payload = services_core.format_session_capabilities.__doc__
-    assert payload  # noqa: S101 — guard against accidental deletion
+    assert payload
 
 
 @pytest.mark.unit
@@ -77,7 +77,7 @@ def test_get_capabilities_matrix_keys_match_dhan() -> None:
 
     caps = get_capabilities("paper")
     matrix = caps["matrix"]
-    dhan = dhan_capabilities()
+    dhan_capabilities()
     for key in (
         "supports_place_order",
         "supports_historical_data",

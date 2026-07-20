@@ -2,6 +2,7 @@
 
 Verify BrokerService initialization completes without errors.
 """
+
 from unittest.mock import patch
 
 
@@ -51,7 +52,9 @@ class TestInitializationFlow:
         broker_service = BrokerService(load_instruments=True)
 
         # Monkey-patch checker to fail
-        with patch("application.services.production_readiness.ProductionReadinessChecker.run_or_raise") as mock_check:
+        with patch(
+            "application.services.production_readiness.ProductionReadinessChecker.run_or_raise"
+        ) as mock_check:
             mock_check.side_effect = ProductionReadinessError("Test failure")
 
             broker_service._ensure_dhan_initialized()

@@ -52,7 +52,7 @@ class FeedProbe:
 
     def run(
         self,
-        instrument: "Instrument",
+        instrument: Instrument,
         *,
         duration_s: float = 10.0,
         depth: bool = False,
@@ -79,9 +79,8 @@ class FeedProbe:
                 # Raw dict / unknown fallback (e.g. REST polling path).
                 result.tick_count += 1
 
-        handle = None
         try:
-            handle = instrument.subscribe(_on_frame, depth=depth)
+            instrument.subscribe(_on_frame, depth=depth)
         except Exception as exc:
             result.errors.append(f"subscribe_failed: {exc}")
             result.ended_at = datetime.now(timezone.utc).isoformat()

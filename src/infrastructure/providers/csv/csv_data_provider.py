@@ -14,23 +14,17 @@ from typing import Any
 
 import pandas as pd
 
-from domain.entities.options import FutureChain, OptionChain
 from domain.entities.market import MarketDepth
+from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
-from domain.ports.protocols import Subscription
+from domain.ports.protocols import SubscriptionHandle
+from infrastructure.providers.null.stubs import NullSubscription
 
 logger = logging.getLogger(__name__)
 
 
-class _NullSubscription:
-    """No-op subscription for CSV data (no live feed)."""
-
-    @property
-    def is_active(self) -> bool:
-        return False
-
-    def unsubscribe(self) -> None:
-        pass
+class _NullSubscription(NullSubscription):
+    """Backward-compatible alias for CSV provider."""
 
 
 class CsvDataProvider:
@@ -159,7 +153,9 @@ class CsvDataProvider:
         expiry: date | None = None,
     ) -> OptionChain:
         """CSV data does not include option chains."""
-        return OptionChain(underlying=underlying.underlying, exchange=underlying.exchange, expiry="")
+        return OptionChain(
+            underlying=underlying.underlying, exchange=underlying.exchange, expiry=""
+        )
 
     def get_future_chain(self, underlying: InstrumentId) -> FutureChain:
         """CSV data does not include futures chains."""
@@ -171,11 +167,11 @@ class CsvDataProvider:
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
-    ) -> Subscription:
+    ) -> SubscriptionHandle:
         """CSV data does not support live subscriptions."""
         return _NullSubscription()
 
-    def unsubscribe(self, subscription: Subscription) -> None:
+    def unsubscribe(self, subscription: SubscriptionHandle) -> None:
         """No-op for CSV data."""
         pass
 

@@ -42,7 +42,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pandas as pd
 import pyarrow as pa
-
 from _connect import bootstrap_or_exit
 
 from brokers.dhan.config.capabilities import dhan_capabilities
@@ -75,7 +74,9 @@ def main() -> int:
     parser.add_argument("--timeframe", default="1m")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--symbols-file", default=None, help="Only correct symbols listed (one per line)")
+    parser.add_argument(
+        "--symbols-file", default=None, help="Only correct symbols listed (one per line)"
+    )
     args = parser.parse_args()
 
     window_start = date.fromisoformat(args.start)

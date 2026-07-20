@@ -7,8 +7,9 @@
 ## 1. Context First (mandatory gate)
 
 - Before ANY implementation or architectural decision, read the six context files in
-  order: `project-overview.md` → `architecture.md` → `web/DESIGN.md` (if UI) →
-  `code-standards.md` → this file → `progress-tracker.md`.
+  order: `project-overview.md` → `architecture.md` → `code-standards.md` → this file
+  → `progress-tracker.md`. (When the Web SPA is implemented, add `web/DESIGN.md`
+  after `architecture.md` — it does not exist yet.)
 - Before exploring code, run **graphify** (`graphify query/explain/path`) per
   `.cursor/rules/graphify.mdc`. Do not grep/Read blindly.
 - If a requirement is ambiguous, resolve against `project-overview.md` and
@@ -48,14 +49,15 @@
 - `src/domain/` entities/ports — stable core; change only via ADR.
 - `docs/architecture/adr/*` — decision records.
 - `pyproject.toml` import-linter contracts — adding `ignore_imports` must be justified.
-- Generated files: `web/src/api/generated.ts` (regenerate, don't hand-edit).
-- `graphify-out/` — generated artifact.
+- Generated files: `web/src/api/generated.ts` (planned, not yet generated — the
+  Web SPA under `web/` is not implemented; `web/` holds only `.env.example`).
+- `src/graphify-out/` — generated artifact (`graphify update src` only; no repo-root graph).
 
 ## 7. Documentation & Graph Sync
 
 - Keep `context/*.md` and `docs/architecture/*` in sync with implementation. If a change
   alters architecture/scope/standards, update the relevant file BEFORE continuing.
-- After modifying code files, run `graphify update .`.
+- After modifying code files under `src/`, run `graphify update src`.
 - Update `context/progress-tracker.md` after each meaningful change (see its template).
 
 ## 8. Verification Checklist (before declaring done / next unit)
@@ -66,7 +68,7 @@
 - [ ] `ruff`, `mypy`, `bandit` clean (per pre-commit).
 - [ ] Architecture/import-linter contracts still green.
 - [ ] Integration test added/updated verifying real behavior (no mocks).
-- [ ] `graphify update .` run; `progress-tracker.md` updated.
+- [ ] `graphify update src` run; `progress-tracker.md` updated.
 
 ## 9. Real-Money Safety (non-negotiable)
 

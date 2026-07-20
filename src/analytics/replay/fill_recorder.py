@@ -11,12 +11,13 @@ Dependencies (injected via constructor):
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 from analytics.replay.models import ReplayConfig, ReplaySession
 from domain.entities import Trade
 from domain.enums import Side
+from domain.ports.time_service import get_current_clock
 from domain.trading_costs import (
     compute_commission,
     compute_slippage_pct,
@@ -53,7 +54,7 @@ class FillRecorder:
         """Apply replay fill through FillReducer then PortfolioProjector."""
         if not order_id or quantity <= 0:
             return False
-        ts = timestamp or datetime.now(timezone.utc)
+        ts = timestamp or get_current_clock().now()
         trade = Trade(
             trade_id=f"{order_id}:{trade_tag}",
             order_id=order_id,
@@ -62,7 +63,8 @@ class FillRecorder:
             side=side,
             quantity=quantity,
             price=Decimal(str(price)),
-            trade_value=Decimal(str(price)) * Decimal(str(getattr(quantity, "magnitude", quantity))),
+            trade_value=Decimal(str(price))
+            * Decimal(str(getattr(quantity, "magnitude", quantity))),
             timestamp=ts,
         )
         return session.fill_pipeline.apply_trade(trade, order_quantity=quantity)
@@ -74,7 +76,8 @@ class FillRecorder:
         """
         cfg = self._config
         return compute_commission(
-            notional, side,
+            notional,
+            side,
             model=cfg.commission_model,
             flat_fee=cfg.commission_flat,
             fees=cfg.indian_market_fees,

@@ -14,13 +14,14 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_facade import InstrumentLoader
+from domain.ports.data_catalog import DEFAULT_INSTRUMENT_CACHE_DIR
+from infrastructure.paths import project_root_from
 from interface.ui.commands.registry import CommandResult
+from interface.ui.services.broker_registry import InstrumentLoader
 from interface.ui.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ def show_cache_status(
 ) -> CommandResult:
     """Display current cache status."""
     # Find cache directory
-    cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
+    cache_dir = project_root_from(__file__) / DEFAULT_INSTRUMENT_CACHE_DIR
 
     if not cache_dir.exists():
         console.print("[yellow]Cache directory not found[/yellow]")
@@ -85,7 +86,7 @@ def clear_cache(args: list[str], broker_service: BrokerService, console: Console
         console.print("[yellow]Usage: tradex cache clear --confirm[/yellow]")
         return CommandResult(success=False, error="Confirmation required: use --confirm")
 
-    cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
+    cache_dir = project_root_from(__file__) / DEFAULT_INSTRUMENT_CACHE_DIR
 
     if not cache_dir.exists():
         console.print("[yellow]Cache directory not found[/yellow]")
@@ -137,7 +138,7 @@ def show_cache_stats(
     args: list[str], broker_service: BrokerService, console: Console
 ) -> CommandResult:
     """Display cache statistics."""
-    cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
+    cache_dir = project_root_from(__file__) / DEFAULT_INSTRUMENT_CACHE_DIR
 
     if not cache_dir.exists():
         console.print("[yellow]Cache directory not found[/yellow]")

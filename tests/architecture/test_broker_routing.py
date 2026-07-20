@@ -21,8 +21,7 @@ def test_gateway_for_accepts_broker_id_enum():
     annotation = param.annotation
     # Accept str, BrokerId, or union containing BrokerId
     assert annotation is inspect.Parameter.empty or any(
-        token in str(annotation)
-        for token in ("BrokerId", "str | BrokerId", "Union[str, BrokerId]")
+        token in str(annotation) for token in ("BrokerId", "str | BrokerId", "Union[str, BrokerId]")
     ), f"Unexpected annotation: {annotation}"
 
 
@@ -34,8 +33,7 @@ def test_capabilities_for_accepts_broker_id_enum():
 
     annotation = param.annotation
     assert annotation is inspect.Parameter.empty or any(
-        token in str(annotation)
-        for token in ("BrokerId", "str | BrokerId", "Union[str, BrokerId]")
+        token in str(annotation) for token in ("BrokerId", "str | BrokerId", "Union[str, BrokerId]")
     ), f"Unexpected annotation: {annotation}"
 
 

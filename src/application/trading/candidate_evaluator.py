@@ -79,6 +79,9 @@ class CandidateEvaluator:
         """
         try:
             signals = self._strategy_evaluator.evaluate_single(candidate, features)
+            from application.trading.signal_coordinator import coalesce_strategy_signals
+
+            signals = coalesce_strategy_signals(signals)
             logger.info(
                 "Evaluated %s: %d signals generated",
                 candidate.symbol,

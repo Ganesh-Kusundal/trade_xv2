@@ -1,6 +1,6 @@
 """Backward-compat facade — canonical: ``domain.capabilities.broker_capabilities``."""
 
-from domain.capabilities.broker_capabilities import (  # noqa: F401
+from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
     HistoricalWindowConstraint,

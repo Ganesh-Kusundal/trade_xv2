@@ -18,6 +18,7 @@ from typing import NamedTuple
 
 class ExceptionViolation(NamedTuple):
     """Represents an exception hierarchy violation."""
+
     file: str
     line: int
     class_name: str
@@ -103,8 +104,7 @@ def _inherits_from_good_base(
         return False
     visited.add(class_name)
     return any(
-        _inherits_from_good_base(parent, hierarchy, visited)
-        for parent in hierarchy[class_name]
+        _inherits_from_good_base(parent, hierarchy, visited) for parent in hierarchy[class_name]
     )
 
 
@@ -136,9 +136,7 @@ def scan_file(file_path: Path) -> list[ExceptionViolation]:
 
                 # Check if this is an exception class
                 base_classes = class_hierarchy.get(node.name, [])
-                is_exception = any(
-                    "Error" in base or "Exception" in base for base in base_classes
-                )
+                is_exception = any("Error" in base or "Exception" in base for base in base_classes)
 
                 if not is_exception:
                     continue

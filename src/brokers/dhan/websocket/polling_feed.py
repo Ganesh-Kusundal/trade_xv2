@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
@@ -182,21 +181,15 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
                 sids = [sid for _, sid in chunk]
                 sid_lookup = {sid: sec_id for sec_id, sid in chunk}
                 try:
-                    data = self._client.post(
-                        "/marketfeed/ltp", json={segment: sids}
-                    )
+                    data = self._client.post("/marketfeed/ltp", json={segment: sids})
                     segment_data = data.get("data", {}).get(segment, {})
                     self._dispatch_batch_results(segment_data, sid_lookup)
                     # Plan §7.2: shared message-tracking through the mixin.
                     self._note_message_received()
                 except Exception as exc:
-                    logger.warning(
-                        "Polling batch error for segment %s: %s", segment, exc
-                    )
+                    logger.warning("Polling batch error for segment %s: %s", segment, exc)
 
-    def _dispatch_batch_results(
-        self, segment_data: dict, sid_lookup: dict[int, str]
-    ) -> None:
+    def _dispatch_batch_results(self, segment_data: dict, sid_lookup: dict[int, str]) -> None:
         """Parse batch response and dispatch quotes to callbacks."""
         callbacks = self._snapshot_callbacks(self._quote_callbacks)
         for sid, raw in segment_data.items():
@@ -247,9 +240,7 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
             symbol = quote.get("symbol", "")
             ltp = _to_decimal(ltp_raw)
             if ltp_raw is None or ltp == 0:
-                logger.warning(
-                    "tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>"
-                )
+                logger.warning("tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>")
                 return
             if not symbol:
                 logger.warning("tick_dropped_missing_symbol")

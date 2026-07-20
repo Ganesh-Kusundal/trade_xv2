@@ -54,6 +54,7 @@ class FeaturePrecomputer:
 
     def _ensure_views(self, conn: duckdb.DuckDBPyConnection) -> None:
         from analytics.views.base import BaseViews
+
         BaseViews().create_views(conn)
 
     def _compute_published_at(self, conn: duckdb.DuckDBPyConnection) -> datetime:

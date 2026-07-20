@@ -65,7 +65,7 @@ class ActiveBrokerCheck(CheckStrategy):
                 if matrix.get("supports_super_order"):
                     features.append("SuperOrders")
                 order_types = matrix.get("order_types") or []
-                if isinstance(order_types, (list, tuple, frozenset)):
+                if isinstance(order_types, list | tuple | frozenset):
                     order_types = ", ".join(list(order_types)[:4])
                 else:
                     order_types = str(order_types)
@@ -81,7 +81,9 @@ class ActiveBrokerCheck(CheckStrategy):
                 if profiles:
                     p0 = profiles[0] if isinstance(profiles, list) else None
                     if isinstance(p0, dict):
-                        rate_detail = f"{p0.get('sustained_rps', '?')}/s burst {p0.get('burst_rps', '?')}"
+                        rate_detail = (
+                            f"{p0.get('sustained_rps', '?')}/s burst {p0.get('burst_rps', '?')}"
+                        )
                 results.append(
                     CheckResult(
                         "  Rate Limits",

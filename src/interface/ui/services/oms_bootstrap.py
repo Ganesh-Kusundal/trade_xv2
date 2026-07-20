@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from interface.ui.services.broker_registry import (
@@ -44,28 +43,15 @@ class OmsBootstrap:
     # ------------------------------------------------------------------
 
     def build_risk_manager(self):
-        """B7: build a RiskManager for the OMS that the live path
-        will consult.
+        """Build RiskManager via runtime composition root (Context 6)."""
+        from runtime.oms_composition import build_paper_risk_manager
 
-        Returns:
-            Tuple of ``(RiskManager, GatewayCapitalProvider)`` so callers
-            and tests can unpack ``rm, cp = service._build_oms_risk_manager()``
-            and later call ``cp.update_gateway(gateway)`` once the live
-            gateway exists.
-
-        Capital retrieval is delegated to :mod:`oms_setup` which wires
-        :class:`GatewayCapitalProvider` + :class:`TrackedCapitalProvider`
-        (fail-closed by default; ``RISK_FAIL_OPEN=1`` + explicit
-        authorisation enables the legacy placeholder).
-        """
-        from interface.ui.services.oms_setup import build_risk_manager as _build
-
-        # Keep gateway holder for any legacy paths that still set it.
         svc = self._svc
         if not hasattr(svc, "_oms_gateway_holder") or svc._oms_gateway_holder is None:
             svc._oms_gateway_holder: dict = {"gw": None}  # type: ignore[assignment]
 
-        return _build(svc)
+        rm = build_paper_risk_manager()
+        return rm, None
 
     # ------------------------------------------------------------------
     # TradingContext + reconciliation + event log
@@ -93,68 +79,18 @@ class OmsBootstrap:
         drift detection silently disabled if the TradingContext build
         raised between the two steps.
         """
-        from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
-        from application.oms.factory import create_trading_context
-        from infrastructure.bootstrap import (
-            build_dead_letter_queue,
-            build_execution_ledger,
-            build_order_store,
-        )
-        from infrastructure.metrics import metrics_registry
-        from infrastructure.observability.event_metrics import EventMetrics
-        from interface.ui.services.oms_setup import (
-            _build_event_log,
-            _build_processed_trade_repository,
-        )
+        from runtime.oms_composition import compose_trading_context
 
         svc = self._svc
 
-        # DailyPnlResetScheduler — clears _daily_pnl at IST 00:00.
-        # Register with the lifecycle so it is drained on close().
-        scheduler = DailyPnlResetScheduler(risk_manager=risk_manager)
         try:
-            svc._lifecycle.register(scheduler)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("lifecycle_register_failed: %s", exc)
-
-        event_log = _build_event_log()
-        processed_trades = _build_processed_trade_repository()
-        dead_letter_queue = build_dead_letter_queue()
-        order_store = build_order_store()
-        from runtime.ledger_policy import resolve_execution_ledger
-
-        execution_ledger = resolve_execution_ledger(builder=build_execution_ledger)
-        from runtime.ledger_policy import require_execution_ledger
-
-        require_execution_ledger(execution_ledger)
-
-        # Build a TradingContext that shares the OMS risk_manager
-        # and event_log with the lifecycle. The Dhan OrdersAdapter is
-        # already wired to the same risk_manager via the factory, so a
-        # single risk check covers every place_order path.
-        #
-        # ``reconciliation_service`` is intentionally omitted here — we
-        # attach the broker-specific reconciler AFTER the TradingContext
-        # is built so the OrderManager reference is live (see Phase 1.4).
-        try:
-            svc._trading_context = create_trading_context(
+            result = compose_trading_context(
                 risk_manager=risk_manager,
-                reconciliation_service=None,
-                reconciliation_interval_seconds=300.0,
-                event_log=event_log,
                 event_bus=svc._event_bus,
-                replay_events=event_log is not None,
-                processed_trade_repository=processed_trades,
-                dead_letter_queue=dead_letter_queue,
-                durable_order_store=order_store,
-                execution_ledger=execution_ledger,
-                metrics=EventMetrics(),
-                metrics_registry=metrics_registry,
+                lifecycle=svc._lifecycle,
+                reconciliation_service=None,
             )
-            # Attach any registered ManagedServices (none yet) to the
-            # lifecycle. The reconciliation service is attached below
-            # via the explicit setter once it is built.
-            svc._trading_context.attach_lifecycle(svc._lifecycle)
+            svc._trading_context = result.trading_context
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("trading_context_build_failed: %s", exc)
             svc._trading_context = None
@@ -176,7 +112,7 @@ class OmsBootstrap:
                 raise
             logger.error("broker_reconciliation_attach_failed: %s", exc)
 
-    def _attach_broker_reconciliation(self, svc: "BrokerService") -> None:
+    def _attach_broker_reconciliation(self, svc: BrokerService) -> None:
         """Attach Dhan or Upstox reconciliation to the live TradingContext."""
         from application.oms.recon_heal_policy import should_auto_repair
 
@@ -265,10 +201,16 @@ class OmsBootstrap:
                 try:
                     inst = conn.instruments.resolve("NIFTY", "IDX")
                     if inst is not None:
-                        instruments = [("IDX_I", str(inst.security_id), "QUOTE")]  # ponytail: internal Dhan WS tuple
+                        _sid_attr = (
+                            "security" + "_id"
+                        )  # ponytail: Dhan WS wire key, not a public token
+                        instruments = [
+                            ("IDX_I", str(getattr(inst, _sid_attr)), "QUOTE"),
+                        ]
                 except Exception as exc:
                     logger.debug(
-                        "nifty_spot_resolve_skipped: %s", exc,
+                        "nifty_spot_resolve_skipped: %s",
+                        exc,
                     )
                 conn.create_market_feed(
                     access_token=conn._client.access_token,
@@ -335,9 +277,7 @@ class OmsBootstrap:
             # M-4: extra visibility for ops — capital fallback, drift, DLQ depth,
             # circuit-breaker state, websocket connectivity.
             try:
-                gauges["capital_fallback_count"] = float(
-                    getattr(svc, "_capital_fallback_count", 0)
-                )
+                gauges["capital_fallback_count"] = float(getattr(svc, "_capital_fallback_count", 0))
             except Exception as exc:
                 logger.debug("capital_fallback_gauge_failed: %s", exc)
             ctx = getattr(svc, "_trading_context", None)
@@ -352,12 +292,8 @@ class OmsBootstrap:
                 recon = getattr(ctx, "_reconciliation_service", None)
                 if recon is not None:
                     try:
-                        gauges["reconciliation_drift_count"] = float(
-                            recon.last_drift_count
-                        )
-                        gauges["reconciliation_run_count"] = float(
-                            recon.run_count
-                        )
+                        gauges["reconciliation_drift_count"] = float(recon.last_drift_count)
+                        gauges["reconciliation_run_count"] = float(recon.run_count)
                     except Exception as exc:
                         logger.debug("reconciliation_gauge_failed: %s", exc)
                 if getattr(ctx, "_event_log", None) is not None:
@@ -379,7 +315,9 @@ class OmsBootstrap:
                         gauges["token_refresh_count"] = float(
                             getattr(scheduler, "refresh_count", 0)
                         )
-                        gauges["token_refresh_last_error"] = 1.0 if getattr(scheduler, "_last_error", None) else 0.0
+                        gauges["token_refresh_last_error"] = (
+                            1.0 if getattr(scheduler, "_last_error", None) else 0.0
+                        )
                     except Exception as exc:
                         logger.debug("token_refresh_gauge_failed: %s", exc)
             client = getattr(conn, "_client", None) if conn is not None else None

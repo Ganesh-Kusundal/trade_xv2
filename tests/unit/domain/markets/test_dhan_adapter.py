@@ -7,6 +7,4 @@ structurally; the separate adapter layer is no longer needed.
 
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="DhanDataAdapter removed during broker module refactoring"
-)
+pytestmark = pytest.mark.skip(reason="DhanDataAdapter removed during broker module refactoring")

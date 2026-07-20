@@ -8,9 +8,9 @@ Run from repo root::
 
 from __future__ import annotations
 
-import tradex
 from datetime import date
-from decimal import Decimal
+
+import tradex
 
 
 def main() -> None:

@@ -116,7 +116,9 @@ async def upstox_token_callback(
         ) from exc
 
     if payload.message_type != "access_token":
-        logger.warning("Upstox token callback received invalid message_type: %s", payload.message_type)
+        logger.warning(
+            "Upstox token callback received invalid message_type: %s", payload.message_type
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid message_type: {payload.message_type}",

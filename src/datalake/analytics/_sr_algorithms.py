@@ -72,12 +72,14 @@ def cluster_levels(
         touches = len(cluster)
         avg_price = sum(p for _, p in cluster) / len(cluster)
         last_touch = max(d for d, _ in cluster)
-        levels.append(PriceLevel(
-            price=round(avg_price, 2),
-            touches=touches,
-            last_touch=last_touch,
-            level_type=level_type,
-        ))
+        levels.append(
+            PriceLevel(
+                price=round(avg_price, 2),
+                touches=touches,
+                last_touch=last_touch,
+                level_type=level_type,
+            )
+        )
 
     levels.sort(key=lambda lvl: (-lvl.touches, lvl.price))
     return levels

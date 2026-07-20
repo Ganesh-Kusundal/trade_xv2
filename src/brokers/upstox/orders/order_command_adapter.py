@@ -6,15 +6,14 @@ Mirrors ``brokers.dhan.orders.order_command_adapter.DhanOrderCommandAdapter``.
 from __future__ import annotations
 
 import logging
+import time
 from decimal import Decimal
 from typing import Any
 
-from domain.models.dtos import BrokerOrderPayload
+from brokers.common.idempotency import IdempotencyCache, IdempotencyCachePort
 from brokers.common.order_validation import validate_tick_alignment
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-from brokers.common.idempotency import IdempotencyCachePort
-from brokers.common.idempotency import IdempotencyCache
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import (
     Order,
@@ -23,8 +22,9 @@ from domain import (
     OrderResponse,
 )
 from domain import Side as OrderSide
-from domain.ports.risk_manager import RiskManagerPort
 from domain.events import DomainEvent
+from domain.models.dtos import BrokerOrderPayload
+from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -55,10 +55,29 @@ class UpstoxOrderCommandAdapter:
     def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
         from domain.errors import OrderError
 
-        if request.correlation_id and self._idempotency_cache is not None:
-            cached = self._idempotency_cache.get(request.correlation_id)
+        cid = request.correlation_id
+        if cid and self._idempotency_cache is not None:
+            cached = self._idempotency_cache.get(cid)
             if cached is not None:
                 return cached
+
+            if not self._idempotency_cache.reserve(cid):
+                logger.info("idempotency_waiting", extra={"correlation_id": cid})
+                for _ in range(50):
+                    cached = self._idempotency_cache.get(cid)
+                    if cached is not None:
+                        return cached
+                    time.sleep(0.1)
+                raise OrderError("concurrent placement for same correlation_id timed out")
+
+        try:
+            return self._place_order_impl(request)
+        finally:
+            if cid and self._idempotency_cache is not None:
+                self._idempotency_cache.clear_reservation(cid)
+
+    def _place_order_impl(self, request: BrokerOrderPayload) -> OrderResponse:
+        from domain.errors import OrderError
 
         if self._risk_manager is not None:
             preview_order = self._to_domain_order(request)
@@ -68,9 +87,7 @@ class UpstoxOrderCommandAdapter:
 
         instrument_key = self._resolve_instrument_key(request)
         if not instrument_key:
-            raise OrderError(
-                f"Cannot resolve Upstox instrument_key for {request.symbol!r}"
-            )
+            raise OrderError(f"Cannot resolve Upstox instrument_key for {request.symbol!r}")
 
         preview = self.preview_order(request)
         if not preview.valid:
@@ -92,11 +109,11 @@ class UpstoxOrderCommandAdapter:
 
         response = UpstoxDomainMapper.to_order_response(result)
         if response.success:
+            if request.correlation_id and self._idempotency_cache is not None:
+                self._idempotency_cache.commit(request.correlation_id, response)
             self._publish_order_placed(request, response)
         elif response.message:
             raise OrderError(response.message)
-        if request.correlation_id and self._idempotency_cache is not None and response.success:
-            self._idempotency_cache.put(request.correlation_id, response)
         return response
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
@@ -141,6 +158,7 @@ class UpstoxOrderCommandAdapter:
             broker's error code/message on failure.
         """
         from domain import OrderResponse
+
         try:
             result = self._order_client.cancel_order_v3(order_id)
         except (RuntimeError, OSError) as exc:
@@ -232,9 +250,8 @@ class UpstoxOrderCommandAdapter:
         return request.symbol or None
 
     def _to_domain_order(self, request: BrokerOrderPayload) -> Order:
-        from domain.ports.time_service import get_current_clock
-
         from domain import OrderStatus, OrderType, ProductType, Validity
+        from domain.ports.time_service import get_current_clock
 
         return Order(
             order_id="",

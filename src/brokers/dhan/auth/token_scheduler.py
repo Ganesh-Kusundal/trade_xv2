@@ -13,10 +13,6 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from infrastructure.auth import AuthManager, JsonTokenStateStore
-from infrastructure.auth.token_persistence import TokenPersistence
-from infrastructure.auth.token_policy import should_generate_token
-from infrastructure.auth.totp_cooldown import TotpRateLimitError
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
@@ -24,6 +20,10 @@ from domain.constants import (
 )
 from domain.lifecycle_health import HealthState, build_health
 from domain.ports.lifecycle import ManagedServicePort as ManagedService
+from infrastructure.auth import AuthManager, JsonTokenStateStore
+from infrastructure.auth.token_persistence import TokenPersistence
+from infrastructure.auth.token_policy import should_generate_token
+from infrastructure.auth.totp_cooldown import TotpRateLimitError
 
 logger = logging.getLogger(__name__)
 

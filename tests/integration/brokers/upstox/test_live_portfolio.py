@@ -22,6 +22,7 @@ class TestLivePortfolio:
         assert balance is not None
         assert hasattr(balance, "available_balance")
         from decimal import Decimal
+
         assert isinstance(balance.available_balance, Decimal)
 
     def test_funds_balance_schema(self, gateway):

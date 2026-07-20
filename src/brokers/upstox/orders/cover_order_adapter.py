@@ -11,9 +11,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.models.dtos import BrokerOrderPayload
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import Order
+from domain.models.dtos import BrokerOrderPayload
 
 
 class UpstoxCoverOrderAdapter:

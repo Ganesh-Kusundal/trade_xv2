@@ -34,7 +34,7 @@ import threading
 import time as _time
 from datetime import datetime, timedelta
 
-from application.oms.risk_manager import RiskManager
+from application.oms._internal.risk_manager import RiskManager
 from domain.constants import (
     DAILY_PNL_POLL_INTERVAL_SECONDS,
     DAILY_PNL_ROLLOVER_HOUR_IST,

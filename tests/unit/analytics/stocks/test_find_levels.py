@@ -36,7 +36,6 @@ def _make_catalog_with_daily(catalog_path, daily_rows: list[dict]) -> None:
         )
     """)
     if daily_rows:
-        import datetime
         for row in daily_rows:
             # DuckDB inserts directly from dicts using prepared statement
             c.execute(
@@ -50,7 +49,7 @@ def _make_catalog_with_daily(catalog_path, daily_rows: list[dict]) -> None:
                     row["day_close"],
                     row["day_volume"],
                     row.get("day_oi", 0),
-                ]
+                ],
             )
     c.close()
 

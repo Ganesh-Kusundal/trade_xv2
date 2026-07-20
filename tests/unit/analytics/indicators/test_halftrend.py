@@ -2,44 +2,20 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from analytics.indicators.halftrend import HalfTrend
+from tests.fixtures.data_helpers import make_ohlcv
 
 
 def _make_ohlcv(n: int = 200, start_price: float = 100.0, trend: str = "up") -> pd.DataFrame:
     """Generate synthetic OHLCV data for testing."""
-    np.random.seed(42)
-    dates = pd.date_range("2025-01-01", periods=n, freq="1min")
-
-    if trend == "up":
-        close = start_price + np.cumsum(np.random.randn(n) * 0.5 + 0.1)
-    elif trend == "down":
-        close = start_price + np.cumsum(np.random.randn(n) * 0.5 - 0.1)
-    else:
-        close = start_price + np.cumsum(np.random.randn(n) * 0.5)
-
-    close = np.maximum(close, 1.0)  # Prevent negative prices
-    high = close + np.abs(np.random.randn(n) * 0.5)
-    low = close - np.abs(np.random.randn(n) * 0.5)
-    open_ = close + np.random.randn(n) * 0.3
-    volume = np.random.randint(1000, 100000, n)
-
-    return pd.DataFrame(
-        {
-            "timestamp": dates,
-            "open": open_,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "oi": 0,
-            "symbol": "TEST",
-            "exchange": "NSE",
-            "timeframe": "1m",
-        }
-    )
+    df = make_ohlcv(n=n, start_price=start_price, seed=42, trend=trend)
+    # Add extra columns needed by this test
+    df["oi"] = 0
+    df["exchange"] = "NSE"
+    df["timeframe"] = "1m"
+    return df
 
 
 class TestHalfTrend:

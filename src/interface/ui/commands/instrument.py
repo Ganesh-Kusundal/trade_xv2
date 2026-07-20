@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import resolve_security
-from interface.ui.services.broker_service import BrokerService
+from domain.enums import BrokerId
 from domain.symbols import normalize_symbol
+from interface.ui.commands._broker import broker_id_from
+from interface.ui.services.broker_ops import lookup_security
+from interface.ui.services.broker_service import BrokerService
 
 
 def _show_all_brokers(symbol: str, console: Console) -> None:
@@ -17,7 +18,7 @@ def _show_all_brokers(symbol: str, console: Console) -> None:
     for broker_id in (BrokerId.DHAN, BrokerId.UPSTOX):
         console.print(f"[cyan]--- {broker_id.capitalize()} ---[/cyan]")
         try:
-            info = resolve_security(None, symbol, default=broker_id)
+            info = lookup_security(broker_id_from(None, default=broker_id), symbol)
             table = Table(show_header=False, show_edge=False)
             table.add_column("Field", style="cyan", width=20)
             table.add_column("Value", width=40)

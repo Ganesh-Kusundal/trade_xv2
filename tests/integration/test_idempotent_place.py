@@ -2,20 +2,15 @@
 
 Double place with same correlation_id must produce only one venue submit.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
-from unittest.mock import MagicMock, call
-
-import pytest
+from unittest.mock import MagicMock
 
 from domain import Order
 from domain.enums import OrderStatus
-from domain.types import Side, OrderType, ProductType, Validity
-from application.oms._internal.risk_manager import RiskManager
-from application.oms._internal.risk_types import RiskConfig
-from application.oms.position_manager import PositionManager
+from domain.types import OrderType, ProductType, Side, Validity
 
 
 def _make_order(correlation_id: str = "corr-1") -> Order:
@@ -39,6 +34,7 @@ def _make_order(correlation_id: str = "corr-1") -> Order:
 def test_idempotency_guard_prevents_double_submit():
     """IdempotencyGuard.check_and_reserve rejects duplicate correlation_id."""
     import threading
+
     from application.oms.idempotency_guard import IdempotencyGuard
 
     guard = IdempotencyGuard()
@@ -58,6 +54,7 @@ def test_idempotency_guard_prevents_double_submit():
 def test_idempotency_guard_returns_existing_order():
     """When an order already exists for correlation_id, guard returns it."""
     import threading
+
     from application.oms.idempotency_guard import IdempotencyGuard
 
     guard = IdempotencyGuard()
@@ -77,6 +74,7 @@ def test_idempotency_guard_returns_existing_order():
 def test_idempotency_guard_blocks_concurrent_inflight():
     """While a correlation_id is in-flight, a second attempt is rejected."""
     import threading
+
     from application.oms.idempotency_guard import IdempotencyGuard
 
     guard = IdempotencyGuard()
@@ -95,6 +93,7 @@ def test_idempotency_guard_blocks_concurrent_inflight():
 def test_idempotency_guard_release_allows_retry():
     """After release_pending, the same correlation_id can be re-reserved."""
     import threading
+
     from application.oms.idempotency_guard import IdempotencyGuard
 
     guard = IdempotencyGuard()
@@ -112,6 +111,7 @@ def test_idempotency_guard_release_allows_retry():
 def test_different_correlation_ids_are_independent():
     """Different correlation_ids don't interfere with each other."""
     import threading
+
     from application.oms.idempotency_guard import IdempotencyGuard
 
     guard = IdempotencyGuard()

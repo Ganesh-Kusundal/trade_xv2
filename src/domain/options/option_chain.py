@@ -15,9 +15,10 @@ chain.expiry_at(0)                   # TradeHull-style expiry offset
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from domain.candles.historical import DateRange, HistoricalSeries, InstrumentRef
 from domain.entities.options import OptionChain as OptionChainVO
@@ -41,7 +42,7 @@ class OptionChain:
         *,
         data_provider: DataProvider | None = None,
         provider: DataProvider | None = None,
-        order_service: "OrderServicePort | None" = None,
+        order_service: OrderServicePort | None = None,
         available_expiries: Sequence[str | date] | None = None,
     ) -> None:
         self._chain = chain
@@ -49,11 +50,9 @@ class OptionChain:
         # and ``provider`` (used by call sites in ``instrument.py``).
         self._provider = data_provider or provider
         self._order_service = order_service
-        self._available_expiries: tuple[str, ...] = self._normalize_expiry_list(
-            available_expiries
-        )
+        self._available_expiries: tuple[str, ...] = self._normalize_expiry_list(available_expiries)
 
-    def _option_from_leg(self, strike, right: str, leg) -> "Option":
+    def _option_from_leg(self, strike, right: str, leg) -> Option:
         """Build Option leg with data + OMS stamps (PR-3b)."""
         from domain.instruments.instrument import Option
 
@@ -157,22 +156,18 @@ class OptionChain:
         """
         style_u = str(style).strip().upper()
         if style_u not in {"ATM", "OTM", "ITM"}:
-            raise ValueError(
-                f"Unknown select_strikes style {style!r}; expected ATM|OTM|ITM"
-            )
+            raise ValueError(f"Unknown select_strikes style {style!r}; expected ATM|OTM|ITM")
         grid = self._sorted_strikes()
         atm = self._atm_strike()
         if not grid or atm is None:
-            return StrikeSelection(
-                style=style_u, steps=steps, strike=None, ce=None, pe=None
-            )
+            return StrikeSelection(style=style_u, steps=steps, strike=None, ce=None, pe=None)
 
         atm_idx = min(range(len(grid)), key=lambda i: abs(grid[i] - atm))
 
         if style_u == "ATM":
             k = grid[atm_idx]
             pair = self._pair_at(k)
-            ce, pe = (pair if pair else (None, None))
+            ce, pe = pair if pair else (None, None)
             return StrikeSelection(
                 style=style_u,
                 steps=0,
@@ -226,7 +221,7 @@ class OptionChain:
         # Sort chronologically; prefer on-or-after today for offset 0
         today = date.today()
         future = sorted(d for d in parsed if d >= today)
-        past = sorted(d for d in parsed if d < today)
+        sorted(d for d in parsed if d < today)
         ordered = future if future else sorted(parsed)
         if off >= len(ordered):
             raise ValueError(
@@ -258,15 +253,11 @@ class OptionChain:
 
     @property
     def calls(self):
-        return [
-            self._option_from_leg(s.strike, "CE", s.call) for s in self._chain.strikes
-        ]
+        return [self._option_from_leg(s.strike, "CE", s.call) for s in self._chain.strikes]
 
     @property
     def puts(self):
-        return [
-            self._option_from_leg(s.strike, "PE", s.put) for s in self._chain.strikes
-        ]
+        return [self._option_from_leg(s.strike, "PE", s.put) for s in self._chain.strikes]
 
     def pcr(self) -> Decimal | None:
         """Put/Call ratio from open interest across the chain."""
@@ -354,7 +345,7 @@ class OptionChain:
     @staticmethod
     def _expiry_distance(expiry: str, today: date) -> int:
         d = OptionChain._parse_expiry(expiry)
-        return abs((d - today).days) if d is not None else 10 ** 9
+        return abs((d - today).days) if d is not None else 10**9
 
     @staticmethod
     def _parse_expiry(expiry: str | None) -> date | None:
@@ -400,9 +391,7 @@ class OptionChain:
                 available_expiries=self._available_expiries or None,
             )
         iid = InstrumentId.index(self._chain.exchange, self._chain.underlying)
-        vo = self._provider.get_option_chain(
-            iid, expiry=self._parse_expiry(expiry_str)
-        )
+        vo = self._provider.get_option_chain(iid, expiry=self._parse_expiry(expiry_str))
         return OptionChain(
             vo,
             data_provider=self._provider,
@@ -467,9 +456,7 @@ class OptionChain:
         if self._provider is None:
             return self
         iid = InstrumentId.index(self._chain.exchange, self._chain.underlying)
-        vo = self._provider.get_option_chain(
-            iid, expiry=self._parse_expiry(self._chain.expiry)
-        )
+        vo = self._provider.get_option_chain(iid, expiry=self._parse_expiry(self._chain.expiry))
         return OptionChain(
             vo,
             data_provider=self._provider,
@@ -508,9 +495,7 @@ class OptionChain:
             Decimal(str(strike)),
             right,
         )
-        return self._provider.get_history_series(
-            iid, timeframe=timeframe, lookback_days=days
-        )
+        return self._provider.get_history_series(iid, timeframe=timeframe, lookback_days=days)
 
     def subscribe(self, callback=None, *, depth: bool = False):
         """Subscribe the underlying instrument."""

@@ -15,9 +15,7 @@ def test_cli_order_and_security_paper() -> None:
     r1 = runner.invoke(broker, ["--broker", "paper", "security", "RELIANCE"])
     assert r1.exit_code == 0, r1.output
     assert "NSE:RELIANCE" in r1.output
-    r2 = runner.invoke(
-        broker, ["--broker", "paper", "order", "RELIANCE", "1", "--price", "100"]
-    )
+    r2 = runner.invoke(broker, ["--broker", "paper", "order", "RELIANCE", "1", "--price", "100"])
     assert r2.exit_code == 0, r2.output
 
 

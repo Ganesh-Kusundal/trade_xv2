@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING, Any
 
 from domain.constants.market import DEFAULT_EXCHANGE
 from domain.instruments.instrument import (
+    ETF,
     Commodity,
     Currency,
     Equity,
-    ETF,
     Future,
     Index,
     Instrument,
@@ -22,13 +22,16 @@ from domain.instruments.instrument import (
 )
 from domain.instruments.instrument_id import InstrumentId
 
+
 # Re-export Session / SessionDx so existing ``from domain.universe import Session`` works.
 # Lazy import to avoid circular dependency with domain.__init__.
 def __getattr__(name: str):
     if name in ("Session", "SessionDx"):
         from domain.session import Session, SessionDx
+
         return Session if name == "Session" else SessionDx
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 if TYPE_CHECKING:
     from domain.ports.event_publisher import EventBusPort
@@ -74,37 +77,74 @@ class Universe:
 
     def equity(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Equity:
         return self._stamp(
-            Equity(symbol, exchange, data_provider=self._provider, execution_provider=self._execution_provider)
+            Equity(
+                symbol,
+                exchange,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def etf(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> ETF:
         return self._stamp(
-            ETF(symbol, exchange, data_provider=self._provider, execution_provider=self._execution_provider)
+            ETF(
+                symbol,
+                exchange,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def spot(self, symbol: str, exchange: str = "CDS") -> Spot:
         return self._stamp(
-            Spot(symbol, exchange, data_provider=self._provider, execution_provider=self._execution_provider)
+            Spot(
+                symbol,
+                exchange,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def currency(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Currency:
         return self._stamp(
-            Currency(symbol, exchange, data_provider=self._provider, execution_provider=self._execution_provider)
+            Currency(
+                symbol,
+                exchange,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def index(self, name: str, exchange: str = DEFAULT_EXCHANGE) -> Index:
         return self._stamp(
-            Index(name, exchange, data_provider=self._provider, execution_provider=self._execution_provider)
+            Index(
+                name,
+                exchange,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def future(self, symbol: str, *, expiry: date, exchange: str = "NFO") -> Future:
         return self._stamp(
-            Future(symbol, exchange, expiry=expiry, data_provider=self._provider, execution_provider=self._execution_provider)
+            Future(
+                symbol,
+                exchange,
+                expiry=expiry,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def commodity(self, symbol: str, *, expiry: date, exchange: str = "MCX") -> Commodity:
         return self._stamp(
-            Commodity(symbol, exchange, expiry=expiry, data_provider=self._provider, execution_provider=self._execution_provider)
+            Commodity(
+                symbol,
+                exchange,
+                expiry=expiry,
+                data_provider=self._provider,
+                execution_provider=self._execution_provider,
+            )
         )
 
     def option(

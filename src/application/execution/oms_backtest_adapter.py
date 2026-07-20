@@ -4,28 +4,87 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from application.execution.execution_mode_adapter import (
-    ExecutionModeAdapter,
-    create_execution_adapter,
-)
 from application.execution.simulated_fill import (
     apply_slippage,
     build_backtest_correlation_id,
-    make_simulated_submit_fn,
     record_simulated_trade,
 )
 from application.oms.context import TradingContext
-from application.oms.order_manager import OmsOrderCommand
+from application.oms.order_manager import OmsOrderCommand, OrderResult
 from domain import OrderType, ProductType, Side
+from domain.ports.execution_target import ExecutionTargetKind
+from domain.ports.time_service import use_clock
+from domain.ports.time_service_impls import VirtualClock
 
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+
+class SimulatedOMSAdapter:
+    """Simulated execution for paper trading and replay/backtest.
+
+    Routes through :class:`ExecutionEngine` + resolved :class:`ExecutionTarget`.
+    """
+
+    def __init__(
+        self,
+        trading_context: TradingContext,
+        order_id_prefix: str,
+        *,
+        kind: ExecutionTargetKind | None = None,
+    ) -> None:
+        from application.execution.execution_engine import ExecutionEngine
+        from application.ports import resolve_execution_target
+
+        self._ctx = trading_context
+        self._prefix = order_id_prefix
+        resolved_kind = kind or (
+            ExecutionTargetKind.PAPER if order_id_prefix == "paper" else ExecutionTargetKind.REPLAY
+        )
+        target = resolve_execution_target(
+            resolved_kind,
+            order_id_prefix=order_id_prefix,
+        )
+        self._engine = ExecutionEngine(target, trading_context)
+
+    def place_order(self, command: OmsOrderCommand) -> OrderResult:
+        from application.execution.spine import place_order_spine
+
+        return place_order_spine(
+            self._ctx.order_manager,
+            command,
+            self._engine.fill_source,
+        )
+
+
+def create_execution_adapter(mode: str, trading_context: TradingContext) -> SimulatedOMSAdapter:
+    """Return sim adapter for paper/replay/backtest — delegates to runtime resolver."""
+    from application.ports import resolve_simulated_oms_adapter
+
+    return resolve_simulated_oms_adapter(mode, trading_context)
+
+
+def create_oms_backtest_adapter(
+    trading_context: TradingContext,
+    *,
+    mode: str = "replay",
+    slippage_pct: float = 0.0,
+    commission_flat: float = 0.0,
+    execution_adapter: SimulatedOMSAdapter | None = None,
+) -> OmsBacktestAdapter:
+    adapter = execution_adapter or create_execution_adapter(mode, trading_context)
+    return OmsBacktestAdapter(
+        trading_context=trading_context,
+        slippage_pct=slippage_pct,
+        commission_flat=Decimal(str(commission_flat)),
+        execution_adapter=adapter,
+    )
 
 
 @dataclass
@@ -45,14 +104,14 @@ class BacktestFill:
 
 
 class OmsBacktestAdapter:
-    """Routes backtest signals through the OMS via :class:`SimulatedOMSAdapter`."""
+    """Routes backtest signals through OMS via ExecutionEngine + ExecutionTarget."""
 
     def __init__(
         self,
         trading_context: TradingContext,
         slippage_pct: float = 0.0,
         commission_flat: Decimal = Decimal("0"),
-        execution_adapter: ExecutionModeAdapter | None = None,
+        execution_adapter: SimulatedOMSAdapter | None = None,
     ) -> None:
         self._ctx = trading_context
         self._slippage_pct = slippage_pct
@@ -122,22 +181,19 @@ class OmsBacktestAdapter:
         reasons: list[str] | None,
     ) -> str | None:
         correlation_id = build_backtest_correlation_id(symbol, side)
-        command = OmsOrderCommand(
+        from application.oms.order_command_mapper import backtest_market_command
+
+        command = backtest_market_command(
             symbol=symbol,
             exchange=exchange,
             side=side,
             quantity=quantity,
             price=price,
-            order_type=OrderType.MARKET,
-            product_type=ProductType.INTRADAY,
             correlation_id=correlation_id,
         )
-        submit_fn = make_simulated_submit_fn(
-            command,
-            timestamp=timestamp,
-            order_id_prefix="BT",
-        )
-        result = self._adapter.place_order(command, submit_fn=submit_fn)
+        ts = timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=timezone.utc)
+        with use_clock(VirtualClock(initial=ts)):
+            result = self._adapter.place_order(command)
         if not result.success or result.order is None:
             logger.info(
                 "backtest_order_rejected: %s %s qty=%s reason=%s",

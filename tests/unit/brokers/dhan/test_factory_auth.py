@@ -196,7 +196,9 @@ class TestTokenSchedulerWithoutLifecycle:
         gateway = MagicMock()
         gateway._conn = MagicMock()
 
-        with patch("brokers.dhan.auth.token_scheduler.TokenRefreshScheduler", return_value=scheduler):
+        with patch(
+            "brokers.dhan.auth.token_scheduler.TokenRefreshScheduler", return_value=scheduler
+        ):
             with patch("atexit.register") as register_atexit:
                 factory._setup_token_refresh_scheduler(
                     gateway,

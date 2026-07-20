@@ -45,11 +45,7 @@ class QueryExecutor:
                 return conn.execute(sql, params)
             return conn.execute(sql)
         with self._get_query_connection() as conn:
-            df = (
-                conn.execute(sql, params).fetchdf()
-                if params
-                else conn.execute(sql).fetchdf()
-            )
+            df = conn.execute(sql, params).fetchdf() if params else conn.execute(sql).fetchdf()
         return duckdb.from_df(df)
 
     def query_df(self, sql: str, params: list | None = None) -> Any:
@@ -100,7 +96,6 @@ class QueryExecutor:
             ("v_candles_1m", "SELECT COUNT(*) FROM v_candles_1m"),
             ("v_daily_summary", "SELECT COUNT(*) FROM v_daily_summary"),
             ("v_latest_candle", "SELECT COUNT(*) FROM v_latest_candle"),
-            ("v_feature_rsi", "SELECT * FROM v_feature_rsi WHERE symbol = 'RELIANCE' LIMIT 10"),
             ("v_feature_atr", "SELECT * FROM v_feature_atr WHERE symbol = 'RELIANCE' LIMIT 10"),
             ("v_feature_vwap", "SELECT * FROM v_feature_vwap WHERE symbol = 'RELIANCE' LIMIT 10"),
             ("v_intraday_snapshot", "SELECT * FROM v_intraday_snapshot LIMIT 10"),

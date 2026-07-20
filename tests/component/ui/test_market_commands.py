@@ -122,9 +122,7 @@ class TestShowQuote:
     """Tests for show_quote command."""
 
     def test_show_quote_success(self, mock_broker_service, console, mock_quote):
-        from interface.ui.services import broker_ops
-
-        with patch.object(broker_ops, "get_quote", return_value=mock_quote) as mock_get:
+        with patch("interface.ui.commands.market.get_quote", return_value=mock_quote) as mock_get:
             show_quote(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
 
@@ -142,9 +140,7 @@ class TestShowQuote:
         assert "No quote data" in output
 
     def test_show_quote_index_symbol(self, mock_broker_service, console, mock_quote):
-        from interface.ui.services import broker_ops
-
-        with patch.object(broker_ops, "get_quote", return_value=mock_quote) as mock_get:
+        with patch("interface.ui.commands.market.get_quote", return_value=mock_quote) as mock_get:
             show_quote(mock_broker_service, "NIFTY", console)
             output = console.export_text()
 
@@ -163,9 +159,7 @@ class TestShowDepth:
     """Tests for show_depth command."""
 
     def test_show_depth_success(self, mock_broker_service, console, mock_depth):
-        from interface.ui.services import broker_ops
-
-        with patch.object(broker_ops, "get_depth", return_value=mock_depth) as mock_get:
+        with patch("interface.ui.commands.market.get_depth", return_value=mock_depth) as mock_get:
             show_depth(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
 
@@ -349,7 +343,6 @@ class TestShowHistorical:
 
     def test_show_historical_success(self, mock_broker_service, console):
         from datetime import datetime
-        from interface.ui.services import broker_ops
 
         mock_bar = MagicMock()
         mock_bar.timestamp = datetime(2026, 1, 1)
@@ -365,7 +358,7 @@ class TestShowHistorical:
         mock_series.bar_count = 10
         mock_series.is_degraded = False
 
-        with patch.object(broker_ops, "get_history", return_value=mock_series) as mock_get:
+        with patch("interface.ui.commands.market.get_history", return_value=mock_series):
             show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
 
@@ -373,24 +366,20 @@ class TestShowHistorical:
         assert "RELIANCE" in output
 
     def test_show_historical_no_data(self, mock_broker_service, console):
-        from interface.ui.services import broker_ops
-
         mock_series = MagicMock()
         mock_series.bars = []
 
-        with patch.object(broker_ops, "get_history", return_value=mock_series) as mock_get:
+        with patch("interface.ui.commands.market.get_history", return_value=mock_series):
             show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
 
         assert "no historical data" in output.lower()
 
     def test_show_historical_none_data(self, mock_broker_service, console):
-        from interface.ui.services import broker_ops
-
         mock_series = MagicMock()
         mock_series.bars = None
 
-        with patch.object(broker_ops, "get_history", return_value=mock_series) as mock_get:
+        with patch("interface.ui.commands.market.get_history", return_value=mock_series):
             show_historical(mock_broker_service, "RELIANCE", console)
             output = console.export_text()
 
@@ -459,7 +448,10 @@ class TestMarketRouter:
             mock_ledger = MagicMock()
             mock_ledger.conflicts = []
 
-            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
+            with patch(
+                "infrastructure.async_compat.run_async_compat",
+                return_value=(mock_series, mock_ledger),
+            ):
                 cmd_market.run(["historical", "RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()

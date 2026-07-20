@@ -12,8 +12,8 @@ from decimal import Decimal
 
 import pytest
 
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from application.oms.order_manager import OrderManager
-from application.oms.risk_manager import RiskConfig, RiskManager
 from brokers.paper.paper_gateway import PaperGateway
 from domain import (
     OrderStatus,

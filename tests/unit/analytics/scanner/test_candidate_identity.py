@@ -8,8 +8,6 @@ from unittest.mock import MagicMock
 import pandas as pd
 
 from analytics.scanner.scanners import MomentumScanner
-from domain.events.types import DomainEvent
-from application.trading.trading_orchestrator import TradingOrchestrator
 from domain.events.types import DomainEvent, EventType
 
 

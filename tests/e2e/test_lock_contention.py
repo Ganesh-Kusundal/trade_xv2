@@ -2,6 +2,7 @@
 
 Verify read-only commands work when OMS lock is held.
 """
+
 import concurrent.futures
 import fcntl
 import subprocess
@@ -42,14 +43,16 @@ class TestLockContention:
             result = subprocess.run(
                 ["./venv/bin/python", "-m", "interface.ui.main", "quote", symbol, "--json"],
                 capture_output=True,
-                text=True
+                text=True,
             )
             return result.returncode == 0
 
         # Run 5 quotes in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(run_quote, sym) for sym in
-                      ["RELIANCE", "TCS", "INFY", "HDFC", "ICICI"]]
+            futures = [
+                executor.submit(run_quote, sym)
+                for sym in ["RELIANCE", "TCS", "INFY", "HDFC", "ICICI"]
+            ]
 
             # All should succeed
             results = [f.result() for f in futures]

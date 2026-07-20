@@ -12,7 +12,6 @@ REF: Task 6.3 — Reduced MagicMock usage, using real components where possible
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 import asyncio
 import logging
@@ -20,6 +19,8 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 
+from application.oms.context import TradingContext
+from infrastructure.event_bus import EventBus
 from interface.api.config import APIConfig
 from interface.api.deps import (
     get_container,
@@ -30,8 +31,7 @@ from interface.api.deps import (
     initialize_all_services,
 )
 from interface.api.main import create_app
-from application.oms.context import TradingContext
-from infrastructure.event_bus import EventBus
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture(autouse=True)
@@ -317,6 +317,7 @@ class TestLifecycleShutdown:
         from unittest.mock import AsyncMock, MagicMock
 
         from interface.api.main import _shutdown_cleanup
+
         mock_bridge = MagicMock()
         mock_bridge.stop = AsyncMock()
 
@@ -330,6 +331,7 @@ class TestLifecycleShutdown:
         from unittest.mock import MagicMock
 
         from interface.api.main import _shutdown_cleanup
+
         mock_lifecycle = MagicMock()
 
         with caplog.at_level(logging.DEBUG):
@@ -345,6 +347,7 @@ class TestLifecycleShutdown:
         from unittest.mock import MagicMock
 
         from interface.api.main import _shutdown_cleanup
+
         mock_lifecycle = MagicMock()
 
         asyncio.get_event_loop().run_until_complete(_shutdown_cleanup(None, mock_lifecycle, True))

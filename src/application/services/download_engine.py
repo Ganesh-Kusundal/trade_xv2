@@ -10,9 +10,8 @@ This is the universal data download engine that handles:
 
 Usage:
     from application.services.download_engine import HistoricalDownloadEngine
-    from domain.ports.market_data import MarketDataPort
 
-    gw: MarketDataPort = ...  # Any broker implementing the contract
+    gw = ...  # Any provider with history() method
     engine = HistoricalDownloadEngine(gw)
 
     # Single symbol, 5 years

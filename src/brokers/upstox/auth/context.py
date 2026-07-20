@@ -8,9 +8,6 @@ Tested contract:
 * ``UpstoxAdapterContext(settings=..., token_provider=...)`` constructs a
   context exposing ``settings``, ``token_provider()``, ``url_resolver``,
   ``http_client``, ``oauth_client``, and ``token_manager``.
-* ``ctx.make_retry_executor(category)`` returns a ``RetryExecutor`` tuned for
-  the given rate-limit bucket (``orders``, ``quotes``, ``data``, or any
-  unknown category which falls back to a safe default).
 * ``ctx.http_client.settings.algo_name`` flows through to the auth layer.
 * Passing ``token_manager=...`` overrides the auto-built one.
 """
@@ -54,8 +51,8 @@ class UpstoxAdapterContext:
             settings=settings, oauth_client=self._oauth_client
         )
 
-        from infrastructure.resilience.rate_limiter import create_rate_limiter
         from brokers.upstox.capabilities.snapshot import upstox_capabilities
+        from infrastructure.resilience.rate_limiter import create_rate_limiter
 
         self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
         self._http_client = UpstoxHttpClient(
@@ -93,61 +90,3 @@ class UpstoxAdapterContext:
     @property
     def token_manager(self) -> UpstoxTokenManager:
         return self._token_manager
-
-    def make_retry_executor(self, category: str) -> Any:
-        """Build a ``RetryExecutor`` for the given rate-limit bucket.
-
-        Categories (mirrors Trade_J):
-
-        * ``orders``  — 3 retries, 10 RPS bucket, 30 s open duration
-        * ``quotes``  — 2 retries, 1 RPS bucket, 10 s open duration
-        * ``data``    — 2 retries, 5 RPS bucket, 10 s open duration
-        * any other  — falls back to a safe default
-        """
-        from infrastructure.resilience.backoff import ExponentialBackoff
-        from infrastructure.resilience.circuit_breaker import (
-            CircuitBreaker,
-            CircuitBreakerConfig,
-        )
-        from infrastructure.resilience.rate_limiter import (
-            MultiBucketRateLimiter,
-            RateLimitConfig,
-        )
-        from infrastructure.resilience.retry_executor import RetryConfig, RetryExecutor
-        from brokers.upstox.auth.config import UPSTOX_DEFAULT_RATE_PER_SECOND
-
-        _configs: dict[str, tuple[RetryConfig, CircuitBreakerConfig, RateLimitConfig]] = {
-            "orders": (
-                RetryConfig(max_attempts=3),
-                CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000),
-                RateLimitConfig(
-                    rate_per_second=int(UPSTOX_DEFAULT_RATE_PER_SECOND),
-                    capacity=int(UPSTOX_DEFAULT_RATE_PER_SECOND),
-                ),
-            ),
-            "quotes": (
-                RetryConfig(max_attempts=2),
-                CircuitBreakerConfig(failure_threshold=3, open_duration_ms=10_000),
-                RateLimitConfig(rate_per_second=1, capacity=1),
-            ),
-            "data": (
-                RetryConfig(max_attempts=2),
-                CircuitBreakerConfig(failure_threshold=3, open_duration_ms=10_000),
-                RateLimitConfig(rate_per_second=5, capacity=20),
-            ),
-        }
-        retry_cfg, cb_cfg, rl_cfg = _configs.get(
-            category,
-            (
-                RetryConfig(max_attempts=2),
-                CircuitBreakerConfig(failure_threshold=3, open_duration_ms=10_000),
-                RateLimitConfig(rate_per_second=5, capacity=20),
-            ),
-        )
-        return RetryExecutor(
-            config=retry_cfg,
-            circuit_breaker=CircuitBreaker(f"upstox-{category}", cb_cfg),
-            rate_limiter=MultiBucketRateLimiter({category: rl_cfg}),
-            rate_limit_category=category,
-            backoff=ExponentialBackoff(base_delay_ms=500, max_delay_ms=5000),
-        )

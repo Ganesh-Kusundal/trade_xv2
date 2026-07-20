@@ -133,9 +133,7 @@ def test_curated_equity_path_no_args():
 
 
 def test_curated_equity_path_with_year():
-    assert curated_equity_path(year=2024) == Path(
-        "data/lake/curated/equities/candles/year=2024"
-    )
+    assert curated_equity_path(year=2024) == Path("data/lake/curated/equities/candles/year=2024")
 
 
 def test_curated_equity_path_with_year_month():

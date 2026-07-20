@@ -19,9 +19,10 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
+from domain.ports.time_service import get_current_clock
 from domain.types import OrderStatus
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ class OrderAuditLogger:
             Additional context (symbol, side, quantity, etc.).
         """
         entry = AuditEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=get_current_clock().now(),
             order_id=order_id,
             old_status=None,
             new_status=initial_status,
@@ -130,7 +131,7 @@ class OrderAuditLogger:
             Additional context (e.g., reason, trade_id, etc.).
         """
         entry = AuditEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=get_current_clock().now(),
             order_id=order_id,
             old_status=old_status,
             new_status=new_status,
@@ -168,7 +169,7 @@ class OrderAuditLogger:
             Additional context.
         """
         entry = AuditEntry(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=get_current_clock().now(),
             order_id=order_id,
             old_status=None,  # Will be filled by caller if needed
             new_status=OrderStatus.PARTIALLY_FILLED,  # Placeholder

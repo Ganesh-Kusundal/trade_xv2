@@ -21,6 +21,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from application.oms._internal.order_mutation_guard import OrderMutationGuard
 from domain.events.types import EventType
 from domain.exceptions import TradeXV2Error
 from domain.extensions.order_capability import OrderCapabilityPort
@@ -66,10 +67,12 @@ class ExtendedOrderService:
         self._events = event_bus
         self._broker_service = broker_service
         self._extensions = extension_registry
+        self._mutation_guard = OrderMutationGuard(risk_manager)
 
     def _check_kill_switch(self) -> None:
-        if self._risk is not None and self._risk.is_kill_switch_active():
-            raise KillSwitchActiveError("Kill switch is active — order rejected")
+        result = self._mutation_guard.check("place")
+        if not result.allowed:
+            raise KillSwitchActiveError(result.reason or "Kill switch is active — order rejected")
 
     def _check_risk(self, payload: dict[str, Any]) -> ExtendedOrderResult | None:
         """Run the FULL pre-trade risk path on an order built from ``payload``.
@@ -103,11 +106,15 @@ class ExtendedOrderService:
                 status=OrderStatus.OPEN,
                 validity=Validity(payload.get("validity", "DAY")),
             )
-        except (ValueError, TypeError):
-            # Payload cannot be coerced into a domain order (e.g. missing or
-            # malformed fields). Fall back to the kill-switch-only check already
-            # performed by the caller rather than silently allowing the order.
-            return None
+        except (ValueError, TypeError) as exc:
+            # D2 fix: a payload we cannot model into a domain order is a payload
+            # we cannot risk-check, so we REJECT it — never silently allow it
+            # through on the kill-switch-only path (the old silent-skip bug).
+            return ExtendedOrderResult(
+                success=False,
+                error=f"Order payload could not be risk-modelled: {exc}",
+                risk_rejected=True,
+            )
 
         result = self._risk.check_order(order)
         if not result.allowed:

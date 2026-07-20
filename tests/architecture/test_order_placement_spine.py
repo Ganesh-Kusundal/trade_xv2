@@ -10,21 +10,13 @@ import pytest
 SRC = Path(__file__).resolve().parents[2] / "src"
 ORDER_MANAGER = SRC / "application" / "oms" / "order_manager.py"
 ORDER_LIFECYCLE = SRC / "application" / "oms" / "_internal" / "order_lifecycle.py"
-LEDGER_OUTBOX = SRC / "application" / "oms" / "ledger_outbox.py"
 SESSION_BRIDGE = SRC / "application" / "oms" / "session_bridge.py"
 
 
 @pytest.mark.architecture
-def test_ledger_outbox_record_then_submit_exists() -> None:
-    text = LEDGER_OUTBOX.read_text(encoding="utf-8")
-    assert "def persist_intent_then_submit" in text
-    assert "ledger.record_intent" in text
-
-
-@pytest.mark.architecture
-def test_order_lifecycle_uses_ledger_outbox() -> None:
+def test_order_lifecycle_records_intent_before_submit() -> None:
     text = ORDER_LIFECYCLE.read_text(encoding="utf-8")
-    assert "persist_intent_then_submit" in text
+    assert "record_intent" in text
     assert "ledger_authority_enabled" in text
 
 
@@ -66,6 +58,6 @@ def test_no_parallel_place_order_god_paths_in_application() -> None:
                 if "Protocol" in text and rel.endswith("protocols.py"):
                     continue
                 forbidden_modules.append(rel)
-    assert not forbidden_modules, (
-        "place_order outside OMS spine (TOS-P5-021):\n" + "\n".join(forbidden_modules)
+    assert not forbidden_modules, "place_order outside OMS spine (TOS-P5-021):\n" + "\n".join(
+        forbidden_modules
     )

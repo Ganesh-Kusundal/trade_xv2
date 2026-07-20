@@ -1,9 +1,8 @@
 """Task 12 (C3): Live parity gate non-skippable."""
 
+import contextlib
 import os
 from unittest.mock import patch
-
-import pytest
 
 
 def test_live_environment_ignores_skip_parity_gate():
@@ -22,10 +21,8 @@ def test_staging_environment_ignores_skip_parity_gate():
     from runtime.parity_gate import assert_runtime_parity_or_raise
 
     with patch.dict(os.environ, {"SKIP_PARITY_GATE": "1", "TRADEX_ENV": "staging"}):
-        try:
+        with contextlib.suppress(RuntimeError):
             assert_runtime_parity_or_raise()
-        except RuntimeError:
-            pass
 
 
 def test_development_environment_honors_skip_parity_gate():

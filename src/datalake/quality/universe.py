@@ -55,6 +55,7 @@ class UniverseQualityEngine:
     def __init__(self, root: str | None = None, catalog=None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog = catalog
@@ -80,6 +81,7 @@ class UniverseQualityEngine:
         report = UniverseQualityReport(universe=universe)
         if symbols is None:
             from datalake.core.schema import load_universe
+
             symbols = load_universe(universe, catalog=self._catalog)
         report.symbol_count = len(symbols)
 
@@ -129,28 +131,20 @@ class UniverseQualityEngine:
                     report.stale_symbols.append(symbol)
 
         if sector_mapping:
-            report.sector_divergences = self._check_sector_divergence(
-                symbol_data, sector_mapping
-            )
+            report.sector_divergences = self._check_sector_divergence(symbol_data, sector_mapping)
 
         report.volume_anomalies = self._check_volume_anomalies(symbol_data)
 
         if report.symbols_missing:
-            report.issues.append(
-                f"{len(report.symbols_missing)} symbols missing data"
-            )
+            report.issues.append(f"{len(report.symbols_missing)} symbols missing data")
         if report.stale_symbols:
             report.issues.append(
                 f"{len(report.stale_symbols)} symbols stale (>{max_stale_days} days)"
             )
         if report.sector_divergences:
-            report.issues.append(
-                f"{len(report.sector_divergences)} sector divergences detected"
-            )
+            report.issues.append(f"{len(report.sector_divergences)} sector divergences detected")
         if report.volume_anomalies:
-            report.issues.append(
-                f"{len(report.volume_anomalies)} volume anomalies detected"
-            )
+            report.issues.append(f"{len(report.volume_anomalies)} volume anomalies detected")
 
         if report.issues:
             report.overall_status = "WARNING"
@@ -206,13 +200,15 @@ class UniverseQualityEngine:
             sector_avg = sum(rets) / len(rets)
             divergence = sector_avg - market_avg
             if abs(divergence) > threshold_pct:
-                divergences.append({
-                    "sector": sector,
-                    "sector_avg_return_pct": round(sector_avg, 2),
-                    "market_avg_return_pct": round(market_avg, 2),
-                    "divergence_pct": round(divergence, 2),
-                    "symbol_count": len(rets),
-                })
+                divergences.append(
+                    {
+                        "sector": sector,
+                        "sector_avg_return_pct": round(sector_avg, 2),
+                        "market_avg_return_pct": round(market_avg, 2),
+                        "divergence_pct": round(divergence, 2),
+                        "symbol_count": len(rets),
+                    }
+                )
 
         return sorted(divergences, key=lambda x: abs(x["divergence_pct"]), reverse=True)
 
@@ -258,12 +254,14 @@ class UniverseQualityEngine:
                 continue
 
             if abs(z_score) > z_threshold:
-                anomalies.append({
-                    "symbol": symbol,
-                    "recent_avg_volume": int(recent_avg),
-                    "historical_avg_volume": int(hist_mean),
-                    "z_score": round(z_score, 2),
-                    "direction": "high" if z_score > 0 else "low",
-                })
+                anomalies.append(
+                    {
+                        "symbol": symbol,
+                        "recent_avg_volume": int(recent_avg),
+                        "historical_avg_volume": int(hist_mean),
+                        "z_score": round(z_score, 2),
+                        "direction": "high" if z_score > 0 else "low",
+                    }
+                )
 
         return sorted(anomalies, key=lambda x: abs(x["z_score"]), reverse=True)

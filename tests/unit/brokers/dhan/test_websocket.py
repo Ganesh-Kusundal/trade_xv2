@@ -516,8 +516,8 @@ class TestPollingMarketFeed:
     """Verify PollingMarketFeed API surface and behavior."""
 
     def test_init(self):
-        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         client = FakeHttpClient()
         instruments = [("NSE_EQ", "2885", "LTP")]
@@ -533,8 +533,8 @@ class TestPollingMarketFeed:
         assert not feed.is_connected
 
     def test_on_quote_callback_registration(self):
-        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -548,8 +548,8 @@ class TestPollingMarketFeed:
     def test_connect_starts_thread(self):
         import time
 
-        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -569,8 +569,8 @@ class TestPollingMarketFeed:
     def test_disconnect_stops_thread(self):
         import time
 
-        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -587,8 +587,8 @@ class TestPollingMarketFeed:
     def test_double_connect_is_safe(self):
         import time
 
-        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),

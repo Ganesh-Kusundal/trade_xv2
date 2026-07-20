@@ -33,20 +33,20 @@ class UpstoxBroker:
 __all__ = [
     "UpstoxBroker",
     "UpstoxBrokerFactory",
-    "UpstoxWireAdapter",
     "UpstoxConnectionSettings",
     "UpstoxSettingsLoader",
+    "UpstoxWireAdapter",
 ]
 
 # ── Extension + execution self-registration (ADR-007) ────────────────────
+from brokers.upstox.data_provider import UpstoxDataProvider
+from brokers.upstox.extensions.depth import UpstoxDepth30Extension
+from brokers.upstox.extensions.news import UpstoxNewsExtension
 from infrastructure.adapter_factory import (
     register_broker_extensions,
     register_data_adapter,
     register_execution_provider,
 )
-from brokers.upstox.data_provider import UpstoxDataProvider
-from brokers.upstox.extensions.depth import UpstoxDepth30Extension
-from brokers.upstox.extensions.news import UpstoxNewsExtension
 from infrastructure.gateway.execution import GatewayExecutionProvider
 
 
@@ -63,8 +63,10 @@ register_execution_provider("upstox", UpstoxExecutionProvider)
 
 from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
+
 def _load_upstox_capabilities():
     from brokers.upstox.capabilities.snapshot import upstox_capabilities
+
     return upstox_capabilities()
 
 
@@ -79,7 +81,7 @@ register_broker_plugin(
     )
 )
 
-from domain.market.segment_registry import register_segment_mapper
 from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+from domain.market.segment_registry import register_segment_mapper
 
 register_segment_mapper("upstox", UpstoxSegmentMapper)

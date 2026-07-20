@@ -9,11 +9,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from tests.conftest import build_test_trading_context
-
 from brokers.paper.paper_gateway import PaperGateway as MockBroker
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.cli_broker_facade import CliBrokerFacade
+from tests.conftest import build_test_trading_context
 
 
 def _make_service(gateway=None, trading_context=None) -> BrokerService:

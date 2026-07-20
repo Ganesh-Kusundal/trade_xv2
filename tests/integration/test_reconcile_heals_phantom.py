@@ -2,11 +2,10 @@
 
 Local-only open position must be healed by mass-status before next check_order.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-
-import pytest
 
 from application.execution.execution_engine import ExecutionEngine
 from application.execution.fill_source import FillSource

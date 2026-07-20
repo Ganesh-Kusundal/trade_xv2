@@ -1,17 +1,11 @@
 """Broker service layer — bridges CLI/TUI to the new BrokerGateway architecture.
 
-This module is now a **thin orchestrator** (~250 lines) that composes three
-focused classes:
+This module is a **thin orchestrator** that delegates OMS wiring to
+:class:`~interface.ui.services.oms_bootstrap.OmsBootstrap` and exposes
+:meth:`~BrokerService.build_runtime` as the single composition entry
+(ADR-017 → :func:`runtime.factory.build`).
 
-- :class:`~cli.services.oms_bootstrap.OmsBootstrap` — OMS setup, DI wiring,
-  risk manager construction, HTTP observability, WebSocket services.
-- :class:`~cli.services.cli_broker_facade.CliBrokerFacade` — Order routing
-  for the CLI (place, cancel, get orders/trades).
-- :class:`~cli.services.broker_manager.BrokerManager` — Active broker
-  switching, status queries, readiness properties.
-
-All business logic lives in the extracted modules; BrokerService owns the
-shared mutable state and delegates.
+Focused helpers:
 """
 
 from __future__ import annotations
@@ -62,6 +56,7 @@ _ENV_PATH = Path(__file__).resolve().parents[4] / ".env.local"
 # ---------------------------------------------------------------------------
 # BrokerService
 # ---------------------------------------------------------------------------
+
 
 class BrokerService:
     """Resolves and manages the active broker (live Dhan gateway or mock).
@@ -148,6 +143,10 @@ class BrokerService:
 
             event_bus = build_production_event_bus(resilience=ResilienceConfig.from_env())
         self._event_bus = event_bus
+        from infrastructure.event_bus.async_event_bus import AsyncEventBus
+
+        if isinstance(event_bus, AsyncEventBus):
+            self._lifecycle.register(event_bus.as_managed_service())
 
         # ── Compose the focused modules ──────────────────────────────────
         self._oms = OmsBootstrap(self)
@@ -248,6 +247,24 @@ class BrokerService:
         """The broker ID the OMS submit_fn is wired to."""
         return getattr(self, "_oms_broker_id", None)
 
+    @property
+    def allow_live_orders(self) -> bool:
+        """Whether the active broker is permitted to place live orders.
+
+        Mirrors the per-broker guard enforced by the leaf order adapters
+        (``broker.settings.allow_live_orders``), so the API gate and the
+        executor-level gate agree on the same source of truth. Returns
+        ``False`` for paper/mock/unknown brokers (fail-closed).
+        """
+        name = self._manager.get_active_broker_name()
+        gw = self.gateways.get(name)
+        if gw is None:
+            return False
+        settings = getattr(gw, "settings", None)
+        if settings is None:
+            return False
+        return bool(getattr(settings, "allow_live_orders", False))
+
     # ==================================================================
     # Initialization
     # ==================================================================
@@ -314,7 +331,9 @@ class BrokerService:
                     self._gateway = result.gateway
                     if hasattr(self, "_oms_gateway_holder"):
                         self._oms_gateway_holder["gw"] = self._gateway
-                    if oms_capital_provider is not None:
+                    if oms_capital_provider is not None and hasattr(
+                        oms_capital_provider, "update_gateway"
+                    ):
                         oms_capital_provider.update_gateway(self._gateway)
                     self._build_and_register_oms_services(oms_risk_manager)
                     self._start_websocket_services()
@@ -323,6 +342,7 @@ class BrokerService:
                     from application.services.production_readiness import (
                         ProductionReadinessChecker,
                     )
+
                     self._readiness_report = ProductionReadinessChecker(self).run_or_raise()
                     self._live_actionable = compute_live_actionable(
                         live_intent=True,
@@ -398,7 +418,7 @@ class BrokerService:
 
         # Wire the live-actionable gate so the fail-closed production
         # readiness check is live on the order path (not just the bool).
-        from brokers.services._session import set_live_actionable_gate
+        from runtime.platform_bridge import set_live_actionable_gate
 
         set_live_actionable_gate(lambda: self._live_actionable)
 
@@ -456,8 +476,12 @@ class BrokerService:
     ) -> Order:
         """Place order via CLI facade → ExecutionService → PlaceOrderUseCase → OMS."""
         return self._facade.place_order(
-            symbol, exchange=exchange, side=side, quantity=quantity,
-            price=price, order_type=order_type,
+            symbol,
+            exchange=exchange,
+            side=side,
+            quantity=quantity,
+            price=price,
+            order_type=order_type,
         )
 
     def cancel_order(self, order_id: str) -> bool:
@@ -473,6 +497,17 @@ class BrokerService:
 
     def get_broker_statuses(self) -> list[dict[str, str]]:
         return self._manager.get_broker_statuses()
+
+    # ==================================================================
+    # Composition root
+    # ==================================================================
+
+    def build_runtime(self, **kwargs: Any) -> Any:
+        """Canonical runtime wiring (ADR-017): ``runtime.factory.build`` after init."""
+        from runtime.factory import build
+
+        self._ensure_initialized()
+        return build(self, **kwargs)
 
     # ==================================================================
     # Shutdown

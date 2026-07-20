@@ -8,6 +8,7 @@ variables and a few standard files. They are *expected* to be empty
 in development (``__version__ = "0.0.0+local"``); production
 deployments inject the real values via CI build steps.
 """
+
 from __future__ import annotations
 
 import os

@@ -1,8 +1,10 @@
 """R3: partial fill must reduce pending, not double-count."""
+
 from decimal import Decimal
+
 from application.oms._internal.margin_checker import MarginChecker
 from application.oms._internal.risk_types import RiskConfig
-from domain import Order, Side, OrderStatus, OrderType
+from domain import Order, OrderStatus, OrderType, Side
 
 
 def make_order(correlation_id: str = "corr-1", quantity: int = 100) -> Order:

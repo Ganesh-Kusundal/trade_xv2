@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 SAMPLE_ROWS = [
     # ── Index ──
     {
@@ -415,4 +414,4 @@ class FakeHttpClient:
         return self._dispatch("DELETE", endpoint)
 
 
-__all__ = ["FakeHttpClient", "SAMPLE_ROWS"]
+__all__ = ["SAMPLE_ROWS", "FakeHttpClient"]

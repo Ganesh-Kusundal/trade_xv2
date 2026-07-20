@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from domain import OrderType, ProductType
-from domain.constants.risk import DHAN_NOTIONAL_WARNING_INR
 from brokers.common.order_validation import validate_lot_size, validate_tick_alignment
 from brokers.dhan.exceptions import DhanError
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT, DEFAULT_SEGMENT
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from domain import OrderType, ProductType
+from domain.constants.risk import DHAN_NOTIONAL_WARNING_INR
 
 logger = logging.getLogger(__name__)
 
@@ -118,5 +118,7 @@ class OrderValidator:
         if price and price > 0:
             notional = Decimal(str(quantity)) * price
             if notional > DHAN_NOTIONAL_WARNING_INR:
-                warnings.append(f"High notional: \u20b9{notional:,.0f} exceeds \u20b950,000 threshold")
+                warnings.append(
+                    f"High notional: \u20b9{notional:,.0f} exceeds \u20b950,000 threshold"
+                )
         return warnings

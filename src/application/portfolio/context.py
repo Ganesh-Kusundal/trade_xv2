@@ -41,9 +41,7 @@ class PortfolioContext:
         if not isinstance(self.positions, dict):  # pragma: no cover - defensive
             self.positions = {(p.exchange, p.symbol): p for p in self.positions}
         # Re-key defensively in case a dict was passed with wrong key shape.
-        self.positions = {
-            (p.exchange, p.symbol): p for p in self.positions.values()
-        }
+        self.positions = {(p.exchange, p.symbol): p for p in self.positions.values()}
 
     # ── Mutation ─────────────────────────────────────────────────────────
 
@@ -62,9 +60,7 @@ class PortfolioContext:
             The updated :class:`~domain.entities.position.Position`.
         """
         key = (trade.exchange, trade.symbol)
-        current = self.positions.get(
-            key, Position(symbol=trade.symbol, exchange=trade.exchange)
-        )
+        current = self.positions.get(key, Position(symbol=trade.symbol, exchange=trade.exchange))
         # Signed fill qty for Position.with_fill (BUY +, SELL -)
         qty = int(trade.quantity)
         side_raw = getattr(trade.side, "value", trade.side)

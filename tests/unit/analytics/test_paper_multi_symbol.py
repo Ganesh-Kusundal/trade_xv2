@@ -75,7 +75,7 @@ class TestPaperMultiSymbolChronological:
         engine._closer.check_exits = tracking_check_exits
         engine.run(df)
 
-        expected = list(zip(df["symbol"], df["timestamp"]))
+        expected = list(zip(df["symbol"], df["timestamp"], strict=False))
         assert processed_order == expected
 
     def test_close_uses_each_symbol_last_bar_price(self, mock_oms_adapter):

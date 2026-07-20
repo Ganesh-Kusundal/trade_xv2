@@ -6,7 +6,6 @@ Parquet-backed DuckDB views.
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import duckdb
@@ -25,15 +24,17 @@ def populated_lake(tmp_path_factory: pytest.TempPathFactory) -> Path:
     candles_dir.mkdir(parents=True)
 
     n = 10_000
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
-        "symbol": "TESTSYM",
-        "open": [100.0 + i * 0.01 for i in range(n)],
-        "high": [101.0 + i * 0.01 for i in range(n)],
-        "low": [99.0 + i * 0.01 for i in range(n)],
-        "close": [100.5 + i * 0.01 for i in range(n)],
-        "volume": [1000 + i for i in range(n)],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
+            "symbol": "TESTSYM",
+            "open": [100.0 + i * 0.01 for i in range(n)],
+            "high": [101.0 + i * 0.01 for i in range(n)],
+            "low": [99.0 + i * 0.01 for i in range(n)],
+            "close": [100.5 + i * 0.01 for i in range(n)],
+            "volume": [1000 + i for i in range(n)],
+        }
+    )
     atomic_parquet_write(candles_dir / "data_000.parquet", pa.Table.from_pandas(df))
     return root
 
@@ -41,7 +42,15 @@ def populated_lake(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(scope="module")
 def duck_conn(populated_lake: Path) -> duckdb.DuckDBPyConnection:
     conn = duckdb.connect(":memory:")
-    pattern = str(populated_lake / "curated" / "equities" / "candles" / "year=*" / "month=*" / "data_*.parquet")
+    pattern = str(
+        populated_lake
+        / "curated"
+        / "equities"
+        / "candles"
+        / "year=*"
+        / "month=*"
+        / "data_*.parquet"
+    )
     conn.execute(f"""
         CREATE VIEW v_candles AS
         SELECT * FROM read_parquet('{pattern}', hive_partitioning=true)

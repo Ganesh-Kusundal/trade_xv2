@@ -74,10 +74,10 @@ async def lifespan(app: FastAPI):
     logger.info("OpenAPI docs available at %s%s", app.docs_url or "/docs", "")
 
     # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
-    from interface.api.ws.bridge import MarketBridge
-    from interface.api.ws.market import market_manager
     from infrastructure.lifecycle import LifecycleManager
     from infrastructure.resource_manager import ResourceManager
+    from interface.api.ws.bridge import MarketBridge
+    from interface.api.ws.market import market_manager
 
     resource_manager = ResourceManager()
     lifecycle: LifecycleManager | None = None
@@ -292,14 +292,14 @@ def create_app(
             trading_context = None
 
     # Register domain runtime hooks for analytics engines
-    from application.execution.factory import create_oms_backtest_adapter
+    from application.execution.oms_backtest_adapter import create_oms_backtest_adapter
     from application.oms.factory import create_trading_context
     from domain.runtime_hooks import (
+        create_domain_event,
         register_domain_event_factory,
         register_oms_backtest_factory,
         register_trading_context_factory,
     )
-    from infrastructure.event_bus.factory import create_domain_event
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
@@ -467,11 +467,6 @@ def create_app(
     from interface.api.routers.news import router as news_router
 
     app.include_router(news_router, prefix=f"{cfg.api_prefix}/news", tags=["News"])
-
-    # Feature flags endpoints
-    from interface.api.routers.feature_flags import router as feature_flags_router
-
-    app.include_router(feature_flags_router, prefix=f"{cfg.api_prefix}/flags", tags=["Feature Flags"])
 
     # Live broker endpoints (dual API — explicit live_broker provenance)
     from interface.api.routers.live.router import router as live_router

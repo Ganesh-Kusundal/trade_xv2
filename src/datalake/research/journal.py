@@ -19,9 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from domain.symbols import normalize_symbol
-
 from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+from domain.symbols import normalize_symbol
 
 DEFAULT_JOURNAL_PATH = DEFAULT_DATA_PATHS.journal_path
 

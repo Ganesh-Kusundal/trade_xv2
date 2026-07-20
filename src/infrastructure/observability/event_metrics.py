@@ -99,8 +99,9 @@ class EventMetrics:
         """
         if by <= 0:
             return
-        counter = self._get_or_create_counter(event_type, outcome)
-        counter.inc(by)
+        with self._lock:
+            counter = self._get_or_create_counter(event_type, outcome)
+            counter.inc(by)
 
     def add_timestamped_counter(
         self,
@@ -128,9 +129,10 @@ class EventMetrics:
         if by <= 0:
             return
         ts = timestamp if timestamp is not None else time.time()
-        counter = self._get_or_create_counter(event_type, outcome)
-        counter.inc(by)
-        self._timestamped[(event_type, outcome)].append((ts, by))
+        with self._lock:
+            counter = self._get_or_create_counter(event_type, outcome)
+            counter.inc(by)
+            self._timestamped[(event_type, outcome)].append((ts, by))
 
     def rate(
         self,

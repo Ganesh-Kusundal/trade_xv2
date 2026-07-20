@@ -1,12 +1,11 @@
-"""DataLakeMarketDataProvider — single adapter implementing MarketDataPort.
+"""DataLakeMarketDataProvider — single adapter for historical market data.
 
-Bridges the Data Lake (Parquet + DuckDB) to analytics consumers through
-the canonical :class:`~domain.ports.market_data.MarketDataPort` protocol.
+Bridges the Data Lake (Parquet + DuckDB) to analytics consumers.
 
 This is the **only** class that analytics code should import from the
 datalake layer.  It wraps :class:`~datalake.gateway.DataLakeGateway`
 (and optionally :class:`~datalake.research.api.ResearchAPI`) behind
-the narrow port contract, so that Replay, Backtesting, Scanner, API,
+a narrow data port, so that Replay, Backtesting, Scanner, API,
 Research, Walk-Forward, Paper Trading, and CLI all consume identical
 historical datasets through one interface.
 
@@ -29,7 +28,6 @@ import pandas as pd
 
 from datalake.exchange_registry import get_active_exchange_code
 from domain.entities.options import FutureChain, OptionChain
-from domain.ports.market_data import MarketDataPort
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +35,7 @@ logger = logging.getLogger(__name__)
 class DataLakeMarketDataProvider:
     """Unified analytics data provider backed by the datalake.
 
-    Wraps :class:`~datalake.gateway.DataLakeGateway` to satisfy the
-    :class:`~domain.ports.market_data.MarketDataPort` protocol.  All
+    Wraps :class:`~datalake.gateway.DataLakeGateway`.  All
     historical data flows through this single adapter — no analytics
     module may bypass it to access DuckDB, Parquet, or file paths.
 
@@ -62,7 +59,7 @@ class DataLakeMarketDataProvider:
         self._gateway: DataLakeGateway = gateway or DataLakeGateway(root=root)
         self._root = root or "data/lake"
 
-    # ── MarketDataPort: single-symbol access ────────────────────────
+    # ── Single-symbol access ───────────────────────────────────────
 
     def history(
         self,
@@ -108,7 +105,7 @@ class DataLakeMarketDataProvider:
         """Return last-traded price for *symbol*."""
         return float(self._gateway.ltp(symbol, exchange=exchange))
 
-    # ── MarketDataPort: batch / universe access ─────────────────────
+    # ── Batch / universe access ────────────────────────────────────
 
     def history_batch(
         self,
@@ -131,29 +128,20 @@ class DataLakeMarketDataProvider:
         """List all symbols that have data for *timeframe*."""
         return self._gateway.list_symbols(timeframe)
 
-    # ── MarketDataPort: analytical escape hatch ─────────────────────
+    # ── Analytical escape hatch ────────────────────────────────────
 
     def query(self, sql: str, params: list | None = None) -> pd.DataFrame:
         """Execute raw SQL against the DuckDB analytical engine.
 
-        This is an explicit escape hatch for analytical workloads
-        (scanners, ranking, feature engineering) that benefit from
-        direct SQL.
-
-        Uses a short-lived read-only connection from the pool.
+        Uses a short-lived read-only connection from the sanctioned pool.
         """
-        import duckdb
+        from datalake.core.duckdb_utils import duckdb_connection
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
 
-        # Use a short-lived in-memory connection for ad-hoc queries.
-        # For queries that reference the catalog, callers should use
-        # the catalog path explicitly in their SQL.
-        conn = duckdb.connect(":memory:")
-        try:
+        with duckdb_connection(DEFAULT_DATA_PATHS.catalog_path, read_only=True) as conn:
             if params:
                 return conn.execute(sql, params).fetchdf()
             return conn.execute(sql).fetchdf()
-        finally:
-            conn.close()
 
     # ── Convenience pass-throughs ───────────────────────────────────
 

@@ -14,8 +14,9 @@ from domain.value_objects.state import InstrumentState
 
 if TYPE_CHECKING:
     import threading
-    from domain.instruments.instrument_id import InstrumentId
+
     from domain.instruments.composition import InstrumentIdentity, TradingSpec
+    from domain.instruments.instrument_id import InstrumentId
     from domain.ports.protocols import DataProvider
 
 logger = logging.getLogger(__name__)

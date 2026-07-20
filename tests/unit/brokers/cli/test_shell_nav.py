@@ -5,10 +5,9 @@ from __future__ import annotations
 from brokers.cli._shell_nav import (
     Back,
     EnterSection,
-    Help,
     Quit,
-    RunCommand,
     RetryConnect,
+    RunCommand,
     build_main_menu,
     resolve_input,
 )

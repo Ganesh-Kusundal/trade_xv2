@@ -31,7 +31,7 @@ from interface.ui.commands.segment_resolver import (
 from interface.ui.services.active_session import get_active_session
 
 if TYPE_CHECKING:
-    from domain.universe import Session
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +165,7 @@ def _show_depth(instrument, console: Console) -> None:
     if d is None or not (d.bids or d.asks):
         console.print("[red]No depth data.[/red]")
         return
-    tbl = Table(
-        title=f"Market Depth: {instrument.symbol}", header_style="bold magenta"
-    )
+    tbl = Table(title=f"Market Depth: {instrument.symbol}", header_style="bold magenta")
     tbl.add_column("Bid Qty", style="green", justify="right")
     tbl.add_column("Bid", style="bold green", justify="right")
     tbl.add_column("Ask", style="bold red", justify="right")
@@ -191,9 +189,7 @@ def _show_history(instrument, console: Console, tf: str, days: int, frm, to) -> 
     if not bars:
         console.print("[red]No historical data.[/red]")
         return
-    tbl = Table(
-        title=f"History: {instrument.symbol} ({tf})", header_style="bold magenta"
-    )
+    tbl = Table(title=f"History: {instrument.symbol} ({tf})", header_style="bold magenta")
     for c in ("Timestamp", "Open", "High", "Low", "Close", "Volume"):
         tbl.add_column(c, **({} if c == "Timestamp" else {"justify": "right"}))
     for b in bars[-5:]:
@@ -207,7 +203,10 @@ def _show_history(instrument, console: Console, tf: str, days: int, frm, to) -> 
 def _show_chain(instrument, console: Console, expiry: str | None) -> None:
     kind = instrument.asset_type
     try:
-        if kind in (AssetKind.FUTURES.value, AssetKind.COMMODITY.value) or instrument.id.right == "FUT":
+        if (
+            kind in (AssetKind.FUTURES.value, AssetKind.COMMODITY.value)
+            or instrument.id.right == "FUT"
+        ):
             _render_future_chain(instrument.future_chain(), console)
         else:
             chain = instrument.option_chain(expiry=_coerce_date(expiry) if expiry else None)
@@ -236,9 +235,7 @@ def _render_option_chain(chain, console: Console) -> None:
 
 def _render_future_chain(chain, console: Console) -> None:
     contracts = getattr(chain, "contracts", ()) or ()
-    tbl = Table(
-        title=f"Futures: {getattr(chain, 'underlying', '')}", header_style="bold yellow"
-    )
+    tbl = Table(title=f"Futures: {getattr(chain, 'underlying', '')}", header_style="bold yellow")
     tbl.add_column("Expiry", style="bold white")
     tbl.add_column("Symbol", style="white")
     tbl.add_column("LTP", justify="right")

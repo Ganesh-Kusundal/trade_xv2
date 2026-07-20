@@ -121,7 +121,9 @@ def run_verify(broker: str = "paper", **kwargs: Any) -> VerifyReport:
 
     report = VerifyReport(broker_id=broker)
     if broker not in available_brokers():
-        report.add("Configuration", False, f"unknown broker; available: {', '.join(available_brokers())}")
+        report.add(
+            "Configuration", False, f"unknown broker; available: {', '.join(available_brokers())}"
+        )
         return report
 
     report.add("Configuration", True, f"broker={broker}")
@@ -129,7 +131,7 @@ def run_verify(broker: str = "paper", **kwargs: Any) -> VerifyReport:
 
     try:
         s = _open(broker, **kwargs)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         report.add("Broker Connect", False, f"{type(exc).__name__}: {exc}")
         return report
 
@@ -167,14 +169,14 @@ def run_verify(broker: str = "paper", **kwargs: Any) -> VerifyReport:
 
 
 __all__ = [
-    "run_mapping",
-    "run_market_hours",
+    "VerifyReport",
+    "VerifyStep",
+    "run_benchmark",
     "run_certify",
     "run_diagnose",
     "run_doctor",
     "run_health",
-    "run_benchmark",
-    "VerifyStep",
-    "VerifyReport",
+    "run_mapping",
+    "run_market_hours",
     "run_verify",
 ]

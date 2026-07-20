@@ -26,15 +26,17 @@ def lake(tmp_path: Path) -> Path:
     hive.mkdir(parents=True)
 
     n = 100
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
-        "symbol": "EQTEST",
-        "open": [100.0 + i * 0.1 for i in range(n)],
-        "high": [101.0 + i * 0.1 for i in range(n)],
-        "low": [99.0 + i * 0.1 for i in range(n)],
-        "close": [100.5 + i * 0.1 for i in range(n)],
-        "volume": [1000 + i * 10 for i in range(n)],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-02 09:15", periods=n, freq="1min"),
+            "symbol": "EQTEST",
+            "open": [100.0 + i * 0.1 for i in range(n)],
+            "high": [101.0 + i * 0.1 for i in range(n)],
+            "low": [99.0 + i * 0.1 for i in range(n)],
+            "close": [100.5 + i * 0.1 for i in range(n)],
+            "volume": [1000 + i * 10 for i in range(n)],
+        }
+    )
     atomic_parquet_write(hive / "data.parquet", pa.Table.from_pandas(df, preserve_index=False))
     return tmp_path
 

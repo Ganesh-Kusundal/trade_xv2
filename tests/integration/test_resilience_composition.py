@@ -28,19 +28,22 @@ from infrastructure.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from infrastructure.resilience.backoff import NoBackoff
+from infrastructure.resilience.backoff import ExponentialBackoff
+
+_ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.resilience import (
     create_circuit_breakers,
     create_rate_limiter,
 )
-from infrastructure.resilience._metrics import DhanRateLimiterMetrics
-from brokers.dhan.resilience.retry_executor import (
+from brokers.dhan.resilience.retry_policies import (
     MARKET_DATA_POLICY,
     ORDERS_POLICY,
 )
+from infrastructure.resilience._metrics import DhanRateLimiterMetrics
 
 # ── Test 1: Circuit breakers isolated by category ───────────────────────
+
 
 class TestCircuitBreakerIsolation:
     """Verify read/write/admin circuit breakers are independent."""
@@ -85,6 +88,7 @@ class TestCircuitBreakerIsolation:
 
 # ── Test 2: Rate limiter enforces token bucket ──────────────────────────
 
+
 class TestRateLimiterTokenBucket:
     """Verify rate limiter blocks requests when bucket empty, refills over time."""
 
@@ -119,6 +123,7 @@ class TestRateLimiterTokenBucket:
 
 
 # ── Test 3: HTTP client uses composed resilience ────────────────────────
+
 
 class TestHttpClientResilienceComposition:
     """Verify DhanHttpClient actually uses the circuit breakers and rate limiter passed to it."""
@@ -162,6 +167,7 @@ class TestHttpClientResilienceComposition:
 
         # Read should fail fast (CB is OPEN)
         from brokers.dhan.exceptions import DhanError
+
         with pytest.raises(DhanError):
             client.get("/marketfeed/quote")
 
@@ -195,6 +201,7 @@ class TestHttpClientResilienceComposition:
 
 
 # ── Test 4: Factory creates all resilience components ────────────────────
+
 
 class TestFactoryResilienceCreation:
     """Verify factory functions create circuit breakers, rate limiter correctly."""
@@ -239,6 +246,7 @@ class TestFactoryResilienceCreation:
 
 
 # ── Test 5: Circuit breaker opens after threshold ───────────────────────
+
 
 class TestCircuitBreakerStateTransitions:
     """Verify circuit transitions OPEN after consecutive failures, then HALF_OPEN after timeout."""
@@ -320,6 +328,7 @@ class TestCircuitBreakerStateTransitions:
 
 # ── Test 6: Retry executor respects policy ──────────────────────────────
 
+
 class TestRetryExecutorPolicy:
     """Verify retry executor retries correct number of times with correct backoff."""
 
@@ -334,7 +343,7 @@ class TestRetryExecutorPolicy:
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
-            backoff=NoBackoff(),  # No delays for test speed
+            backoff=_ZERO_BACKOFF,  # No delays for test speed
         )
 
         with pytest.raises(RetryableError):
@@ -355,7 +364,7 @@ class TestRetryExecutorPolicy:
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=5),
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         result = executor.execute(eventually_succeeds)
@@ -373,7 +382,7 @@ class TestRetryExecutorPolicy:
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=5),
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         with pytest.raises(NonRetryableError):
@@ -393,7 +402,7 @@ class TestRetryExecutorPolicy:
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
             circuit_breaker=cb,
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         with pytest.raises(CircuitBreakerOpenError):
@@ -417,10 +426,11 @@ class TestRetryExecutorPolicy:
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
             circuit_breaker=cb,
-            backoff=NoBackoff(),
+            backoff=_ZERO_BACKOFF,
         )
 
         call_count = 0
+
         def failing_fn():
             nonlocal call_count
             call_count += 1
@@ -435,6 +445,7 @@ class TestRetryExecutorPolicy:
 
 
 # ── Test 7: Rate limiter metrics accurate ───────────────────────────────
+
 
 class TestRateLimiterMetrics:
     """Verify DhanRateLimiterMetrics records requests/rejections correctly."""
@@ -495,6 +506,7 @@ class TestRateLimiterMetrics:
 
 # ── Test 8: Resilience components thread-safe ───────────────────────────
 
+
 class TestResilienceThreadSafety:
     """Verify concurrent access to circuit breakers and rate limiters doesn't cause race conditions."""
 
@@ -502,7 +514,9 @@ class TestResilienceThreadSafety:
         """Concurrent access must not cause exceptions or state corruption."""
         cb = CircuitBreaker(
             "thread-safe-test",
-            CircuitBreakerConfig(failure_threshold=100, success_threshold=5, open_duration_ms=30_000),
+            CircuitBreakerConfig(
+                failure_threshold=100, success_threshold=5, open_duration_ms=30_000
+            ),
         )
 
         errors: list[Exception] = []

@@ -16,7 +16,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from brokers.upstox.wire import UpstoxBrokerGateway
-from domain import Quote, MarketDepth
+from domain import MarketDepth, Quote
 
 # ---------------------------------------------------------------------------
 # Helpers

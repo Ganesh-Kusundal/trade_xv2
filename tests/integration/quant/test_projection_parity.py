@@ -8,8 +8,8 @@ import pytest
 
 from analytics.replay.engine import ReplayEngine
 from analytics.replay.models import ReplayConfig, ReplaySession
-from domain.candles.historical import HistoricalBar
 from analytics.strategy.models import Signal, SignalType
+from domain.candles.historical import HistoricalBar
 
 
 def _session_signed_qty(session: ReplaySession, symbol: str) -> int:

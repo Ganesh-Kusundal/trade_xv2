@@ -9,10 +9,8 @@ from typing import Any
 
 import pandas as pd
 
-from analytics.pipeline.pipeline import FeaturePipeline
-from domain.candles.historical import HistoricalSeries
 from domain.models.features import FeatureSet
-from domain.ports import MarketDataPort
+from domain.ports.protocols import DataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +31,8 @@ class PipelineFeatureFetcher:
 
     def __init__(
         self,
-        pipeline: FeaturePipeline,
-        market_data: MarketDataPort | None = None,
+        pipeline: Any,
+        market_data: DataProvider | None = None,
         gateway: object | None = None,
         lookback_bars: int = 200,
         cache_max_entries: int = _DEFAULT_CACHE_MAX,
@@ -72,4 +70,3 @@ class PipelineFeatureFetcher:
         except Exception as exc:
             logger.error("PipelineFeatureFetcher failed for %s: %s", symbol, exc)
             return FeatureSet.empty()
-

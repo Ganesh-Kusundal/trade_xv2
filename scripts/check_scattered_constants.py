@@ -156,8 +156,7 @@ def _docstring_spans(content: str) -> list[tuple[int, int]]:
     triple quotes appearing on the same physical line as the match).
     """
     return [
-        (m.start(), m.end())
-        for m in re.finditer(r'""".*?"""|\'\'\'.*?\'\'\'', content, re.DOTALL)
+        (m.start(), m.end()) for m in re.finditer(r'""".*?"""|\'\'\'.*?\'\'\'', content, re.DOTALL)
     ]
 
 

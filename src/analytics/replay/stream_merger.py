@@ -16,9 +16,7 @@ from analytics.replay.models import ReplayItem
 class StreamMerger:
     """Merges bar and event ``ReplayItem`` streams."""
 
-    def merge(
-        self, bars: list[ReplayItem], events: list[ReplayItem]
-    ) -> list[ReplayItem]:
+    def merge(self, bars: list[ReplayItem], events: list[ReplayItem]) -> list[ReplayItem]:
         """Merge bars and events into a single time-ordered stream."""
         return sorted(bars + events)
 

@@ -7,13 +7,13 @@ Thread-safe: Uses stream_manager's internal locking for subscriptions.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any
 
-from domain import MarketDepth, Quote
-
 from brokers.upstox.adapters.stream_manager import StreamManagerAdapter
+from domain import MarketDepth, Quote
 
 logger = logging.getLogger(__name__)
 
@@ -132,16 +132,22 @@ class StreamingGateway:
         Returns:
             A connection service wrapper that can be stopped/started.
         """
+
         def portfolio_listener(event_type: str, payload: dict[str, Any]) -> None:
             if event_type == "order" and on_order is not None:
                 on_order(payload)
 
         stream = self._broker.portfolio_stream
 
-        from infrastructure.async_compat import connect_async_then
+        from infrastructure.io.async_compat import connect_async_then
+        from runtime.event_loop import ensure_runtime_loop_running
+
         if not stream.is_connected:
+
             def _on_connected() -> None:
                 stream.add_listener(portfolio_listener)
+
+            ensure_runtime_loop_running()
             connect_async_then(stream.connect(), _on_connected)
         else:
             stream.add_listener(portfolio_listener)
@@ -197,24 +203,25 @@ class StreamingGateway:
         ws = self._broker.market_data_websocket
         ws.add_listener(raw_depth_listener)
 
-        from infrastructure.async_compat import connect_async_then
+        from infrastructure.io.async_compat import connect_async_then
+        from runtime.event_loop import ensure_runtime_loop_running
+
         if not ws.is_connected:
+
             def _on_connected() -> None:
                 ws.subscribe([inst_key], mode)
+
+            ensure_runtime_loop_running()
             connect_async_then(ws.connect(), _on_connected)
         else:
             ws.subscribe([inst_key], mode)
 
         def _stop() -> None:
             ws.remove_listener(raw_depth_listener)
-            try:
+            with contextlib.suppress(Exception):
                 ws.unsubscribe([inst_key])
-            except Exception:
-                pass
 
         return DepthStreamHandle(initial=None, on_stop=_stop)
-
-        return DepthStreamHandle(ws, raw_depth_listener, inst_key, mode)
 
     # ── Tick translation ────────────────────────────────────────────────
 
@@ -222,6 +229,7 @@ class StreamingGateway:
         """Translate raw depth tick payload to MarketDepth domain model."""
         from datetime import datetime, timezone
         from decimal import Decimal
+
         from domain import DepthLevel
 
         raw_bids = payload.get("depth", {}).get("bids", [])
@@ -231,7 +239,7 @@ class StreamingGateway:
             DepthLevel(
                 price=Decimal(str(b.get("price", 0))),
                 quantity=int(b.get("quantity", 0)),
-                orders=int(b.get("orders", 0))
+                orders=int(b.get("orders", 0)),
             )
             for b in raw_bids
         ]
@@ -239,7 +247,7 @@ class StreamingGateway:
             DepthLevel(
                 price=Decimal(str(a.get("price", 0))),
                 quantity=int(a.get("quantity", 0)),
-                orders=int(a.get("orders", 0))
+                orders=int(a.get("orders", 0)),
             )
             for a in raw_asks
         ]
@@ -252,7 +260,7 @@ class StreamingGateway:
             bids=bids,
             asks=asks,
             timestamp=datetime.now(timezone.utc),
-            depth_type=depth_type
+            depth_type=depth_type,
         )
 
     def _translate_tick_to_quote(self, raw: dict[str, Any]) -> Quote | dict[str, Any]:
@@ -281,3 +289,50 @@ class StreamingGateway:
             ws = getattr(self._broker, name, None)
             status[name] = bool(getattr(ws, "is_connected", False))
         return status
+
+    # ── BrokerStreamGateway surface ─────────────────────────────────────
+
+    def connect(self) -> bool:
+        """Ensure market-data websocket is connected when available."""
+        ws = getattr(self._broker, "market_data_websocket", None)
+        if ws is None:
+            return True
+        if getattr(ws, "is_connected", False):
+            return True
+        connect_fn = getattr(ws, "connect", None)
+        if callable(connect_fn):
+            result = connect_fn()
+            if result is False:
+                return False
+        return bool(getattr(ws, "is_connected", True))
+
+    def subscribe(self, instruments: list[Any]) -> bool:
+        """Subscribe instruments via the stream manager."""
+        if not instruments:
+            return True
+        cb = getattr(self, "_stream_tick_callback", None)
+        for item in instruments:
+            if isinstance(item, (tuple, list)) and len(item) >= 2:
+                symbol, exchange = str(item[0]), str(item[1])
+            elif hasattr(item, "symbol"):
+                symbol = str(item.symbol)
+                exchange = str(getattr(item, "exchange", "NSE"))
+            else:
+                symbol, exchange = str(item), "NSE"
+            self.stream(symbol, exchange, on_tick=cb)
+        return True
+
+    def on_tick(self, callback: Callable[[Any], None]) -> None:
+        """Register default tick callback for subsequent subscribe() calls."""
+        self._stream_tick_callback = callback
+
+    def disconnect(self) -> None:
+        """Disconnect market-data / order-stream websockets when present."""
+        for name in ("market_data_websocket", "order_stream_websocket"):
+            ws = getattr(self._broker, name, None)
+            if ws is None:
+                continue
+            stop = getattr(ws, "disconnect", None) or getattr(ws, "stop", None)
+            if callable(stop):
+                with contextlib.suppress(Exception):
+                    stop()

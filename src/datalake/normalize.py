@@ -189,7 +189,10 @@ def normalize_all(dry_run: bool = False, data_root: str = DEFAULT_DATA_ROOT) -> 
         if p.is_dir() and p.name.startswith("symbol=")
     )
 
-    conn = duckdb.connect(":memory:")
+    from datalake.core.duckdb_utils import get_memory_pool
+
+    pool = get_memory_pool()
+    conn = pool.acquire()
     counts: dict[str, int] = {}
 
     for symbol in symbols:
@@ -200,7 +203,7 @@ def normalize_all(dry_run: bool = False, data_root: str = DEFAULT_DATA_ROOT) -> 
             logger.error("Failed to normalize %s: %s", symbol, exc)
             counts["ERROR"] = counts.get("ERROR", 0) + 1
 
-    conn.close()
+    pool.release(conn)
     return counts
 
 

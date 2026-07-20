@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import threading
 
-import pytest
-
 from brokers.dhan.execution.orders import IdempotencyCache, OrdersAdapter
-from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side, Validity
+from domain import Order, OrderResponse, OrderStatus
 from domain.orders.requests import OrderRequest
 
 

@@ -13,7 +13,7 @@ This is a standalone component — not embedded in any gateway.  It owns:
 The system gets historical data faster by using both brokers' quotas in
 parallel where the date range can be partitioned cleanly.
 
-Architecture invariant: the coordinator calls ``CommonBrokerGateway.get_historical_bars()``
+Architecture invariant: the coordinator calls ``BrokerAdapter.get_historical_bars()``
 on individual gateways.  It does not call gateway.history() or any internal
 adapter method.  Provenance survives every step.
 
@@ -243,9 +243,7 @@ class HistoricalDataCoordinator:
         )
         return series, ledger
 
-    def fetch_sync(
-        self, query: HistoricalQuery
-    ) -> tuple[HistoricalSeries, ProvenanceLedger]:
+    def fetch_sync(self, query: HistoricalQuery) -> tuple[HistoricalSeries, ProvenanceLedger]:
         """Synchronous wrapper around :meth:`fetch` for non-async callers.
 
         Used by the ``brokers`` layer (``BrokerSession.history``) which is
@@ -350,7 +348,10 @@ class HistoricalDataCoordinator:
         # only real alternative (e.g. it re-ranks the failed broker back
         # into "fallback_brokers"). Use the full eligible set instead so
         # any broker other than the one that just failed still gets tried.
-        eligible = decision.parallel_brokers or (decision.primary_broker, *decision.fallback_brokers)
+        eligible = decision.parallel_brokers or (
+            decision.primary_broker,
+            *decision.fallback_brokers,
+        )
         fallbacks = [b for b in eligible if b != failed_plan.broker_id]
         for fallback_id in fallbacks:
             fallback_plan = ChunkPlan(
@@ -414,7 +415,10 @@ class HistoricalDataCoordinator:
         except RoutingError:
             return []
 
-        eligible = decision.parallel_brokers or (decision.primary_broker, *decision.fallback_brokers)
+        eligible = decision.parallel_brokers or (
+            decision.primary_broker,
+            *decision.fallback_brokers,
+        )
         candidates = [b for b in eligible if b not in tried_brokers]
         if not candidates:
             return []
@@ -495,11 +499,9 @@ class HistoricalDataCoordinator:
         tolerance: Decimal,
         ledger: ProvenanceLedger | None = None,
     ) -> tuple[list[HistoricalBar], list]:
-        return ChunkMerger(ledger or ProvenanceLedger(
-            request_id="", instrument="", timeframe=""
-        )).merge(
-            bars, chunk_bars=chunk_bars, strategy=strategy, tolerance=tolerance
-        )
+        return ChunkMerger(
+            ledger or ProvenanceLedger(request_id="", instrument="", timeframe="")
+        ).merge(bars, chunk_bars=chunk_bars, strategy=strategy, tolerance=tolerance)
 
     def _populate_bar_ranges(
         self,

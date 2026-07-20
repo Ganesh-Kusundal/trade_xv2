@@ -14,10 +14,14 @@ from analytics.backtest.comparator import (
 class _MockOmsAdapter:
     """Minimal OMS adapter that always accepts orders (returns order IDs)."""
 
-    def open_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+    def open_long(
+        self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None
+    ):
         return f"MOCK-{symbol}-BUY-{timestamp}"
 
-    def close_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+    def close_long(
+        self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None
+    ):
         return f"MOCK-{symbol}-SELL-{timestamp}"
 
     def modify_order(self, order_id, *, price=None, quantity=None, trigger_price=None):
@@ -89,19 +93,25 @@ class TestCompareStrategies:
 
     def test_momentum_only(self) -> None:
         data = _ohlcv(100)
-        result = compare_strategies(data=data, symbol="TEST", strategies=["momentum"], oms_adapter=_MockOmsAdapter())
+        result = compare_strategies(
+            data=data, symbol="TEST", strategies=["momentum"], oms_adapter=_MockOmsAdapter()
+        )
         assert len(result.results) == 1
         assert result.results[0]["strategy"] == "momentum"
 
     def test_breakout_only(self) -> None:
         data = _ohlcv(100)
-        result = compare_strategies(data=data, symbol="TEST", strategies=["breakout"], oms_adapter=_MockOmsAdapter())
+        result = compare_strategies(
+            data=data, symbol="TEST", strategies=["breakout"], oms_adapter=_MockOmsAdapter()
+        )
         assert len(result.results) == 1
         assert result.results[0]["strategy"] == "breakout"
 
     def test_result_fields(self) -> None:
         data = _ohlcv(100)
-        result = compare_strategies(data=data, symbol="TEST", strategies=["momentum"], oms_adapter=_MockOmsAdapter())
+        result = compare_strategies(
+            data=data, symbol="TEST", strategies=["momentum"], oms_adapter=_MockOmsAdapter()
+        )
         row = result.results[0]
         assert "total_return_pct" in row
         assert "sharpe_ratio" in row
@@ -123,7 +133,9 @@ class TestCompareParameters:
             {"rsi_period": 7, "sma_period": 10},
             {"rsi_period": 14, "sma_period": 20},
         ]
-        result = compare_parameters(data=data, symbol="TEST", param_sets=param_sets, oms_adapter=_MockOmsAdapter())
+        result = compare_parameters(
+            data=data, symbol="TEST", param_sets=param_sets, oms_adapter=_MockOmsAdapter()
+        )
         assert len(result.results) == 2
 
     def test_best_by_sharpe(self) -> None:
@@ -134,7 +146,9 @@ class TestCompareParameters:
 
     def test_result_fields(self) -> None:
         data = _ohlcv(100)
-        result = compare_parameters(data=data, symbol="TEST", param_sets=[{"rsi_period": 14}], oms_adapter=_MockOmsAdapter())
+        result = compare_parameters(
+            data=data, symbol="TEST", param_sets=[{"rsi_period": 14}], oms_adapter=_MockOmsAdapter()
+        )
         row = result.results[0]
         assert "params" in row
         assert "total_return_pct" in row

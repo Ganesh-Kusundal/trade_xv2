@@ -51,6 +51,7 @@ class TestLiveBatchMarketData:
     def test_history_batch_nse_equity(self, gateway):
         """history_batch() should return concatenated DataFrame with symbol column."""
         import pandas as pd
+
         symbols = ["RELIANCE", "TCS"]
         result = gateway.history_batch(symbols, "NSE", timeframe="1D", lookback_days=3)
         assert isinstance(result, pd.DataFrame)

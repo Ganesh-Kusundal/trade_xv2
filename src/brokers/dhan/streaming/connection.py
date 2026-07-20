@@ -7,37 +7,38 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from infrastructure.resilience.circuit_breaker import CircuitState
-from brokers.dhan.data.alerts import AlertsAdapter
-from brokers.dhan.execution.conditional_triggers import ConditionalTriggersAdapter
-from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.config.capabilities import DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION
 from brokers.dhan.auth.connection_token_manager import ConnectionTokenManager
-from brokers.dhan.data.depth_20 import DhanDepth20Feed
-from brokers.dhan.data.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
 from brokers.dhan.auth.edis import EDISAdapter
-from brokers.dhan.execution.exit_all import ExitAllAdapter
-from brokers.dhan.execution.forever_orders import ForeverOrdersAdapter
-from brokers.dhan.execution.pnl_exit import PnlExitAdapter
+from brokers.dhan.auth.ip_management import IPManagementAdapter
+from brokers.dhan.data.alerts import AlertsAdapter
+from brokers.dhan.data.depth_20 import DhanDepth20Feed
+from brokers.dhan.data.depth_200 import DhanDepth200Feed
 from brokers.dhan.data.futures import FuturesAdapter
 from brokers.dhan.data.historical import HistoricalAdapter
-from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.auth.ip_management import IPManagementAdapter
-from brokers.dhan.portfolio.ledger import LedgerAdapter
-from brokers.dhan.instruments import DhanInstrumentService
-from brokers.dhan.portfolio.margin import MarginAdapter
 from brokers.dhan.data.market_data import MarketDataAdapter
 from brokers.dhan.data.options import OptionsAdapter
+from brokers.dhan.execution.conditional_triggers import ConditionalTriggersAdapter
+from brokers.dhan.execution.exit_all import ExitAllAdapter
+from brokers.dhan.execution.forever_orders import ForeverOrdersAdapter
 from brokers.dhan.execution.orders import OrdersAdapter
-from brokers.dhan.portfolio.portfolio import PortfolioAdapter
-from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.streaming.session_manager import DhanSessionManager
+from brokers.dhan.execution.pnl_exit import PnlExitAdapter
 from brokers.dhan.execution.super_orders import SuperOrdersAdapter
 from brokers.dhan.identity.user_profile import UserProfileAdapter
+from brokers.dhan.instruments import DhanInstrumentService
+from brokers.dhan.portfolio.ledger import LedgerAdapter
+from brokers.dhan.portfolio.margin import MarginAdapter
+from brokers.dhan.portfolio.portfolio import PortfolioAdapter
+from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+from brokers.dhan.streaming.session_manager import DhanSessionManager
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from domain import MarketDepth
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import LifecycleManager
+from infrastructure.resilience.circuit_breaker import CircuitState
 
 logger = logging.getLogger(__name__)
 
@@ -383,6 +384,7 @@ class DhanConnection:
         else:
             feed.subscribe([(segment, sid, mode)])
         if on_tick:
+
             def _wrap(data: dict) -> None:
                 try:
                     q = Quote(
@@ -402,6 +404,7 @@ class DhanConnection:
                         exc_info=True,
                     )
                     on_tick(data)
+
             feed.on_quote(_wrap)
         if not feed.is_connected:
             feed.connect()
@@ -415,9 +418,7 @@ class DhanConnection:
     ) -> Any:
         """Subscribe to 20-level depth. Security mapping stays internal."""
         if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
-            raise ValueError(
-                f"Depth 20 only supported for NSE segments, got: {exchange}"
-            )
+            raise ValueError(f"Depth 20 only supported for NSE segments, got: {exchange}")
 
         ref = self.instruments.resolve_dhan_ref(symbol, exchange)
         segment = ref.exchange_segment
@@ -465,9 +466,7 @@ class DhanConnection:
     ) -> Any:
         """Subscribe to 200-level depth. Security mapping stays internal."""
         if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
-            raise ValueError(
-                f"Depth 200 only supported for NSE segments, got: {exchange}"
-            )
+            raise ValueError(f"Depth 200 only supported for NSE segments, got: {exchange}")
 
         ref = self.instruments.resolve_dhan_ref(symbol, exchange)
         segment = ref.exchange_segment
@@ -484,7 +483,9 @@ class DhanConnection:
             if existing and existing != sid_str:
                 raise ValueError(
                     f"Depth 200 feed already subscribed to security_id {existing}. "
-                    f"Create a new gateway connection to stream a different instrument."
+                    f"Dhan allows only {DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION} "
+                    f"instrument per depth-200 connection; create a new gateway "
+                    f"connection to stream a different instrument."
                 )
 
         if on_depth is not None:
@@ -574,7 +575,57 @@ class DhanConnection:
 
     def broadcast_token(self, new_token: str) -> int:
         """Push ``new_token`` to every registered receiver."""
-        return self._token_manager.broadcast(new_token)
+        count = self._token_manager.broadcast(new_token)
+        from brokers.common.auth.lifecycle import publish_token_lifecycle_event
+
+        publish_token_lifecycle_event(
+            self._event_bus,
+            "TOKEN_REFRESHED",
+            broker_id="dhan",
+            receivers=count,
+        )
+        return count
+
+    # ── BrokerStreamGateway surface ─────────────────────────────────────
+
+    def connect(self) -> bool:
+        """Establish market-feed transport when available."""
+        feed = getattr(self, "market_feed", None)
+        if feed is None:
+            return True
+        if getattr(feed, "is_connected", False):
+            return True
+        connect_fn = getattr(feed, "connect", None)
+        if callable(connect_fn):
+            connect_fn()
+        return bool(getattr(feed, "is_connected", True))
+
+    def subscribe(self, instruments: list[Any]) -> bool:
+        """Subscribe instruments via the shared stream gateway surface."""
+        if not instruments:
+            return True
+        for item in instruments:
+            if isinstance(item, (tuple, list)) and len(item) >= 2:
+                symbol, exchange = str(item[0]), str(item[1])
+            elif hasattr(item, "symbol"):
+                symbol = str(item.symbol)
+                exchange = str(getattr(item, "exchange", "NSE"))
+            else:
+                symbol, exchange = str(item), "NSE"
+            self.subscribe_stream(symbol, exchange)
+        return True
+
+    def on_tick(self, callback: Callable[[Any], None]) -> None:
+        """Register a default tick callback for subsequent subscriptions."""
+        self._stream_tick_callback = callback
+
+    def disconnect(self) -> None:
+        """Tear down market feed / streams."""
+        feed = getattr(self, "market_feed", None)
+        if feed is not None:
+            stop = getattr(feed, "disconnect", None) or getattr(feed, "stop", None)
+            if callable(stop):
+                stop()
 
     def get_or_create_resolver_refresher(
         self,

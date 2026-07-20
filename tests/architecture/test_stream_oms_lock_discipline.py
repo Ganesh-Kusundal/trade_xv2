@@ -31,7 +31,5 @@ def test_order_manager_uses_lock_around_book() -> None:
 @pytest.mark.architecture
 def test_order_lifecycle_book_writes_under_lock_param() -> None:
     """Lifecycle methods accept lock and mutate maps under it."""
-    text = (SRC / "application/oms/_internal/order_lifecycle.py").read_text(
-        encoding="utf-8"
-    )
+    text = (SRC / "application/oms/_internal/order_lifecycle.py").read_text(encoding="utf-8")
     assert "with lock" in text

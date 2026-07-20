@@ -56,6 +56,12 @@ def print_scan_result(console: Console, result, *, limit: int) -> None:
     console.print(f"[dim]{result.count} candidates from {result.universe_size} stocks[/dim]")
 
 
+def run_analytics_command(name: str, fn, args: list[str], broker_service, console) -> None:
+    """Run an analytics subcommand with common arg parsing."""
+    parsed = parse_common_args(args)
+    return fn(broker_service, console, **parsed)
+
+
 def parse_common_args(args: list[str], **defaults) -> dict:
     """Parse common CLI arguments like --file, --limit, --symbol, --years."""
     result = dict(defaults)

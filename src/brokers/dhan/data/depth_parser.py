@@ -229,7 +229,9 @@ class DepthPacketParser:
                 depth_cache_lock.release()
 
         # Local callbacks.
-        cbs = list(depth_callbacks) if callback_lock is None else snapshot_callbacks(depth_callbacks)
+        cbs = (
+            list(depth_callbacks) if callback_lock is None else snapshot_callbacks(depth_callbacks)
+        )
         for cb in cbs:
             try:
                 cb(merged)

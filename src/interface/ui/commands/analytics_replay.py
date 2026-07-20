@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
-from analytics.replay import ReplayConfig, ReplayEngine
+from analytics.replay import ReplayConfig
 from analytics.strategy import MomentumStrategy, StrategyPipeline
 
 
@@ -19,10 +19,14 @@ def run_replay(args: list[str], console: Console) -> None:
     warmup = 20
     slippage = 0.01
     commission = 0.0003
+    research_only = False
     index = 0
     while index < len(args):
         arg = args[index]
-        if arg == "--file" and index + 1 < len(args):
+        if arg == "--research":
+            research_only = True
+            index += 1
+        elif arg == "--file" and index + 1 < len(args):
             file_path = args[index + 1]
             index += 2
         elif arg == "--symbol" and index + 1 < len(args):
@@ -93,9 +97,18 @@ def run_replay(args: list[str], console: Console) -> None:
     )
 
     console.print(f"[dim]Running replay: {symbol}, {len(data)} bars, warmup={warmup}[/dim]")
-    engine = ReplayEngine(
-        pipeline, strategy, config, allow_simulate_without_oms=True
+    from runtime.paper_session import build_replay_engine
+
+    engine = build_replay_engine(
+        pipeline,
+        strategy,
+        config,
+        research_only=research_only,
     )
+    if research_only:
+        console.print("[yellow]research-only — not OMS parity-backed[/yellow]")
+    else:
+        console.print("[dim]OMS parity-backed replay session[/dim]")
     result = engine.run(data, symbol=symbol)
 
     console.print("\n[bold cyan]=== REPLAY RESULTS ===[/bold cyan]\n")

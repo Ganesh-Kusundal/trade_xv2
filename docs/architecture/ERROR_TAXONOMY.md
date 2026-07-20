@@ -30,9 +30,13 @@ TradeXV2Error
     ├── RateLimitError                 429 / throttled
     ├── CircuitBreakerOpenError        breaker open for a named circuit
     ├── AuthenticationError            auth/authorization failure
-    ├── InstrumentNotFoundError        requested instrument not found
+    ├── InstrumentError                  instrument resolution/validation failure
+    │   └── InstrumentNotFoundError        requested instrument not found
+    ├── MappingError                     symbol/security-id mapping failure
     ├── OrderError                     order placement/modify/cancel error
+    │   └── RejectedOrderError           broker/exchange rejected the order
     └── NotSupportedError              feature not supported by broker
+        ├── CapabilityError            capability unavailable or misconfigured
         └── ExitAllError               kill-switch exit-all operation failed
 
 TradeXV2Error

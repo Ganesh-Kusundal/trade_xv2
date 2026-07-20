@@ -15,7 +15,5 @@ class BrokerSource(str, Enum):
     """Broker provider identity."""
 
     DHAN = "dhan"
-    ICICI = "icici"
     UPSTOX = "upstox"
     PAPER = "paper"
-    BINANCE = "binance"

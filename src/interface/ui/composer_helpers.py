@@ -48,12 +48,12 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
         List of broker IDs to initialize. If None, auto-detects from env.
     """
     try:
-        from interface.ui.services.broker_facade import DhanBrokerGateway
+        from interface.ui.services.broker_registry import DhanBrokerGateway
     except ImportError:
         DhanBrokerGateway = None  # noqa: N806
 
     try:
-        from interface.ui.services.broker_facade import PaperBrokerGateway
+        from interface.ui.services.broker_registry import PaperBrokerGateway
     except ImportError:
         PaperBrokerGateway = None  # noqa: N806
     if broker_ids is None:
@@ -88,8 +88,12 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
 def _create_composer(broker_ids: tuple[str, ...] | None) -> tuple[Any, Any]:
     """Build gateways and create both composers. Returns (market_data, execution)."""
     from application.composer.factory import create_composers
-    from application.scheduling.quota_scheduler import QuotaScheduler  # sanctioned — broker wiring layer
-    from domain.policies.defaults import default_source_selection_policy  # sanctioned — broker wiring layer
+    from application.scheduling.quota_scheduler import (
+        QuotaScheduler,  # sanctioned — broker wiring layer
+    )
+    from domain.policies.defaults import (
+        default_source_selection_policy,  # sanctioned — broker wiring layer
+    )
 
     gateways = _create_gateways(list(broker_ids) if broker_ids else None)
 

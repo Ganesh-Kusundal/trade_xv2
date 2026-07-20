@@ -47,7 +47,7 @@ def _utc_times() -> list[datetime]:
 def _lake_dataframe() -> pd.DataFrame:
     """Datalake stores naive IST timestamps."""
     rows = []
-    for ist, (o, h, l, c, v) in zip(_IST_TIMES, _BAR_SPECS):
+    for ist, (o, h, l, c, v) in zip(_IST_TIMES, _BAR_SPECS, strict=False):
         rows.append(
             {
                 "timestamp": ist.replace(tzinfo=None),
@@ -64,7 +64,7 @@ def _lake_dataframe() -> pd.DataFrame:
 def _broker_series() -> HistoricalSeries:
     ref = InstrumentRef(symbol=_SYMBOL, exchange=_EXCHANGE)
     bars: list[HistoricalBar] = []
-    for utc, (o, h, l, c, v) in zip(_utc_times(), _BAR_SPECS):
+    for utc, (o, h, l, c, v) in zip(_utc_times(), _BAR_SPECS, strict=False):
         bars.append(
             HistoricalBar(
                 instrument=ref,
@@ -117,7 +117,9 @@ class _MockLedger:
 class _ParityComposer:
     async def fetch_historical(self, query) -> tuple[HistoricalSeries, _MockLedger]:
         return _broker_series(), _MockLedger(
-            sources=[type("Src", (), {"broker_id": "test-broker", "bar_count": 3, "is_primary": True})()]
+            sources=[
+                type("Src", (), {"broker_id": "test-broker", "bar_count": 3, "is_primary": True})()
+            ]
         )
 
 

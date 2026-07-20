@@ -1,33 +1,22 @@
-"""OMS Setup — constructs Order Management System and Risk services.
-
-Extracted from BrokerService._build_oms_risk_manager() and
-_build_and_register_oms_services() to reduce complexity and enable
-independent testing.
-
-This module handles:
-- RiskManager construction with TrackedCapitalProvider
-- TradingContext creation and lifecycle attachment
-- DhanReconciliationService setup
-- EventLog construction for crash recovery
-- DailyPnlResetScheduler registration
-"""
+"""OMS Setup — constructs Order Management System and Risk services."""
 
 from __future__ import annotations
 
 import logging
+import os
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
-from application.oms.capital_provider import GatewayCapitalProvider
+from application.oms.capital_provider import FixedCapitalProvider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
-from domain.constants.defaults import RISK_FALLBACK_CAPITAL
+from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 from infrastructure.bootstrap import (
     build_dead_letter_queue,
     build_execution_ledger,
     build_order_store,
 )
-from interface.ui.services.capital_provider import TrackedCapitalProvider
 
 if TYPE_CHECKING:
     from interface.ui.services.broker_service import BrokerService
@@ -35,44 +24,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def build_risk_manager(service: BrokerService) -> tuple[RiskManager, GatewayCapitalProvider]:
-    """Build RiskManager with tracked capital provider.
+def build_risk_manager(service: BrokerService) -> tuple[RiskManager, Any | None]:
+    """Build RiskManager with OMS-owned paper capital (ADR-0012).
 
-    Creates a RiskManager configured with:
-    - Real broker balance via GatewayCapitalProvider
-    - Fallback tracking via TrackedCapitalProvider
-    - Fail-open/fail-closed logic based on RISK_FAIL_OPEN
-
-    The design is fail-safe: no order can be placed against an unknown
-    capital baseline unless the operator has explicitly opted into
-    fail-open mode.
-
-    Args:
-        service: BrokerService instance for fallback tracking
-
-    Returns:
-        Tuple of (RiskManager, GatewayCapitalProvider)
+    Paper-only product: capital comes from ``TRADEX_PAPER_CAPITAL``, never
+    broker ``funds()``. Returns ``(RiskManager, None)`` — no gateway capital hook.
     """
-    # Create base capital provider. fail_closed=False so soft failures
-    # return fallback_balance; TrackedCapitalProvider applies the
-    # fail-open / fail-closed policy (0 vs RISK_MANUAL_FAIL_OPEN).
-    capital_provider = GatewayCapitalProvider(
-        gateway=None,  # Will be updated after gateway construction
-        fallback_balance=RISK_FALLBACK_CAPITAL,
-        fail_closed=False,
-    )
-
-    # Wrap with tracking
-    tracked_provider = TrackedCapitalProvider(capital_provider, service)
-
-    # Build risk manager
+    capital = Decimal(os.getenv("TRADEX_PAPER_CAPITAL", str(PAPER_INITIAL_CAPITAL)))
+    capital_provider = FixedCapitalProvider(capital)
     risk_manager = RiskManager(
         position_manager=PositionManager(),
         config=RiskConfig(),
-        capital_provider=tracked_provider,
+        capital_provider=capital_provider,
     )
-
-    return risk_manager, capital_provider
+    return risk_manager, None
 
 
 def _build_reconciliation_service(gateway: Any) -> Any:
@@ -90,7 +55,7 @@ def _build_reconciliation_service(gateway: Any) -> Any:
         DhanReconciliationService or None if construction fails
     """
     try:
-        from interface.ui.services.broker_facade import create_reconciliation_service
+        from interface.ui.services.broker_registry import create_reconciliation_service
 
         conn = getattr(gateway, "_conn", None)
         if conn is not None:

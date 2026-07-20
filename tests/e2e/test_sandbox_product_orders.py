@@ -16,6 +16,7 @@ Not run in default CI — requires ``@pytest.mark.sandbox`` and credentials.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import uuid
 from decimal import Decimal
@@ -41,9 +42,7 @@ def _materialize_sandbox_env() -> Path | None:
     tok = (vals.get("DHAN_SANDBOX_ACCESS_TOKEN") or "").strip()
     if not cid or not tok:
         return None
-    base = (
-        vals.get("DHAN_SANDBOX_REST_BASE_URL") or "https://sandbox.dhan.co/v2"
-    ).strip()
+    base = (vals.get("DHAN_SANDBOX_REST_BASE_URL") or "https://sandbox.dhan.co/v2").strip()
     SANDBOX_ENV.write_text(
         "\n".join(
             [
@@ -78,12 +77,12 @@ def sandbox_session():
         pytest.skip("Dhan sandbox credentials not configured in .env.local")
 
     _clear_dhan_env()
+    import tradex
     from application.oms.process_context import register_oms_context, reset_oms_context
     from application.oms.session_bridge import build_oms_service
     from brokers.dhan.identity.account_registry import AccountConnectionRegistry
     from brokers.paper.execution_provider import PaperExecutionProvider
     from brokers.paper.paper_gateway import PaperGateway
-    import tradex
 
     reset_oms_context()
     AccountConnectionRegistry.release_all()
@@ -111,10 +110,8 @@ def sandbox_session():
         yield session
     finally:
         if session is not None:
-            try:
+            with contextlib.suppress(Exception):
                 session.close()
-            except Exception:
-                pass
         reset_oms_context()
         AccountConnectionRegistry.release_all()
         _clear_dhan_env()

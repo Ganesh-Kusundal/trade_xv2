@@ -11,9 +11,7 @@ This is a pure domain port: no broker logic, no implementation, no imports from
 
 from __future__ import annotations
 
-from datetime import datetime, time
 from typing import Protocol, runtime_checkable
-from zoneinfo import ZoneInfo
 
 
 @runtime_checkable
@@ -62,50 +60,3 @@ class ExchangeAdapter(Protocol):
         bakes in, so no ``"NSE"`` literal leaks into data code.
         """
         ...
-
-
-@runtime_checkable
-class ExchangeAdapterPort(Protocol):
-    """Protocol for exchange-specific behavior (trading hours/days)."""
-
-    @property
-    def exchange_code(self) -> str:
-        """Exchange identifier (e.g., 'NSE', 'BSE', 'MCX')."""
-        ...
-
-    @property
-    def timezone(self) -> ZoneInfo:
-        """Exchange local timezone."""
-        ...
-
-    def is_trading_hours(self, now: datetime) -> bool:
-        """Check if *now* falls within regular trading hours."""
-        ...
-
-    def is_trading_day(self, now: datetime) -> bool:
-        """Check if *now*'s date is a trading day."""
-        ...
-
-
-# Backward-compatible re-exports — concrete adapters moved to
-# domain.market.exchange_adapters. Import from there in new code.
-import warnings as _warnings
-
-def __getattr__(name: str):
-    _CONCRETE = {
-        "NSEExchangeAdapter",
-        "BSEExchangeAdapter",
-        "MCXExchangeAdapter",
-        "_EXCHANGE_REGISTRY",
-        "get_exchange_adapter",
-    }
-    if name in _CONCRETE:
-        from domain.market import exchange_adapters as _mod
-        _warnings.warn(
-            f"Importing {name!r} from domain.ports.exchange_adapter is deprecated. "
-            f"Use domain.market.exchange_adapters instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return getattr(_mod, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

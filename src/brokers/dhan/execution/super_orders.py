@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from decimal import Decimal
 
-from brokers.dhan.domain import SuperOrder, SuperOrderLeg
-from brokers.dhan.exceptions import SuperOrderError
-from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
-from brokers.dhan.resilience.invariants import assert_dhan_payload
 from brokers.common.acl import normalize_order_status
 from brokers.common.idempotency import IdempotencyCache
+from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.domain import SuperOrder, SuperOrderLeg
+from brokers.dhan.exceptions import SuperOrderError
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from brokers.dhan.resilience.invariants import assert_dhan_payload
 from domain import OrderResponse
 from domain.value_objects.price import to_wire_float
 
@@ -50,6 +51,7 @@ class SuperOrdersAdapter:
         product_type: str = "INTRADAY",
         order_type: str = "LIMIT",
         correlation_id: str | None = None,
+        authorize: Callable[[], None] | None = None,
     ) -> SuperOrder:
         """Place a super order with Entry + Target + Stop Loss legs.
 
@@ -72,7 +74,13 @@ class SuperOrdersAdapter:
         Raises:
             ValueError: If validation fails (target/SL logic)
             SuperOrderError: If API call fails
+            LiveBrokerBlockedError / RiskRejectedError: If ``authorize`` blocks.
         """
+        # Live-order authority (defense in depth). Runs before any side effect
+        # (idempotency reservation, wire call) so a blocked order is a no-op.
+        if authorize is not None:
+            authorize()
+
         # Generate correlation_id if not provided
         cid = correlation_id or uuid.uuid4().hex
 

@@ -13,11 +13,11 @@ import logging
 import time
 from typing import Any
 
-from domain.models.dtos import BrokerOrderPayload
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import Order, SliceOrderRequest
+from domain.models.dtos import BrokerOrderPayload
 from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)

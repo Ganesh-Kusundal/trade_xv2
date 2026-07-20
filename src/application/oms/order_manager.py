@@ -22,6 +22,7 @@ Orchestration contract
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import uuid
@@ -30,15 +31,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from application.observability import get_logger
 from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_lifecycle import OrderLifecycle, order_as_recon_dict
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
+from application.oms._internal.risk_manager import RiskManager
 from application.oms.idempotency_guard import IdempotencyGuard
 from application.oms.order_validator import OrderValidator as OmsOrderValidator
-from application.oms.risk_manager import RiskManager
 from application.oms.trade_recorder import TradeRecorder
 from domain.entities import Order, Trade
 from domain.events.types import DomainEvent
@@ -53,12 +53,11 @@ from domain.ports import (
 )
 from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
-from application.observability import trace_operation
 
 if TYPE_CHECKING:
     pass
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -304,7 +303,6 @@ class OrderManager:
         except Exception:
             logger.exception("order_store_persist_failed order_id=%s", order.order_id)
 
-    @trace_operation("order_manager.place_order")
     def place_order(
         self,
         request: OmsOrderCommand,
@@ -363,9 +361,7 @@ class OrderManager:
 
     def upsert_order(self, order: Order) -> None:
         """Update or insert an order (used by broker event handlers)."""
-        self._lifecycle.upsert_order(
-            self._lock, self._orders, self._orders_by_correlation, order
-        )
+        self._lifecycle.upsert_order(self._lock, self._orders, self._orders_by_correlation, order)
         self._persist_order(order)
         if self._risk_manager is not None and order.status.is_terminal:
             self._risk_manager.release_pending(order.correlation_id)
@@ -384,7 +380,9 @@ class OrderManager:
                     self._risk_manager.reduce_pending(
                         order.correlation_id,
                         filled_quantity=int(trade.quantity),
-                        price=trade.price.to_decimal() if hasattr(trade.price, "to_decimal") else Decimal(str(trade.price)),
+                        price=trade.price.to_decimal()
+                        if hasattr(trade.price, "to_decimal")
+                        else Decimal(str(trade.price)),
                     )
                 # R2: release risk-pending on fill path when order is terminal.
                 if (
@@ -421,7 +419,6 @@ class OrderManager:
         with self._lock:
             return [order_as_recon_dict(order) for order in self._orders.values()]
 
-    @trace_operation("order_manager.cancel_order")
     def cancel_order(
         self,
         order_id: str,
@@ -466,7 +463,6 @@ class OrderManager:
                     exc,
                 )
 
-    @trace_operation("order_manager.on_trade")
     def on_trade(self, event: DomainEvent) -> bool:
         """Handle broker trade events from the bus."""
         with self._reentrancy_guard() as guard:

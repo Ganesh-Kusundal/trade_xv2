@@ -37,9 +37,7 @@ class AnalyticsAnalysisMethods:
     def __init__(self, engines: AnalyticsEngineFactory) -> None:
         self._engines = engines
 
-    def volume_profile(
-        self, data: pd.DataFrame, *, symbol: str | None = None
-    ) -> AnalysisResult:
+    def volume_profile(self, data: pd.DataFrame, *, symbol: str | None = None) -> AnalysisResult:
         logger.info("Building volume profile (%d bars)", len(data))
         return self._engines._volume_profile_builder.build(data, symbol=symbol)
 
@@ -47,9 +45,7 @@ class AnalyticsAnalysisMethods:
         logger.info("Analyzing market breadth")
         return self._engines._breadth.analyze(snapshot)
 
-    def sectors(
-        self, sectors: pd.DataFrame | None = None
-    ) -> AnalysisResult | SectorAnalyzer:
+    def sectors(self, sectors: pd.DataFrame | None = None) -> AnalysisResult | SectorAnalyzer:
         """Sector analysis facade.
 
         If called with no arguments, returns the SectorAnalyzer for inspection.

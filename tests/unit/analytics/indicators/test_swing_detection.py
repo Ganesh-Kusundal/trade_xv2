@@ -17,13 +17,15 @@ def _make_data(seed: int = 42, n: int = 50) -> pd.DataFrame:
     open_ = close + rng.randn(n) * 0.3
     volume = rng.randint(1000, 10000, n).astype(float)
 
-    return pd.DataFrame({
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume,
-    })
+    return pd.DataFrame(
+        {
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+        }
+    )
 
 
 class TestSwingDetectionNoLookAhead:
@@ -93,13 +95,15 @@ class TestSwingDetectionCorrectness:
 
     def test_simple_peak_detected(self):
         """A simple peak surrounded by lower values should be a swing high."""
-        data = pd.DataFrame({
-            "open": [100, 100, 100, 100, 100],
-            "high": [100, 105, 110, 105, 100],
-            "low": [90, 90, 90, 90, 90],
-            "close": [95, 95, 95, 95, 95],
-            "volume": [1000] * 5,
-        })
+        data = pd.DataFrame(
+            {
+                "open": [100, 100, 100, 100, 100],
+                "high": [100, 105, 110, 105, 100],
+                "low": [90, 90, 90, 90, 90],
+                "close": [95, 95, 95, 95, 95],
+                "volume": [1000] * 5,
+            }
+        )
 
         analyzer = MarketStructureAnalyzer(swing_left=2, swing_right=2)
         result = analyzer.analyze(data)
@@ -110,13 +114,15 @@ class TestSwingDetectionCorrectness:
 
     def test_simple_trough_detected(self):
         """A simple trough surrounded by higher values should be a swing low."""
-        data = pd.DataFrame({
-            "open": [100, 100, 100, 100, 100],
-            "high": [110, 110, 110, 110, 110],
-            "low": [100, 95, 90, 95, 100],
-            "close": [105, 105, 105, 105, 105],
-            "volume": [1000] * 5,
-        })
+        data = pd.DataFrame(
+            {
+                "open": [100, 100, 100, 100, 100],
+                "high": [110, 110, 110, 110, 110],
+                "low": [100, 95, 90, 95, 100],
+                "close": [105, 105, 105, 105, 105],
+                "volume": [1000] * 5,
+            }
+        )
 
         analyzer = MarketStructureAnalyzer(swing_left=2, swing_right=2)
         result = analyzer.analyze(data)
@@ -125,13 +131,15 @@ class TestSwingDetectionCorrectness:
 
     def test_empty_data(self):
         """Empty data should produce empty swing columns."""
-        data = pd.DataFrame({
-            "open": [],
-            "high": [],
-            "low": [],
-            "close": [],
-            "volume": [],
-        })
+        data = pd.DataFrame(
+            {
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            }
+        )
 
         analyzer = MarketStructureAnalyzer()
         result = analyzer.analyze(data)

@@ -1,7 +1,7 @@
-"""CommonBrokerGateway — contract tests verifying the async v2 protocol.
+"""BrokerAdapter — contract tests verifying the async v2 protocol.
 
 Subclasses must provide a ``gateway`` fixture returning an object that
-satisfies :class:`~brokers.common.broker_port.CommonBrokerGateway`.
+satisfies :class:`~domain.ports.broker_adapter.BrokerAdapter`.
 """
 
 from __future__ import annotations
@@ -10,28 +10,26 @@ from typing import Any
 
 import pytest
 
+from brokers.common.broker_capabilities import CapabilityDescriptor
+from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
     BrokerStreamPlan,
-    CommonBrokerGateway,
     HistoricalBarRequest,
     QuotaToken,
 )
-from brokers.common.broker_capabilities import CapabilityDescriptor
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.candles.historical import HistoricalBar, InstrumentRef
 
 
-class CommonBrokerGatewayContractSuite:
-    """Contract tests for any CommonBrokerGateway implementation."""
+class BrokerAdapterContractSuite:
+    """Contract tests for any BrokerAdapter implementation."""
 
     @pytest.fixture
-    def gateway(self) -> CommonBrokerGateway:
-        raise NotImplementedError(
-            "gateway fixture must return a CommonBrokerGateway implementation"
-        )
+    def gateway(self) -> BrokerAdapter:
+        raise NotImplementedError("gateway fixture must return a BrokerAdapter implementation")
 
     @pytest.fixture
     def quota_token(self) -> QuotaToken:
@@ -45,7 +43,7 @@ class CommonBrokerGatewayContractSuite:
     # ── Protocol conformance ──────────────────────────────────────────────
 
     def test_gateway_satisfies_protocol(self, gateway: Any) -> None:
-        assert isinstance(gateway, CommonBrokerGateway)
+        assert isinstance(gateway, BrokerAdapter)
 
     def test_has_broker_id(self, gateway: Any) -> None:
         assert hasattr(gateway, "broker_id")
@@ -64,7 +62,9 @@ class CommonBrokerGatewayContractSuite:
 
     # ── Order execution ──────────────────────────────────────────────────
 
-    def test_place_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
+    def test_place_order_returns_order_response(
+        self, gateway: Any, quota_token: QuotaToken
+    ) -> None:
         from domain.orders.requests import OrderRequest
         from domain.types import Side
 
@@ -78,11 +78,15 @@ class CommonBrokerGatewayContractSuite:
         result = gateway.place_order(request, quota=quota_token)
         assert isinstance(result, OrderResponse)
 
-    def test_cancel_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
+    def test_cancel_order_returns_order_response(
+        self, gateway: Any, quota_token: QuotaToken
+    ) -> None:
         result = gateway.cancel_order("ORD-123", quota=quota_token)
         assert isinstance(result, OrderResponse)
 
-    def test_modify_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
+    def test_modify_order_returns_order_response(
+        self, gateway: Any, quota_token: QuotaToken
+    ) -> None:
         from domain.orders.requests import ModifyOrderRequest
 
         request = ModifyOrderRequest(order_id="ORD-123", quantity=2)
@@ -109,9 +113,7 @@ class CommonBrokerGatewayContractSuite:
 
     # ── Point-in-time market reads ───────────────────────────────────────
 
-    def test_get_quote_snapshot_returns_quote(
-        self, gateway: Any, quota_token: QuotaToken
-    ) -> None:
+    def test_get_quote_snapshot_returns_quote(self, gateway: Any, quota_token: QuotaToken) -> None:
         instrument = InstrumentRef(symbol="RELIANCE", exchange="NSE")
         result = gateway.get_quote_snapshot(instrument, quota=quota_token)
         assert isinstance(result, Quote)
@@ -166,12 +168,12 @@ class CommonBrokerGatewayContractSuite:
         gateway.close()
 
 
-class _MockCommonBrokerGateway(CommonBrokerGateway):
+class _MockBrokerAdapter(BrokerAdapter):
     """Minimal stand-in for protocol conformance testing.
 
-    Subclasses the runtime-checkable ``CommonBrokerGateway`` (alias of
+    Subclasses the runtime-checkable ``BrokerAdapter`` (alias of
     ``BrokerAdapter``) and implements every protocol member so
-    ``isinstance(..., CommonBrokerGateway)`` holds.
+    ``isinstance(..., BrokerAdapter)`` holds.
     """
 
     broker_id = "mock"
@@ -188,9 +190,7 @@ class _MockCommonBrokerGateway(CommonBrokerGateway):
             broker_id="mock",
             capabilities=BrokerCapabilities(broker_id="mock"),
             extensions=frozenset(),
-            observed_at=__import__("datetime").datetime.now(
-                tz=__import__("datetime").timezone.utc
-            ),
+            observed_at=__import__("datetime").datetime.now(tz=__import__("datetime").timezone.utc),
         )
 
     def supports(self, feature: str) -> bool:
@@ -225,9 +225,7 @@ class _MockCommonBrokerGateway(CommonBrokerGateway):
     def get_trades(self, *, quota: QuotaToken) -> list[Trade]:
         return []
 
-    def get_quote_snapshot(
-        self, instrument: InstrumentRef, *, quota: QuotaToken
-    ) -> Quote:
+    def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
         return Quote(
             symbol=instrument.symbol,
             ltp=0,
@@ -242,9 +240,7 @@ class _MockCommonBrokerGateway(CommonBrokerGateway):
             timestamp=None,
         )
 
-    def get_depth_snapshot(
-        self, instrument: InstrumentRef, *, quota: QuotaToken
-    ) -> MarketDepth:
+    def get_depth_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> MarketDepth:
         return MarketDepth(symbol=instrument.symbol, bids=[], asks=[])
 
     def get_historical_bars(
@@ -309,9 +305,7 @@ class _MockCommonBrokerGateway(CommonBrokerGateway):
     def get_future_chain(self, underlying: Any) -> None:
         return None
 
-    def subscribe(
-        self, instrument_id: Any, callback: Any, *, depth: bool = False
-    ) -> None:
+    def subscribe(self, instrument_id: Any, callback: Any, *, depth: bool = False) -> None:
         return None
 
     def unsubscribe(self, subscription: Any) -> None:
@@ -351,10 +345,10 @@ class _MockCommonBrokerGateway(CommonBrokerGateway):
         pass
 
 
-class TestCommonBrokerGatewayContract(CommonBrokerGatewayContractSuite):
+class TestBrokerAdapterContract(BrokerAdapterContractSuite):
     @pytest.fixture
-    def gateway(self) -> CommonBrokerGateway:
-        return _MockCommonBrokerGateway()
+    def gateway(self) -> BrokerAdapter:
+        return _MockBrokerAdapter()
 
     @pytest.fixture
     def quota_token(self) -> QuotaToken:

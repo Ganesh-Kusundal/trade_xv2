@@ -6,24 +6,9 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import Enum
 
+from domain.entities._coercion import _as_money, _as_quantity
 from domain.enums import ProductType
 from domain.primitives import Money, Quantity
-
-
-def _as_money(value: Money | Decimal | int | float | str | None) -> Money:
-    if value is None:
-        return Money(0)
-    if isinstance(value, Money):
-        return value
-    return Money(value)
-
-
-def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quantity:
-    if value is None:
-        return Quantity(0)
-    if isinstance(value, Quantity):
-        return value
-    return Quantity(value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -123,9 +108,9 @@ class Position:
             if abs(fill_qty) > abs(cur_qty):
                 return fill_price
             return avg
-        return (
-            Decimal(str(cur_qty)) * avg + Decimal(str(fill_qty)) * fill_price
-        ) / Decimal(str(new_qty))
+        return (Decimal(str(cur_qty)) * avg + Decimal(str(fill_qty)) * fill_price) / Decimal(
+            str(new_qty)
+        )
 
     def _compute_realized_pnl(self, fill_qty: int, fill_price: Decimal) -> Decimal:
         cur_qty = int(self.quantity)
@@ -162,9 +147,7 @@ class Holding:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "quantity", _as_quantity(self.quantity))
-        object.__setattr__(
-            self, "available_quantity", _as_quantity(self.available_quantity)
-        )
+        object.__setattr__(self, "available_quantity", _as_quantity(self.available_quantity))
         object.__setattr__(self, "avg_price", _as_money(self.avg_price))
         object.__setattr__(self, "ltp", _as_money(self.ltp))
         object.__setattr__(self, "pnl", _as_money(self.pnl))

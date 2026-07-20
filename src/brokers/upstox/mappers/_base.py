@@ -8,9 +8,6 @@ without creating circular imports.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from decimal import Decimal
-from typing import Any
 
 from domain import (
     ExchangeSegment,
@@ -70,6 +67,7 @@ _WIRE_TO_TXN = {v: k for k, v in _TXN_TO_WIRE.items()}
 
 # ── Status mapping ──────────────────────────────────────────────────────
 
+
 def wire_status_to_domain_status(raw: str) -> OrderStatus:
     """Convert Upstox wire status string to canonical domain OrderStatus."""
     if not raw:
@@ -78,6 +76,7 @@ def wire_status_to_domain_status(raw: str) -> OrderStatus:
 
 
 # ── Enum converters ─────────────────────────────────────────────────────
+
 
 def product_to_wire(product: ProductType) -> str:
     return _PRODUCT_TO_WIRE.get(product, "I")
@@ -133,6 +132,7 @@ def txn_from_wire(raw: str) -> Side:
 
 def segment_from_wire(segment: str) -> ExchangeSegment:
     from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+
     return UpstoxSegmentMapper.to_safe(segment)
 
 

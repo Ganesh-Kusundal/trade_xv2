@@ -32,20 +32,24 @@ def test_trivial_adapter_satisfies_isinstance():
         def get_quote(self, instrument_id):
             return None
 
-        def get_history(self, instrument_id, *, timeframe="1D", lookback_days=120,
-                        from_date=None, to_date=None):
+        def get_history(
+            self, instrument_id, *, timeframe="1D", lookback_days=120, from_date=None, to_date=None
+        ):
             import pandas as pd
 
             return pd.DataFrame()
 
-        def get_history_series(self, instrument_id, *, timeframe="1D",
-                               lookback_days=120, from_date=None, to_date=None):
+        def get_history_series(
+            self, instrument_id, *, timeframe="1D", lookback_days=120, from_date=None, to_date=None
+        ):
             from domain.candles.historical import HistoricalSeries, InstrumentRef
-            from datetime import datetime, timezone
+
             return HistoricalSeries(
                 bars=[],
                 coverage=None,
-                instrument=InstrumentRef(symbol=instrument_id.underlying, exchange=instrument_id.exchange),
+                instrument=InstrumentRef(
+                    symbol=instrument_id.underlying, exchange=instrument_id.exchange
+                ),
                 timeframe=timeframe,
             )
 

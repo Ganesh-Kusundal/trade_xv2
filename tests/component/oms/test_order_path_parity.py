@@ -29,17 +29,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.composer.execution import ExecutionComposer
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from application.oms.position_manager import PositionManager
 from application.oms.recon_heal_policy import HealMode, resolve_heal_mode, should_auto_repair
-from application.oms.session_bridge import OmsOrderService, make_submit_fn
-from application.oms._internal.risk_manager import RiskConfig, RiskManager
+from application.oms.session_bridge import OmsOrderService
 from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.orders.requests import OrderRequest
 from domain.ports.protocols import OrderResult as PortOrderResult
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -245,9 +244,7 @@ class TestOrderPathParity:
         risk_manager.set_kill_switch(True)
         with pytest.raises(Exception):
             asyncio.run(
-                _place_composer(
-                    order_manager, risk_manager, submit_counter, "parity:comp:kill"
-                )
+                _place_composer(order_manager, risk_manager, submit_counter, "parity:comp:kill")
             )
         risk_manager.set_kill_switch(False)
 

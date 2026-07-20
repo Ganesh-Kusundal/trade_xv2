@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 from interface.ui.commands import registry
-from interface.ui.tests.endpoint_manifest import TOP_LEVEL_COMMANDS
+from tests.component.ui.endpoint_manifest import TOP_LEVEL_COMMANDS
 
 
 @pytest.fixture(autouse=True)
@@ -100,9 +100,7 @@ def test_main_module_populates_registry_on_import() -> None:
     import interface.ui.main  # noqa: F401 — side effect: populates DISPATCH_TABLE
 
     missing = [name for name in TOP_LEVEL_COMMANDS if name not in registry.DISPATCH_TABLE]
-    assert not missing, (
-        f"cli/main.py does not register these commands: {missing}"
-    )
+    assert not missing, f"cli/main.py does not register these commands: {missing}"
 
 
 def test_no_unexpected_commands_in_dispatch() -> None:

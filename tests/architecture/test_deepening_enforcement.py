@@ -62,11 +62,7 @@ def test_api_orders_router_uses_oms_submit_fn():
         or "execution_svc.place_order" in text
         or "ExecutionComposer" in text
     )
-    assert (
-        "execution_service" in text
-        or "submit_fn" in text
-        or "execution_composer" in text
-    )
+    assert "execution_service" in text or "submit_fn" in text or "execution_composer" in text
 
 
 def test_broker_service_exposes_oms_transport_submit():

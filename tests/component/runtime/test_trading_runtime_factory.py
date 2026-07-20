@@ -28,6 +28,16 @@ def test_build_for_api_wires_real_broker_service_with_composition_bus():
         runtime.broker_service.close()
 
 
+def test_create_api_event_bus_returns_async_wrapper():
+    from infrastructure.event_bus.async_event_bus import AsyncEventBus
+    from runtime.composition import create_api_event_bus
+
+    bus, config = create_api_event_bus(maxsize=100)
+    assert isinstance(bus, AsyncEventBus)
+    assert config["bus_type"] == "async"
+    bus.stop()
+
+
 def test_build_for_api_uses_composition_module():
     """create_api_event_bus must be invoked during API bootstrap."""
     from runtime.composition import create_api_event_bus as real_create

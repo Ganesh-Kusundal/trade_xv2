@@ -67,9 +67,9 @@ class TestIsTickAligned:
         assert is_tick_aligned(Decimal("100.0500000001"), Decimal("0.05")) is True
 
     def test_custom_tolerance(self):
-        assert is_tick_aligned(
-            Decimal("100.03"), Decimal("0.05"), tolerance=Decimal("0.05")
-        ) is True
+        assert (
+            is_tick_aligned(Decimal("100.03"), Decimal("0.05"), tolerance=Decimal("0.05")) is True
+        )
 
     def test_zero_tick_size_raises(self):
         with pytest.raises(ValueError, match="tick_size must be positive"):

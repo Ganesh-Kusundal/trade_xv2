@@ -12,10 +12,8 @@ Order lifecycle is owned by application.oms.OrderManager (not a domain aggregate
 
 from __future__ import annotations
 
-from domain.aggregates.account import AccountAggregate
 from domain.aggregates.position import PositionAggregate
 
 __all__ = [
-    "AccountAggregate",
     "PositionAggregate",
 ]

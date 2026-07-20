@@ -8,32 +8,77 @@ Provides FastAPI dependencies for:
 - EventBus (real-time events)
 - BrokerService (live broker connections)
 
-All services are stored in the infrastructure DI container (infrastructure.di.container)
-as the single source of truth. This module provides typed FastAPI Depends() wrappers
-that resolve from that container.
+All services are stored in a typed :class:`ServiceContainer` as the single
+source of truth. This module provides FastAPI Depends() wrappers.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
 
+from application.oms.live_order_authority import RiskRejectedError, authorize_live_order
+from domain.exceptions import LiveBrokerBlockedError, ServiceNotFoundError
 from domain.ports.event_publisher import EventBusPort
-from domain.ports.market_data import MarketDataPort
 from domain.ports.order_service import OrderServicePort
+from domain.ports.protocols import DataProvider
 from domain.ports.risk_manager import RiskManagerPort
-from infrastructure.di import container as di_container
 
 logger = logging.getLogger(__name__)
 
-# Module-level typed wrapper — set once during startup, provides attribute access
-_container: SimpleNamespace | None = None
+
+@dataclass
+class ServiceContainer:
+    """Typed API service container (G-P2-1)."""
+
+    datalake_gateway: Any | None = None
+    view_manager: Any | None = None
+    data_catalog: Any | None = None
+    event_bus: EventBusPort | None = None
+    broker_service: Any | None = None
+    trading_context: Any | None = None
+    order_manager: OrderServicePort | None = None
+    position_manager: Any | None = None
+    risk_manager: RiskManagerPort | None = None
+    market_data_composer: DataProvider | None = None
+    execution_composer: Any | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
-def get_container() -> SimpleNamespace:
+# Module-level typed wrapper — set once during startup
+_container: ServiceContainer | SimpleNamespace | None = None
+
+
+def _resolve(name: str) -> Any:
+    """Resolve a service from the container by name.
+
+    Raises HTTP 503 if the container is not initialized or the service is unset.
+    """
+    if _container is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Service '{name}' is not available (container not initialized). "
+                "Check server logs for initialization errors."
+            ),
+        )
+    value = getattr(_container, name, None)
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Service '{name}' is not configured. "
+                "Related endpoints will return 503 until wired at startup."
+            ),
+        )
+    return value
+
+
+def get_container() -> ServiceContainer | SimpleNamespace:
     """Get the service container. Raises 503 if not initialized."""
     if _container is None:
         raise HTTPException(
@@ -47,31 +92,30 @@ def get_container() -> SimpleNamespace:
     return _container
 
 
-def set_container(services: SimpleNamespace | dict[str, Any]) -> None:
-    """Set services and register them in the DI container. Idempotent."""
+def set_container(services: ServiceContainer | SimpleNamespace | dict[str, Any]) -> None:
+    """Set services container. Idempotent."""
     global _container  # intentional module singleton — DI container
     if _container is not None:
         logger.warning("Service container already initialized — ignoring duplicate")
         return
 
-    ns = SimpleNamespace(**services) if isinstance(services, dict) else services
+    if isinstance(services, dict):
+        ns = ServiceContainer(
+            **{k: v for k, v in services.items() if k in ServiceContainer.__dataclass_fields__}
+        )
+        extra = {
+            k: v for k, v in services.items() if k not in ServiceContainer.__dataclass_fields__
+        }
+        ns.extra = extra
+        _container = ns
+    elif isinstance(services, ServiceContainer):
+        _container = services
+    else:
+        _container = services
 
-    _container = ns
-
-    # Register all services in the DI container (single source of truth)
-    # Even None services are registered so resolve() doesn't raise;
-    # get_* functions handle None values with 503 responses.
-    for name in vars(ns):
-        if name.startswith("_"):
-            continue
-        value = getattr(ns, name)
-        if isinstance(value, dict):
-            for k, v in value.items():
-                di_container.register_instance(k, v)
-        else:
-            di_container.register_instance(name, value)
-
-    initialized = [k for k in vars(ns) if not k.startswith("_") and getattr(ns, k) is not None]
+    initialized = [
+        k for k in ServiceContainer.__dataclass_fields__ if getattr(services, k, None) is not None
+    ]
     logger.info("Service container initialized with: %s", initialized)
 
 
@@ -84,35 +128,45 @@ def reset_container() -> None:
     global _container, _trade_journal_instance  # intentional module singleton — test reset only
     _container = None
     _trade_journal_instance = None
-    di_container.reset()
 
 
 # ── FastAPI Dependencies ─────────────────────────────────────────────────────
 
 
-def get_datalake_gateway() -> Any:
-    """Get DataLakeGateway instance for historical data queries."""
-    return di_container.resolve("datalake_gateway")
+def _container_get(attr: str) -> Any:
+    """Resolve a registered service attribute from the container."""
+    return _resolve(attr)
 
 
-def get_view_manager() -> Any:
-    """Get ViewManager instance for DuckDB analytics queries."""
-    return di_container.resolve("view_manager")
+def _make_getter(attr: str, doc: str):
+    def getter() -> Any:
+        return _container_get(attr)
+
+    getter.__doc__ = doc
+    getter.__name__ = f"get_{attr}"
+    return getter
 
 
-def get_data_catalog() -> Any:
-    """Get DataCatalog instance for symbol metadata."""
-    return di_container.resolve("data_catalog")
+get_datalake_gateway = _make_getter(
+    "datalake_gateway", "Get DataLakeGateway instance for historical data queries."
+)
+get_view_manager = _make_getter(
+    "view_manager", "Get ViewManager instance for DuckDB analytics queries."
+)
+get_data_catalog = _make_getter("data_catalog", "Get DataCatalog instance for symbol metadata.")
+get_broker_service = _make_getter(
+    "broker_service", "Get BrokerService instance for live broker connections."
+)
 
 
 def get_event_bus() -> EventBusPort:
     """Get EventBus instance for real-time events."""
-    return di_container.resolve("event_bus")  # type: ignore[no-any-return]
+    return _container_get("event_bus")  # type: ignore[no-any-return]
 
 
 def get_trading_context() -> Any:
     """Get the TradingContext. Raises 503 if not initialized."""
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -131,12 +185,12 @@ def get_order_manager() -> OrderServicePort:
     Raises 503 if TradingContext or OrderManager is not available.
     """
     # Check direct registration first (higher priority)
-    om = di_container.resolve("order_manager")
+    om = getattr(_container, "order_manager", None) if _container is not None else None
     if om is not None:
         return om  # type: ignore[no-any-return]
 
     # Fall back to TradingContext
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -156,12 +210,12 @@ def get_position_manager() -> Any:
     Raises 503 if TradingContext or PositionManager is not available.
     """
     # Check direct registration first (higher priority)
-    pm = di_container.resolve("position_manager")
+    pm = getattr(_container, "position_manager", None) if _container is not None else None
     if pm is not None:
         return pm
 
     # Fall back to TradingContext
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -181,12 +235,12 @@ def get_risk_manager() -> RiskManagerPort:
     Raises 503 if TradingContext or RiskManager is not available.
     """
     # Check direct registration first (higher priority)
-    rm = di_container.resolve("risk_manager")
+    rm = getattr(_container, "risk_manager", None) if _container is not None else None
     if rm is not None:
         return rm  # type: ignore[no-any-return]
 
     # Fall back to TradingContext
-    ctx = di_container.resolve("trading_context")
+    ctx = getattr(_container, "trading_context", None) if _container is not None else None
     if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -200,31 +254,15 @@ def get_risk_manager() -> RiskManagerPort:
     return ctx.risk_manager  # type: ignore[no-any-return]
 
 
-def get_order_repository() -> Any:
-    """Get OrderRepository adapter backed by OrderManager."""
-    from application.oms.order_repository_adapter import OrderManagerRepository
-
-    return OrderManagerRepository(get_order_manager())
+get_position_repository = get_position_manager
 
 
-def get_position_repository() -> Any:
-    """Get PositionRepository adapter backed by PositionManager."""
-    from application.oms.position_repository_adapter import PositionManagerRepository
-
-    return PositionManagerRepository(get_position_manager())
-
-
-def get_broker_service() -> Any:
-    """Get BrokerService instance for live broker connections."""
-    return di_container.resolve("broker_service")
-
-
-def get_market_data_composer() -> MarketDataPort:
+def get_market_data_composer() -> DataProvider:
     """Get MarketDataComposer for unified multi-broker historical/streaming data.
 
     Raises 503 if not initialized.
     """
-    composer = di_container.resolve("market_data_composer")
+    composer = getattr(_container, "market_data_composer", None) if _container is not None else None
     if composer is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -241,7 +279,7 @@ def get_execution_composer() -> Any:
 
     Raises 503 if not initialized.
     """
-    composer = di_container.resolve("execution_composer")
+    composer = getattr(_container, "execution_composer", None) if _container is not None else None
     if composer is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -253,8 +291,55 @@ def get_execution_composer() -> Any:
     return composer
 
 
+def enforce_live_order_authority(
+    *,
+    mutation_action: Literal["place", "modify", "cancel"] = "place",
+    risk_payload: dict[str, Any] | None = None,
+) -> None:
+    """Authorize a live order mutation at the API boundary.
+
+    Raises HTTP 403 when the live-actionable gate, allow_live_orders flag,
+    kill switch, or pre-trade risk path blocks the mutation. In production,
+    a missing risk manager is fail-closed.
+    """
+    svc = get_broker_service()
+    broker = (getattr(svc, "active_broker_name", None) or "unknown") if svc else "unknown"
+    try:
+        risk_manager = get_risk_manager()
+    except (HTTPException, ServiceNotFoundError):
+        risk_manager = None
+    try:
+        authorize_live_order(
+            broker=broker,
+            allow_live_orders=getattr(svc, "allow_live_orders", False) if svc else False,
+            risk_manager=risk_manager,
+            live_actionable=(
+                lambda: bool(getattr(svc, "live_actionable", False)) if svc else False
+            ),
+            risk_payload=risk_payload,
+            mutation_action=mutation_action,
+        )
+    except LiveBrokerBlockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
+    except RiskRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
+
+
 def require_live_broker() -> Any:
-    """Return the active broker gateway or raise 503 when unavailable."""
+    """Return the active broker gateway or raise 503/403 when unavailable.
+
+    Enforces the single live-order authority (P1-T3 / drift D3): every live
+    order path through the API must pass the live-actionable readiness gate and
+    the ``allow_live_orders`` flag before the broker is returned to a router.
+    """
     svc = get_broker_service()
     if svc is None:
         raise HTTPException(
@@ -262,6 +347,31 @@ def require_live_broker() -> Any:
             detail="Live broker not configured",
             headers={"Retry-After": "30"},
         )
+    broker = svc.active_broker_name or "unknown"
+    try:
+        risk_manager = get_risk_manager()
+    except (HTTPException, ServiceNotFoundError):
+        risk_manager = None
+    try:
+        authorize_live_order(
+            broker=broker,
+            allow_live_orders=getattr(svc, "allow_live_orders", False),
+            risk_manager=risk_manager,
+            live_actionable=lambda: bool(getattr(svc, "live_actionable", False)),
+            mutation_action="place",
+        )
+    except LiveBrokerBlockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
+    except RiskRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
     try:
         return svc.active_broker
     except Exception as exc:
@@ -339,31 +449,18 @@ def initialize_all_services(
         # G7: use the public TradingContext.risk_manager property (no getattr reflection).
         risk_manager = trading_context.risk_manager
 
-    from infrastructure.providers.null.stubs import (
-        NullBrokerService,
-        NullDataCatalog,
-        NullDataLakeGateway,
-        NullEventBus,
-        NullExecutionComposer,
-        NullMarketDataComposer,
-        NullOrderManager,
-        NullPositionManager,
-        NullRiskManager,
-        NullViewManager,
-    )
-
-    services = SimpleNamespace(
-        datalake_gateway=datalake_gateway or NullDataLakeGateway(),
-        view_manager=view_manager or NullViewManager(),
-        data_catalog=data_catalog or NullDataCatalog(),
-        event_bus=event_bus or NullEventBus(),
-        broker_service=broker_service or NullBrokerService(),
+    services = ServiceContainer(
+        datalake_gateway=datalake_gateway,
+        view_manager=view_manager,
+        data_catalog=data_catalog,
+        event_bus=event_bus,
+        broker_service=broker_service,
         trading_context=trading_context,
-        order_manager=order_manager or NullOrderManager(),
-        position_manager=position_manager or NullPositionManager(),
-        risk_manager=risk_manager or NullRiskManager(),
-        market_data_composer=market_data_composer or NullMarketDataComposer(),
-        execution_composer=execution_composer or NullExecutionComposer(),
+        order_manager=order_manager,
+        position_manager=position_manager,
+        risk_manager=risk_manager,
+        market_data_composer=market_data_composer,
+        execution_composer=execution_composer,
         extra=additional_services,
     )
 
@@ -371,10 +468,17 @@ def initialize_all_services(
 
     # Log initialization status
     all_named = [
-        "datalake_gateway", "view_manager", "data_catalog",
-        "event_bus", "broker_service", "trading_context",
-        "order_manager", "position_manager", "risk_manager",
-        "market_data_composer", "execution_composer",
+        "datalake_gateway",
+        "view_manager",
+        "data_catalog",
+        "event_bus",
+        "broker_service",
+        "trading_context",
+        "order_manager",
+        "position_manager",
+        "risk_manager",
+        "market_data_composer",
+        "execution_composer",
     ]
     missing = [n for n in all_named if getattr(services, n) is None]
     if missing:
@@ -383,4 +487,4 @@ def initialize_all_services(
             missing,
         )
     else:
-        logger.info("All services initialized (with NullProviders for missing components)")
+        logger.info("All services initialized")

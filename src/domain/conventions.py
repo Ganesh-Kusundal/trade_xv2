@@ -59,11 +59,7 @@ class MarketSurface:
 
         Uses ``ROUND_HALF_UP`` (the standard NSE/BSE rounding convention).
         """
-        return int(
-            (Decimal(rupee) * self.price_scale).to_integral_value(
-                rounding=ROUND_HALF_UP
-            )
-        )
+        return int((Decimal(rupee) * self.price_scale).to_integral_value(rounding=ROUND_HALF_UP))
 
     def to_rupee(self, paisa: Decimal | float | int | str) -> Decimal:
         """Convert an integer paisa count back to a rupee :class:`Decimal`."""

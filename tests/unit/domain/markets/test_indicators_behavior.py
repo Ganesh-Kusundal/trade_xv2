@@ -40,8 +40,8 @@ def test_vwap_cumulative():
     assert len(vwap) == len(closes)
     assert all(v is not None and v > 0 for v in vwap)
     # last vwap is cumulative typical*vol / cum vol
-    typical = [(h + l + c) / 3 for h, l, c in zip(highs, lows, closes)]
-    cum_pv = sum(t * v for t, v in zip(typical, volumes))
+    typical = [(h + l + c) / 3 for h, l, c in zip(highs, lows, closes, strict=False)]
+    cum_pv = sum(t * v for t, v in zip(typical, volumes, strict=False))
     cum_v = sum(volumes)
     assert abs(vwap[-1] - cum_pv / cum_v) < 1e-9
 

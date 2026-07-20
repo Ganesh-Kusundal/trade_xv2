@@ -283,8 +283,7 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
         required_keys=("symbol", "request"),
         optional_keys=("order_id", "slicing_algo"),
         notes=(
-            "ORDER_REQUESTED is published when a concrete order request is "
-            "issued for a plan leg."
+            "ORDER_REQUESTED is published when a concrete order request is issued for a plan leg."
         ),
     ),
     EventType.BAR_CLOSED: EventPayload(

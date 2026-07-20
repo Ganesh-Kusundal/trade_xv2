@@ -27,7 +27,7 @@ Then, before exploring code, run **graphify** per `graphify.mdc`
 - Implement only the scoped unit. No speculative changes, no hidden scope creep.
 - This system trades real money. Any order-placing/cancelling path needs explicit failure
   modes, a `RiskGate`, and idempotency. Zero-parity: live == backtest/replay.
-- After modifying code files, run `graphify update .` and update
+- After modifying code files under `src/`, run `graphify update src` and update
   `context/progress-tracker.md`.
 - If a change alters architecture/scope/standards, update the relevant `context/*.md`
   BEFORE continuing.

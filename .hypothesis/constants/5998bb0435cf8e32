@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/runtime/production_config.py
-# hypothesis_version: 6.155.7
-
-['1', 'API_KEY', 'AUTH_MODE', 'PYTEST_CURRENT_TEST', 'RISK_FAIL_OPEN', 'SKIP_PARITY_GATE', 'TRADEX_ENV', 'api', 'api_key', 'development', 'none', 'production', 'runtime', 'staging']

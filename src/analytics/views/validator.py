@@ -20,9 +20,7 @@ VALID_VIEWS = [
     "v_feature_vwap",
     "v_feature_volume",
     "v_feature_momentum",
-    "v_feature_rsi",
     "v_intraday_vwap",
-    "v_intraday_rsi",
     "v_intraday_atr",
     "v_intraday_snapshot",
     "v_top3_candidates",
@@ -142,9 +140,7 @@ class PointInTimeValidator:
                 if result and result[0]:
                     max_pub = result[0]
                     if isinstance(max_pub, datetime) and max_pub > datetime.now():
-                        report.add_issue(
-                            f"Future published_at detected: max {max_pub}"
-                        )
+                        report.add_issue(f"Future published_at detected: max {max_pub}")
             except Exception as exc:
                 logger.debug("published_at_check_failed: %s: %s", view_name, exc)
 
@@ -159,9 +155,7 @@ class PointInTimeValidator:
                 if result and result[0]:
                     max_ing = result[0]
                     if isinstance(max_ing, datetime) and max_ing > datetime.now():
-                        report.add_issue(
-                            f"Future ingested_at detected: max {max_ing}"
-                        )
+                        report.add_issue(f"Future ingested_at detected: max {max_ing}")
             except Exception as exc:
                 logger.debug("ingested_at_check_failed: %s: %s", view_name, exc)
 

@@ -15,19 +15,22 @@ from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from domain.entities.options import FutureChain, OptionChain
+    from domain.candles.historical import HistoricalBar, HistoricalSeries
     from domain.entities.account import Balance, Holding
-    from domain.entities.order import Order, OrderResponse
     from domain.entities.market import MarketDepth, QuoteSnapshot
+    from domain.entities.options import FutureChain, OptionChain
+    from domain.entities.order import Order, OrderResponse
     from domain.entities.position import Position
     from domain.instruments.instrument_id import InstrumentId
-    from domain.candles.historical import HistoricalBar, HistoricalSeries
     from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 
 class OrderResult:
     """Order operation result — wraps broker response with success/error."""
-    def __init__(self, success: bool = False, order: Order | OrderResponse | None = None, error: str = "") -> None:
+
+    def __init__(
+        self, success: bool = False, order: Order | OrderResponse | None = None, error: str = ""
+    ) -> None:
         self.success = success
         self.order = order
         self.error = error
@@ -59,10 +62,6 @@ class SubscriptionHandle(Protocol):
         ...
 
 
-# Backward-compatible alias — old code imports ``Subscription``.
-Subscription = SubscriptionHandle
-
-
 @runtime_checkable
 class DataProvider(Protocol):
     """Central data-access protocol.
@@ -78,7 +77,6 @@ class DataProvider(Protocol):
         - ``CsvDataProvider`` — CSV files for notebooks
         - ``ReplayDataProvider`` — historical replay
         - ``CacheDataProvider`` — adds TTL caching
-        - ``FallbackDataProvider`` (CompositeDataProvider) — first-wins fallback chain (not a merge)
         - ``DataFrameDataProvider`` — in-memory (tests)
     """
 
@@ -93,13 +91,13 @@ class DataProvider(Protocol):
 
     def get_history(
         self,
-        instrument_id: "InstrumentId",
+        instrument_id: InstrumentId,
         *,
         timeframe: str = "1D",
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
-    ) -> list["HistoricalBar"]:
+    ) -> list[HistoricalBar]:
         """Get historical OHLCV bars as a list of domain objects.
 
         Use :meth:`get_history_series` when you need the full
@@ -109,13 +107,13 @@ class DataProvider(Protocol):
 
     def get_history_series(
         self,
-        instrument_id: "InstrumentId",
+        instrument_id: InstrumentId,
         *,
         timeframe: str = "1D",
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
-    ) -> "HistoricalSeries":
+    ) -> HistoricalSeries:
         """Get historical OHLCV bars as a normalized ``HistoricalSeries``.
 
         This is the first-class history object; the DataFrame returned by
@@ -173,7 +171,7 @@ class DataProvider(Protocol):
 
     def get_quotes_batch(self, instrument_ids: list[InstrumentId]) -> list[QuoteSnapshot | None]:
         """Get latest quotes for multiple instruments in one call.
-        
+
         Returns a list of quotes in the same order as instrument_ids.
         None for instruments where quote is unavailable.
         """
@@ -193,15 +191,15 @@ class ExecutionProvider(Protocol):
         """Provider name for logging and registry lookup."""
         ...
 
-    def place_order(self, request: OrderRequest) -> OrderResult:  # noqa: F811
+    def place_order(self, request: OrderRequest) -> OrderResult:
         """Place an order."""
         ...
 
-    def cancel_order(self, order_id: str) -> OrderResult:  # noqa: F811
+    def cancel_order(self, order_id: str) -> OrderResult:
         """Cancel an order by ID."""
         ...
 
-    def modify_order(self, request: ModifyOrderRequest) -> OrderResult:  # noqa: F811
+    def modify_order(self, request: ModifyOrderRequest) -> OrderResult:
         """Modify an existing order."""
         ...
 

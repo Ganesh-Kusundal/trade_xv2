@@ -1,9 +1,8 @@
-"""G7 — kill switch reads via injected RiskManagerPort, not getattr reach-through.
+"""G7 — kill switch enforcement lives in OMS OrderMutationGuard, not orchestrator.
 
-Regression guard: TradingOrchestrator._is_kill_switch_active must consult the
-injected RiskManagerPort, never reach into order_manager.risk_manager via getattr.
-If it did, an injected manager would be ignored and a rename of the internal
-attribute would silently break the kill switch.
+Regression guard: TradingOrchestrator must not reach into order_manager.risk_manager
+via getattr for kill-switch checks. Enforcement is centralized in
+``OrderLifecycle`` via ``OrderMutationGuard``.
 """
 
 from __future__ import annotations
@@ -22,39 +21,34 @@ def _build(risk_manager: RiskManagerPort | None = None) -> TradingOrchestrator:
         strategy_evaluator=mock.MagicMock(),
         feature_fetcher=mock.MagicMock(),
         config=OrchestratorConfig(),
+        execution_engine=mock.MagicMock(),
         risk_manager=risk_manager,
     )
 
 
-def test_injected_risk_manager_is_used_over_order_manager_attribute() -> None:
+def test_orchestrator_does_not_expose_kill_switch_helper() -> None:
+    """Kill-switch checks removed from orchestrator (Phase A — OMS owns policy)."""
+    orch = _build(risk_manager=mock.MagicMock(spec=RiskManagerPort))
+    assert not hasattr(orch, "_is_kill_switch_active")
+
+
+def test_orchestrator_stores_injected_risk_manager() -> None:
     injected = mock.MagicMock(spec=RiskManagerPort)
-    injected.is_kill_switch_active.return_value = True
-
-    # order_manager.risk_manager returns a DIFFERENT object — must be ignored.
     orch = _build(risk_manager=injected)
-    assert orch._is_kill_switch_active() is True
-    injected.is_kill_switch_active.assert_called_once()
-
-    # The old reach-through would call order_manager.risk_manager; ensure it did not.
+    assert orch._risk_manager is injected
     orch._order_manager.risk_manager.assert_not_called()
 
 
-def test_kill_switch_inactive_when_no_risk_manager() -> None:
+def test_orchestrator_without_risk_manager() -> None:
     order_manager = mock.MagicMock()
-    order_manager.risk_manager = None  # neither injected nor on order manager
+    order_manager.risk_manager = None
     orch = TradingOrchestrator(
         event_bus=mock.MagicMock(),
         order_manager=order_manager,
         strategy_evaluator=mock.MagicMock(),
         feature_fetcher=mock.MagicMock(),
         config=OrchestratorConfig(),
+        execution_engine=mock.MagicMock(),
         risk_manager=None,
     )
-    assert orch._is_kill_switch_active() is False
-
-
-def test_kill_switch_reflects_injected_state() -> None:
-    inactive = mock.MagicMock(spec=RiskManagerPort)
-    inactive.is_kill_switch_active.return_value = False
-    orch = _build(risk_manager=inactive)
-    assert orch._is_kill_switch_active() is False
+    assert orch._risk_manager is None

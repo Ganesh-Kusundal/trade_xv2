@@ -10,7 +10,6 @@ from typing import Any
 from rich.console import Console
 
 from domain.ports.broker_id import BrokerId
-from infrastructure.broker_plugin import get_broker_plugin
 from interface.ui.commands.registry import CommandResult
 from interface.ui.services.broker_service import BrokerService
 

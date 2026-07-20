@@ -9,7 +9,7 @@ from typing import Any, Protocol, runtime_checkable
 class RiskManagerPort(Protocol):
     """Port that the broker layer depends on for pre-trade risk checks.
 
-    The concrete :class:`application.oms.risk_manager.RiskManager` satisfies
+    The concrete :class:`application.oms._internal.risk_manager.RiskManager` satisfies
     this Protocol.  Broker modules MUST import this port rather than the
     concrete class so that the dependency rule of hexagonal architecture is
     preserved (brokers → domain ports, not brokers → application).

@@ -8,8 +8,8 @@ delegates to the submit function so orders fill and ``PaperOrders`` keeps its
 positions in sync.
 """
 
-from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 
 from brokers.paper.paper_gateway import PaperGateway
 from domain import Order, Trade

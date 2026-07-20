@@ -28,7 +28,7 @@ class InstrumentHistory:
     - ``resample`` sets ``_view`` only.
     """
 
-    def __init__(self, owner: "Instrument") -> None:
+    def __init__(self, owner: Instrument) -> None:
         self._owner = owner
         self._downloaded: HistoricalSeries | None = None
         self._view: HistoricalSeries | None = None
@@ -68,16 +68,12 @@ class InstrumentHistory:
             "start": start,
             "end": end,
         }
-        series = self._fetch(
-            timeframe=timeframe, days=days, start=start, end=end
-        )
+        series = self._fetch(timeframe=timeframe, days=days, start=start, end=end)
         if series is None:
             series = HistoricalSeries(
                 bars=[],
                 coverage=None,
-                instrument=InstrumentRef(
-                    symbol=self._owner.symbol, exchange=self._owner.exchange
-                ),
+                instrument=InstrumentRef(symbol=self._owner.symbol, exchange=self._owner.exchange),
                 timeframe=timeframe,
             )
         self._downloaded = series
@@ -154,7 +150,7 @@ class InstrumentHistory:
             # ponytail: only swallow non-provider errors. Provider/broker
             # failures (entitlement, auth, network) must propagate so the CLI
             # and callers can surface them — an empty series hides real bugs.
-            if isinstance(exc, (AttributeError, NotImplementedError, TypeError)):
+            if isinstance(exc, AttributeError | NotImplementedError | TypeError):
                 return HistoricalSeries(
                     bars=[],
                     coverage=None,

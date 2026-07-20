@@ -16,13 +16,13 @@ not behaviour mocks.
 
 from __future__ import annotations
 
+import datetime as _dt
+
 import pytest
 
-from brokers.session.broker_session import BrokerSession
 from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.session.broker_session import BrokerSession
 from domain.ports.broker_gateway import HistoricalBarRequest
-
-import datetime as _dt
 
 
 @pytest.fixture
@@ -39,26 +39,30 @@ class _RealGateway:
     def capabilities(self):
         return self._caps
 
-    def history(self, symbol, exchange="NSE", timeframe="1D", lookback_days=90,
-                from_date=None, to_date=None):
-        import pandas as pd
+    def history(
+        self, symbol, exchange="NSE", timeframe="1D", lookback_days=90, from_date=None, to_date=None
+    ):
         from datetime import date, timedelta
+
+        import pandas as pd
 
         start = date.fromisoformat(from_date) if from_date else date.today()
         end = date.fromisoformat(to_date) if to_date else date.today()
         n = (end - start).days + 1
         dates = [start + timedelta(days=i) for i in range(n)]
-        return pd.DataFrame({
-            "timestamp": dates,
-            "open": [100.0] * n,
-            "high": [101.0] * n,
-            "low": [99.0] * n,
-            "close": [100.5] * n,
-            "volume": [1000] * n,
-            "symbol": symbol,
-            "exchange": exchange,
-            "timeframe": timeframe,
-        })
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": [100.0] * n,
+                "high": [101.0] * n,
+                "low": [99.0] * n,
+                "close": [100.5] * n,
+                "volume": [1000] * n,
+                "symbol": symbol,
+                "exchange": exchange,
+                "timeframe": timeframe,
+            }
+        )
 
 
 def _make_session(broker_id, caps, gw):
@@ -98,9 +102,9 @@ class TestBrokerSessionFederation:
             from application.data.historical_coordinator import HistoricalQuery
 
             q = HistoricalQuery(
-                instrument=__import__("domain.candles.historical", fromlist=["InstrumentRef"]).InstrumentRef(
-                    symbol="RELIANCE", exchange="NSE"
-                ),
+                instrument=__import__(
+                    "domain.candles.historical", fromlist=["InstrumentRef"]
+                ).InstrumentRef(symbol="RELIANCE", exchange="NSE"),
                 timeframe="1m",
                 from_date=today - _dt.timedelta(days=200),
                 to_date=today,

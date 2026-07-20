@@ -279,9 +279,7 @@ class _SlidingWindowCounter:
 
             timestamps = self._buckets[key]
             # Prune expired entries for this key
-            self._buckets[key] = timestamps = [
-                t for t in timestamps if t > cutoff
-            ]
+            self._buckets[key] = timestamps = [t for t in timestamps if t > cutoff]
             # Remove empty buckets entirely
             if not timestamps:
                 del self._buckets[key]
@@ -302,7 +300,8 @@ class _SlidingWindowCounter:
         """
         cutoff = now - self._window
         expired_keys = [
-            key for key, timestamps in self._buckets.items()
+            key
+            for key, timestamps in self._buckets.items()
             if not timestamps or all(t <= cutoff for t in timestamps)
         ]
         for key in expired_keys:

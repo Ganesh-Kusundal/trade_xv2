@@ -1,19 +1,18 @@
 """Unit tests for ExecutionModeAdapter."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
 import pytest
 
-from application.execution.execution_mode_adapter import (
+from application.execution.oms_backtest_adapter import (
     SimulatedOMSAdapter,
     create_execution_adapter,
 )
-from application.oms.factory import create_trading_context
 from application.oms.order_manager import OmsOrderCommand
 from domain import Side
+from tests.conftest import build_test_trading_context
 
 
 @pytest.fixture
@@ -28,7 +27,7 @@ def test_create_execution_adapter_modes(trading_context) -> None:
 
 
 def test_create_execution_adapter_live_raises(trading_context) -> None:
-    with pytest.raises(ValueError, match="Unknown execution mode"):
+    with pytest.raises(ValueError, match="Live mode"):
         create_execution_adapter("live", trading_context)
 
 

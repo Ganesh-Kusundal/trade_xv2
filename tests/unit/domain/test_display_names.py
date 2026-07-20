@@ -40,9 +40,7 @@ class TestParseOption:
             "NIFTY 21 NOV 24400 CALL",
             default_year=2026,
         )
-        assert iid == InstrumentId.option(
-            "NFO", "NIFTY", date(2026, 11, 21), 24400, "CE"
-        )
+        assert iid == InstrumentId.option("NFO", "NIFTY", date(2026, 11, 21), 24400, "CE")
 
     def test_ce_alias(self):
         iid = parse_display_name("BANKNIFTY 26 JUN 52000 CE", default_year=2026)

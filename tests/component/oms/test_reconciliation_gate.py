@@ -1,9 +1,8 @@
 """Tests for post-restart reconciliation order placement gate."""
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
-from application.oms.context import TradingContext
+from tests.conftest import build_test_trading_context
 
 
 class _FakeReconciler:

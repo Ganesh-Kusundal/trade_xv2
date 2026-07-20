@@ -70,7 +70,8 @@ class IdempotencyCache(Generic[T]):
         self._ttl = ttl
         self._service: IdempotencyService[T] = IdempotencyService(
             primary_backend=MemoryIdempotencyCache[T](
-                default_ttl_seconds=int(ttl), max_size=max_size,
+                default_ttl_seconds=int(ttl),
+                max_size=max_size,
             ),
             enable_fallback=False,
         )

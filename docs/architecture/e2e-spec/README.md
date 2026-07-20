@@ -37,9 +37,9 @@ TradeXV2 keeps its own layering (`domain → application → infrastructure → 
 | 12 | [Market data storage review](12-market-data-storage-review.md) | Why root `market_data/` exists; lake vs state vs `src/market_data` package; target `data/lake` + `data/state` |
 
 **Related (prior work):**
-- [Principal Engineer Review](../../superpowers/reviews/PRINCIPAL-ENGINEER-REVIEW-TradeXV2-vs-nautilus.md)
-- [Earlier architectural sketch](../../superpowers/reviews/ARCHITECTURAL-SPECIFICATION-TradeXV2.md) — superseded by this suite
-- [Target layering](../target-layering.md) · [Roadmap](../roadmap.md) · [Backlog G1–G8](../backlog.md)
+- [`docs/constitution/07-gap-analysis.md`](../../constitution/07-gap-analysis.md) — current gap ledger (supersedes PE review docs, removed 2026-07-20)
+- [`docs/constitution/08-incremental-implementation.md`](../../constitution/08-incremental-implementation.md) — delivery playbook
+- [Target layering](../target-layering.md) · [Roadmap](../roadmap.md) · [Backlog](../backlog.md) (redirect stubs → constitution)
 
 ---
 

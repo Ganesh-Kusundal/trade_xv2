@@ -1,4 +1,10 @@
-"""RSI — pure domain math (no pandas dependency)."""
+"""RSI — pure domain math (no pandas dependency).
+
+Canonical RSI implementation for TradeXV2 (Wilder/EMA, SMA-seeded).
+
+ponytail: Canonical RSI is ``domain.indicators.rsi`` (Wilder). Datalake and
+pipeline adapters delegate here; SQL views may still use a different formula.
+"""
 
 from __future__ import annotations
 

@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
-from decimal import Decimal
 from typing import Any
 
 from domain.entities import Order, OrderResponse, Position, Trade
@@ -63,17 +61,6 @@ class ExecutionComposer:
         self._risk_manager = risk_manager
         self._order_manager = order_manager
 
-    def _check_kill_switch(self, operation: str) -> None:
-        """Raise OrderBlockedError if kill switch is active."""
-        if self._risk_manager.is_kill_switch_active():
-            from application.oms.errors import OrderBlockedError
-
-            raise OrderBlockedError(
-                f"Order blocked: kill switch active ({operation})",
-                operation=operation,
-                reason="Kill switch active",
-            )
-
     async def place_order(
         self,
         request: OrderRequest,
@@ -104,9 +91,6 @@ class ExecutionComposer:
         BrokerUnavailableError
             If selected broker is unavailable.
         """
-        # 0. Risk check (kill-switch guard)
-        self._check_kill_switch("place_order")
-
         # 1. Route to broker
         target_broker = broker_id or self._route_order()
 
@@ -161,9 +145,6 @@ class ExecutionComposer:
         OrderResponse
             Cancellation result.
         """
-        # Risk check (kill-switch guard)
-        self._check_kill_switch("cancel_order")
-
         target_broker = broker_id or self._route_order()
         quota = await self._acquire_quota(target_broker, "orders", "EXECUTION_CRITICAL")
 
@@ -205,9 +186,6 @@ class ExecutionComposer:
         OrderResponse
             Modification result.
         """
-        # Risk check (kill-switch guard)
-        self._check_kill_switch("modify_order")
-
         target_broker = broker_id or self._route_order()
         quota = await self._acquire_quota(target_broker, "orders", "EXECUTION_CRITICAL")
 
@@ -295,8 +273,11 @@ class ExecutionComposer:
         quota: Any,
         broker_id: str,
     ) -> OrderResponse:
-        """Route placement through OrderManager (idempotency + risk + audit)."""
+        """Route placement through ExecutionEngine spine (idempotency + risk + audit)."""
+        from application.execution.fill_source import CallableExecutionTarget
+        from application.execution.spine import place_order_spine
         from application.oms.order_manager import OmsOrderCommand, OrderResult
+        from domain.ports.execution_target import ExecutionTargetKind
 
         cmd = self._to_oms_command(request)
 
@@ -304,8 +285,9 @@ class ExecutionComposer:
             resp = asyncio.run(gateway.place_order(request, quota=quota))
             return self._broker_order_from_response(resp, oms_cmd)
 
+        target = CallableExecutionTarget(submit_fn, kind=ExecutionTargetKind.LIVE)
         result: OrderResult = await asyncio.to_thread(
-            self._order_manager.place_order, cmd, submit_fn
+            place_order_spine, self._order_manager, cmd, target
         )
         return self._order_result_to_response(result, broker_id)
 
@@ -346,24 +328,9 @@ class ExecutionComposer:
 
     @staticmethod
     def _to_oms_command(request: OrderRequest) -> Any:
-        from application.oms.order_manager import OmsOrderCommand
+        from application.oms.order_command_mapper import order_request_to_oms_command
 
-        side = getattr(request, "transaction_type", None) or getattr(request, "side", None)
-        raw_price = getattr(request, "price", None)
-        try:
-            price = Decimal(str(raw_price)) if raw_price is not None else Decimal("0")
-        except Exception:
-            price = Decimal("0")
-        return OmsOrderCommand(
-            symbol=request.symbol,
-            exchange=getattr(request, "exchange", "NSE"),
-            side=side,
-            quantity=request.quantity,
-            price=price,
-            order_type=request.order_type,
-            product_type=request.product_type,
-            correlation_id=request.correlation_id or str(uuid.uuid4()),
-        )
+        return order_request_to_oms_command(request)
 
     @staticmethod
     def _broker_order_from_response(response: Any, cmd: Any) -> Order:

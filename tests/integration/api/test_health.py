@@ -59,3 +59,22 @@ class TestHealthEndpoints:
         response = client.get("/api/v1/health/metrics")
         # Should be 200 if trading context exists, 503 if not, or 404 if not mounted
         assert response.status_code in (200, 503, 404)
+
+    def test_metrics_public_in_dev(self):
+        """Dev metrics stay public (profile-scoped auth — SEC-004/005)."""
+        app = create_app(config=APIConfig(auth_mode="none"))
+        client = TestClient(app)
+
+        for path in ("/api/v1/health/metrics", "/api/v1/health/metrics/prometheus"):
+            response = client.get(path)
+            assert response.status_code in (200, 503, 404)
+
+    def test_liveness_and_readiness_stay_public(self):
+        """Probe endpoints must remain reachable without API key."""
+        app = create_app(
+            config=APIConfig(auth_mode="api_key", api_key="metrics-test-key"),
+        )
+        client = TestClient(app)
+
+        assert client.get("/api/v1/health").status_code == 200
+        assert client.get("/api/v1/health/readyz").status_code in (200, 503)

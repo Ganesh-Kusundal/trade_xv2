@@ -8,45 +8,46 @@ from __future__ import annotations
 try:
     from .MarketDataFeed_pb2 import (
         LTPC,
+        OHLC,
+        Feed,
+        FeedResponse,
+        FirstLevelWithGreeks,
+        FullFeed,
+        IndexFullFeed,
+        MarketFullFeed,
+        MarketInfo,
         MarketLevel,
         MarketOHLC,
-        Quote,
-        OptionGreeks,
-        OHLC,
-        Type,
-        MarketFullFeed,
-        IndexFullFeed,
-        FullFeed,
-        FirstLevelWithGreeks,
-        Feed,
-        RequestMode,
         MarketStatus,
-        MarketInfo,
-        FeedResponse,
+        OptionGreeks,
+        Quote,
+        RequestMode,
+        Type,
     )
 except ImportError:
     try:
         from MarketDataFeed_pb2 import (
             LTPC,
+            OHLC,
+            Feed,
+            FeedResponse,
+            FirstLevelWithGreeks,
+            FullFeed,
+            IndexFullFeed,
+            MarketFullFeed,
+            MarketInfo,
             MarketLevel,
             MarketOHLC,
-            Quote,
-            OptionGreeks,
-            OHLC,
-            Type,
-            MarketFullFeed,
-            IndexFullFeed,
-            FullFeed,
-            FirstLevelWithGreeks,
-            Feed,
-            RequestMode,
             MarketStatus,
-            MarketInfo,
-            FeedResponse,
+            OptionGreeks,
+            Quote,
+            RequestMode,
+            Type,
         )
     except ImportError:
         # Fallback dummy class if import fails in unit tests
         class FeedResponse:
             pass
+
         class Feed:
             pass

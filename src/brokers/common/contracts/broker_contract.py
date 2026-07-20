@@ -17,7 +17,6 @@ import pandas as pd
 import pytest
 
 from brokers.common.broker_capabilities import BrokerCapabilities
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain import (
     Balance,
     DepthLevel,
@@ -25,6 +24,7 @@ from domain import (
     OrderStatus,
     Quote,
 )
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
 class BrokerContractSuite:
@@ -220,3 +220,69 @@ class BrokerContractSuite:
         result = gateway.get_rate_limiter_metrics()
         assert isinstance(result, dict)
         assert "tokens_available" in result
+
+    # ── Authentication / lifecycle ─────────────────────────────────────────
+
+    def test_authenticate_or_connected(self, gateway: Any) -> None:
+        if hasattr(gateway, "authenticate"):
+            assert gateway.authenticate() in (True, False)
+            return
+        assert getattr(gateway, "is_connected", True) is True
+
+    def test_describe_returns_dict_when_available(self, gateway: Any) -> None:
+        if not hasattr(gateway, "describe"):
+            pytest.skip("optional: describe()")
+        result = gateway.describe()
+        assert isinstance(result, dict)
+
+    # ── Order lifecycle (when execution surface present) ───────────────────
+
+    def test_place_order_when_supported(self, gateway: Any) -> None:
+        if not hasattr(gateway, "place_order"):
+            pytest.skip("gateway has no place_order")
+        from domain.orders.requests import OrderRequest
+        from domain.types import Side
+
+        request = OrderRequest(
+            symbol="RELIANCE",
+            exchange="NSE",
+            transaction_type=Side.BUY,
+            quantity=1,
+            order_type="LIMIT",
+            price=1,
+        )
+        quota = getattr(gateway, "quota_token", None)
+        if quota is not None:
+            result = gateway.place_order(request, quota=quota)
+        else:
+            result = gateway.place_order(
+                symbol="RELIANCE",
+                exchange="NSE",
+                side="BUY",
+                quantity=1,
+                price=1,
+                order_type="LIMIT",
+            )
+        assert result is not None
+
+    def test_cancel_order_when_supported(self, gateway: Any) -> None:
+        if not hasattr(gateway, "cancel_order"):
+            pytest.skip("gateway has no cancel_order")
+        quota = getattr(gateway, "quota_token", None)
+        if quota is not None:
+            gateway.cancel_order("test-order-id", quota=quota)
+        else:
+            gateway.cancel_order("test-order-id")
+
+    def test_modify_order_when_supported(self, gateway: Any) -> None:
+        if not hasattr(gateway, "modify_order"):
+            pytest.skip("gateway has no modify_order")
+        quota = getattr(gateway, "quota_token", None)
+        if quota is not None:
+            from domain.orders.requests import ModifyOrderRequest
+
+            gateway.modify_order(
+                ModifyOrderRequest(order_id="test-order-id", quantity=1), quota=quota
+            )
+        else:
+            gateway.modify_order("test-order-id", quantity=1)

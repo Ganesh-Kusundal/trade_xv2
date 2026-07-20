@@ -6,9 +6,9 @@ import logging
 from decimal import Decimal
 from typing import Any
 
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.domain import PnlExitConfig, PnlExitStatus
 from brokers.dhan.exceptions import PnlExitError
-from brokers.dhan.api.http_client import DhanHttpClient
 
 logger = logging.getLogger(__name__)
 
@@ -127,17 +127,11 @@ class PnlExitAdapter:
             profit_value=(
                 Decimal(str(raw["profitValue"]))
                 if raw.get("profitValue") is not None
-                else (
-                    Decimal(str(raw["profit"]))
-                    if raw.get("profit") is not None
-                    else None
-                )
+                else (Decimal(str(raw["profit"])) if raw.get("profit") is not None else None)
             ),
             loss_value=(
                 Decimal(str(raw["lossValue"]))
                 if raw.get("lossValue") is not None
-                else (
-                    Decimal(str(raw["loss"])) if raw.get("loss") is not None else None
-                )
+                else (Decimal(str(raw["loss"])) if raw.get("loss") is not None else None)
             ),
         )

@@ -68,9 +68,20 @@ class TestCreateDataset:
             curated_root=str(market_root / "curated"),
         )
         meta = ds.metadata
-        for key in ("hash", "short_hash", "name", "universe", "as_of_date",
-                     "features", "date_from", "date_to", "timeframe", "created_at",
-                     "row_count", "symbol_count"):
+        for key in (
+            "hash",
+            "short_hash",
+            "name",
+            "universe",
+            "as_of_date",
+            "features",
+            "date_from",
+            "date_to",
+            "timeframe",
+            "created_at",
+            "row_count",
+            "symbol_count",
+        ):
             assert key in meta, f"Missing metadata key: {key}"
         assert "atr_14" in meta["features"]
         assert "sma_20" in meta["features"]

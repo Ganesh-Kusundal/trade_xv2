@@ -65,11 +65,17 @@ def test_plan_to_order_requests_carries_slicing():
     from domain.orders.execution_plan import ExecutionPlan, PlanContext
 
     signal = SignalDTO(
-        symbol="RELIANCE", exchange="NSE", side="BUY", signal_type="BUY",
-        confidence=Decimal("0.9"), quantity=8, entry_price=Decimal("100"),
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        signal_type="BUY",
+        confidence=Decimal("0.9"),
+        quantity=8,
+        entry_price=Decimal("100"),
     )
     ctx = PlanContext(
-        equity=Decimal("100000"), default_exchange="NSE",
+        equity=Decimal("100000"),
+        default_exchange="NSE",
         slicing=SlicingPlan(algo=SlicingAlgo.VWAP, slice_count=2),
     )
     plan = ExecutionPlan.from_signal(signal, ctx)

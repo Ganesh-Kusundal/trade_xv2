@@ -7,15 +7,20 @@ from brokers.common.broker_capabilities import (
     StreamLimitProfile,
 )
 from domain.capabilities.market_surface import (
+    FUTURE_CHAIN,
     LTP,
     OPTION_CHAIN,
     QUOTE,
     RESOLVE,
-    FUTURE_CHAIN,
     MarketCoverage,
 )
 from domain.constants.exchanges import CDS, MCX, NFO, NSE
 from domain.instruments.asset_kind import AssetKind
+
+# Dhan's depth-200 WebSocket API supports exactly one instrument per connection.
+# To monitor multiple instruments at 200-level depth, create multiple connections
+# (see Depth200ConnectionPool in brokers.dhan.data.depth_200).
+DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION: int = 1
 
 
 def dhan_capabilities() -> BrokerCapabilities:

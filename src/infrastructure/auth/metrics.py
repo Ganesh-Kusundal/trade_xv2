@@ -43,21 +43,15 @@ class AuthMetrics:
 
     @staticmethod
     def totp_mint(broker: str) -> None:
-        AuthMetrics._inc(
-            "auth_totp_mint_total", "Successful TOTP/login token mints", broker
-        )
+        AuthMetrics._inc("auth_totp_mint_total", "Successful TOTP/login token mints", broker)
 
     @staticmethod
     def totp_mint_fail(broker: str) -> None:
-        AuthMetrics._inc(
-            "auth_totp_mint_fail_total", "Failed TOTP/login token mints", broker
-        )
+        AuthMetrics._inc("auth_totp_mint_fail_total", "Failed TOTP/login token mints", broker)
 
     @staticmethod
     def totp_reuse(broker: str) -> None:
-        AuthMetrics._inc(
-            "auth_totp_reuse_total", "Valid JWT reused without TOTP mint", broker
-        )
+        AuthMetrics._inc("auth_totp_reuse_total", "Valid JWT reused without TOTP mint", broker)
 
     @staticmethod
     def totp_rate_limit(broker: str) -> None:
@@ -69,21 +63,15 @@ class AuthMetrics:
 
     @staticmethod
     def probe_ok(broker: str) -> None:
-        AuthMetrics._inc(
-            "auth_probe_ok_total", "Authenticated read-only probe success", broker
-        )
+        AuthMetrics._inc("auth_probe_ok_total", "Authenticated read-only probe success", broker)
 
     @staticmethod
     def probe_fail(broker: str) -> None:
-        AuthMetrics._inc(
-            "auth_probe_fail_total", "Authenticated read-only probe failure", broker
-        )
+        AuthMetrics._inc("auth_probe_fail_total", "Authenticated read-only probe failure", broker)
 
     @staticmethod
     def token_rejected(broker: str) -> None:
-        AuthMetrics._inc(
-            "auth_token_rejected_total", "Broker rejected access token", broker
-        )
+        AuthMetrics._inc("auth_token_rejected_total", "Broker rejected access token", broker)
 
     @staticmethod
     def api_rate_limit(broker: str) -> None:

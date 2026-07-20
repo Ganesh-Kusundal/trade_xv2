@@ -14,8 +14,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from tests.support.wait_utils import wait_until
-
+from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
+from domain.capabilities.broker_capabilities import RateLimitProfile
+from domain.errors import QuotaExhaustedError
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -26,11 +27,8 @@ from infrastructure.resilience.rate_limiter import (
     RateLimitConfig,
     TokenBucketRateLimiter,
 )
-from infrastructure.resilience.retry import RetryConfig, RetryExecutor
-
-from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
-from domain.capabilities.broker_capabilities import RateLimitProfile
-from domain.errors import QuotaExhaustedError
+from infrastructure.resilience.retry_executor import RetryConfig, RetryExecutor
+from tests.support.wait_utils import wait_until
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -42,11 +40,13 @@ def _make_rate_limiter(rate: float = 10.0, capacity: int = 10) -> TokenBucketRat
 
 def _make_multi_bucket_limiter() -> MultiBucketRateLimiter:
     """Create a multi-bucket rate limiter for testing."""
-    return MultiBucketRateLimiter({
-        "orders": RateLimitConfig(rate_per_second=5.0, capacity=5),
-        "quotes": RateLimitConfig(rate_per_second=10.0, capacity=10),
-        "data": RateLimitConfig(rate_per_second=20.0, capacity=20),
-    })
+    return MultiBucketRateLimiter(
+        {
+            "orders": RateLimitConfig(rate_per_second=5.0, capacity=5),
+            "quotes": RateLimitConfig(rate_per_second=10.0, capacity=10),
+            "data": RateLimitConfig(rate_per_second=20.0, capacity=20),
+        }
+    )
 
 
 # ── Priority 2.1: Rate Limit Approached ──────────────────────────────────
@@ -88,7 +88,7 @@ class TestRateLimitApproached:
         # At least some requests should be spaced out
         for i in range(1, len(request_times)):
             # Should have some delay (token refill time)
-            assert request_times[i] >= request_times[i-1]
+            assert request_times[i] >= request_times[i - 1]
 
     def test_metrics_show_queue_depth(self):
         """Rate limiter tracks pending requests."""
@@ -139,18 +139,21 @@ class TestRateLimitExhausted:
 
     def test_circuit_breaker_opens_on_rate_limit(self):
         """Rate limit exhaustion triggers circuit breaker."""
-        cb = CircuitBreaker("test", CircuitBreakerConfig(
-            failure_threshold=2,
-            open_duration_ms=5000,
-        ))
+        cb = CircuitBreaker(
+            "test",
+            CircuitBreakerConfig(
+                failure_threshold=2,
+                open_duration_ms=5000,
+            ),
+        )
         _make_rate_limiter(rate=1.0, capacity=1)
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),
             circuit_breaker=cb,
-            rate_limiter=MultiBucketRateLimiter({
-                "orders": RateLimitConfig(rate_per_second=0.5, capacity=1)
-            }),
+            rate_limiter=MultiBucketRateLimiter(
+                {"orders": RateLimitConfig(rate_per_second=0.5, capacity=1)}
+            ),
             rate_limit_category="orders",
         )
 
@@ -167,10 +170,13 @@ class TestRateLimitExhausted:
 
     def test_requests_fail_fast_not_queued(self):
         """When circuit breaker open, requests fail fast."""
-        cb = CircuitBreaker("test", CircuitBreakerConfig(
-            failure_threshold=1,
-            open_duration_ms=10000,
-        ))
+        cb = CircuitBreaker(
+            "test",
+            CircuitBreakerConfig(
+                failure_threshold=1,
+                open_duration_ms=10000,
+            ),
+        )
 
         # Manually open circuit breaker
         cb.on_failure()
@@ -191,11 +197,14 @@ class TestRateLimitExhausted:
 
     def test_recovery_after_timeout(self):
         """Circuit breaker recovers after open duration."""
-        cb = CircuitBreaker("test", CircuitBreakerConfig(
-            failure_threshold=1,
-            open_duration_ms=100,  # Very short for testing
-            success_threshold=1,
-        ))
+        cb = CircuitBreaker(
+            "test",
+            CircuitBreakerConfig(
+                failure_threshold=1,
+                open_duration_ms=100,  # Very short for testing
+                success_threshold=1,
+            ),
+        )
 
         # Open circuit breaker
         cb.on_failure()

@@ -14,8 +14,6 @@ class MarketStructureAnalyzer:
         self._swing_right = swing_right
 
     def analyze(self, data: pd.DataFrame) -> pd.DataFrame:
-        import pandas as pd
-
         df = data.copy()
         if df.empty:
             df["swing_high"] = False
@@ -31,8 +29,6 @@ class MarketStructureAnalyzer:
         return df
 
     def _detect_swing_highs(self, high: pd.Series) -> pd.Series:
-        import pandas as pd
-
         """Detect swing highs without look-ahead bias.
 
         A bar is a swing high if its high is >= the max of the previous
@@ -48,8 +44,6 @@ class MarketStructureAnalyzer:
         return confirmed.shift(self._swing_right).fillna(False).astype(bool)
 
     def _detect_swing_lows(self, low: pd.Series) -> pd.Series:
-        import pandas as pd
-
         """Detect swing lows without look-ahead bias.
 
         A bar is a swing low if its low is <= the min of the previous

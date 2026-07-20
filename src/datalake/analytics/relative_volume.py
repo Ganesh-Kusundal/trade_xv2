@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 def _get_conn(read_only: bool = True) -> duckdb.DuckDBPyConnection:
     from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool
+
     return get_read_pool().acquire(str(DEFAULT_CATALOG_PATH))
 
 
@@ -81,6 +82,7 @@ def rel_volume_14d_by_time(
 
     if lookback_start is None:
         from datetime import datetime, timedelta
+
         dt = datetime.strptime(target_date, "%Y-%m-%d")
         lookback_start = (dt - timedelta(days=lookback_days * 2)).strftime("%Y-%m-%d")
 

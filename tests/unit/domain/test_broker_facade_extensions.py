@@ -21,7 +21,7 @@ class _FakeDepth20:
         self._exchange = "NSE"
         self.calls: list[tuple] = []
 
-    def for_instrument(self, symbol: str, exchange: str = "NSE") -> "_FakeDepth20":
+    def for_instrument(self, symbol: str, exchange: str = "NSE") -> _FakeDepth20:
         e = type(self)(self._gw)
         e._symbol = symbol
         e._exchange = exchange
@@ -106,8 +106,8 @@ def test_paper_broker_facade_empty_capabilities():
 
 
 def test_upstox_news_extension_capabilities_enum() -> None:
-    from domain.capabilities import Capability
     from brokers.upstox.extensions.news import UpstoxNewsExtension
+    from domain.capabilities import Capability
 
     ext = UpstoxNewsExtension(MagicMock())
     caps = ext.capabilities

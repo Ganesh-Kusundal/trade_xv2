@@ -19,10 +19,10 @@ from domain import (
 )
 
 from ._base import (
-    product_from_wire,
-    txn_from_wire,
-    to_int,
     parse_iso,
+    product_from_wire,
+    to_int,
+    txn_from_wire,
 )
 from .price_parser import UpstoxPriceParser
 
@@ -40,11 +40,7 @@ def _quote_from_instrument_dict(
     bid = depth.get("buy") if isinstance(depth, dict) else None
     ask = depth.get("sell") if isinstance(depth, dict) else None
 
-    symbol = str(
-        data.get("symbol")
-        or data.get("trading_symbol")
-        or ""
-    )
+    symbol = str(data.get("symbol") or data.get("trading_symbol") or "")
     if not symbol and map_key:
         symbol = map_key.split(":")[-1] if ":" in map_key else map_key.split("|")[-1]
 
@@ -65,12 +61,8 @@ def _quote_from_instrument_dict(
         close=UpstoxPriceParser.parse(close or 0),
         volume=to_int(data.get("volume") or ohlc.get("volume")),
         oi=to_int(data.get("oi") or 0),
-        bid=UpstoxPriceParser.parse(bid[0].get("price"))
-        if isinstance(bid, list) and bid
-        else None,
-        ask=UpstoxPriceParser.parse(ask[0].get("price"))
-        if isinstance(ask, list) and ask
-        else None,
+        bid=UpstoxPriceParser.parse(bid[0].get("price")) if isinstance(bid, list) and bid else None,
+        ask=UpstoxPriceParser.parse(ask[0].get("price")) if isinstance(ask, list) and ask else None,
         change=UpstoxPriceParser.parse(change or 0),
         timestamp=parse_iso(data.get("timestamp") or data.get("last_trade_time")),
     )
@@ -86,12 +78,13 @@ def to_quote(payload: Any) -> Quote:
     if data and "symbol" not in data and "last_price" not in data and "ltp" not in data:
         for map_key, value in data.items():
             if isinstance(value, dict) and (
-                "last_price" in value or "ltp" in value or "symbol" in value
-                or "live_ohlc" in value or "instrument_token" in value
+                "last_price" in value
+                or "ltp" in value
+                or "symbol" in value
+                or "live_ohlc" in value
+                or "instrument_token" in value
             ):
-                return _quote_from_instrument_dict(
-                    value, map_key=str(map_key)
-                )
+                return _quote_from_instrument_dict(value, map_key=str(map_key))
     return _quote_from_instrument_dict(data)
 
 
@@ -165,9 +158,7 @@ def to_holding(payload: Any) -> Holding:
 
 def to_trade(payload: Any) -> Trade:
     if not isinstance(payload, dict):
-        return Trade(
-            trade_id="", order_id="", symbol="", exchange="", side=Side.BUY, quantity=0
-        )
+        return Trade(trade_id="", order_id="", symbol="", exchange="", side=Side.BUY, quantity=0)
     return Trade(
         trade_id=str(payload.get("trade_id") or ""),
         order_id=str(payload.get("order_id") or ""),
@@ -175,9 +166,7 @@ def to_trade(payload: Any) -> Trade:
         exchange=str(payload.get("exchange") or ""),
         side=txn_from_wire(str(payload.get("transaction_type") or "BUY")),
         quantity=to_int(payload.get("quantity") or payload.get("traded_quantity")),
-        price=UpstoxPriceParser.parse(
-            payload.get("price") or payload.get("average_price") or 0
-        ),
+        price=UpstoxPriceParser.parse(payload.get("price") or payload.get("average_price") or 0),
         trade_value=UpstoxPriceParser.parse(
             (payload.get("price") or 0) * (payload.get("quantity") or 0)
         ),

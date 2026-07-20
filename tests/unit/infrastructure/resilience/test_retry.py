@@ -6,7 +6,7 @@ from infrastructure.resilience.backoff import ExponentialBackoff
 from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from infrastructure.resilience.errors import NonRetryableError, RetryableError
 from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
-from infrastructure.resilience.retry import (
+from infrastructure.resilience.retry_executor import (
     RetryConfig,
     RetryExecutor,
 )

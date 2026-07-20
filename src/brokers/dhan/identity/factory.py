@@ -23,18 +23,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from infrastructure.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
-from infrastructure.auth.env_token import update_env_token as _infra_update_env_token
-from infrastructure.auth.token_ensure import ensure_access_token
-from infrastructure.auth.token_persistence import TokenPersistence
-from infrastructure.gateway.provider_factory import BrokerProviderFactory
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.config.settings import DhanConnectionSettings, DhanSettingsLoader
 from brokers.dhan.identity.account_registry import AccountConnectionRegistry
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.streaming.session_manager import DhanSessionManager
 from brokers.dhan.wire import DhanWireAdapter
-from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.config.settings import DhanConnectionSettings, DhanSettingsLoader
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from infrastructure.auth import AuthManager, JsonTokenStateStore, TokenSource
+from infrastructure.auth.env_token import update_env_token as _infra_update_env_token
+from infrastructure.auth.token_ensure import ensure_access_token
+from infrastructure.auth.token_persistence import TokenPersistence
+from infrastructure.gateway.provider_factory import BrokerProviderFactory
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,9 +89,7 @@ class BrokerFactory(BrokerProviderFactory):
         refresh_lock = threading.Lock()
 
         # ── HTTP client ────────────────────────────────────────────
-        client = self._create_http_client(
-            settings, auth, token, env_path, refresh_lock
-        )
+        client = self._create_http_client(settings, auth, token, env_path, refresh_lock)
 
         # ── Connection + Gateway ───────────────────────────────────
         gateway = self._create_connection_and_gateway(
@@ -178,9 +177,7 @@ class BrokerFactory(BrokerProviderFactory):
         if not state or not state.access_token:
             from brokers.dhan.exceptions import ConfigurationError
 
-            raise ConfigurationError(
-                "DHAN_ACCESS_TOKEN not configured and TOTP refresh failed"
-            )
+            raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
 
         # Hydrate AuthManager so 401 refresh / scheduler share the same state.
         auth._set_token(state.access_token, source=state.source)

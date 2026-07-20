@@ -49,6 +49,7 @@ class OptionsAnalytics:
         max_pain_result = MaxPainAnalytics().analyze(option_chain, spot_price)
         iv_result = IVAnalytics().analyze(option_chain, iv_history)
         from analytics.options._greeks import GreeksAnalytics
+
         greeks_result = GreeksAnalytics().analyze(option_chain, multiplier, spot_price=spot_price)
         flow_result = OptionFlowAnalytics().analyze(option_chain)
         strike_result = StrikeAnalytics().analyze(option_chain, spot_price)

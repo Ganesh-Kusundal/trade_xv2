@@ -20,9 +20,7 @@ from typing import Any
 _TIMEFRAME_ALIASES = {"1h": "60m", "1d": "1D", "1w": "1W"}
 
 
-def select_historical_source(
-    timeframe: str, gateways: dict[str, Any]
-) -> tuple[str, Any]:
+def select_historical_source(timeframe: str, gateways: dict[str, Any]) -> tuple[str, Any]:
     """Return ``(broker_id, gateway)`` with the largest historical range
     for *timeframe* among *gateways*.
 

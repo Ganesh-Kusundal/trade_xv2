@@ -38,7 +38,9 @@ def _is_rate_limited(err: str) -> bool:
     return any(marker in low for marker in RATE_LIMIT_MARKERS)
 
 
-def _run_strategy(name: str, symbols: list[str], timeframe: str, days: int, workers: int, sync_one) -> dict:
+def _run_strategy(
+    name: str, symbols: list[str], timeframe: str, days: int, workers: int, sync_one
+) -> dict:
     start = time.time()
     errors: dict[str, str] = {}
 
@@ -70,8 +72,10 @@ def main() -> int:
     if not symbols:
         print(f"No existing equity symbols found at timeframe={args.timeframe} under {ROOT}")
         return 1
-    print(f"Benchmarking {len(symbols)} symbols, timeframe={args.timeframe}, "
-          f"days={args.days}, workers={args.workers}\n")
+    print(
+        f"Benchmarking {len(symbols)} symbols, timeframe={args.timeframe}, "
+        f"days={args.days}, workers={args.workers}\n"
+    )
 
     years = max(args.days / 365, 1 / 365)
 
@@ -86,7 +90,9 @@ def main() -> int:
                 symbol, dhan_gw, years=years, timeframe=args.timeframe, exchange="NSE"
             )
 
-        reports.append(_run_strategy("ad-hoc", symbols, args.timeframe, args.days, args.workers, _adhoc_sync))
+        reports.append(
+            _run_strategy("ad-hoc", symbols, args.timeframe, args.days, args.workers, _adhoc_sync)
+        )
 
         print("\nBootstrapping federated (Dhan + Upstox) strategy...")
         fetch_fn = _build_federated_fetch_fn()
@@ -97,13 +103,17 @@ def main() -> int:
                 symbol, years=years, timeframe=args.timeframe, exchange="NSE", fetch_fn=fetch_fn
             )
 
-        reports.append(_run_strategy("federated", symbols, args.timeframe, args.days, args.workers, _fed_sync))
+        reports.append(
+            _run_strategy("federated", symbols, args.timeframe, args.days, args.workers, _fed_sync)
+        )
 
     print("\n" + "=" * 60)
     print(f"{'strategy':<12}{'time(s)':<10}{'ok':<6}{'errored':<10}{'429s':<8}{'rows':<8}")
     for r in reports:
-        print(f"{r['strategy']:<12}{r['elapsed_s']:<10}{r['symbols_ok']:<6}"
-              f"{r['symbols_errored']:<10}{r['rate_limited_hits']:<8}{r['total_rows']:<8}")
+        print(
+            f"{r['strategy']:<12}{r['elapsed_s']:<10}{r['symbols_ok']:<6}"
+            f"{r['symbols_errored']:<10}{r['rate_limited_hits']:<8}{r['total_rows']:<8}"
+        )
     print("=" * 60)
     return 0
 

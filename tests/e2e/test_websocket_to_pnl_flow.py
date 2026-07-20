@@ -10,12 +10,13 @@ No MagicMock for internal components.
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+
+from tests.conftest import build_test_trading_context
 
 pytestmark = pytest.mark.e2e
 
@@ -315,12 +316,11 @@ class TestDlqCapturesFailedHandler:
         instance. The default factory creates a separate PersistentDLQ
         for ctx.dead_letter_queue that the bus does not write to.
         """
-        from application.oms.context import TradingContext
+        from application.oms._internal.risk_manager import RiskConfig, RiskManager
         from application.oms.position_manager import PositionManager
-        from application.oms.risk_manager import RiskConfig, RiskManager
-        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus import EventBus
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.observability.event_metrics import EventMetrics
 
         dlq = DeadLetterQueue(max_size=1000)
         metrics = EventMetrics()
@@ -360,11 +360,7 @@ class TestDlqCapturesFailedHandler:
         assert len(dlq) >= 1, "DLQ should contain at least one dead letter"
 
         dead_letters = dlq.peek(10)
-        matching = [
-            dl
-            for dl in dead_letters
-            if dl.event.event_type == EventType.TICK.value
-        ]
+        matching = [dl for dl in dead_letters if dl.event.event_type == EventType.TICK.value]
         assert len(matching) >= 1
         assert matching[0].error_type == "ValueError"
         assert "simulated handler crash" in matching[0].error_message
@@ -415,9 +411,7 @@ class TestMultipleSymbolUpdates:
             pos = wired_ctx.position_manager.get_position(sym, "NSE")
             assert pos is not None, f"Position for {sym} should exist"
             expected_price = Decimal(str(100 + i))
-            assert pos.ltp == expected_price, (
-                f"{sym} LTP: expected {expected_price}, got {pos.ltp}"
-            )
+            assert pos.ltp == expected_price, f"{sym} LTP: expected {expected_price}, got {pos.ltp}"
             # qty=10, avg=100, ltp=100+i → pnl = 10 × i
             expected_pnl = Decimal(str(10 * i))
             assert pos.unrealized_pnl == expected_pnl, (

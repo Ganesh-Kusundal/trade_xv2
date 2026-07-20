@@ -6,7 +6,8 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
-from domain.ports.broker_gateway import QuotaToken
+from brokers.dhan.extensions.depth20 import DhanDepth20Extension
+from brokers.dhan.extensions.depth200 import DhanDepth200Extension
 from domain.extensions.broker_bundle import ExtensionBundle, register_extension_factory
 from domain.extensions.extended_order import ExtendedOrderExecutor
 from domain.extensions.forever_order import (
@@ -24,8 +25,7 @@ from domain.extensions.super_order import (
     SuperOrderResult,
 )
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from brokers.dhan.extensions.depth20 import DhanDepth20Extension
-from brokers.dhan.extensions.depth200 import DhanDepth200Extension
+from domain.ports.broker_gateway import QuotaToken
 
 
 class DhanSuperOrderStrategy(SuperOrderProvider):

@@ -1,4 +1,5 @@
 """Metric type definitions for the metrics system."""
+
 from __future__ import annotations
 
 import random
@@ -11,7 +12,9 @@ from threading import Lock
 class Counter:
     """Monotonically increasing counter metric."""
 
-    def __init__(self, name: str, description: str = "", labels: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, name: str, description: str = "", labels: dict[str, str] | None = None
+    ) -> None:
         self.name = name
         self.description = description
         self.labels = labels or {}
@@ -37,7 +40,9 @@ class Counter:
 class Gauge:
     """Up/down gauge metric."""
 
-    def __init__(self, name: str, description: str = "", labels: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, name: str, description: str = "", labels: dict[str, str] | None = None
+    ) -> None:
         self.name = name
         self.description = description
         self.labels = labels or {}
@@ -66,17 +71,22 @@ class Gauge:
             return self._value
 
 
-
 class Histogram:
     """Histogram metric for measuring distributions."""
 
     _MAX_SAMPLES = 10_000
 
-    def __init__(self, name: str, description: str = "", labels: dict[str, str] | None = None, buckets: list[float] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        description: str = "",
+        labels: dict[str, str] | None = None,
+        buckets: list[float] | None = None,
+    ) -> None:
         self.name = name
         self.description = description
         self.labels = labels or {}
-        self.buckets = buckets or [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+        self.buckets = buckets or [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
         self._values: list[float] = []
         self._count: int = 0
         self._lock = Lock()
@@ -115,7 +125,9 @@ class Timer:
 
     _MAX_SAMPLES = 10_000
 
-    def __init__(self, name: str, description: str = "", labels: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, name: str, description: str = "", labels: dict[str, str] | None = None
+    ) -> None:
         self.name = name
         self.description = description
         self.labels = labels or {}

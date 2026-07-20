@@ -33,7 +33,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from infrastructure.observability.event_metrics import EventMetrics
 from domain.events.types import DomainEvent
 from infrastructure.event_bus import (
     DeadLetterQueue,
@@ -42,6 +41,7 @@ from infrastructure.event_bus import (
     TradeIdKey,
 )
 from infrastructure.event_log import EventLog
+from infrastructure.observability.event_metrics import EventMetrics
 
 
 def _dumps(value: Any) -> str:

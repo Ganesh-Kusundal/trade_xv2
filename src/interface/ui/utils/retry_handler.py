@@ -51,7 +51,7 @@ def _execute_with_retry(
         except retryable_errors as exc:
             last_exc = exc
             if attempt < max_retries - 1:
-                wait_time = backoff_factor * (2 ** attempt)
+                wait_time = backoff_factor * (2**attempt)
                 logger.warning(
                     "retry_attempt",
                     extra={
@@ -92,12 +92,15 @@ def with_retry(
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             return _execute_with_retry(
-                func, args, kwargs,
+                func,
+                args,
+                kwargs,
                 max_retries=max_retries,
                 backoff_factor=backoff_factor,
                 retryable_errors=retryable_errors,
                 on_retry=on_retry,
             )
+
         return wrapper
 
     if func is not None:
@@ -115,7 +118,9 @@ def retry_with_backoff(
 ) -> Any:
     """Execute function with retry logic (non-decorator version)."""
     return _execute_with_retry(
-        func, args, kwargs,
+        func,
+        args,
+        kwargs,
         max_retries=max_retries,
         backoff_factor=backoff_factor,
         retryable_errors=retryable_errors,

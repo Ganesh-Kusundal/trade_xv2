@@ -24,6 +24,7 @@ from analytics.pipeline.pipeline import FeaturePipeline
 from domain.candles.historical import HistoricalBar
 from domain.enums import Side
 from domain.orders.sizing import compute_order_quantity
+from tests.fixtures.data_helpers import make_ohlcv
 
 
 def make_mock_oms_adapter():
@@ -41,26 +42,8 @@ def mock_oms_adapter():
 
 
 def _make_ohlcv(n=100, start_price=100.0, symbol="TEST"):
-    import numpy as np
-
-    np.random.seed(42)
-    dates = [datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=i) for i in range(n)]
-    close = start_price + np.cumsum(np.random.randn(n) * 2)
-    high = close + abs(np.random.randn(n))
-    low = close - abs(np.random.randn(n))
-    open_ = close + np.random.randn(n) * 0.5
-    volume = np.random.randint(10000, 100000, n).astype(float)
-    return pd.DataFrame(
-        {
-            "timestamp": dates,
-            "open": open_,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "symbol": symbol,
-        }
-    )
+    # Use daily timestamps (1440 minutes per day)
+    return make_ohlcv(n=n, start_price=start_price, symbol=symbol, seed=42, timeframe_minutes=1440)
 
 
 def _make_multi(n=100, symbols=None):
@@ -258,6 +241,7 @@ class TestEngineSingle:
 
     def test_no_signals_preserves_capital(self):
         from analytics.strategy.pipeline import StrategyPipeline
+
         r = PaperTradingEngine(
             _pipeline(),
             strategy_pipeline=StrategyPipeline([]),

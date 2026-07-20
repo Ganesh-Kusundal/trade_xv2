@@ -6,20 +6,20 @@ objects. Live mode is tested separately via OrderManager directly.
 """
 
 from __future__ import annotations
-from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
 import pytest
 
-from application.execution.execution_mode_adapter import (
+from application.execution.oms_backtest_adapter import (
     SimulatedOMSAdapter,
     create_execution_adapter,
 )
+from application.oms._internal.risk_manager import RiskConfig
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderResult
-from application.oms.risk_manager import RiskConfig
 from domain import OrderType, ProductType, Side
+from tests.conftest import build_test_trading_context
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -183,9 +183,9 @@ class TestAdapterFactory:
         assert isinstance(adapter, SimulatedOMSAdapter)
 
     def test_unknown_mode_raises(self, trading_context):
-        with pytest.raises(ValueError, match="Unknown execution mode"):
+        with pytest.raises(ValueError, match="Unknown execution target"):
             create_execution_adapter("turbo", trading_context)
 
     def test_live_mode_raises(self, trading_context):
-        with pytest.raises(ValueError, match="Unknown execution mode"):
+        with pytest.raises(ValueError, match="Live mode"):
             create_execution_adapter("live", trading_context)

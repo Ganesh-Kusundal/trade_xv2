@@ -28,9 +28,8 @@ from __future__ import annotations
 import contextvars
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Protocol, runtime_checkable
-from zoneinfo import ZoneInfo
 
 from domain.ports.time_service_impls import RealClock
 
@@ -52,15 +51,9 @@ class ClockPort(Protocol):
         """Return the current time in ``exchange``'s local timezone."""
 
 
-# Backward-compatible alias for the previous (dead) port name.
-TimeServicePort = ClockPort
-
-
 _REAL_CLOCK = RealClock()
 
-_clock_var: contextvars.ContextVar[ClockPort | None] = contextvars.ContextVar(
-    "clock", default=None
-)
+_clock_var: contextvars.ContextVar[ClockPort | None] = contextvars.ContextVar("clock", default=None)
 
 
 def get_current_clock() -> ClockPort:
@@ -93,10 +86,12 @@ def use_clock(clock: ClockPort) -> Iterator[ClockPort]:
 # domain.ports.time_service_impls. Import from there in new code.
 import warnings as _warnings
 
+
 def __getattr__(name: str):
     _CONCRETE = {"RealClock", "VirtualClock"}
     if name in _CONCRETE:
         from domain.ports import time_service_impls as _mod
+
         _warnings.warn(
             f"Importing {name!r} from domain.ports.time_service is deprecated. "
             f"Use domain.ports.time_service_impls instead.",

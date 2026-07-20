@@ -62,9 +62,7 @@ class ProviderRegistry:
         """Override the default execution provider."""
         if name not in self._execution_providers:
             available = list(self._execution_providers.keys())
-            raise KeyError(
-                f"Execution provider '{name}' not registered. Available: {available}"
-            )
+            raise KeyError(f"Execution provider '{name}' not registered. Available: {available}")
         self._default_execution = name
 
     # ── Lookup ──────────────────────────────────────────────────────
@@ -80,9 +78,7 @@ class ProviderRegistry:
         key = name or self._default_data
         if key not in self._data_providers:
             available = list(self._data_providers.keys())
-            raise KeyError(
-                f"Data provider '{key}' not registered. Available: {available}"
-            )
+            raise KeyError(f"Data provider '{key}' not registered. Available: {available}")
         return self._data_providers[key]
 
     def get_execution_provider(self, name: str | None = None) -> Any:
@@ -96,9 +92,7 @@ class ProviderRegistry:
         key = name or self._default_execution
         if key not in self._execution_providers:
             available = list(self._execution_providers.keys())
-            raise KeyError(
-                f"Execution provider '{key}' not registered. Available: {available}"
-            )
+            raise KeyError(f"Execution provider '{key}' not registered. Available: {available}")
         return self._execution_providers[key]
 
     # ── Introspection ───────────────────────────────────────────────

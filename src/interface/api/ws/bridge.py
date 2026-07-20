@@ -101,11 +101,7 @@ class MarketBridge:
         from interface.api.routers.live.serialize import serialize_value
 
         event_type = event.event_type.lower()
-        msg_type = (
-            "depth"
-            if event.event_type in ("DEPTH", "DEPTH_20", "DEPTH_200")
-            else event_type
-        )
+        msg_type = "depth" if event.event_type in ("DEPTH", "DEPTH_20", "DEPTH_200") else event_type
         symbol = event.symbol
         if not symbol and event.event_type in ("DEPTH", "DEPTH_20", "DEPTH_200"):
             depth_obj = event.payload.get("depth")

@@ -15,7 +15,7 @@ Deterministic replay guarantees
 
 2. **No side effects**: In replay mode, the EventBus disables auto-
    persistence (no recursive writes to EventLog) and uses the
-   original event timestamps instead of ``datetime.now()``.
+   original event timestamps instead of injecting fresh wall-clock time.
 
 3. **Idempotent pipelines**: FeaturePipeline and StrategyPipeline are
    pure functions of their input. Caching is disabled during replay
@@ -74,8 +74,8 @@ from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 # such as ``from analytics.replay.orchestrator import ReplayItem`` keep working).
 __all__ = [
     "ReplayItem",
-    "UnifiedReplayResult",
     "UnifiedReplayOrchestrator",
+    "UnifiedReplayResult",
 ]
 
 logger = logging.getLogger(__name__)
@@ -205,19 +205,18 @@ class UnifiedReplayOrchestrator:
         combined_df = self._build_combined_df(bar_items)
 
         # Step 5: Create EventBus in replay mode
+        from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
+
+        replay_cfg = EventBusConfig(logging_enabled=False, replay_mode=True)
         if self._event_bus_factory is not None:
             replay_bus = self._event_bus_factory(
                 event_log=self._event_log,
-                logging_enabled=False,
-                replay_mode=True,
+                config=replay_cfg,
             )
         else:
-            from infrastructure.event_bus.event_bus import EventBus
-
             replay_bus = EventBus(
                 event_log=self._event_log,
-                logging_enabled=False,  # Disable auto-persistence during replay
-                replay_mode=True,  # P4: Deterministic replay mode
+                config=replay_cfg,
             )
 
         # Step 6: Run replay through engine

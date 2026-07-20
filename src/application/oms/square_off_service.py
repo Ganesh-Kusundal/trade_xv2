@@ -7,12 +7,11 @@ idempotency, and event publishing.
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from domain.exceptions import TradeXV2Error
 from domain.events.types import EventType
+from domain.exceptions import TradeXV2Error
 from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
@@ -72,10 +71,6 @@ class SquareOffService:
         Returns:
             SquareOffSummary with results for each position.
         """
-        # Pre-flight: kill switch check
-        if self._risk is not None and self._risk.is_kill_switch_active():
-            raise SquareOffRejectedError("Kill switch is active — square-off rejected")
-
         # Get positions
         positions = self._positions.get_positions()
         if symbol:
@@ -115,45 +110,25 @@ class SquareOffService:
     def _close_position(self, pos: Any, submit_fn: Any) -> SquareOffResult:
         """Close a single position through the OMS pipeline."""
         try:
-            from decimal import Decimal
+            from application.oms.order_command_mapper import position_to_close_command
 
-            from application.oms.order_manager import OmsOrderCommand
-            from domain import OrderType, ProductType, Side
-
-            opposite_side = Side.SELL if pos.quantity > 0 else Side.BUY
-            quantity = abs(pos.quantity)
-
-            # Use the position's actual product type, not hardcoded INTRADAY
-            product_type = getattr(pos, "product_type", None)
-            if product_type is None:
-                product_type = ProductType.INTRADAY
-
-            cmd = OmsOrderCommand(
-                symbol=pos.symbol,
-                exchange=pos.exchange,
-                side=opposite_side,
-                order_type=OrderType.MARKET,
-                product_type=product_type,
-                quantity=quantity,
-                price=Decimal("0"),
-                correlation_id=f"so-{pos.symbol}-{uuid.uuid4().hex[:8]}",
-            )
+            cmd = position_to_close_command(pos)
 
             result = self._oms.place_order(cmd, submit_fn=submit_fn)
 
             if result.success:
                 return SquareOffResult(
                     symbol=pos.symbol,
-                    quantity=quantity,
-                    side=opposite_side.value,
+                    quantity=cmd.quantity,
+                    side=cmd.side.value,
                     order_id=result.order.order_id if result.order else None,
                     success=True,
                 )
             else:
                 return SquareOffResult(
                     symbol=pos.symbol,
-                    quantity=quantity,
-                    side=opposite_side.value,
+                    quantity=cmd.quantity,
+                    side=cmd.side.value,
                     success=False,
                     error=result.error or "OMS rejected order",
                 )

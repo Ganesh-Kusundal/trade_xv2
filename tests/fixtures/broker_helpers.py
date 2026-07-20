@@ -5,13 +5,12 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-
 # ---------------------------------------------------------------------------
 # Dhan gateway factory
 # ---------------------------------------------------------------------------
 
 
-def make_dhan_gateway() -> "DhanBrokerGateway":
+def make_dhan_gateway() -> DhanBrokerGateway:
     """Create a DhanBrokerGateway backed by a FakeHttpClient (offline)."""
     from brokers.dhan.streaming.connection import DhanConnection
     from brokers.dhan.wire import DhanBrokerGateway
@@ -61,7 +60,7 @@ class MockWebsocket:
 def make_upstox_gateway(
     connected: bool = False,
     resolver_defn: Any = None,
-) -> tuple["UpstoxBrokerGateway", MockWebsocket, MagicMock]:
+) -> tuple[UpstoxBrokerGateway, MockWebsocket, MagicMock]:
     """Create an UpstoxBrokerGateway with a mock broker and WebSocket.
 
     Returns (gateway, websocket, broker) — the websocket and broker are

@@ -228,7 +228,6 @@ class TestBrokerHealthMonitorThreadSafety:
         assert isinstance(status, BrokerHealthStatus)
 
 
-
 class TestBrokerDegradedError:
     """Test the BrokerDegradedError exception."""
 

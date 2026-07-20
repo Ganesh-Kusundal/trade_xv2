@@ -145,6 +145,7 @@ class BrokerManager:
         if name_lower == BrokerId.PAPER:
             if svc._paper is None:
                 from interface.ui.services.broker_registry import get_paper_gateway_class
+
                 PaperGateway = get_paper_gateway_class()
                 svc._paper = PaperGateway()
             svc._active_name = BrokerId.PAPER
@@ -195,10 +196,8 @@ class BrokerManager:
         # Phase 6: read-only datalake gateway. Marked as Available
         # when the local Parquet directory exists, otherwise the
         # operator gets a hint to bootstrap it.
-        from pathlib import Path as _Path
         from domain.ports.data_catalog import DataPaths
-        datalake_status = (
-            "Available" if DataPaths().lake_path.exists() else "Directory not found"
-        )
+
+        datalake_status = "Available" if DataPaths().lake_path.exists() else "Directory not found"
         statuses.append({"broker": "DataLake (read-only)", "status": datalake_status})
         return statuses

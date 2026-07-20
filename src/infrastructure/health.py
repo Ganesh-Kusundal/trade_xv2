@@ -45,8 +45,7 @@ class HealthCheck(ABC):
     """Base class for health checks."""
 
     @abstractmethod
-    async def check(self) -> HealthResult:
-        ...
+    async def check(self) -> HealthResult: ...
 
 
 class HealthRegistry:
@@ -58,10 +57,12 @@ class HealthRegistry:
 
     def register(self, name: str, check: HealthCheck | Callable[[], HealthResult] | None = None):
         """Register a health check."""
+
         def decorator(obj):
             with self._lock:
                 self._checks[name] = obj
             return obj
+
         if check is not None:
             with self._lock:
                 self._checks[name] = check

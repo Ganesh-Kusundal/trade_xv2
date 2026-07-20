@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import Position
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.wire import DhanBrokerGateway
-from tests.support.brokers.dhan.fixtures import FakeHttpClient
 from domain import Balance, OrderRequest, Quote
+from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
 
 class TestBrokerGateway:
@@ -147,3 +147,67 @@ class TestBrokerGateway:
         gateway.close()
 
         client.close.assert_called_once()
+
+    # -- connection liveness (unified contract) --------------------------
+
+    def test_is_connected_true_when_rest_auth_only(self):
+        """A REST-only session (no WS feed) with a usable token is connected.
+
+        Regression: previously ``is_connected`` fell back to ``False`` when no
+        market feed existed, making a healthy REST session look disconnected.
+        """
+        client = FakeHttpClient(access_token="valid-token")
+        conn = DhanConnection(client=client)
+        gateway = DhanBrokerGateway(conn)
+        assert gateway.is_connected is True
+
+    def test_is_connected_false_when_token_missing(self):
+        """Without a usable access token the session is not connected."""
+        client = FakeHttpClient(access_token="")
+        conn = DhanConnection(client=client)
+        gateway = DhanBrokerGateway(conn)
+        assert gateway.is_connected is False
+
+    def test_is_connected_delegates_to_feed_when_present(self):
+        """When a market feed exists, its socket state is authoritative."""
+        client = FakeHttpClient(access_token="valid-token")
+        conn = DhanConnection(client=client)
+        feed = MagicMock()
+        feed.is_connected = False
+        conn.market_feed = feed
+        gateway = DhanBrokerGateway(conn)
+        assert gateway.is_connected is False
+
+    # -- history batch (shared batch_execute) ---------------------------
+
+    def test_history_batch_concatenates_per_symbol_frames(self):
+        """history_batch routes through the shared helper and concatenates."""
+        import pandas as pd
+
+        gateway, conn = self._make_gateway()
+        conn._historical = MagicMock()
+
+        def _fake_hist(symbol, exchange, from_str, to_str, tf):
+            return pd.DataFrame({"symbol": [symbol], "close": [1.0]})
+
+        conn._historical.get_historical.side_effect = _fake_hist
+
+        result = gateway.history_batch(["RELIANCE", "TCS"], "NSE")
+        assert set(result["symbol"]) == {"RELIANCE", "TCS"}
+        assert len(result) == 2
+
+    # -- depth-200 constraint discoverability (#5) ----------------------
+
+    def test_describe_exposes_depth_200_limit(self):
+        from brokers.dhan.config.capabilities import (
+            DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION,
+        )
+
+        client = FakeHttpClient()
+        conn = DhanConnection(client=client)
+        gateway = DhanBrokerGateway(conn)
+        assert (
+            gateway.describe()["depth_200_max_instruments_per_connection"]
+            == DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION
+            == 1
+        )

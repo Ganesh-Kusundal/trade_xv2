@@ -7,8 +7,8 @@ from decimal import Decimal
 
 from brokers.common.api import MarginProvider, MarginResult
 from brokers.common.oms.margin_provider import parse_margin_response
-from brokers.dhan.domain import MarginRequest, MarginResponse
 from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.domain import MarginRequest, MarginResponse
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
 from domain.value_objects.price import to_wire_float

@@ -37,16 +37,16 @@ class TestPriorityEventDropping:
         assert bus.dropped == 0
         assert bus.queue_depth == 3
 
-    def test_critical_event_dropped_at_2x_limit(self):
-        """Critical events are dropped when queue reaches 2x max."""
+    def test_critical_event_never_dropped_under_pressure(self):
+        """Capital events are never dropped, even well beyond max queue size."""
         bus = _make_bus(max_queue_size=2)
-        bus.publish(DomainEvent.now("TICK", {"a": 1}))   # len=1
-        bus.publish(DomainEvent.now("TICK", {"b": 2}))   # len=2
+        bus.publish(DomainEvent.now("TICK", {"a": 1}))  # len=1
+        bus.publish(DomainEvent.now("TICK", {"b": 2}))  # len=2
         bus.publish(DomainEvent.now("TRADE_APPLIED", {"c": 3}))  # overflow len=3
-        bus.publish(DomainEvent.now("TRADE_FILLED", {"d": 4}))   # overflow len=4
-        bus.publish(DomainEvent.now("ORDER_PLACED", {"e": 5}))   # dropped at 2x=4
-        assert bus.dropped == 1
-        assert bus.queue_depth == 4
+        bus.publish(DomainEvent.now("TRADE_FILLED", {"d": 4}))  # overflow len=4
+        bus.publish(DomainEvent.now("ORDER_PLACED", {"e": 5}))  # overflow len=5
+        assert bus.dropped == 0
+        assert bus.queue_depth == 5
 
     def test_non_critical_dropped_critical_kept(self):
         """Mix of normal and critical: normal dropped, critical kept."""

@@ -11,13 +11,18 @@ defining their own duplicated frozensets.
 
 from __future__ import annotations
 
-from domain.constants.exchanges import BCD, BFO, CDS, MCX, NFO, NSE, WIRE_IDX, WIRE_NSE_EQ, WIRE_NSE_FNO
+from domain.constants.exchanges import (
+    NFO,
+    NSE,
+    WIRE_IDX,
+    WIRE_NSE_EQ,
+    WIRE_NSE_FNO,
+)
 
 # ── NSE-eligible segments (for depth extensions) ─────────────────────────────
 
-NSE_ELIGIBLE_SEGMENTS: frozenset[str] = frozenset(
-    {NSE, WIRE_NSE_EQ, NFO, WIRE_NSE_FNO, WIRE_IDX}
-)
+NSE_ELIGIBLE_SEGMENTS: frozenset[str] = frozenset({NSE, WIRE_NSE_EQ, NFO, WIRE_NSE_FNO, WIRE_IDX})
+
 
 def nse_eligible_segments() -> frozenset[str]:
     """Return the set of segments that support NSE-based depth extensions.
@@ -26,9 +31,11 @@ def nse_eligible_segments() -> frozenset[str]:
     """
     return NSE_ELIGIBLE_SEGMENTS
 
+
 def is_nse_eligible(exchange: str) -> bool:
     """Check if an exchange code supports NSE-based features (depth, gtt, etc.)."""
     return exchange in NSE_ELIGIBLE_SEGMENTS
+
 
 __all__ = [
     "NSE_ELIGIBLE_SEGMENTS",

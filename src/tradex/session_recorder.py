@@ -41,6 +41,6 @@ def maybe_start(
 
         recorder = SessionRecorder(bus, session_id=session_id)
         recorder.start()
-        setattr(session, "_session_recorder", recorder)
+        session._session_recorder = recorder
     except Exception:
         logger.warning("session_recorder_start_failed", exc_info=True)

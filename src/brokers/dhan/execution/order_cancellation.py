@@ -9,9 +9,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from domain import OrderResponse, OrderStatus
-from brokers.dhan.exceptions import OrderError
 from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.exceptions import OrderError
+from domain import OrderResponse, OrderStatus
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,9 @@ class OrderCanceller:
         """
         # Safety guard: prevent live order modifications if disabled
         if not self._allow_live_orders:
-            return OrderResponse.fail("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
+            return OrderResponse.fail(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
 
         payload = {k: v for k, v in changes.items() if v is not None}
         try:
@@ -87,7 +89,9 @@ class OrderCanceller:
         """
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
-            return OrderResponse.fail("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
+            return OrderResponse.fail(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
 
         try:
             data = self._client.delete(f"/orders/{order_id}")

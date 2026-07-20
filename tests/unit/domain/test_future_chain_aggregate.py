@@ -25,7 +25,10 @@ class _Prov:
         from domain.candles.historical import HistoricalSeries, InstrumentRef
 
         return HistoricalSeries(
-            bars=[], coverage=None, instrument=InstrumentRef(symbol="X", exchange="NFO"), timeframe="1D"
+            bars=[],
+            coverage=None,
+            instrument=InstrumentRef(symbol="X", exchange="NFO"),
+            timeframe="1D",
         )
 
     def get_depth(self, *a, **k):

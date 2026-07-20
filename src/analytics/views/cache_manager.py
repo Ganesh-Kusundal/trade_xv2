@@ -71,9 +71,7 @@ class CacheManager:
                 COPY ({sql}) TO '{part_dir}'
                 (FORMAT PARQUET, PARTITION_BY ({partition_by}))
             """)
-            self._write_latest(
-                table_name, f"versions/{table_name}/{version_ts}", partitioned=True
-            )
+            self._write_latest(table_name, f"versions/{table_name}/{version_ts}", partitioned=True)
         else:
             parquet_path = version_dir / f"{version_ts}.parquet"
             db_conn.execute(f"""
@@ -87,19 +85,13 @@ class CacheManager:
         self._cleanup_old_versions(table_name)
 
         elapsed = time.perf_counter() - start
-        logger.info(
-            "Materialized %s version %s in %.2fs", table_name, version_ts, elapsed
-        )
+        logger.info("Materialized %s version %s in %.2fs", table_name, version_ts, elapsed)
         return elapsed
 
-    def _write_latest(
-        self, table_name: str, version_path: str, partitioned: bool
-    ) -> None:
+    def _write_latest(self, table_name: str, version_path: str, partitioned: bool) -> None:
         """Write the latest.json manifest for atomic version promotion."""
         latest_file = MATERIALIZED_DIR / "versions" / table_name / "latest.json"
-        latest_file.write_text(
-            json.dumps({"path": version_path, "partitioned": partitioned})
-        )
+        latest_file.write_text(json.dumps({"path": version_path, "partitioned": partitioned}))
 
     def _read_latest(self, table_name: str) -> dict[str, Any] | None:
         """Read the latest.json manifest. Returns None if not found or invalid."""
@@ -128,9 +120,7 @@ class CacheManager:
                 else:
                     entry.unlink()
             except Exception as exc:
-                logger.warning(
-                    "Failed to remove old materialized version %s: %s", entry, exc
-                )
+                logger.warning("Failed to remove old materialized version %s: %s", entry, exc)
 
     def register_materialized(
         self,
@@ -169,10 +159,7 @@ class CacheManager:
                 )
                 db_conn.execute(sql, [f"{version_path}/**/*.parquet"])
             else:
-                sql = (
-                    f"CREATE TABLE {temp_table} AS "
-                    "SELECT * FROM read_parquet(?)"
-                )
+                sql = f"CREATE TABLE {temp_table} AS SELECT * FROM read_parquet(?)"
                 db_conn.execute(sql, [str(version_path)])
             # Atomic swap: drop old, rename new.
             db_conn.execute(f"DROP TABLE IF EXISTS {table_name}")

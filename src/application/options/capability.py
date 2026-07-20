@@ -25,9 +25,7 @@ class OptionsCapability:
     ) -> dict[str, Any]:
         """Return option chain dict (calls/puts) from the wired gateway."""
         if hasattr(self.gateway, "option_chain"):
-            return self.gateway.option_chain(
-                underlying, exchange=exchange, expiry=expiry
-            )
+            return self.gateway.option_chain(underlying, exchange=exchange, expiry=expiry)
         return {
             "underlying": underlying,
             "exchange": exchange,
@@ -74,7 +72,5 @@ class OptionsCapability:
         return {
             "underlying": underlying,
             "spot": spot,
-            "payoffs": [
-                {"strike": k, "long_call_at_expiry": max(spot - k, 0.0)} for k in strikes
-            ],
+            "payoffs": [{"strike": k, "long_call_at_expiry": max(spot - k, 0.0)} for k in strikes],
         }

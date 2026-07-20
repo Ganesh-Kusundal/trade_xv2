@@ -1,4 +1,5 @@
 """Architecture test: idempotency systems are clearly layered."""
+
 import pytest
 
 
@@ -6,28 +7,31 @@ import pytest
 def test_oms_idempotency_guard_exists():
     """OMS-level idempotency guard exists."""
     from application.oms.idempotency_guard import IdempotencyGuard
+
     guard = IdempotencyGuard()
-    assert hasattr(guard, 'check_and_reserve')
-    assert hasattr(guard, 'release_pending')
+    assert hasattr(guard, "check_and_reserve")
+    assert hasattr(guard, "release_pending")
 
 
 @pytest.mark.architecture
 def test_broker_idempotency_cache_exists():
     """Broker-level idempotency cache exists."""
     import importlib
+
     mod = importlib.import_module("brokers.common.idempotency")
     IdempotencyCache = mod.IdempotencyCache
     cache = IdempotencyCache()
-    assert hasattr(cache, 'get')
-    assert hasattr(cache, 'put')
-    assert hasattr(cache, 'reserve')
-    assert hasattr(cache, 'commit')
+    assert hasattr(cache, "get")
+    assert hasattr(cache, "put")
+    assert hasattr(cache, "reserve")
+    assert hasattr(cache, "commit")
 
 
 @pytest.mark.architecture
 def test_no_upstox_idempotency_alias():
     """Upstox idempotency alias deleted — use brokers.common.idempotency directly."""
     import importlib
+
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("brokers.upstox.orders.idempotency")
 
@@ -53,7 +57,9 @@ def test_no_new_idempotency_constructors_in_brokers():
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and node.name in forbidden_classes:
-                violations.append(f"  {py.relative_to(root.parent.parent)}:{node.lineno}: class {node.name}")
+                violations.append(
+                    f"  {py.relative_to(root.parent.parent)}:{node.lineno}: class {node.name}"
+                )
 
     if violations:
         pytest.fail(

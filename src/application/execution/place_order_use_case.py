@@ -7,13 +7,12 @@ calling ``OrderManager.place_order`` or broker gateways bare.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
+from application.execution.spine import place_order_spine
+from application.oms.order_command_mapper import order_request_to_oms_command
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
-from domain import Order, Side
 from domain.orders.requests import OrderRequest
 from domain.ports import EventPublisher
-from application.observability import trace_operation
+from domain.ports.execution_target import ExecutionTarget
 
 
 class PlaceOrderUseCase:
@@ -28,33 +27,21 @@ class PlaceOrderUseCase:
         self,
         order_manager: OrderManager,
         *,
+        execution_target: ExecutionTarget,
         event_publisher: EventPublisher | None = None,
-        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
     ) -> None:
+        if execution_target is None:
+            raise TypeError("execution_target is required")
         self._oms = order_manager
         self._events = event_publisher
-        self._submit_fn = submit_fn
+        self._target = execution_target
 
-    @trace_operation("place_order")
     def execute(self, request: OrderRequest | OmsOrderCommand) -> OrderResult:
         if isinstance(request, OmsOrderCommand):
             command = request
         else:
-            command = OmsOrderCommand(
-                symbol=request.symbol,
-                exchange=request.exchange,
-                side=(
-                    request.transaction_type
-                    if isinstance(request.transaction_type, Side)
-                    else Side(str(request.transaction_type).upper())
-                ),
-                order_type=request.order_type,
-                quantity=int(request.quantity),
-                price=request.price,
-                product_type=request.product_type,
-                correlation_id=request.correlation_id or "",
-            )
-        result = self._oms.place_order(command, submit_fn=self._submit_fn)
+            command = order_request_to_oms_command(request)
+        result = place_order_spine(self._oms, command, self._target)
         if self._events is not None and result.success and result.order is not None:
             self._events.publish(
                 "ORDER_PLACED",

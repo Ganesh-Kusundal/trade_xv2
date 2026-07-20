@@ -165,7 +165,9 @@ def test_ohlcv_invariants_preserved(view_manager: ViewManager) -> None:
     assert row is not None
     hl_violations, neg_vol_violations, total_bars = row
     assert hl_violations == 1, f"Expected 1 H<L violation, got {hl_violations}"
-    assert neg_vol_violations == 1, f"Expected 1 negative volume violation, got {neg_vol_violations}"
+    assert neg_vol_violations == 1, (
+        f"Expected 1 negative volume violation, got {neg_vol_violations}"
+    )
     assert total_bars == 2
 
 
@@ -231,12 +233,9 @@ def test_feature_fetcher_no_lookahead(view_manager: ViewManager) -> None:
     assert "FOLLOWING" not in upper_sql, "FOLLOWING window — look-ahead bias"
 
     # 2. Query features ordered by timestamp
-    features_before = (
-        conn.execute(
-            "SELECT symbol, timestamp, close, sma_5 "
-            "FROM v_feature_sma ORDER BY timestamp"
-        ).fetchall()
-    )
+    features_before = conn.execute(
+        "SELECT symbol, timestamp, close, sma_5 FROM v_feature_sma ORDER BY timestamp"
+    ).fetchall()
     assert len(features_before) == 10
 
     # 3. SMA at bar 4 = mean of close[0:5] (only past data used)
@@ -251,18 +250,17 @@ def test_feature_fetcher_no_lookahead(view_manager: ViewManager) -> None:
 
     # 5. Insert 10 MORE bars (future data beyond the original set)
     df_future = generate_ohlcv_data(
-        n_bars=10, start_price=200.0, seed=99,
+        n_bars=10,
+        start_price=200.0,
+        seed=99,
         start_date=df["timestamp"].iloc[-1] + __import__("datetime").timedelta(minutes=1),
     )
     _insert_ohlcv(conn, df_future)
 
     # 6. Re-query: original bars' SMA values must be UNCHANGED
-    features_after = (
-        conn.execute(
-            "SELECT symbol, timestamp, close, sma_5 "
-            "FROM v_feature_sma ORDER BY timestamp"
-        ).fetchall()
-    )
+    features_after = conn.execute(
+        "SELECT symbol, timestamp, close, sma_5 FROM v_feature_sma ORDER BY timestamp"
+    ).fetchall()
     for i in range(10):
         old_sma = sma_snapshot[i]
         new_sma = features_after[i][3]
@@ -392,37 +390,27 @@ def test_view_refresh_after_data_insert(view_manager: ViewManager) -> None:
     )
     for i in range(10):
         conn.execute(
-            "INSERT INTO candles_ts VALUES "
-            "(?, 100, 105, 95, 102, 50000, 'RELIANCE')",
+            "INSERT INTO candles_ts VALUES (?, 100, 105, 95, 102, 50000, 'RELIANCE')",
             [f"2026-01-01 09:{15 + i:02d}:00"],
         )
 
     # Create view over the table
-    conn.execute(
-        "CREATE VIEW v_ts_candles AS SELECT * FROM candles_ts"
-    )
+    conn.execute("CREATE VIEW v_ts_candles AS SELECT * FROM candles_ts")
 
     # Verify initial count
-    initial_count = conn.execute(
-        "SELECT COUNT(*) FROM v_ts_candles"
-    ).fetchone()[0]
+    initial_count = conn.execute("SELECT COUNT(*) FROM v_ts_candles").fetchone()[0]
     assert initial_count == 10
 
     # Insert 5 more bars
     for i in range(5):
         conn.execute(
-            "INSERT INTO candles_ts VALUES "
-            "(?, 103, 107, 100, 105, 60000, 'RELIANCE')",
+            "INSERT INTO candles_ts VALUES (?, 103, 107, 100, 105, 60000, 'RELIANCE')",
             [f"2026-01-01 09:{25 + i:02d}:00"],
         )
 
     # View reflects the new data without explicit refresh
-    updated_count = conn.execute(
-        "SELECT COUNT(*) FROM v_ts_candles"
-    ).fetchone()[0]
-    assert updated_count == 15, (
-        f"View should show 15 rows after insert, got {updated_count}"
-    )
+    updated_count = conn.execute("SELECT COUNT(*) FROM v_ts_candles").fetchone()[0]
+    assert updated_count == 15, f"View should show 15 rows after insert, got {updated_count}"
 
 
 def test_cache_manager_materialization(view_manager: ViewManager) -> None:
@@ -438,12 +426,8 @@ def test_cache_manager_materialization(view_manager: ViewManager) -> None:
         )
         """
     )
-    conn.execute(
-        "INSERT INTO source_candles VALUES ('RELIANCE', 100.5, 50000)"
-    )
-    conn.execute(
-        "INSERT INTO source_candles VALUES ('TCS', 3500.0, 20000)"
-    )
+    conn.execute("INSERT INTO source_candles VALUES ('RELIANCE', 100.5, 50000)")
+    conn.execute("INSERT INTO source_candles VALUES ('TCS', 3500.0, 20000)")
 
     # Materialize to versioned Parquet via ViewManager → CacheManager
     elapsed = view_manager.materialize(
@@ -478,9 +462,7 @@ def test_query_executor_read_only_safety(tmp_path) -> None:
 
     # Phase 1: Create data via a read-write connection
     conn_rw = duckdb.connect(db_path)
-    conn_rw.execute(
-        "CREATE TABLE ro_test_data AS SELECT 42 AS answer, 'test' AS label"
-    )
+    conn_rw.execute("CREATE TABLE ro_test_data AS SELECT 42 AS answer, 'test' AS label")
     conn_rw.close()
 
     # Phase 2: Open a STRICTLY read-only connection (not via pool)

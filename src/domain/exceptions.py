@@ -13,6 +13,10 @@ class TradeXV2Error(Exception):
     """Root exception for all TradeXV2 errors."""
 
 
+class ServiceNotFoundError(TradeXV2Error):
+    """Raised when resolving a service that is not registered."""
+
+
 class DataError(TradeXV2Error):
     """Base exception for datalake and data processing errors."""
 
@@ -32,6 +36,10 @@ class ConfigError(TradeXV2Error):
 
 class ValidationError(TradeXV2Error):
     """Input validation error."""
+
+
+class QuoteUnavailableError(DataError):
+    """Raised when market-data quote/LTP cannot be resolved for paper fills."""
 
 
 class LiveBrokerBlockedError(TradeXV2Error, RuntimeError):
@@ -54,6 +62,8 @@ __all__ = [
     "DataError",
     "ExchangeNotConfigured",
     "LiveBrokerBlockedError",
+    "QuoteUnavailableError",
+    "ServiceNotFoundError",
     "TradeXV2Error",
     "ValidationError",
 ]

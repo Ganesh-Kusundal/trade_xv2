@@ -43,8 +43,8 @@ class PaperSignalProcessor:
     def __init__(
         self,
         config,
-        oms_adapter: OmsBacktestAdapterPort,
         record_fill,
+        oms_adapter: OmsBacktestAdapterPort | None = None,
         on_cash: Callable[[PaperSession, float], None] | None = None,
     ) -> None:
         self._config = config
@@ -84,7 +84,99 @@ class PaperSignalProcessor:
         if not signal.is_actionable:
             return
 
+        if self._oms_adapter is None:
+            self._process_simulated(signal, bar, session, fill_price=fill_price)
+            return
+
         self._process_via_oms(signal, bar, session, fill_price=fill_price)
+
+    def _process_simulated(
+        self,
+        signal: Signal,
+        bar: HistoricalBar,
+        session: PaperSession,
+        *,
+        fill_price: float | None = None,
+    ) -> None:
+        """Research-only fills without OMS routing."""
+        config = self._config
+        base = float(fill_price if fill_price is not None else bar.close)
+
+        if signal.is_buy and not session.has_position(bar.symbol):
+            if session.position_count >= config.max_positions:
+                return
+            price = base * (1 + config.slippage_pct / 100)
+            qty = compute_order_quantity(
+                equity=session.capital,
+                price=price,
+                max_position_pct=config.max_position_pct,
+            )
+            if qty <= 0:
+                return
+            commission = self._commission(price * qty, "BUY")
+            cost = price * qty + commission
+            if cost > session.capital:
+                return
+            self._apply_cash(session, -cost)
+            self._record_fill(
+                session,
+                order_id=f"sim-open:{bar.symbol}:{session.bar_count}",
+                symbol=bar.symbol,
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=qty,
+                price=price,
+                timestamp=bar.timestamp,
+                trade_tag="open",
+            )
+            session.mark_symbol(bar.symbol, bar.close)
+            session.position_meta[bar.symbol] = PositionMeta(
+                entry_time=bar.timestamp,
+                stop_loss=signal.stop_loss,
+                target=signal.target,
+                strategy=signal.strategy,
+            )
+        elif signal.is_sell and session.has_position(bar.symbol):
+            view = session._to_paper_position(bar.symbol)
+            if view is None or view.quantity <= 0:
+                return
+            qty = view.quantity
+            entry_price = float(view.entry_price)
+            fill_px = base * (1 - config.slippage_pct / 100)
+            commission = self._commission(fill_px * qty, "SELL")
+            net_pnl = (fill_px - entry_price) * qty - commission
+            pnl_pct = ((fill_px / entry_price) - 1) * 100 if entry_price > 0 else 0.0
+            self._apply_cash(session, fill_px * qty - commission)
+            session.daily_pnl += net_pnl
+            session.trades.append(
+                PaperTrade(
+                    symbol=bar.symbol,
+                    side=OrderSide.BUY,
+                    entry_price=entry_price,
+                    exit_price=fill_px,
+                    quantity=qty,
+                    entry_time=view.entry_time,
+                    exit_time=bar.timestamp,
+                    pnl=net_pnl,
+                    pnl_pct=pnl_pct,
+                    commission=commission,
+                    slippage_cost=qty * base * (config.slippage_pct / 100),
+                    strategy=view.strategy or signal.strategy,
+                    reasons=list(signal.reasons) or ["paper_signal"],
+                )
+            )
+            self._record_fill(
+                session,
+                order_id=f"sim-close:{bar.symbol}:{session.bar_count}",
+                symbol=bar.symbol,
+                exchange="NSE",
+                side=Side.SELL,
+                quantity=qty,
+                price=fill_px,
+                timestamp=bar.timestamp,
+                trade_tag="close",
+            )
+            session.clear_position(bar.symbol)
 
     def _process_via_oms(
         self,
@@ -188,9 +280,7 @@ class PaperSignalProcessor:
                 )
                 commission = self._commission(fill_px * qty, "SELL")
                 net_pnl = (fill_px - entry_price) * qty - commission
-                pnl_pct = (
-                    ((fill_px / entry_price) - 1) * 100 if entry_price > 0 else 0.0
-                )
+                pnl_pct = ((fill_px / entry_price) - 1) * 100 if entry_price > 0 else 0.0
                 slippage_cost = qty * float(price) * (config.slippage_pct / 100)
                 self._apply_cash(session, fill_px * qty - commission)
                 session.daily_pnl += net_pnl

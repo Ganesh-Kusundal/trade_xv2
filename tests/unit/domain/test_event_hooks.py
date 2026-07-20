@@ -67,8 +67,13 @@ def test_clear():
 def test_bad_callback_does_not_break_emit():
     hooks = EventHooks()
     received: list[object] = []
-    good = lambda pl: received.append(pl)
-    bad = lambda pl: (_ for _ in ()).throw(RuntimeError("boom"))
+
+    def good(pl):
+        return received.append(pl)
+
+    def bad(pl):
+        return (_ for _ in ()).throw(RuntimeError("boom"))
+
     hooks.register(InstrumentEvent.TICK, bad)
     hooks.register(InstrumentEvent.TICK, good)
     hooks.emit(InstrumentEvent.TICK, "payload")

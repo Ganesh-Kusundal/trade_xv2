@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import time
 
-from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
+
+from domain.enums import BrokerId
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -37,15 +38,17 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     from pathlib import Path
 
-    from interface.ui.services.broker_ops import fetch_depth, fetch_history_df, fetch_quote
+    from interface.ui.commands._broker import broker_id_from, history_as_df
+    from interface.ui.services.broker_ops import get_depth, get_history, get_quote
 
     env = {"env_path": str(Path(".env.local")), "load_instruments": True}
+    broker = broker_id_from(broker_service, default=BrokerId.DHAN)
     results = {}
     # 1. Historical Validation
     console.print("[cyan]Testing Historical Data...[/cyan]")
     try:
         t0 = time.time()
-        df = fetch_history_df(None, symbol, days=30, default=BrokerId.DHAN, **env)
+        df = history_as_df(get_history(broker, symbol, days=30, **env))
         latency = (time.time() - t0) * 1000
 
         rows = len(df)
@@ -81,7 +84,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Quote...[/cyan]")
     try:
         t0 = time.time()
-        q = fetch_quote(None, symbol, exchange=exchange, default=BrokerId.DHAN, **env)
+        q = get_quote(broker, symbol, exchange=exchange, **env)
         latency = (time.time() - t0) * 1000
         results["quote"] = {
             "status": "PASS",
@@ -98,7 +101,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing LTP...[/cyan]")
     try:
         t0 = time.time()
-        q = fetch_quote(None, symbol, exchange=exchange, default=BrokerId.DHAN, **env)
+        q = get_quote(broker, symbol, exchange=exchange, **env)
         ltp = q.ltp
         latency = (time.time() - t0) * 1000
         results["ltp"] = {"status": "PASS", "value": f"₹{ltp}", "latency": f"{latency:.0f}ms"}
@@ -111,7 +114,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Depth...[/cyan]")
     try:
         t0 = time.time()
-        d = fetch_depth(None, symbol, exchange=exchange, default=BrokerId.DHAN, **env)
+        d = get_depth(broker, symbol, exchange=exchange, **env)
         latency = (time.time() - t0) * 1000
 
         bids = d.bids if d and d.bids else []
@@ -168,14 +171,15 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     console.print(f"\n[bold]Validating broker ({broker}) via run_verify...[/bold]\n")
     from pathlib import Path
 
-    from interface.ui.services.broker_ops import verify_broker
+    from interface.ui.commands._broker import broker_id_from
+    from runtime.platform_bridge import run_verify
 
     env = {"env_path": str(Path(".env.local")), "load_instruments": True}
     if broker == BrokerId.UPSTOX:
         env = {"env_path": str(Path(".env.upstox")), "load_instruments": True}
 
     try:
-        report = verify_broker(broker_service, default=broker, **env)
+        report = run_verify(broker_id_from(broker_service, default=broker), **env)
     except Exception as exc:
         console.print(f"[red]Verify failed: {exc}[/red]")
         return
@@ -262,7 +266,7 @@ def _run_data_validation(args: list[str], broker_service, console: Console) -> N
 
     import pandas as pd
 
-    from application.services.data_validator import DataQualityValidator  # sanctioned — broker wiring layer
+    from datalake.quality.validation import validate_candles
 
     if not args:
         console.print(
@@ -297,39 +301,30 @@ def _run_data_validation(args: list[str], broker_service, console: Console) -> N
         f"[bold]Validating {csv_path.name} ({len(df)} rows, timeframe={timeframe})...[/bold]\n"
     )
 
-    validator = DataQualityValidator()
-    report = validator.validate(df, symbol=symbol, timeframe=timeframe)
-
-    # Print summary
-    status_style = "green" if report.passed else "red"
-    console.print(
-        f"[bold {status_style}]Status: {'PASSED' if report.passed else 'FAILED'}[/bold {status_style}]"
+    _, audit = validate_candles(
+        df, symbol=symbol, drop_invalid=False, return_audit=True, timeframe=timeframe
     )
-    console.print(f"Total rows: {report.total_rows}")
+    passed = audit.is_clean
+
+    status_style = "green" if passed else "red"
     console.print(
-        f"Issues: {report.total_issues} (critical={report.critical_count}, warning={report.warning_count}, info={report.info_count})"
+        f"[bold {status_style}]Status: {'PASSED' if passed else 'FAILED'}[/bold {status_style}]"
+    )
+    console.print(f"Total rows: {audit.total_rows}")
+    console.print(
+        f"Valid rows: {audit.valid_rows}, dropped: {audit.dropped_rows}, issues: {len(audit.issues)}"
     )
 
-    if report.issues:
+    if audit.issues:
         console.print("\n[bold]Issues:[/bold]")
         table = Table(show_header=True, header_style="bold cyan")
         table.add_column("#", style="dim", width=4)
-        table.add_column("Severity", width=10)
-        table.add_column("Category", width=12)
         table.add_column("Message")
 
-        for i, issue in enumerate(report.issues[:30], 1):
-            sev_style = {"critical": "red", "warning": "yellow", "info": "dim"}.get(
-                issue.severity, ""
-            )
-            table.add_row(
-                str(i),
-                f"[{sev_style}]{issue.severity.upper()}[/{sev_style}]",
-                issue.category,
-                issue.message,
-            )
-        if len(report.issues) > 30:
-            table.add_row("...", "", "", f"[dim]{len(report.issues) - 30} more issues[/dim]")
+        for i, issue in enumerate(audit.issues[:30], 1):
+            table.add_row(str(i), issue)
+        if len(audit.issues) > 30:
+            table.add_row("...", f"[dim]{len(audit.issues) - 30} more issues[/dim]")
         console.print(table)
     else:
         console.print("\n[green]No issues found![/green]")
@@ -360,7 +355,7 @@ def _run_symbol_validation(args: list[str], broker_service, console: Console) ->
             i += 1
 
     try:
-        from interface.ui.services.broker_facade import DhanSymbolValidator
+        from interface.ui.services.broker_registry import DhanSymbolValidator
 
         validator = DhanSymbolValidator()
         result = validator.validate(symbol_str, exchange=exchange, segment=segment)

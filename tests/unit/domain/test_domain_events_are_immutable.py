@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from infrastructure.correlation import with_correlation
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventBusConfig
 from infrastructure.event_log import EventLog
 
 # ──────────────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ class TestDomainEventImmutability:
         original_id = id(event)
         original_seq = event.sequence_number
 
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
         bus.publish(event)
@@ -103,7 +103,7 @@ class TestPublishDoesNotMutate:
 
     def test_original_event_unchanged_after_publish(self):
         """Original event should retain None correlation_id after publish."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 
@@ -129,7 +129,7 @@ class TestPublishDoesNotMutate:
 
     def test_original_event_is_different_object_after_publish(self):
         """Published event should be a new instance, not the original."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 
@@ -142,7 +142,7 @@ class TestPublishDoesNotMutate:
 
     def test_original_event_id_preserved(self):
         """event_id must be preserved through copy-on-publish."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 
@@ -163,7 +163,7 @@ class TestPrepareEvent:
     """Verify _prepare_event() behavior."""
 
     def test_injects_correlation_id_when_none(self):
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         event = DomainEvent.now("TICK", {})
         assert event.correlation_id is None
 
@@ -174,7 +174,7 @@ class TestPrepareEvent:
         assert event.correlation_id is None  # Original unchanged
 
     def test_preserves_existing_correlation_id(self):
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         event = DomainEvent.now("TICK", {}, correlation_id="existing-corr")
 
         with with_correlation("different-corr"):
@@ -183,7 +183,7 @@ class TestPrepareEvent:
         assert prepared.correlation_id == "existing-corr"
 
     def test_assigns_sequence_number_in_live_mode(self):
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         event = DomainEvent("TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {})
         assert event.sequence_number == 0
 
@@ -193,7 +193,7 @@ class TestPrepareEvent:
         assert event.sequence_number == 0  # Original unchanged
 
     def test_preserves_sequence_number_in_replay_mode(self):
-        bus = EventBus(fail_fast=False, replay_mode=True)
+        bus = EventBus(config=EventBusConfig(fail_fast=False, replay_mode=True))
         event = DomainEvent(
             "TICK",
             datetime(2024, 1, 1, tzinfo=timezone.utc),
@@ -208,7 +208,7 @@ class TestPrepareEvent:
 
     def test_returns_original_when_no_changes_needed(self):
         """Optimization: return same object when no replacements needed."""
-        bus = EventBus(fail_fast=False, replay_mode=True)
+        bus = EventBus(config=EventBusConfig(fail_fast=False, replay_mode=True))
         event = DomainEvent(
             "TICK",
             datetime(2024, 1, 1, tzinfo=timezone.utc),
@@ -222,7 +222,7 @@ class TestPrepareEvent:
         assert prepared is event, "_prepare_event should return original when no changes needed"
 
     def test_creates_new_instance_when_changes_needed(self):
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         event = DomainEvent.now("TICK", {})
 
         prepared = bus._prepare_event(event)
@@ -242,7 +242,7 @@ class TestReplayModePreservation:
 
     def test_replay_mode_preserves_sequence_numbers(self):
         """In replay mode, _prepare_event preserves original sequence_number."""
-        bus = EventBus(fail_fast=False, replay_mode=True)
+        bus = EventBus(config=EventBusConfig(fail_fast=False, replay_mode=True))
 
         events = [
             DomainEvent("TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {}, sequence_number=5),
@@ -258,7 +258,7 @@ class TestReplayModePreservation:
 
     def test_replay_mode_does_not_assign_new_sequence(self):
         """In replay mode, _prepare_event does not assign new sequence numbers."""
-        bus = EventBus(fail_fast=False, replay_mode=True)
+        bus = EventBus(config=EventBusConfig(fail_fast=False, replay_mode=True))
 
         event = DomainEvent(
             "TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {}, sequence_number=0
@@ -269,7 +269,7 @@ class TestReplayModePreservation:
         assert prepared is event  # No changes needed, returns original
 
     def test_live_mode_assigns_monotonic_sequence(self):
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 
@@ -377,7 +377,7 @@ class TestPayloadIsolation:
 
     def test_handler_cannot_mutate_shared_payload(self):
         """Payload is frozen: mutation fails and peer handlers still receive the event."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         payloads_seen = []
         mutations_blocked = []
 
@@ -464,7 +464,7 @@ class TestPublishLifecycle:
 
     def test_full_lifecycle_immutability_preserved(self):
         """Complete publish flow: event remains immutable throughout."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 
@@ -494,7 +494,7 @@ class TestPublishLifecycle:
 
     def test_multiple_publishes_independent(self):
         """Multiple publishes of the same event are deduplicated by idempotency."""
-        bus = EventBus(fail_fast=False)
+        bus = EventBus(config=EventBusConfig(fail_fast=False))
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 

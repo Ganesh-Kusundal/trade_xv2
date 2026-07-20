@@ -35,10 +35,7 @@ def test_segment_to_wire():
 
 
 def test_segment_to_wire_string_input():
-    mapper = UpstoxSegmentMapper()
+    UpstoxSegmentMapper()
     assert _to_wire("NSE_EQ") == "NSE_EQ"
     assert _to_wire("") == "NSE_EQ"
     assert _to_wire(None) == "NSE_EQ"
-
-
-

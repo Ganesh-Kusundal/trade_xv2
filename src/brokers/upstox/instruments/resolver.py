@@ -11,9 +11,8 @@ import threading
 from collections import defaultdict
 from collections.abc import Iterable
 
-from domain.symbols import normalize_exchange, normalize_symbol
-
 from brokers.common.instruments.keys import generate_alternate_keys
+from domain.symbols import normalize_exchange, normalize_symbol
 
 from .definition import UpstoxInstrumentDefinition
 
@@ -59,8 +58,8 @@ class UpstoxInstrumentResolver:
                 self._by_symbol_segment[key] = definition
 
                 # Retrieve canonical segments/exchanges for alias indexing
-                from infrastructure.instruments import InstrumentRegistry
                 from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+                from infrastructure.instruments import InstrumentRegistry
 
                 xv2_segment = UpstoxSegmentMapper.to_safe(definition.exchange_segment)
                 canonical_exch = InstrumentRegistry.canonical_exchange(xv2_segment)
@@ -88,9 +87,9 @@ class UpstoxInstrumentResolver:
                 # options adapter can derive expiries without calling the
                 # deprecated /v2/option/expiry endpoint.
                 if definition.is_option and definition.expiry and definition.underlying_symbol:
-                    self._expiries_by_underlying[normalize_symbol(definition.underlying_symbol)].add(
-                        definition.expiry[:10]
-                    )
+                    self._expiries_by_underlying[
+                        normalize_symbol(definition.underlying_symbol)
+                    ].add(definition.expiry[:10])
                 if definition.is_future and definition.expiry and definition.underlying_symbol:
                     self._future_expiries_by_underlying[
                         normalize_symbol(definition.underlying_symbol)

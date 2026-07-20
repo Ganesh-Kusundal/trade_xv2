@@ -29,7 +29,9 @@ from infrastructure.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from infrastructure.resilience.backoff import BackoffStrategy, NoBackoff
+from infrastructure.resilience.backoff import BackoffStrategy, ExponentialBackoff
+
+_ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)
 from tests.e2e.fixtures.mock_brokers import MockFailingBroker
 
 pytestmark = pytest.mark.e2e
@@ -103,7 +105,7 @@ def test_fast_fail_no_retry_attempt(fast_cb: CircuitBreaker) -> None:
     executor = RetryExecutor(
         config=RetryConfig(max_attempts=3),
         circuit_breaker=fast_cb,
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
     )
 
     call_count = 0
@@ -211,7 +213,7 @@ def test_rate_limiter_during_recovery() -> None:
         circuit_breaker=cb,
         rate_limiter=limiter,
         rate_limit_category="orders",
-        backoff=NoBackoff(),
+        backoff=_ZERO_BACKOFF,
     )
 
     def place_via_broker():

@@ -13,20 +13,16 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
-from application.oms.context._types import CancellationResult  # noqa: F401
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
+from application.oms.context._types import CancellationResult
 from application.oms.context.lifecycle import TradingContextLifecycleMixin
 from application.oms.context.wiring import TradingContextWiringMixin
 from application.oms.event_log_replay import EventLogReplayService
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from application.oms.shutdown_coordinator import ShutdownCoordinator
-from application.oms.protocols import (
-    IBrokerGateway,
-    IReconciliationService,
-    ITradingOrchestrator,
-)
+from application.oms.protocols import IReconciliationService
 from application.oms.reconciliation_service import ReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager
+from application.oms.shutdown_coordinator import ShutdownCoordinator
 from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
 from domain.events.types import DomainEvent, EventType
 from domain.ports import (
@@ -108,7 +104,7 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         metrics: EventMetricsPort | None = None,
         metrics_registry: MetricsRegistryPort | None = None,
         dead_letter_queue: DeadLetterQueuePort | None = None,
-        orchestrator: ITradingOrchestrator | None = None,
+        orchestrator: Any | None = None,
         durable_order_store: OrderStorePort | None = None,
         execution_ledger: ExecutionLedgerPort | None = None,
         enable_durable_orders: bool | None = None,
@@ -174,9 +170,7 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         # event the OMS publishes only after a trade has been accepted)
         # rather than to raw TRADE events. This guarantees that
         # duplicate websocket fills cannot double-count positions.
-        self._event_bus.subscribe(
-            EventType.TRADE.value, self._order_manager.on_trade
-        )
+        self._event_bus.subscribe(EventType.TRADE.value, self._order_manager.on_trade)
         self._event_bus.subscribe(
             EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied
         )
@@ -189,12 +183,8 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         # the session bar feed is the sole writer.
         self._analytics_owns_daily_pnl = False
         self._session_open_equity = self._compute_equity()
-        self._event_bus.subscribe(
-            EventType.POSITION_UPDATED.value, self._feed_daily_pnl
-        )
-        self._event_bus.subscribe(
-            EventType.POSITION_CLOSED.value, self._feed_daily_pnl
-        )
+        self._event_bus.subscribe(EventType.POSITION_UPDATED.value, self._feed_daily_pnl)
+        self._event_bus.subscribe(EventType.POSITION_CLOSED.value, self._feed_daily_pnl)
 
         # Reconciliation: an externally-owned ReconciliationService
         # (a ManagedService) is created here so it can be registered
@@ -225,12 +215,17 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
                 execution_engine=self._reconciliation_engine,
             )
             self._order_manager.set_placement_gate(self._reconciliation_placement_gate)
+
             # G6: hot-path reconciliation — wake the reconciliation loop on
             # order lifecycle events so drift is detected immediately rather
             # than waiting for the next timer tick. The bus invokes handlers
             # with the event arg, so wrap the no-arg request_reconciliation.
-            _on_trade = lambda *_a: self._reconciliation_service.request_reconciliation()
-            _on_order = lambda *_a: self._reconciliation_service.request_reconciliation()
+            def _on_trade(*_a):
+                return self._reconciliation_service.request_reconciliation()
+
+            def _on_order(*_a):
+                return self._reconciliation_service.request_reconciliation()
+
             self._event_bus.subscribe(EventType.TRADE_APPLIED.value, _on_trade)
             self._event_bus.subscribe(EventType.ORDER_UPDATED.value, _on_order)
             self._recon_handlers = [
@@ -260,7 +255,7 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         if self._risk_manager is not None:
             self._risk_manager.reset_daily_pnl()
 
-        self._orchestrator: ITradingOrchestrator | None = orchestrator
+        self._orchestrator: Any | None = orchestrator
 
         # Shutdown thread-safety: _shutdown_lock prevents concurrent shutdown
         # attempts from both passing the guard simultaneously (TD-12).
@@ -306,24 +301,11 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         """Access the TradingOrchestrator if configured."""
         return self._orchestrator
 
-    @property
-    def command_dispatcher(self) -> Any | None:
-        """CQRS CommandDispatcher if attached by the composition root (ADR-012).
-
-        The composition root (tradex.session / runtime factory) may set this
-        attribute after construction; TradingContext does not build it itself
-        to avoid an application -> runtime dependency cycle.
-        """
-        return self._command_dispatcher if hasattr(self, "_command_dispatcher") else None
-
-    @property
-    def query_dispatcher(self) -> Any | None:
-        """CQRS QueryDispatcher if attached by the composition root (ADR-012)."""
-        return self._query_dispatcher if hasattr(self, "_query_dispatcher") else None
-
     def health(self) -> dict[str, Any]:
         """Snapshot of observability state for the SRE / alerting layer."""
-        order_store = self._order_manager.order_store if hasattr(self._order_manager, 'order_store') else None
+        order_store = (
+            self._order_manager.order_store if hasattr(self._order_manager, "order_store") else None
+        )
         return {
             "metrics": self._metrics.snapshot() if self._metrics is not None else {},
             "dead_letter": self._dead_letter_queue.stats(),
@@ -343,17 +325,6 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
     def _mark_reconciliation_ready(self) -> None:
         self._reconciliation_ready = True
         logger.info("Post-restart reconciliation complete — order placement enabled")
-
-    def run_reconciliation(self) -> Any:
-        """Run reconciliation immediately (called by timer or manually).
-
-        The actual reconciliation now lives in
-        :class:`ReconciliationService`; this is a thin shim kept for
-        backward compatibility.
-        """
-        if self._reconciliation_service is None:
-            return None
-        return self._reconciliation_service.run_now()
 
     def stop_reconciliation(self) -> None:
         """Backward-compatible shim that delegates to the service.
@@ -381,9 +352,7 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         capital = Decimal("0")
         if self._risk_manager is not None:
             try:
-                capital = _as_decimal(
-                    self._risk_manager.capital_provider.get_available_balance()
-                )
+                capital = _as_decimal(self._risk_manager.capital_provider.get_available_balance())
             except Exception:
                 capital = Decimal("0")
         return capital + book

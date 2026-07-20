@@ -27,9 +27,9 @@ from queue import Empty, Full, Queue
 
 import duckdb
 
-logger = logging.getLogger(__name__)
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH
 
-from domain.ports.data_catalog import DEFAULT_CATALOG_PATH  # canonical home; re-exported for compat
+logger = logging.getLogger(__name__)
 
 
 def connect_with_retry(
@@ -105,8 +105,12 @@ class DuckDBReadPool:
             if key not in self._active_connections:
                 self._active_connections[key] = []
             self._active_connections[key].append(conn)
-        logger.debug("DuckDBReadPool: created read-only connection to %s (%d/%d)",
-                      key, current + 1, self._max_per_path)
+        logger.debug(
+            "DuckDBReadPool: created read-only connection to %s (%d/%d)",
+            key,
+            current + 1,
+            self._max_per_path,
+        )
         return conn
 
     def release(self, db_path: str | Path, conn: duckdb.DuckDBPyConnection | None = None) -> None:
@@ -265,6 +269,7 @@ def get_connection(
 ) -> duckdb.DuckDBPyConnection:
     if db_path is None:
         from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
         db_path = str(DEFAULT_DATA_PATHS.catalog_path)
     """Get a DuckDB connection from the appropriate pool.
 

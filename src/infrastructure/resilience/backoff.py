@@ -29,23 +29,6 @@ class BackoffStrategy(ABC):
         return None
 
 
-class NoBackoff(BackoffStrategy):
-    """No delay between retries."""
-
-    def delay(self, attempt: int) -> float:
-        return 0.0
-
-
-class FixedBackoff(BackoffStrategy):
-    """Fixed delay between each retry."""
-
-    def __init__(self, delay_ms: float = 1000):
-        self._delay_ms = delay_ms
-
-    def delay(self, attempt: int) -> float:
-        return self._delay_ms / 1000.0
-
-
 class ExponentialBackoff(BackoffStrategy):
     """Exponential backoff with jitter.
 
@@ -75,3 +58,13 @@ class ExponentialBackoff(BackoffStrategy):
         delay_ms = min(delay_ms, self._max_delay_ms)
 
         return delay_ms / 1000.0
+
+
+def exponential_backoff_seconds(
+    attempt: int,
+    base_delay_ms: float = 500.0,
+    max_delay_ms: float = 5000.0,
+) -> float:
+    """Simple exponential backoff in seconds (HTTP client helper)."""
+    delay_ms = min(base_delay_ms * (2 ** (attempt - 1)), max_delay_ms)
+    return delay_ms / 1000.0

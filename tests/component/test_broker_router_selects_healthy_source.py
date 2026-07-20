@@ -19,6 +19,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from application.composer.registry import BrokerRegistry
+from application.composer.router import BrokerRouter
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
@@ -33,8 +35,6 @@ from domain.policies.source_selection import (
     RoutingPolicy,
     SourceSelectionPolicy,
 )
-from application.composer.registry import BrokerRegistry
-from application.composer.router import BrokerRouter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -156,12 +156,13 @@ class TestCapabilityFiltering:
 class TestHealthFiltering:
     def test_unhealthy_broker_rejected(self) -> None:
         """Unhealthy broker should be skipped in favor of healthy one."""
-        dhan_health = BrokerHealthSnapshot(
-            broker_id="dhan", alive=False, reason="auth expired"
-        )
+        dhan_health = BrokerHealthSnapshot(broker_id="dhan", alive=False, reason="auth expired")
         upstox_health = BrokerHealthSnapshot(broker_id="upstox", alive=True)
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
             health={"dhan": dhan_health, "upstox": upstox_health},
         )
         policy = _make_policy(mode="priority_list", candidates=("dhan", "upstox"))
@@ -210,7 +211,10 @@ class TestPriorityListMode:
     def test_selects_first_healthy(self) -> None:
         """Priority list selects first healthy candidate."""
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
         )
         policy = _make_policy(mode="priority_list", candidates=("upstox", "dhan"))
         router = BrokerRouter(registry, policy)
@@ -222,10 +226,15 @@ class TestPriorityListMode:
         """When primary is unhealthy, falls back to second broker."""
         upstox_health = BrokerHealthSnapshot(broker_id="upstox", alive=False, reason="down")
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
             health={"upstox": upstox_health},
         )
-        policy = _make_policy(mode="priority_list", candidates=("upstox", "dhan"), allow_fallback=True)
+        policy = _make_policy(
+            mode="priority_list", candidates=("upstox", "dhan"), allow_fallback=True
+        )
         router = BrokerRouter(registry, policy)
 
         decision = router.route(_request())
@@ -235,9 +244,14 @@ class TestPriorityListMode:
     def test_no_fallback_when_disabled(self) -> None:
         """When allow_fallback=False, only primary is used."""
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
         )
-        policy = _make_policy(mode="priority_list", candidates=("dhan", "upstox"), allow_fallback=False)
+        policy = _make_policy(
+            mode="priority_list", candidates=("dhan", "upstox"), allow_fallback=False
+        )
         router = BrokerRouter(registry, policy)
 
         decision = router.route(_request())
@@ -254,7 +268,10 @@ class TestQuotaAwareMode:
     def test_selects_broker_with_most_headroom(self) -> None:
         """Quota-aware mode picks the broker with highest headroom."""
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
         )
         policy = _make_policy(mode="quota_aware", candidates=("dhan", "upstox"))
 
@@ -277,7 +294,10 @@ class TestLatencyAwareMode:
         dhan_health = BrokerHealthSnapshot(broker_id="dhan", alive=True, latency_p50_ms=45.0)
         upstox_health = BrokerHealthSnapshot(broker_id="upstox", alive=True, latency_p50_ms=120.0)
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
             health={"dhan": dhan_health, "upstox": upstox_health},
         )
         policy = _make_policy(mode="latency_aware", candidates=("upstox", "dhan"))
@@ -296,7 +316,10 @@ class TestParallelRouting:
     def test_parallel_historical_federation(self) -> None:
         """Historical mode with max_parallel_sources > 1 returns parallel brokers."""
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
         )
         policy = _make_policy(
             mode="capability_match",
@@ -311,7 +334,10 @@ class TestParallelRouting:
     def test_parallel_not_used_for_non_historical(self) -> None:
         """Parallel routing only applies to GET_HISTORICAL_BARS."""
         registry = _make_registry(
-            {"dhan": BrokerCapabilities(broker_id="dhan"), "upstox": BrokerCapabilities(broker_id="upstox")},
+            {
+                "dhan": BrokerCapabilities(broker_id="dhan"),
+                "upstox": BrokerCapabilities(broker_id="upstox"),
+            },
         )
         policy = _make_policy(
             mode="capability_match",

@@ -16,16 +16,15 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Self-contained stubs
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class _FakeEvent:
@@ -37,7 +36,7 @@ class _FakeEvent:
     sequence_number: int = 0
 
     @classmethod
-    def now(cls, event_type: str, payload: dict | None = None) -> "_FakeEvent":
+    def now(cls, event_type: str, payload: dict | None = None) -> _FakeEvent:
         return cls(event_type=event_type, timestamp=datetime.now(), payload=payload or {})
 
 
@@ -122,6 +121,7 @@ class _FakeBrokerGateway:
 # 1. Broker Disconnection Recovery
 # ---------------------------------------------------------------------------
 
+
 class TestBrokerDisconnectionRecovery:
     """Simulate broker disconnects and verify recovery."""
 
@@ -198,13 +198,14 @@ class TestBrokerDisconnectionRecovery:
         assert bus.subscriber_count("TICK") == 0
 
         # After reconnect, re-subscribe
-        new_token = bus.subscribe("TICK", lambda e: None)
+        bus.subscribe("TICK", lambda e: None)
         assert bus.subscriber_count("TICK") == 1
 
 
 # ---------------------------------------------------------------------------
 # 2. Event Bus Overflow
 # ---------------------------------------------------------------------------
+
 
 class TestEventBusOverflow:
     """Test event bus behavior under overflow conditions."""
@@ -236,8 +237,13 @@ class TestEventBusOverflow:
         tick_count = 0
         order_count = 0
 
-        def tick_handler(e): nonlocal tick_count; tick_count += 1
-        def order_handler(e): nonlocal order_count; order_count += 1
+        def tick_handler(e):
+            nonlocal tick_count
+            tick_count += 1
+
+        def order_handler(e):
+            nonlocal order_count
+            order_count += 1
 
         bus.subscribe("TICK", tick_handler)
         bus.subscribe("ORDER_PLACED", order_handler)
@@ -287,6 +293,7 @@ class TestEventBusOverflow:
 # ---------------------------------------------------------------------------
 # 3. Concurrent Order Safety
 # ---------------------------------------------------------------------------
+
 
 class TestConcurrentOrderSafety:
     """Thread-safety of order operations."""
@@ -386,6 +393,7 @@ class TestConcurrentOrderSafety:
 # 4. Memory Pressure
 # ---------------------------------------------------------------------------
 
+
 class TestMemoryPressure:
     """Verify systems handle memory pressure gracefully."""
 
@@ -396,7 +404,7 @@ class TestMemoryPressure:
 
         # Publish events with large payloads
         large_payload = {"data": "x" * 10_000}
-        for i in range(100):
+        for _i in range(100):
             bus.publish(_FakeEvent.now("TICK", large_payload))
 
         assert len(received) == 100
@@ -405,7 +413,7 @@ class TestMemoryPressure:
         bus = _FakeEventBus()
         tokens: list[str] = []
 
-        for i in range(500):
+        for _i in range(500):
             tok = bus.subscribe("TICK", lambda e: None)
             tokens.append(tok)
 
@@ -436,7 +444,7 @@ class TestMemoryPressure:
 
     def test_event_bus_clear_releases_memory(self) -> None:
         bus = _FakeEventBus()
-        for i in range(1_000):
+        for _i in range(1_000):
             bus.subscribe("TICK", lambda e: None)
 
         assert bus.subscriber_count("TICK") == 1_000
@@ -464,5 +472,3 @@ class TestMemoryPressure:
         assert total_published == 8_000
         # Deque should still be bounded
         assert len(bus._processed) <= 500
-
-

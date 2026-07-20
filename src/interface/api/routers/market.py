@@ -14,45 +14,18 @@ from datetime import date
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from interface.api.auth import require_auth
-from interface.api.deps import get_datalake_gateway, get_market_data_composer
-from interface.api.freshness import check_data_freshness
-from interface.api.candle_mapper import series_to_api_candles
-from interface.api.schemas import CandlesResponse, QuoteResponse
 from domain.candles.historical import HistoricalSeries, InstrumentRef
 from domain.instruments.timeframes import normalize_timeframe
-from domain.universe import Session
+from interface.api.auth import require_auth
+from interface.api.candle_mapper import series_to_api_candles
+from interface.api.deps import get_datalake_gateway, get_market_data_composer
+from interface.api.freshness import check_data_freshness
+from interface.api.schemas import CandlesResponse, QuoteResponse
+from interface.api.session_state import get_session, set_session
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_auth)])
-
-
-class _SessionState:
-    """Module-level session state (set once at startup)."""
-
-    _session: Session | None = None
-
-    @classmethod
-    def set(cls, session: Session) -> None:
-        cls._session = session
-
-    @classmethod
-    def get(cls) -> Session:
-        if cls._session is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Session not wired — call set_session() at startup",
-            )
-        return cls._session
-
-
-def set_session(session: Session) -> None:
-    _SessionState.set(session)
-
-
-def _get_session() -> Session:
-    return _SessionState.get()
 
 
 # Cache TTL configuration by timeframe category
@@ -135,7 +108,8 @@ async def get_candles(
 
         # Use DuckDB predicate pushdown instead of loading entire parquet
         df = gateway.query_candles(
-            symbol, timeframe,
+            symbol,
+            timeframe,
             from_ts=from_ts_pd,
             to_ts=to_ts_pd,
             limit=limit,
@@ -245,9 +219,7 @@ async def get_live_candles(
             )
 
         if series.is_degraded:
-            logger.warning(
-                "Live candle data degraded: %s", ledger.issues
-            )
+            logger.warning("Live candle data degraded: %s", ledger.issues)
 
         # Convert to candles
         candles = series_to_api_candles(series, limit=limit)
@@ -300,7 +272,7 @@ async def get_quote(symbol: str, exchange: str = Query("NSE", description="Excha
     """
     from fastapi.responses import JSONResponse
 
-    session = _get_session()
+    session = get_session()
     instrument = session.universe.equity(symbol, exchange)
 
     try:

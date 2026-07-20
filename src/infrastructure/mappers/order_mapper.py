@@ -12,7 +12,6 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from domain.entities import FieldMapping, Order
-from domain.field_mapping import DefaultFieldMapping
 
 
 class FieldMapping(Protocol):  # pragma: no cover - back-compat alias
@@ -40,4 +39,6 @@ def order_from_broker_dict(
 
     Delegates to the canonical ``Order.from_broker_dict`` in domain.
     """
-    return Order.from_broker_dict(d, field_mapping=field_mapping, exchange_resolver=exchange_resolver)
+    return Order.from_broker_dict(
+        d, field_mapping=field_mapping, exchange_resolver=exchange_resolver
+    )

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 
-from interface.ui.tests.endpoint_manifest import (
+from tests.component.ui.endpoint_manifest import (
     LIVE_READONLY_ENDPOINTS,
     OFFLINE_ENDPOINTS,
     SANDBOX_ENDPOINTS,

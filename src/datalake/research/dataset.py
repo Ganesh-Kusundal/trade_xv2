@@ -68,7 +68,9 @@ class ResearchDataset:
         """Create a minimal research dataset."""
         symbols = ["RELIANCE", "TCS"]
 
-        hash_input = f"{universe}{as_of_date}{''.join(sorted(features))}{date_from}{date_to}{timeframe}"
+        hash_input = (
+            f"{universe}{as_of_date}{''.join(sorted(features))}{date_from}{date_to}{timeframe}"
+        )
         full_hash = hashlib.sha256(hash_input.encode()).hexdigest()
         short_hash = full_hash[:12]
 

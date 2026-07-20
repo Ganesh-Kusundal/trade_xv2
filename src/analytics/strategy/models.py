@@ -20,9 +20,16 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Any
+
+from domain.ports.time_service import get_current_clock
+
+
+def _signal_timestamp() -> datetime:
+    return get_current_clock().now()
+
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -116,7 +123,7 @@ class Signal:
     target: float | None = None
     position_size_pct: float = 0.0
     reasons: list[str] = field(default_factory=list)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=_signal_timestamp)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -204,8 +211,5 @@ class StrategyResult:
                 return s
         return None
 
-# Backward-compatible re-export — Candidate lives in evaluator_bridge
-try:
-    from analytics.strategy.evaluator_bridge import Candidate  # noqa: F401
-except ImportError:
-    pass
+
+from analytics.scanner.models import Candidate  # noqa: F401

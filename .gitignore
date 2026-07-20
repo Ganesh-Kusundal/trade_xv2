@@ -57,7 +57,7 @@ dist/
 
 # Runtime data (created by the application)
 market_data/
-data/
+/data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
@@ -76,6 +76,7 @@ market_data/_quarantine/
 archive/
 
 graphify-out/
+src/graphify-out/
 
 # Runtime logs and lock files
 *.log
@@ -103,3 +104,5 @@ src/runtime/event-log/
 src/brokers/runtime/*.json
 src/brokers/runtime/*.lock
 src/brokers/runtime/*.log
+.hypothesis/
+worktrees/

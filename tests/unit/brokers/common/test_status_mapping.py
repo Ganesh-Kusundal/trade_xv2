@@ -7,8 +7,9 @@ These tests ensure that:
 4. Order placement properly uses strict status mapping
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from domain import OrderStatus
 from domain.status_mapper import (
@@ -33,11 +34,11 @@ class TestStatusMapperRegistry:
             "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_CANCELLED,
             "EXECUTED": OrderStatus.FILLED,  # Common alias
             "COMPLETE": OrderStatus.FILLED,  # Common alias
-            "TRADED": OrderStatus.FILLED,   # Common alias
-            "TRANSIT": OrderStatus.OPEN,    # Common alias
-            "PENDING": OrderStatus.OPEN,    # Common alias
+            "TRADED": OrderStatus.FILLED,  # Common alias
+            "TRANSIT": OrderStatus.OPEN,  # Common alias
+            "PENDING": OrderStatus.OPEN,  # Common alias
         }
-        
+
         for status_str, expected in test_cases.items():
             result = StatusMapperRegistry.normalize(status_str)
             assert result == expected, f"Expected {expected} for '{status_str}', got {result}"
@@ -85,9 +86,19 @@ class TestStatusMapperRegistry:
     def test_common_status_map_coverage(self):
         """Test that COMMON_STATUS_MAP has expected entries."""
         expected_statuses = {
-            "OPEN", "FILLED", "CANCELLED", "REJECTED", "EXPIRED",
-            "PARTIALLY_FILLED", "PARTIALLY_CANCELLED", "UNKNOWN",
-            "EXECUTED", "COMPLETE", "TRADED", "TRANSIT", "PENDING"
+            "OPEN",
+            "FILLED",
+            "CANCELLED",
+            "REJECTED",
+            "EXPIRED",
+            "PARTIALLY_FILLED",
+            "PARTIALLY_CANCELLED",
+            "UNKNOWN",
+            "EXECUTED",
+            "COMPLETE",
+            "TRADED",
+            "TRANSIT",
+            "PENDING",
         }
         map_statuses = set(COMMON_STATUS_MAP.keys())
         assert expected_statuses.issubset(map_statuses)
@@ -100,13 +111,13 @@ class TestDhanStatusMapping:
         """Test Dhan-specific status strings."""
         # Import Dhan status map
         from brokers.dhan.status_mapper import DHAN_STATUS_MAP
-        
+
         dhan_specific = {
             "PLACED": OrderStatus.OPEN,
             "TRIGGERED": OrderStatus.OPEN,
             "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_CANCELLED,
         }
-        
+
         for status_str, expected in dhan_specific.items():
             assert DHAN_STATUS_MAP[status_str] == expected
 
@@ -125,7 +136,7 @@ class TestUpstoxStatusMapping:
         """Test Upstox-specific status strings."""
         # Import Upstox status map
         from brokers.upstox.status_mapper import UPSTOX_STATUS_MAP
-        
+
         upstox_specific = {
             "OPEN_ORDER": OrderStatus.OPEN,
             "TRIGGER_ORDER": OrderStatus.OPEN,
@@ -135,7 +146,7 @@ class TestUpstoxStatusMapping:
             "MODIFIED": OrderStatus.OPEN,
             "MODIFIED_PENDING": OrderStatus.OPEN,
         }
-        
+
         for status_str, expected in upstox_specific.items():
             assert UPSTOX_STATUS_MAP[status_str] == expected
 
@@ -150,26 +161,28 @@ class TestUpstoxStatusMapping:
 class TestStrictStatusMappingIntegration:
     """Integration tests for strict status mapping in order placement."""
 
-    @pytest.mark.xfail(reason="Mock bypasses status mapping; gateway delegates to connection without validation")
+    @pytest.mark.xfail(
+        reason="Mock bypasses status mapping; gateway delegates to connection without validation"
+    )
     def test_dhan_gateway_uses_strict_status_mapping(self):
         """Test that DhanGateway uses strict status mapping and fails on unknown statuses."""
+        from unittest.mock import Mock
+
         from brokers.dhan.wire import DhanBrokerGateway
-        from brokers.dhan.exceptions import OrderError
-        from unittest.mock import Mock, patch
-        
+
         # Create a mock connection that returns an order with unknown status
         mock_conn = Mock()
         mock_order = Mock()
         mock_order.order_id = "test_order_123"
         mock_order.status.value = "UNKNOWN_STATUS"  # This should cause failure
-        
+
         mock_conn.orders.place_order.return_value = mock_order
-        
+
         gateway = DhanBrokerGateway(mock_conn)
-        
+
         # This should return a failed response due to unmapped status
         response = gateway.place_order("RELIANCE", "NSE", "BUY", 1)
-        
+
         # Should not be successful due to unmapped status
         assert not response.success
         assert "UNMAPPED_STATUS" in response.message or "unmapped" in response.message.lower()
@@ -177,16 +190,18 @@ class TestStrictStatusMappingIntegration:
 
     def test_upstox_domain_mapper_uses_strict_status_mapping(self):
         """Test that UpstoxDomainMapper uses strict status mapping."""
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper, _wire_status_to_domain_status
+        from brokers.upstox.mappers.domain_mapper import (
+            _wire_status_to_domain_status,
+        )
         from domain.status_mapper import UnmappedBrokerStatusError
-        
+
         # Test that known statuses work
         assert _wire_status_to_domain_status("OPEN") == OrderStatus.OPEN
         assert _wire_status_to_domain_status("FILLED") == OrderStatus.FILLED
-        
+
         # Test that empty status defaults to OPEN (for backward compatibility)
         assert _wire_status_to_domain_status("") == OrderStatus.OPEN
-        
+
         # Test that unknown statuses raise exceptions
         with pytest.raises(UnmappedBrokerStatusError):
             _wire_status_to_domain_status("INVALID_STATUS")
@@ -194,16 +209,10 @@ class TestStrictStatusMappingIntegration:
     def test_upstox_to_order_response_includes_status(self):
         """Test that to_order_response extracts and includes status."""
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        from domain import OrderResponse
-        
+
         # Test with successful response including status
-        payload = {
-            "data": {
-                "order_id": "test_123",
-                "status": "OPEN"
-            }
-        }
-        
+        payload = {"data": {"order_id": "test_123", "status": "OPEN"}}
+
         response = UpstoxDomainMapper.to_order_response(payload)
         assert response.success
         assert response.order_id == "test_123"
@@ -212,28 +221,22 @@ class TestStrictStatusMappingIntegration:
     def test_upstox_to_order_response_handles_unknown_status(self):
         """Test that to_order_response handles unknown statuses gracefully."""
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        from domain import OrderResponse
-        
+
         # Test with unknown status - should log but not fail
-        payload = {
-            "data": {
-                "order_id": "test_456",
-                "status": "UNKNOWN_STATUS"
-            }
-        }
-        
+        payload = {"data": {"order_id": "test_456", "status": "UNKNOWN_STATUS"}}
+
         # Patch the logger at the module level where it's used
-        with patch('logging.getLogger') as mock_get_logger:
+        with patch("logging.getLogger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
-            
+
             response = UpstoxDomainMapper.to_order_response(payload)
-            
+
             # Should still return successful response but with OPEN status (fallback)
             assert response.success
             assert response.order_id == "test_456"
             assert response.status == OrderStatus.OPEN
-            
+
             # Should have logged the error
             mock_logger.error.assert_called_once()
             error_call = mock_logger.error.call_args
@@ -246,7 +249,7 @@ class TestStatusMappingEdgeCases:
     def test_none_status(self):
         """Test handling of None status."""
         from brokers.upstox.mappers.domain_mapper import _wire_status_to_domain_status
-        
+
         # Should handle None gracefully
         result = _wire_status_to_domain_status(None)
         assert result == OrderStatus.OPEN
@@ -254,15 +257,15 @@ class TestStatusMappingEdgeCases:
     def test_non_string_status(self):
         """Test handling of non-string status values."""
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        
+
         # Should handle integer status codes
         payload = {
             "data": {
                 "order_id": "test_789",
-                "status": 123  # Non-string status
+                "status": 123,  # Non-string status
             }
         }
-        
+
         response = UpstoxDomainMapper.to_order_response(payload)
         assert response.success
         # Should handle the conversion gracefully
@@ -288,33 +291,42 @@ class TestStatusMappingPerformance:
     def test_status_mapping_performance(self):
         """Test that status mapping is fast enough for high-frequency usage."""
         import time
-        
-        statuses = ["OPEN", "FILLED", "CANCELLED", "REJECTED", "PARTIALLY_FILLED", 
-                   "PLACED", "TRIGGERED", "OPEN_ORDER", "REJECTED_BY_BROKER"]
-        
+
+        statuses = [
+            "OPEN",
+            "FILLED",
+            "CANCELLED",
+            "REJECTED",
+            "PARTIALLY_FILLED",
+            "PLACED",
+            "TRIGGERED",
+            "OPEN_ORDER",
+            "REJECTED_BY_BROKER",
+        ]
+
         start_time = time.time()
         for _ in range(10000):  # 10k iterations
             for status in statuses:
                 StatusMapperRegistry.normalize(status)
-        
+
         elapsed = time.time() - start_time
-        
+
         # Should handle 100k status mappings in < 1 second
         assert elapsed < 1.0, f"Status mapping too slow: {elapsed:.3f}s for 100k operations"
 
     def test_strict_mapping_performance(self):
         """Test that strict status mapping performance is acceptable."""
         import time
-        
+
         statuses = ["OPEN", "FILLED", "CANCELLED"]  # Only known statuses for this test
-        
+
         start_time = time.time()
         for _ in range(10000):  # 10k iterations
             for status in statuses:
                 StatusMapperRegistry.normalize_strict(status)
-        
+
         elapsed = time.time() - start_time
-        
+
         # Should handle 30k strict mappings in < 1 second
         assert elapsed < 1.0, f"Strict status mapping too slow: {elapsed:.3f}s for 30k operations"
 

@@ -12,35 +12,33 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from domain.entities import Order, Position
-from domain.types import OrderStatus, OrderType, ProductType, Side, Validity
+from domain.entities import Position
+from domain.types import OrderStatus, OrderType, ProductType, Side
+from tests.fixtures.domain_helpers import make_order
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _make_order(**overrides) -> Order:
+def _make_order(**overrides):
     defaults = {
         "order_id": "O-1001",
         "symbol": "RELIANCE",
         "exchange": "NSE",
-        "side": Side.BUY,
-        "order_type": OrderType.LIMIT,
+        "side": "BUY",
+        "order_type": "LIMIT",
         "quantity": 10,
         "filled_quantity": 0,
         "price": Decimal("2500"),
         "trigger_price": Decimal("0"),
         "status": OrderStatus.OPEN,
-        "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc),
-        "product_type": ProductType.INTRADAY,
-        "validity": Validity.DAY,
-        "avg_price": Decimal("0"),
-        "reject_reason": "",
+        "product_type": "INTRADAY",
+        "validity": "DAY",
         "correlation_id": "corr-1",
     }
     defaults.update(overrides)
-    return Order(**defaults)
+    return make_order(**defaults)
 
 
 def _make_position(**overrides) -> Position:
@@ -214,7 +212,9 @@ class TestPositionWithFill:
         result = p.with_fill(5, Decimal("2600"))
         assert result.quantity == 15
         # avg = (10*2500 + 5*2600) / 15 = 38000/15 = 2533.33...
-        assert result.avg_price.to_decimal() == (Decimal("25000") + Decimal("13000")) / Decimal("15")
+        assert result.avg_price.to_decimal() == (Decimal("25000") + Decimal("13000")) / Decimal(
+            "15"
+        )
 
     def test_close_long_partially(self):
         p = _make_position(quantity=10, avg_price=Decimal("2500"))

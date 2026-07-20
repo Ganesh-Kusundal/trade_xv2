@@ -3,11 +3,8 @@
 Provides a single source of truth for all time-related operations.
 Handles timezone conversion, exchange calendars, and timestamp formatting.
 
-**Canonical implementation.** Streaming / composer / provenance should import
-the same singleton via ``infrastructure.time.clock`` (thin re-export)::
+**Canonical implementation.** All modules should import from here::
 
-    from infrastructure.time.clock import time_service
-    # or equivalently:
     from infrastructure.time_service import time_service
 
 Contract
@@ -15,7 +12,7 @@ Contract
 - ``now()`` returns **timezone-aware UTC** (``datetime`` with ``tzinfo=timezone.utc``).
 - ``exchange_now(exchange)`` returns **exchange-local** time (e.g. NSE → Asia/Kolkata).
 - Callers **must not** use naive ``datetime.now()`` for order, audit, stream, or
-  reconnect timestamps — always go through this service (or the clock re-export).
+  reconnect timestamps — always go through this service.
 
 Usage::
 
@@ -73,7 +70,9 @@ class TimeService:
             raise ValueError(f"Unknown exchange: {exchange}")
         return calendar.now()
 
-    def format_timestamp(self, dt: datetime | None = None, fmt: str = "%Y-%m-%dT%H:%M:%S.%fZ") -> str:
+    def format_timestamp(
+        self, dt: datetime | None = None, fmt: str = "%Y-%m-%dT%H:%M:%S.%fZ"
+    ) -> str:
         if dt is None:
             dt = self.now()
         return dt.strftime(fmt)

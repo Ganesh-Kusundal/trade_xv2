@@ -15,7 +15,7 @@ import logging
 
 import pandas as pd
 
-from analytics.backtest import BacktestConfig, BacktestEngine, ResearchMode
+from analytics.backtest import BacktestConfig
 from analytics.pipeline.features import (
     ATR,
     ROC,
@@ -32,7 +32,6 @@ from datalake.gateway import DataLakeGateway
 
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
-
     logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -66,51 +65,19 @@ def load_multi_symbol_data(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def _build_parity_context(initial_capital: float):
-    """Compose a broker-free TradingContext for a PARITY-mode backtest.
-
-    Reuses the same composition entry point (``create_trading_context``) the
-    API/runtime use for live wiring — no broker adapter is needed here since
-    backtest fills route through ``SimulatedOMSAdapter``, not a broker gateway.
-    Event infrastructure is constructed at this CLI composition root (same
-    pattern as API bootstrap / test harness).
-    """
-    from decimal import Decimal
-    from pathlib import Path
-    import tempfile
-    import importlib
-
-    oms_factory = importlib.import_module("application.oms.factory")
-    create_trading_context = oms_factory.create_trading_context
-    event_bus_mod = importlib.import_module("infrastructure.event_bus")
-    EventBus = event_bus_mod.EventBus
-    ProcessedTradeRepository = event_bus_mod.ProcessedTradeRepository
-    create_default_dead_letter_queue = event_bus_mod.create_default_dead_letter_queue
-    event_log_mod = importlib.import_module("infrastructure.event_log")
-    BufferedEventLog = event_log_mod.BufferedEventLog
-
-    dlq = create_default_dead_letter_queue()
-    return create_trading_context(
-        capital_fn=lambda: Decimal(str(initial_capital)),
-        event_bus=EventBus(dead_letter_queue=dlq),
-        dead_letter_queue=dlq,
-        processed_trade_repository=ProcessedTradeRepository(),
-        event_log=BufferedEventLog(
-            events_dir=Path(tempfile.mkdtemp(prefix="tradex-parity-events-"))
-        ),
-        replay_events=False,
-    )
-
-
-def run_single_backtest(symbol: str, years: int = 5, *, parity: bool = False):
+def run_single_backtest(symbol: str, years: int = 5, *, research_only: bool = False):
     """Run backtest on a single symbol using 1m data.
 
-    parity:
-        If True, route fills through the real OMS (RiskManager, IdempotencyGuard,
-        order FSM) via a freshly composed TradingContext instead of PURE_SIM.
+    Default uses OMS PARITY via ``build_paper_session``. Pass ``research_only=True``
+    for fast PURE_SIM without OMS routing.
     """
     logger.info("=" * 60)
-    logger.info("BACKTEST: %s | %dY | 1m%s", symbol, years, " | PARITY" if parity else "")
+    logger.info(
+        "BACKTEST: %s | %dY | 1m%s",
+        symbol,
+        years,
+        " | RESEARCH" if research_only else " | PARITY",
+    )
     logger.info("=" * 60)
 
     gw = DataLakeGateway()
@@ -121,7 +88,9 @@ def run_single_backtest(symbol: str, years: int = 5, *, parity: bool = False):
 
     logger.info(
         "Data: %d bars from %s to %s",
-        len(data), data['timestamp'].min(), data['timestamp'].max(),
+        len(data),
+        data["timestamp"].min(),
+        data["timestamp"].max(),
     )
 
     pipeline = build_pipeline()
@@ -135,17 +104,14 @@ def run_single_backtest(symbol: str, years: int = 5, *, parity: bool = False):
         risk_free_rate=0.065,
     )
 
-    if parity:
-        ctx = _build_parity_context(config.initial_capital)
-        engine = BacktestEngine(
-            pipeline=pipeline,
-            strategy_pipeline=strategy,
-            config=config,
-            mode=ResearchMode.PARITY,
-            trading_context=ctx,
-        )
-    else:
-        engine = BacktestEngine(pipeline=pipeline, strategy_pipeline=strategy, config=config)
+    from runtime.paper_session import build_backtest_engine
+
+    engine = build_backtest_engine(
+        pipeline,
+        strategy,
+        config,
+        research_only=research_only,
+    )
     result = engine.run(data, symbol=symbol)
 
     ta = result.metrics.trade_analysis
@@ -178,7 +144,8 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
 
     logger.info(
         "Loaded %d rows for %d symbols",
-        len(universe_df), universe_df['symbol'].nunique(),
+        len(universe_df),
+        universe_df["symbol"].nunique(),
     )
 
     pipeline = build_pipeline()
@@ -208,14 +175,18 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
             if data.empty or len(data) < 200:
                 logger.warning("  %s: Insufficient data (%d rows)", candidate.symbol, len(data))
                 continue
-            engine = BacktestEngine(pipeline=pipeline, strategy_pipeline=strategy, config=config)
+            from runtime.paper_session import build_backtest_engine
+
+            engine = build_backtest_engine(pipeline, strategy, config)
             result = engine.run(data, symbol=candidate.symbol)
             ta = result.metrics.trade_analysis
             results.append((candidate.symbol, result))
             logger.info(
                 "  %s: return=%.2f%% sharpe=%.3f trades=%d",
-                candidate.symbol, result.metrics.total_return_pct,
-                result.metrics.sharpe_ratio, ta.total_trades,
+                candidate.symbol,
+                result.metrics.total_return_pct,
+                result.metrics.sharpe_ratio,
+                ta.total_trades,
             )
         except Exception as e:
             logger.error("  %s: ERROR - %s", candidate.symbol, e)
@@ -238,8 +209,11 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
             ta = r.metrics.trade_analysis
             logger.info(
                 "  %s: %.2f%% | Sharpe %.3f | %d trades | Win %.0f%%",
-                sym, r.metrics.total_return_pct, r.metrics.sharpe_ratio,
-                ta.total_trades, ta.win_rate * 100,
+                sym,
+                r.metrics.total_return_pct,
+                r.metrics.sharpe_ratio,
+                ta.total_trades,
+                ta.win_rate * 100,
             )
 
     return results
@@ -252,22 +226,21 @@ def main():
     parser.add_argument("--top", type=int, default=10, help="Top N from scan")
     parser.add_argument("--years", type=int, default=5, help="Years of history")
     parser.add_argument(
-        "--parity",
+        "--research",
         action="store_true",
         help=(
-            "Route fills through the real OMS (RiskManager, IdempotencyGuard, order "
-            "FSM) instead of PURE_SIM. Single-symbol (--symbol) only."
+            "Run PURE_SIM without OMS parity. Default routes fills through the paper OMS session."
         ),
     )
     args = parser.parse_args()
 
-    if args.parity and not args.symbol:
-        parser.error("--parity requires --symbol (not supported for --scan)")
+    if args.research and not args.symbol:
+        parser.error("--research is only supported with --symbol (not --scan)")
 
     if args.scan:
         run_scan_and_backtest(top_n=args.top, years=args.years)
     elif args.symbol:
-        run_single_backtest(args.symbol, years=args.years, parity=args.parity)
+        run_single_backtest(args.symbol, years=args.years, research_only=args.research)
     else:
         run_scan_and_backtest(top_n=10, years=2)
 

@@ -18,7 +18,6 @@ class FeatureViews:
         self._create_vwap(conn)
         self._create_volume(conn)
         self._create_momentum(conn)
-        self._create_rsi(conn)
 
     def _create_atr(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_feature_atr — Average True Range."""
@@ -156,60 +155,3 @@ class FeatureViews:
             FROM v_candles_1m
         """)
         logger.debug("Created v_feature_momentum")
-
-    def _create_rsi(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """v_feature_rsi — Relative Strength Index."""
-        conn.execute("""
-            CREATE OR REPLACE VIEW v_feature_rsi AS
-            WITH changes AS (
-                SELECT
-                    symbol,
-                    timestamp,
-                    close - LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp) as change
-                FROM v_candles_1m
-            ),
-            gains_losses AS (
-                SELECT
-                    symbol,
-                    timestamp,
-                    change,
-                    CASE WHEN change > 0 THEN change ELSE 0 END as gain,
-                    CASE WHEN change < 0 THEN ABS(change) ELSE 0 END as loss
-                FROM changes
-            ),
-            avg_gl AS (
-                SELECT
-                    symbol,
-                    timestamp,
-                    AVG(gain) OVER (
-                        PARTITION BY symbol ORDER BY timestamp
-                        ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                    ) as avg_gain_14,
-                    AVG(loss) OVER (
-                        PARTITION BY symbol ORDER BY timestamp
-                        ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                    ) as avg_loss_14,
-                    AVG(gain) OVER (
-                        PARTITION BY symbol ORDER BY timestamp
-                        ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
-                    ) as avg_gain_21,
-                    AVG(loss) OVER (
-                        PARTITION BY symbol ORDER BY timestamp
-                        ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
-                    ) as avg_loss_21
-                FROM gains_losses
-            )
-            SELECT
-                symbol,
-                timestamp,
-                CASE
-                    WHEN avg_loss_14 = 0 THEN 100
-                    ELSE 100 - (100 / (1 + avg_gain_14 / avg_loss_14))
-                END as rsi_14,
-                CASE
-                    WHEN avg_loss_21 = 0 THEN 100
-                    ELSE 100 - (100 / (1 + avg_gain_21 / avg_loss_21))
-                END as rsi_21
-            FROM avg_gl
-        """)
-        logger.debug("Created v_feature_rsi")

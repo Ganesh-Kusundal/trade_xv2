@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.storage.catalog import DataCatalog
 from datalake.core.duckdb_utils import get_pool
+from datalake.storage.catalog import DataCatalog
 
 
 def _close_writer(catalog: DataCatalog) -> None:

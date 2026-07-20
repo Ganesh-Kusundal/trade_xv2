@@ -61,10 +61,9 @@ class APIConfig:
     default_page_size: int = 100
     rate_limit_per_minute: int = 100  # 100 req/min per IP; 0 = disabled
     api_prefix: str = "/api/v1"
-    # ENG-004: secure by default. Local/dev may set auth_mode="none" explicitly
-    # (or AUTH_MODE=none via env mapped at composition root).
-    auth_mode: str = "api_key"  # "none" or "api_key"
-    api_key: str = ""  # API key (generated if empty and auth_mode=api_key)
+    # Default: no API key (local/single-operator). Set auth_mode="api_key" only if exposed.
+    auth_mode: str = "none"  # "none" or "api_key"
+    api_key: str = ""
 
     @property
     def docs_url(self) -> str:

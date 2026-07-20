@@ -8,8 +8,8 @@ from decimal import Decimal
 from domain.entities.trade import Trade
 from domain.executions.execution import Execution
 from domain.instruments.instrument_id import InstrumentId
-from tests.unit.domain._fakes import FakeEventBus
 from domain.types import Side
+from tests.unit.domain._fakes import FakeEventBus
 
 
 def _trade(tid: str, qty: int, price: Decimal) -> Trade:

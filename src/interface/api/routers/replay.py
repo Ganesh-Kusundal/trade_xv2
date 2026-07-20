@@ -214,12 +214,9 @@ async def play_session(session_id: str):
                 trading_context=trading_context,
             )
         else:
-            engine = ReplayEngine(
-                pipeline,
-                strategy,
-                config,
-                allow_simulate_without_oms=True,
-            )
+            from runtime.paper_session import build_replay_engine
+
+            engine = build_replay_engine(pipeline, strategy, config)
         result = engine.run(df, symbol=symbol)
 
         # Store engine reference for lifecycle management

@@ -24,16 +24,16 @@ from typing import Any
 
 import pandas as pd
 
-from domain import MarketDepth, Quote
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from domain.capabilities.broker_capabilities import (
-    BrokerCapabilities,
-    HistoricalWindowConstraint,
-)
 from datalake.core.symbols import (
     normalize_symbol_for_storage,
     symbol_to_path,
 )
+from domain import MarketDepth, Quote
+from domain.capabilities.broker_capabilities import (
+    BrokerCapabilities,
+    HistoricalWindowConstraint,
+)
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +48,16 @@ class DataLakeGateway(MarketDataGateway):
     def __init__(self, root: str | None = None) -> None:
         if root is None:
             from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         # Prefer equities; indices consulted as fallback in _candle_candidates.
         self._candles_dir = self._root / "equities" / "candles"
 
     def _parquet_path(self, symbol: str, timeframe: str) -> Path:
-        return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
+        return (
+            self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
+        )
 
     def _candle_candidates(self, symbol: str, timeframe: str) -> list[Path]:
         """Equity then index hive paths under the lake root."""
@@ -104,14 +107,20 @@ class DataLakeGateway(MarketDataGateway):
         if not rule:
             return df.reset_index()
 
-        resampled = df.resample(rule).agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-            "oi": "last",
-        }).dropna()
+        resampled = (
+            df.resample(rule)
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                    "oi": "last",
+                }
+            )
+            .dropna()
+        )
 
         resampled = resampled.reset_index()
         resampled["symbol"] = df["symbol"].iloc[0] if "symbol" in df.columns else ""
@@ -193,6 +202,7 @@ class DataLakeGateway(MarketDataGateway):
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         from domain import Quote as _Quote
+
         symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
@@ -221,6 +231,7 @@ class DataLakeGateway(MarketDataGateway):
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         from domain import MarketDepth as _MarketDepth
+
         return _MarketDepth(symbol=symbol)
 
     def option_chain(
@@ -234,7 +245,6 @@ class DataLakeGateway(MarketDataGateway):
         Looks under ``{root}/options/chains/expiry=*/underlying={u}/data.parquet``.
         Returns empty calls/puts when no files exist (not a hard failure).
         """
-        from pathlib import Path
 
         underlying = normalize_symbol_for_storage(underlying)
         root = self._root
@@ -288,7 +298,6 @@ class DataLakeGateway(MarketDataGateway):
         exchange: str = "NFO",
     ) -> list[dict]:
         """Load futures chain from lake when present (TOS-P6-002)."""
-        from pathlib import Path
 
         underlying = normalize_symbol_for_storage(underlying)
         root = self._root
@@ -468,8 +477,12 @@ class DataLakeGateway(MarketDataGateway):
             supports_native_slice_order=False,
             rate_limit_profiles=(),
             historical_windows=(
-                HistoricalWindowConstraint(timeframe="1m", max_lookback_days=365 * 6, max_chunk_days=365),
-                HistoricalWindowConstraint(timeframe="1d", max_lookback_days=365 * 10, max_chunk_days=365),
+                HistoricalWindowConstraint(
+                    timeframe="1m", max_lookback_days=365 * 6, max_chunk_days=365
+                ),
+                HistoricalWindowConstraint(
+                    timeframe="1d", max_lookback_days=365 * 10, max_chunk_days=365
+                ),
             ),
             stream_limits=None,
             latency_class="low",

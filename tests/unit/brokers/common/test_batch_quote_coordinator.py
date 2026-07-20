@@ -1,18 +1,16 @@
 """Integration tests for BatchQuoteCoordinator."""
 
-import asyncio
-
 import pytest
 
-from application.data.batch_quote_coordinator import BatchQuoteCoordinator, BatchQuoteQuery
-from domain.policies.source_selection import auto_dual_broker_policy
-from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
-from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
+from application.data.batch_quote_coordinator import BatchQuoteCoordinator, BatchQuoteQuery
+from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from domain.candles.historical import InstrumentRef
+from domain.policies.source_selection import auto_dual_broker_policy
+from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
 
 
 def _make_coordinator(
@@ -115,9 +113,7 @@ class TestBatchQuoteCoordinator:
     @pytest.mark.asyncio
     async def test_both_brokers_fail_marks_degraded_with_none_quotes(self):
         dhan = InMemoryBrokerGateway("dhan", dhan_capabilities(), fail_quotes_batch=True)
-        upstox = InMemoryBrokerGateway(
-            "upstox", upstox_capabilities(), fail_quotes_batch=True
-        )
+        upstox = InMemoryBrokerGateway("upstox", upstox_capabilities(), fail_quotes_batch=True)
         coordinator = _make_coordinator(dhan, upstox)
 
         instruments = _instruments(5)

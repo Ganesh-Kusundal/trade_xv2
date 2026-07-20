@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from domain.entities.order import Order
@@ -68,8 +68,7 @@ class TradeFilledEvent(TypedDomainEvent):
         trade = event.payload.get("trade")
         if not isinstance(trade, Trade):
             raise ValueError(
-                f"TRADE event must contain Trade object in payload, "
-                f"got {type(trade).__name__}"
+                f"TRADE event must contain Trade object in payload, got {type(trade).__name__}"
             )
         return cls(trade=trade, underlying_event=event)
 
@@ -175,21 +174,9 @@ class QuoteUpdatedEvent(TypedDomainEvent):
             )
         try:
             ltp_d = Decimal(str(ltp))
-            bid_d = (
-                Decimal(str(payload["bid"]))
-                if payload.get("bid") is not None
-                else None
-            )
-            ask_d = (
-                Decimal(str(payload["ask"]))
-                if payload.get("ask") is not None
-                else None
-            )
-            volume = (
-                int(payload["volume"])
-                if payload.get("volume") is not None
-                else None
-            )
+            bid_d = Decimal(str(payload["bid"])) if payload.get("bid") is not None else None
+            ask_d = Decimal(str(payload["ask"])) if payload.get("ask") is not None else None
+            volume = int(payload["volume"]) if payload.get("volume") is not None else None
         except (InvalidOperation, ValueError, TypeError) as exc:
             raise ValueError(
                 f"QUOTE_UPDATED event has non-numeric price/volume values: {exc}"
@@ -227,15 +214,9 @@ class PositionClosedEvent(TypedDomainEvent):
             )
         try:
             pnl_d = Decimal(str(realized_pnl))
-            quantity = (
-                int(payload["quantity"])
-                if payload.get("quantity") is not None
-                else None
-            )
+            quantity = int(payload["quantity"]) if payload.get("quantity") is not None else None
             avg_price = (
-                Decimal(str(payload["avg_price"]))
-                if payload.get("avg_price") is not None
-                else None
+                Decimal(str(payload["avg_price"])) if payload.get("avg_price") is not None else None
             )
         except (InvalidOperation, ValueError, TypeError) as exc:
             raise ValueError(

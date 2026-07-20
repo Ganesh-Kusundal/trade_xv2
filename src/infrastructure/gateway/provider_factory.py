@@ -5,7 +5,7 @@ interface so BrokerService can call either factory polymorphically.
 
 .. note::
     This factory returns ``MarketDataGateway`` (the legacy ABC). To use the
-    new ``CommonBrokerGateway`` Protocol, wrap the result with
+    new ``BrokerAdapter`` Protocol, wrap the result with
     ``infrastructure.adapters.wrap_market_gateway()``.  See
     ``brokers.common.bootstrap`` for the full wiring sequence.
 """
@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from infrastructure.gateway.base import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 if TYPE_CHECKING:
     from typing import Any

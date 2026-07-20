@@ -27,7 +27,6 @@ from domain.portfolio.portfolio import Portfolio
 from domain.ports.protocols import OrderResult
 from domain.universe import Session
 
-
 # ── L0 Unit ──────────────────────────────────────────────────────────────
 
 
@@ -155,9 +154,7 @@ def test_I_OMS_MODIFY():
         )
     )
     assert r.success
-    m = oms.modify(
-        ModifyOrderRequest(order_id=r.order.order_id, price=Decimal("199"), quantity=3)
-    )
+    m = oms.modify(ModifyOrderRequest(order_id=r.order.order_id, price=Decimal("199"), quantity=3))
     assert m.success
     assert ep.modified and ep.modified[0].price == Decimal("199")
 
@@ -215,8 +212,8 @@ def test_E_PAPER_CONNECT():
 def test_E_PAPER_QUOTE_HIST():
     session = tradex.connect("paper")
     eq = session.universe.equity("RELIANCE")
-    q = eq.refresh()
-    assert q is not None or eq.ltp is not None or True  # paper may seed quote
+    eq.refresh()
+    assert True  # paper may seed quote
     series = eq.history(timeframe="1D", days=5)
     assert series is not None
     session.close()
@@ -246,7 +243,6 @@ def test_E_PAPER_ORDER_CYCLE():
 
 def test_I_INSTR_CANCEL_VIA_SESSION_STACK():
     """L1: OPEN order cancel through Session + OmsOrderService + FakeEP."""
-    from domain.enums import Side
     from domain.session_status import MODE_SIM, PHASE_READY_TRADE, SessionStatus
 
     ep = _FakeEP()
@@ -335,9 +331,7 @@ def test_E_PAPER_ASSET_TYPES_AND_ORDERS_LIST():
     session = tradex.connect("paper")
     etf = session.universe.etf("NIFTYBEES")
     assert etf.id.is_etf
-    com = session.universe.commodity(
-        "CRUDEOIL", expiry=__import__("datetime").date(2026, 11, 19)
-    )
+    com = session.universe.commodity("CRUDEOIL", expiry=__import__("datetime").date(2026, 11, 19))
     assert com.id.is_commodity
     r = session.universe.equity("RELIANCE").buy(
         1, price=Decimal("100"), correlation_id="e2e:orders-list"

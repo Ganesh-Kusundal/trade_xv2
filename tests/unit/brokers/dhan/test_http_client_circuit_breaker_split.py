@@ -18,15 +18,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from brokers.dhan.api.http_client import (
+    DhanHttpClient,
+    _categorize_endpoint,
+)
+from brokers.dhan.exceptions import DhanError
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
-)
-from brokers.dhan.exceptions import DhanError
-from brokers.dhan.api.http_client import (
-    DhanHttpClient,
-    _categorize_endpoint,
 )
 
 # ── Endpoint categorization ──────────────────────────────────────────────
