@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
-from interface.api.auth import require_auth
 from starlette.responses import PlainTextResponse
 
 from interface.api.schemas import HealthResponse, ReadinessResponse
@@ -90,7 +89,7 @@ async def readiness_alias():
     return await _readiness_probe()
 
 
-@router.get("/metrics", response_model=dict, dependencies=[Depends(require_auth)])
+@router.get("/metrics", response_model=dict)
 async def get_metrics():
     """Get observability metrics as JSON.
 
@@ -133,13 +132,9 @@ async def get_metrics():
     return result
 
 
-@router.get("/metrics/prometheus", dependencies=[Depends(require_auth)])
+@router.get("/metrics/prometheus")
 async def get_metrics_prometheus():
-    """Prometheus text exposition format for HTTP request metrics.
-
-    Requires ``X-API-Key`` (same as other protected API routes).
-    Returns ``text/plain`` for Prometheus scrapers and Grafana data sources.
-    """
+    """Prometheus text exposition format for HTTP request metrics."""
     from interface.api.middleware import http_metrics
 
     body = http_metrics.render_prometheus()

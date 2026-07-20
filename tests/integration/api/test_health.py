@@ -59,28 +59,3 @@ class TestHealthEndpoints:
         response = client.get("/api/v1/health/metrics")
         # Should be 200 if trading context exists, 503 if not, or 404 if not mounted
         assert response.status_code in (200, 503, 404)
-
-    def test_metrics_require_auth_when_enabled(self):
-        """Metrics endpoints must reject unauthenticated requests when auth is on."""
-        app = create_app(
-            config=APIConfig(auth_mode="api_key", api_key="metrics-test-key"),
-        )
-        client = TestClient(app)
-
-        for path in ("/api/v1/health/metrics", "/api/v1/health/metrics/prometheus"):
-            unauth = client.get(path)
-            assert unauth.status_code == 401
-            assert "Missing API key" in unauth.json()["detail"]
-
-            authed = client.get(path, headers={"X-API-Key": "metrics-test-key"})
-            assert authed.status_code in (200, 503)
-
-    def test_liveness_and_readiness_stay_public_when_auth_enabled(self):
-        """Probe endpoints must remain reachable without API key."""
-        app = create_app(
-            config=APIConfig(auth_mode="api_key", api_key="metrics-test-key"),
-        )
-        client = TestClient(app)
-
-        assert client.get("/api/v1/health").status_code == 200
-        assert client.get("/api/v1/health/readyz").status_code in (200, 503)

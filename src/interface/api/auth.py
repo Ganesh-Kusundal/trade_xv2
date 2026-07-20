@@ -1,21 +1,11 @@
-"""API authentication — API key validation and dependency injection.
+"""API authentication — optional API key validation.
 
-Authentication modes:
-- ``api_key``: Require X-API-Key header on all protected endpoints (default).
-
-Any other ``AUTH_MODE`` value is rejected at startup and on every request
-(fail-closed — no silent unauthenticated trading surface).
+Default ``AUTH_MODE=none`` (no ``X-API-Key`` required). Set ``AUTH_MODE=api_key``
+and ``API_KEY`` only if you expose the API beyond localhost.
 
 Public endpoints (never require auth):
-- /api/v1/health, /api/v1/health/readyz (liveness/readiness probes)
-
-Metrics endpoints require authentication:
-- /api/v1/health/metrics, /api/v1/health/metrics/prometheus
-
-In production/staging (``TRADEX_ENV``), /docs, /redoc, /openapi.json also require auth.
-
-Control-plane routes (kill-switch) require ``ADMIN_API_KEY`` (or ``API_KEY`` in dev
-when ``ADMIN_API_KEY`` is unset).
+- /healthz, /readyz (health probes)
+- /api/v1/health/metrics (observability)
 """
 
 from __future__ import annotations
@@ -29,53 +19,14 @@ from fastapi.security import APIKeyHeader
 
 logger = logging.getLogger(__name__)
 
-_VALID_AUTH_MODES = frozenset({"api_key"})
-
-
-def _auth_none_allowed() -> bool:
-    """``none`` auth is test-only — never in production."""
-    if os.getenv("PYTEST_CURRENT_TEST"):
-        return True
-    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
-    return env not in ("production", "staging") and os.getenv("TRADEX_ALLOW_AUTH_NONE") == "1"
-
-
-def _requires_explicit_api_key() -> bool:
-    """Production/staging must not use auto-generated API keys."""
-    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
-    return env in ("production", "staging")
-
-
-def _resolve_api_key(*, explicit: str = "") -> str:
-    """Resolve API key from config/env, or generate ephemeral key in dev only."""
-    key = (explicit or os.getenv("API_KEY", "")).strip()
-    if key:
-        return key
-    if _requires_explicit_api_key():
-        raise RuntimeError(
-            "API_KEY must be set explicitly when TRADEX_ENV is production or staging "
-            "(auto-generated ephemeral keys are forbidden)"
-        )
-    generated = secrets.token_urlsafe(32)
-    logger.warning(
-        "AUTH_MODE=api_key but API_KEY not set. "
-        "A temporary dev key was generated; set API_KEY explicitly before production."
-    )
-    return generated
+_VALID_AUTH_MODES = frozenset({"none", "api_key"})
 
 
 def _normalize_auth_mode(mode: str) -> str:
     m = mode.lower().strip()
-    if m == "none":
-        if not _auth_none_allowed():
-            raise RuntimeError(
-                "AUTH_MODE='none' is forbidden outside tests/local dev "
-                "(set TRADEX_ALLOW_AUTH_NONE=1 for explicit local opt-in)"
-            )
-        return m
     if m not in _VALID_AUTH_MODES:
         raise RuntimeError(
-            f"Invalid AUTH_MODE={m!r}. Only 'api_key' is permitted (fail-closed)."
+            f"Invalid AUTH_MODE={m!r}. Use 'none' (default) or 'api_key'."
         )
     return m
 
@@ -85,7 +36,7 @@ def _normalize_auth_mode(mode: str) -> str:
 class _AuthConfig:
     """Module-level auth configuration state."""
 
-    AUTH_MODE: str = _normalize_auth_mode(os.getenv("AUTH_MODE", "api_key"))
+    AUTH_MODE: str = _normalize_auth_mode(os.getenv("AUTH_MODE", "none"))
     API_KEY: str = os.getenv("API_KEY", "")
     ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
 
@@ -95,10 +46,13 @@ class _AuthConfig:
         cls.AUTH_MODE = _normalize_auth_mode(auth_mode)
         if api_key:
             cls.API_KEY = api_key.strip()
-        elif cls.AUTH_MODE == "api_key":
-            cls.API_KEY = _resolve_api_key(explicit="")
-        else:
-            cls.API_KEY = (os.getenv("API_KEY", "") or "").strip()
+        elif cls.AUTH_MODE == "api_key" and not cls.API_KEY:
+            cls.API_KEY = secrets.token_urlsafe(32)
+            logger.warning(
+                "AUTH_MODE=api_key but API_KEY not set — ephemeral key generated."
+            )
+        elif cls.AUTH_MODE == "none":
+            cls.API_KEY = ""
 
 
 AUTH_MODE = _AuthConfig.AUTH_MODE  # intentional module singleton — read by FastAPI deps
@@ -106,8 +60,11 @@ API_KEY = _AuthConfig.API_KEY  # intentional module singleton — read by FastAP
 ADMIN_API_KEY = _AuthConfig.ADMIN_API_KEY
 
 if AUTH_MODE == "api_key" and not API_KEY.strip():
-    API_KEY = _resolve_api_key(explicit="")
+    API_KEY = secrets.token_urlsafe(32)
     _AuthConfig.API_KEY = API_KEY
+    logger.warning(
+        "AUTH_MODE=api_key but API_KEY not set — ephemeral key generated."
+    )
 
 
 def configure(*, auth_mode: str, api_key: str = "") -> None:
@@ -119,8 +76,11 @@ def configure(*, auth_mode: str, api_key: str = "") -> None:
 
 
 def _is_production_docs_gated() -> bool:
-    """Gate OpenAPI/docs behind auth in production/staging."""
-    return _requires_explicit_api_key()
+    """Gate OpenAPI/docs behind auth when api_key mode + production env."""
+    if AUTH_MODE != "api_key":
+        return False
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    return env in ("production", "staging")
 
 
 # ── Security Scheme ───────────────────────────────────────────────────────────
@@ -170,15 +130,9 @@ def is_public_path(path: str) -> bool:
 
 
 def _validate_api_key_value(api_key: str | None) -> None:
-    """Raise HTTPException if the API key is missing or invalid (fail-closed)."""
+    """Raise HTTPException if the API key is missing or invalid."""
     if AUTH_MODE == "none":
         return
-
-    if AUTH_MODE not in _VALID_AUTH_MODES:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="API authentication misconfigured (invalid AUTH_MODE)",
-        )
 
     if not api_key:
         raise HTTPException(
@@ -206,25 +160,12 @@ def _validate_admin_api_key(api_key: str | None) -> None:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Admin API key required for this operation",
             )
-        return
-    # Dev fallback: primary API_KEY is admin when ADMIN_API_KEY unset
-    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
-    if env in ("production", "staging"):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ADMIN_API_KEY must be set in production for control-plane routes",
-        )
 
 
 async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
     """Validate WebSocket API key via header only (never query string)."""
     if AUTH_MODE == "none":
         return True
-
-    if AUTH_MODE not in _VALID_AUTH_MODES:
-        await websocket.accept()
-        await websocket.close(code=1008, reason="Auth misconfigured")
-        return False
 
     api_key = websocket.headers.get("x-api-key")
 
@@ -240,7 +181,7 @@ async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
 async def require_auth(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
 ) -> None:
-    """FastAPI dependency that validates API key."""
+    """FastAPI dependency that validates API key when AUTH_MODE=api_key."""
     _validate_api_key_value(x_api_key)
 
 

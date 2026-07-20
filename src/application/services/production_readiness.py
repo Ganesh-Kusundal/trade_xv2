@@ -158,7 +158,6 @@ class ProductionReadinessChecker:
             checks.extend(
                 [
                     ("secret_encryption_configured", self._check_secret_encryption),
-                    ("api_key_explicitly_set", self._check_api_key_explicit),
                 ]
             )
         return checks
@@ -383,12 +382,6 @@ class ProductionReadinessChecker:
             )
         return True, "SECRET_ENCRYPTION_KEY is configured"
 
-    def _check_api_key_explicit(self) -> tuple[bool, str]:
-        if not os.environ.get("API_KEY", "").strip():
-            return False, (
-                "API_KEY must be explicitly set in production — ephemeral keys are forbidden"
-            )
-        return True, "API_KEY is explicitly configured"
 
     def _check_upstox_webhook_secret(self) -> tuple[bool, str]:
         if not _is_production_env():

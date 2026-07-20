@@ -17,7 +17,7 @@
 
 ### SEC remediation cycle 1 (Agent-SEC) — 2026-07-20
 
-- **SEC-009**: `auth.py` fail-closed in production/staging — no ephemeral `API_KEY` generation; `RuntimeError` when unset.
+- **SEC-009 (reverted 2026-07-20)**: Default `AUTH_MODE=none`; no mandatory `API_KEY`. Optional `api_key` mode if API is exposed.
 - **SEC-004/SEC-005**: `/api/v1/health/metrics` and `/metrics/prometheus` require `X-API-Key`; liveness/readiness probes unchanged.
 - Tests: `test_auth_production.py`, metrics auth + probe public tests in `test_health.py`; fixed `api.auth` alias bugs in auth test modules.
 
@@ -87,8 +87,8 @@ Checkpoint: `350bcff0` → merged lanes on `main` (`16e9a1d7` after Tier 2).
 | ARCH-001 Dhan dual ORDER_PLACED | **Resolved** | `75fa025a` → main |
 | BROKER-008 Upstox idempotency race | **Resolved** | `75fa025a` → main |
 | MD-002 Dhan wall-clock timestamps | **Resolved** | `75fa025a` → main |
-| SEC-009 mandatory API_KEY | **Resolved** | `a4e86833` → main |
-| SEC-004/005 metrics auth | **Resolved** | `a4e86833` → main |
+| SEC-009 mandatory API_KEY | **Reverted** | Default `AUTH_MODE=none`; optional `api_key` mode only |
+| SEC-004/005 metrics auth | **Reverted** | Metrics public; core trading fixes retained |
 | REL-003 / ARCH-006 capital event drops | **Resolved** | `e6215ca4` → main |
 | TEST-001 (4 collection errors) | **Resolved** | `054ea0bb` → main |
 | MD-001 live→lake (partial) | **Partial** | `16e9a1d7` — opt-in `TRADEX_LIVE_BAR_SINK=1` |
