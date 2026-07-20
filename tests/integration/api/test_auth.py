@@ -45,9 +45,9 @@ class TestAuthEnabled:
         # Force reimport of auth module to pick up new env vars
         import importlib
 
-        import interface.api.auth
+        import interface.api.auth as auth
 
-        importlib.reload(api.auth)
+        importlib.reload(auth)
 
     def test_public_endpoints_still_accessible(self):
         """Health/docs should be accessible even when auth is enabled."""
