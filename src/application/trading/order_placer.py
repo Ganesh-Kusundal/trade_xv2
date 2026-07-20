@@ -10,7 +10,6 @@ import logging
 from collections.abc import Callable
 
 from application.execution.execution_engine import ExecutionEngine
-from application.execution.place_order_use_case import PlaceOrderUseCase
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain.models.trading import SignalDTO
 
@@ -18,32 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class OrderPlacer:
-    """Places orders through the OMS with fallback routing.
+    """Places orders through the execution spine.
 
     Responsibilities
     ----------------
     - Equity resolution for position sizing
-    - Order submission via ``order_command_fn`` / :class:`ExecutionEngine` /
-      :class:`PlaceOrderUseCase`
-
-    The three-tier fallback chain mirrors the original orchestrator behaviour:
-
-    1. ``order_command_fn`` (ADR-012 CommandDispatcher path) when wired —
-       **must** be OMS-backed (``OrderManager.place_order`` via
-       ``runtime.commands.build_order_dispatcher``). Never a raw broker call.
-    2. ``execution_engine`` when available.
-    3. :class:`PlaceOrderUseCase` as the last resort (never bare OMS).
+    - Order submission via :class:`ExecutionEngine`
 
     Parameters
     ----------
     order_manager:
-        OMS order manager.
-    submit_fn:
-        Optional submit callback for :class:`PlaceOrderUseCase`.
+        OMS order manager (equity resolution via risk_manager).
     execution_engine:
-        Optional execution engine for order placement.
-    order_command_fn:
-        Optional ADR-012 command function — must route through OMS.
+        Unified execution engine — sole placement path.
     on_error:
         Optional callback invoked on placement failure (for counter bumps).
     """
@@ -51,25 +37,14 @@ class OrderPlacer:
     def __init__(
         self,
         order_manager: OrderManager,
-        submit_fn: Callable | None = None,
-        execution_engine: ExecutionEngine | None = None,
-        order_command_fn: Callable[[OmsOrderCommand], OrderResult] | None = None,
+        *,
+        execution_engine: ExecutionEngine,
         on_error: Callable[[], None] | None = None,
     ) -> None:
+        if execution_engine is None:
+            raise TypeError("execution_engine is required")
         self._order_manager = order_manager
-        self._submit_fn = submit_fn
         self._execution_engine = execution_engine
-        if order_command_fn is not None and not getattr(
-            order_command_fn, "__oms_backed__", False
-        ):
-            # Soft gate: stamped by runtime.commands.build_order_dispatcher.
-            # Hard assert deferred until all composition roots use the factory (F7).
-            logger.warning(
-                "order_command_fn missing __oms_backed__ stamp; "
-                "prefer runtime.commands.build_order_dispatcher(order_manager) "
-                "so placement cannot bypass OrderManager.place_order (ADR-012)"
-            )
-        self._order_command_fn = order_command_fn
         self._on_error = on_error
 
     # ── equity ───────────────────────────────────────────────────────────
@@ -101,20 +76,7 @@ class OrderPlacer:
         command: OmsOrderCommand,
         signal: SignalDTO,
     ) -> OrderResult:
-        """Place *command* through the OMS.
-
-        Parameters
-        ----------
-        command:
-            Order command ready for placement.
-        signal:
-            Original signal (for audit trail / logging).
-
-        Returns
-        -------
-        OrderResult:
-            Result of order placement.
-        """
+        """Place *command* through the execution spine."""
         try:
             logger.info(
                 "Placing order: %s %s %d @ %.2f (correlation=%s)",
@@ -125,21 +87,7 @@ class OrderPlacer:
                 command.correlation_id,
             )
 
-            # ADR-012: route through the injected order-command function when
-            # wired by the composition root. Must be OMS-backed
-            # (build_order_dispatcher → OrderManager.place_order).
-            if self._order_command_fn is not None:
-                return self._order_command_fn(command)
-
-            if self._execution_engine is not None:
-                return self._execution_engine.place_order(command)
-
-            # Prefer PlaceOrderUseCase so bare-OMS never skips the
-            # use-case event path.
-            return PlaceOrderUseCase(
-                self._order_manager,
-                submit_fn=self._submit_fn,
-            ).execute(command)
+            return self._execution_engine.place_order(command)
 
         except Exception as exc:
             logger.exception("Order placement failed for %s: %s", command.symbol, exc)

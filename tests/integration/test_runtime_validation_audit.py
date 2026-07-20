@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from analytics.strategy.evaluator_bridge import StrategyPipelineEvaluator
+from tests.integration._strategy_pipeline_evaluator import StrategyPipelineEvaluator
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
 from application.oms.factory import create_trading_context

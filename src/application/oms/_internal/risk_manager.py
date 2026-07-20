@@ -239,28 +239,28 @@ class RiskManager:
             if not self._throttler.allow():
                 return RiskResult(False, "Order submission rate limit exceeded")
 
-            # Tick size alignment check (pre-trade)
+            # Tick size alignment check (pre-trade) — fail closed when provider configured.
             if self._instrument_provider is not None and order.price > 0:
                 try:
                     instrument = self._instrument_provider.resolve(
                         order.symbol, order.exchange
                     )
-                    if instrument is not None:
-                        tick = Decimal(str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE)))
-                        price_decimal = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
-                        if tick > 0 and not is_tick_aligned(price_decimal, tick):
-                            return RiskResult(
-                                False,
-                                f"Price {order.price} not aligned to tick size {tick}",
-                            )
+                    if instrument is None:
+                        return RiskResult(
+                            False,
+                            f"Instrument lookup failed for {order.symbol}: cannot validate tick size",
+                        )
+                    tick = Decimal(str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE)))
+                    price_decimal = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
+                    if tick > 0 and not is_tick_aligned(price_decimal, tick):
+                        return RiskResult(
+                            False,
+                            f"Price {order.price} not aligned to tick size {tick}",
+                        )
                 except Exception as exc:
-                    # Lookup failure means we cannot determine tick alignment,
-                    # so skip the tick-size check (fail open) rather than
-                    # rejecting every order on a transient provider error.
-                    logger.warning(
-                        "RiskManager: instrument lookup failed for %s: %s",
-                        order.symbol,
-                        exc,
+                    return RiskResult(
+                        False,
+                        f"Instrument lookup failed for {order.symbol}: {exc}",
                     )
 
             capital = self._capital_provider.get_available_balance()

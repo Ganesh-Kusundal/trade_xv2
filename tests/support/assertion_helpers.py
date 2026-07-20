@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from application.oms.risk_manager import RiskManager
+    from application.oms._internal.risk_manager import RiskManager
     from domain import Order
 
 

@@ -8,9 +8,9 @@ from __future__ import annotations
 import logging
 
 from application.execution.fill_source import FillSource
+from domain.ports.execution_target import ExecutionTarget
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
-from application.observability import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class ExecutionEngine:
 
     def __init__(
         self,
-        fill_source: FillSource,
+        fill_source: FillSource | ExecutionTarget,
         trading_context: TradingContext,
     ) -> None:
         self._fill_source = fill_source
@@ -38,13 +38,12 @@ class ExecutionEngine:
     def fill_source(self) -> FillSource:
         return self._fill_source
 
-    @trace_operation("execution_engine.place_order")
     def place_order(self, command: OmsOrderCommand) -> OrderResult:
         """Place an order through the unified engine."""
-        submit_fn = self._fill_source.submit_fn()
-        return self._ctx.order_manager.place_order(command, submit_fn=submit_fn)
+        from application.execution.spine import place_order_spine
 
-    @trace_operation("execution_engine.cancel_order")
+        return place_order_spine(self._ctx.order_manager, command, self._fill_source)
+
     def cancel_order(self, order_id: str) -> OrderResult:
         """Cancel an order through the engine."""
         from application.execution.cancel_order_use_case import CancelOrderUseCase

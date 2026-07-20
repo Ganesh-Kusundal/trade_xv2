@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
+from application.oms._internal.order_mutation_guard import OrderMutationGuard
 from domain.exceptions import LiveBrokerBlockedError, TradeXV2Error
 
 logger = logging.getLogger(__name__)
@@ -105,9 +106,11 @@ def authorize_live_order(
     if risk_manager is None:
         return
 
-    # 3. Kill switch.
-    if getattr(risk_manager, "is_kill_switch_active", lambda: False)():
-        raise RiskRejectedError("Kill switch active — order rejected")
+    # 3. Kill switch (OrderMutationGuard — same policy as OMS lifecycle).
+    guard = OrderMutationGuard(risk_manager)
+    ks = guard.check("place")
+    if not ks.allowed:
+        raise RiskRejectedError(ks.reason or "Kill switch active — order rejected")
 
     if risk_payload is None:
         return

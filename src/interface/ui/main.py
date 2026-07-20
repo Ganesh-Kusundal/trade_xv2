@@ -51,7 +51,7 @@ from interface.ui.commands.registry import lookup_handler, register_handler
 from interface.ui.services import compose as _compose  # noqa: F401  (wires session opener on import)
 from interface.ui.services.broker_registry import bootstrap_gateway
 from interface.ui.services.broker_service import BrokerService
-from interface.ui.services.event_bus_service import EventBusService
+from interface.ui.commands.events import EventBusService
 
 
 def _run_analytics_lazy(*args, **kwargs):
@@ -244,143 +244,37 @@ def main() -> None:
         if tc is not None:
             event_bus_service = EventBusService(event_bus=tc.event_bus)
 
-    # 3. Subcommand routing
+    # 3. Registry-only subcommand routing
     try:
-        if subcommand == "broker":
-            cmd_broker.run(cmd_args, broker_service, console)
-
-        elif subcommand == "dashboard":
-            cmd_dashboard.run(cmd_args, broker_service, console)
-
-        elif subcommand == "validate":
-            if cmd_args and cmd_args[0] == "history":
-                cmd_validate_history.run(cmd_args[1:], broker_service, console)
-            elif cmd_args and cmd_args[0] == "option-chain":
-                cmd_validate_option_chain.run(cmd_args[1:], broker_service, console)
+        if subcommand == "validate" and cmd_args and cmd_args[0] in ("history", "option-chain"):
+            nested = cmd_args[0]
+            rest = cmd_args[1:]
+            if nested == "history":
+                cmd_validate_history.run(rest, broker_service, console)
             else:
-                cmd_validate.run(cmd_args, broker_service, console)
-
-        elif subcommand == "benchmark":
-            cmd_benchmark.run(cmd_args, broker_service, console)
-
-        elif subcommand == "analytics":
-            result = _run_analytics_lazy(cmd_args, broker_service, console)
-            if result is not None and not getattr(result, "success", True):
-                exit_code = 1
-
-        elif subcommand == "compare":
-            cmd_compare.run(cmd_args, broker_service, console)
-
-        elif subcommand == "quality-report":
-            cmd_quality_report.run(cmd_args, broker_service, console)
-
-        elif subcommand == "instrument" or subcommand == "instrument-info":
-            cmd_instrument.run(cmd_args, broker_service, console)
-
-        elif subcommand == "quote":
-            from interface.ui.commands.market_handlers import handle_quote
-
-            handle_quote(cmd_args, broker_service, console)
-
-        elif subcommand == "depth":
-            from interface.ui.commands.market_handlers import handle_depth
-
-            handle_depth(cmd_args, broker_service, console)
-
-        elif subcommand == "option-chain":
-            if not cmd_args:
-                console.print("[yellow]Usage: tradex option-chain <symbol> [--expiry <date>][/yellow]")
-                return
-            symbol = cmd_args[0]
-            expiry = None
-            if "--expiry" in cmd_args:
-                idx = cmd_args.index("--expiry")
-                if idx + 1 < len(cmd_args):
-                    expiry = cmd_args[idx + 1]
-            try:
-                cmd_market.show_option_chain(broker_service, symbol, console, expiry)
-            except Exception as exc:
-                console.print(f"[red]Error fetching option-chain for {symbol}: {exc}[/red]")
-
-        elif subcommand == "futures":
-            if not cmd_args:
-                console.print("[yellow]Usage: tradex futures <symbol>[/yellow]")
-                return
-            symbol = cmd_args[0]
-            try:
-                cmd_market.show_futures(broker_service, symbol, console)
-            except Exception as exc:
-                console.print(f"[red]Error fetching futures for {symbol}: {exc}[/red]")
-
-        elif subcommand == "historical" or subcommand == "history":
-            if not cmd_args:
-                console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
-                return
-            from interface.ui.commands.market_handlers import handle_history
-
-            handle_history(cmd_args, broker_service, console)
-
-        elif subcommand == "stream":
-            if not cmd_args:
-                console.print("[yellow]Usage: tradex stream <symbol>[/yellow]")
-                return
-            symbol = cmd_args[0]
-            try:
-                cmd_market.show_stream(broker_service, symbol, console)
-            except Exception as exc:
-                console.print(f"[red]Error streaming {symbol}: {exc}[/red]")
-
-        elif subcommand == "websocket":
-            cmd_websocket.run(cmd_args, broker_service, console)
-
-        elif subcommand == "journal":
-            cmd_journal.run_journal(cmd_args, console)
-
-        elif subcommand == "views":
-            cmd_views.run_views(cmd_args, console)
-
-        elif subcommand == "options-sync":
-            cmd_options_sync.run_options_sync(cmd_args, console)
-
-        elif subcommand == "events":
-            cmd_events.run(cmd_args, event_bus_service, console)
-
-        elif subcommand == "search":
-            cmd_search.run(cmd_args, broker_service, console)
-
-        elif subcommand == "instruments":
-            cmd_instruments.run(cmd_args, broker_service, console)
-
-        elif subcommand == "doctor":
-            cmd_doctor.run(cmd_args, broker_service, console)
-
-        elif subcommand == "load-test":
-            cmd_load_test.run(cmd_args, broker_service, console)
-
-        elif subcommand == "news":
-            cmd_news.run(cmd_args, broker_service, console)
-
+                cmd_validate_option_chain.run(rest, broker_service, console)
         else:
-            # Fallback: route any command present in the canonical registry
-            # but not covered by an explicit branch above (order/risk/cache,
-            # validate-* aliases, instrument-info, ...).
             try:
                 handler = lookup_handler(subcommand)
             except KeyError:
                 handler = None
-            if handler is not None:
-                try:
-                    handler(cmd_args, broker_service, console)
-                except TypeError:
-                    console.print(
-                        f"[red]Error: command '{subcommand}' is misconfigured[/red]"
-                    )
-            else:
+            if handler is None:
                 console.print(f"[red]Error: Unknown command '{subcommand}'[/red]")
-                console.print(
-                    "[yellow]Available commands: broker, analytics, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
-                )
                 exit_code = 1
+            elif subcommand == "events":
+                handler(cmd_args, event_bus_service, console)
+            elif subcommand == "journal":
+                handler(cmd_args, console)
+            elif subcommand in ("views", "options-sync"):
+                handler(cmd_args, console)
+            elif subcommand == "analytics":
+                result = handler(cmd_args, broker_service, console)
+                if result is not None and not getattr(result, "success", True):
+                    exit_code = 1
+            elif handler is cmd_market.run:
+                handler([subcommand, *cmd_args], broker_service, console)
+            else:
+                handler(cmd_args, broker_service, console)
     finally:
         if runtime is not None:
             try:

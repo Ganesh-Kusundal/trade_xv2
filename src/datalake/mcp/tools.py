@@ -8,9 +8,7 @@ reach a broker (see the plan's "read-only analysis only" scope decision).
 
 from __future__ import annotations
 
-import dataclasses
-import logging
-from typing import Any
+from contextlib import contextmanager
 
 import duckdb
 import pandas as pd
@@ -46,21 +44,20 @@ def _records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return records
 
 
-def _open_candles_connection(glob: str) -> duckdb.DuckDBPyConnection:
-    """Open a throwaway DuckDB connection with a `candles` view over *glob*.
+@contextmanager
+def _open_candles_connection(glob: str):
+    """In-memory DuckDB with a candles view over *glob* (pooled)."""
+    from datalake.core.duckdb_utils import get_memory_pool
 
-    Disables DuckDB's terminal progress bar -- with stdio transport, an
-    MCP server's stdout is the JSON-RPC channel itself; a stray progress
-    bar write would corrupt the protocol stream.
-    """
-    conn = duckdb.connect()
-    conn.execute("SET enable_progress_bar=false")
-    # glob is server-built from a validated root/timeframe (see
-    # health_check's SUPPORTED_TIMEFRAMES check and _CANDLES_GLOB's fixed
-    # template), never raw user/LLM text.
-    create_view_sql = f"CREATE VIEW candles AS SELECT * FROM read_parquet('{glob}')"  # noqa: S608
-    conn.execute(create_view_sql)
-    return conn
+    pool = get_memory_pool()
+    conn = pool.acquire()
+    try:
+        conn.execute("SET enable_progress_bar=false")
+        create_view_sql = f"CREATE VIEW candles AS SELECT * FROM read_parquet('{glob}')"  # noqa: S608
+        conn.execute(create_view_sql)
+        yield conn
+    finally:
+        pool.release(conn)
 
 
 class DatalakeTools:
@@ -75,10 +72,9 @@ class DatalakeTools:
         # would violate this server's read-only-only scope decision and
         # crash anyway against a read_only=True catalog.
         self._quality = DataQualityEngine(root=root)
-        import importlib
+        from datalake.research.float_data import FloatDataProvider
 
-        float_mod = importlib.import_module("analytics.fundamentals.float_data")
-        self._float_data = float_mod.FloatDataProvider.default()
+        self._float_data = FloatDataProvider.default()
 
     def _candles_glob(self) -> str:
         return _CANDLES_GLOB.format(root=self._root)

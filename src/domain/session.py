@@ -95,28 +95,6 @@ class Session(SessionTradingMixin, SessionInstrumentMixin):
 
         self._universe._broker_facade = BrokerFacade(broker_id, extensions)
 
-    def attach_command_dispatcher(self, dispatcher: Any) -> None:
-        """Attach the CQRS CommandDispatcher (ADR-012)."""
-        self._command_dispatcher = dispatcher
-
-    def attach_order_command_fn(self, fn: Any) -> None:
-        """Attach the order-command closure built by the composition root (ADR-012)."""
-        self._order_command_fn = fn
-
-    def attach_query_dispatcher(self, dispatcher: Any) -> None:
-        """Attach the CQRS QueryDispatcher (ADR-012)."""
-        self._query_dispatcher = dispatcher
-
-    @property
-    def command_dispatcher(self) -> Any | None:
-        """The CQRS CommandDispatcher, if wired at the composition root."""
-        return self._command_dispatcher if hasattr(self, "_command_dispatcher") else None
-
-    @property
-    def query_dispatcher(self) -> Any | None:
-        """The CQRS QueryDispatcher, if wired at the composition root."""
-        return self._query_dispatcher if hasattr(self, "_query_dispatcher") else None
-
     @property
     def account(self):
         """AccountView — positions / holdings / funds / Portfolio (no gateway)."""

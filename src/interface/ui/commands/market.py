@@ -11,7 +11,8 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from interface.ui.services.broker_ops import fetch_depth, fetch_history, fetch_quote
+from interface.ui.services.broker_ops import get_depth, get_history, get_quote
+from interface.ui.commands._broker import broker_id_from
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.utils.time_formatter import format_ist_time
 
@@ -40,7 +41,7 @@ def show_quote(
 
     def generate_table() -> Table:
         try:
-            quote = fetch_quote(broker_service, symbol, exchange=exchange)
+            quote = get_quote(broker_id_from(broker_service), symbol, exchange=exchange)
         except Exception:
             quote = None
         table = Table(
@@ -88,7 +89,7 @@ def show_depth(
 
     def generate_table() -> Table:
         try:
-            depth = fetch_depth(broker_service, symbol, exchange=exchange)
+            depth = get_depth(broker_id_from(broker_service), symbol, exchange=exchange)
         except Exception:
             depth = None
         table = Table(title=f"Market Depth L2: {symbol.upper()}", header_style="bold magenta")
@@ -316,8 +317,8 @@ def show_historical(
     exchange = resolve_exchange(symbol)
 
     try:
-        series = fetch_history(
-            broker_service, symbol, exchange=exchange, timeframe="1D", days=10
+        series = get_history(
+            broker_id_from(broker_service), symbol, exchange=exchange, timeframe="1D", days=10
         )
         df = series.to_dataframe() if hasattr(series, "to_dataframe") else None
         if df is None and hasattr(series, "bars"):
@@ -485,7 +486,7 @@ def show_stream(
                 # Fallback: REST polling when WS is not available
                 if not use_ws:
                     try:
-                        quote = fetch_quote(broker_service, symbol, exchange=exchange)
+                        quote = get_quote(broker_id_from(broker_service), symbol, exchange=exchange)
                         if quote is not None:
                             on_tick(quote)
                     except Exception as exc:

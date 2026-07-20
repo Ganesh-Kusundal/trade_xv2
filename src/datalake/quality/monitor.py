@@ -202,7 +202,12 @@ class DataQualityMonitor:
             root = DEFAULT_DATA_PATHS.lake_root
         self._root = Path(root)
         self._catalog_path = self._root / "catalog.duckdb"
-        self._connect = connect_fn or (lambda: duckdb.connect(str(self._catalog_path), read_only=True))
+        self._connect = connect_fn or self._default_connect
+
+    def _default_connect(self) -> duckdb.DuckDBPyConnection:
+        from datalake.core.duckdb_utils import connect_with_retry
+
+        return connect_with_retry(str(self._catalog_path), read_only=True)
 
     def run_checks(self, timeframe: str = "1m") -> OverallReport:
         """Run all quality checks with a single-pass DuckDB query.

@@ -290,11 +290,22 @@ def open_session(
         elif executor is not None:
             from application.oms.session_bridge import build_oms_service
 
+            processed_trades = None
+            if event_bus is None:
+                from infrastructure.event_bus.event_bus import EventBus
+                from infrastructure.event_bus.processed_trade_repository import (
+                    ProcessedTradeRepository,
+                )
+
+                event_bus = EventBus()
+                processed_trades = ProcessedTradeRepository()
+
             try:
                 oms = build_oms_service(
                     executor,
                     event_bus=event_bus,
                     broker_id=broker_id,
+                    processed_trade_repository=processed_trades,
                 )
             except RuntimeError as exc:
                 msg = str(exc)
@@ -357,68 +368,8 @@ def open_session(
         # layer free of lifecycle imports.
         setattr(session, "_lifecycle", _lifecycle)
 
-    # ── CQRS dispatchers (ADR-012) ───────────────────────────────────
-    # Build the CommandDispatcher / QueryDispatcher at the composition root so
-    # SDK/CLI/API/UI all route intent + reads through one seam. The command
-    # dispatcher wraps the OMS; the query dispatcher reads from the position
-    # manager / analytics query executor. Both are optional (data-only mode).
-    # (Dispatcher construction lives here, not in domain/application, to keep
-    # the domain layer independent and avoid an application->runtime cycle.)
-    from runtime.commands import (
-        CommandDispatcher,
-        HistoryCommandHandler,
-        OrderCommandHandler,
-        SubscribeCommandHandler,
-        build_order_dispatcher,
-    )
-    from runtime.queries import (
-        CandleQueryHandler,
-        PortfolioQueryHandler,
-        QueryDispatcher,
-    )
-
-    command_dispatcher = None
-    order_command_fn = None
-    if oms is not None:
-        order_manager = getattr(oms, "order_manager", None)
-        submit_fn = getattr(oms, "_submit_fn", None)
-        if order_manager is not None:
-            # F7: single PlaceOrder mapping via build_order_dispatcher
-            command_dispatcher, order_command_fn = build_order_dispatcher(
-                order_manager, submit_fn=submit_fn, event_bus=event_bus
-            )
-
-    if command_dispatcher is None:
-        command_dispatcher = CommandDispatcher(event_bus=event_bus)
-    # Subscribe / history route through the session's DataProvider when present.
-    if data is not None:
-        command_dispatcher.register_handler(SubscribeCommandHandler(data))
-        command_dispatcher.register_handler(HistoryCommandHandler(data))
-
-    query_dispatcher = QueryDispatcher()
-    position_manager = getattr(oms, "order_manager", None) if oms is not None else None
-    if position_manager is None:
-        from application.oms import PositionManager
-
-        position_manager = PositionManager(event_bus=event_bus)
-    query_dispatcher.register_handler(PortfolioQueryHandler(position_manager))
-    try:
-        from analytics.views.query_executor import QueryExecutor
-
-        # Only register if the executor actually exposes a candle reader; the
-        # analytics QueryExecutor is SQL-based and may not have get_candles.
-        if hasattr(QueryExecutor, "get_candles"):
-            query_dispatcher.register_handler(CandleQueryHandler(QueryExecutor))
-        else:
-            logger.debug("QueryDispatcher: analytics QueryExecutor has no get_candles; candles read-only skipped")
-    except Exception:  # pragma: no cover - analytics optional at SDK layer
-        logger.debug("QueryDispatcher: analytics QueryExecutor not wired (candles read-only)")
-
-    session.attach_command_dispatcher(command_dispatcher)
-    session.attach_query_dispatcher(query_dispatcher)
-
-    if order_command_fn is not None:
-        session.attach_order_command_fn(order_command_fn)
+    # ── Order placement via OMS (session.order_service) ────────────────
+    # ponytail: CQRS dispatchers removed — Session.place() uses order_service directly.
 
     # Light resolver for doctor / resolve_name
     from domain.instruments.resolver import InstrumentResolver

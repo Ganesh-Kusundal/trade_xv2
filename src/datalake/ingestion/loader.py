@@ -416,9 +416,6 @@ class HistoricalDataLoader:
 
         df = normalize_to_canonical(df, symbol, exchange)
 
-        # Validate (drops invalid rows, logs)
-        df = validate_candles(df, symbol=symbol, drop_invalid=True, timeframe=timeframe)
-
         return df
 
     def _write_parquet(self, df: pd.DataFrame, symbol: str, timeframe: str) -> WriteResult:
@@ -433,10 +430,12 @@ class HistoricalDataLoader:
         """
         target = self._parquet_path(symbol, timeframe)
 
+        from datalake.quality.contract import validate_at_ingest
+
         invalid_count = 0
         before = len(df)
-        df = validate_candles(df, symbol=symbol, drop_invalid=True, timeframe=timeframe)
-        invalid_count = before - len(df)
+        df, audit = validate_at_ingest(df, symbol=symbol, timeframe=timeframe, drop_invalid=True)
+        invalid_count = audit.dropped_rows
         fetched_rows = len(df)
 
         merged = df

@@ -11,8 +11,9 @@ Dependencies (injected via constructor):
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime
+
+from domain.ports.time_service import get_current_clock
 
 from analytics.replay.models import ReplayConfig, ReplaySession
 from domain.entities import Trade
@@ -53,7 +54,7 @@ class FillRecorder:
         """Apply replay fill through FillReducer then PortfolioProjector."""
         if not order_id or quantity <= 0:
             return False
-        ts = timestamp or datetime.now(timezone.utc)
+        ts = timestamp or get_current_clock().now()
         trade = Trade(
             trade_id=f"{order_id}:{trade_tag}",
             order_id=order_id,

@@ -21,7 +21,8 @@ from interface.ui.commands import validate_history as cmd_validate_history
 from interface.ui.commands import validate_option_chain as cmd_validate_option_chain
 from interface.ui.commands.argparse_helpers import parse_flag, require_symbol
 from interface.ui.commands.registry import CommandResult
-from interface.ui.services.broker_ops import fetch_depth, fetch_history, fetch_quote
+from interface.ui.services.broker_ops import get_depth, get_history, get_quote
+from interface.ui.commands._broker import broker_id_from
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.renderers import render_depth, render_quote
 from domain import DepthLevel, MarketDepth
@@ -36,7 +37,7 @@ def handle_quote(
         return result
     symbol, _gw = result
     try:
-        quote = fetch_quote(broker_service, symbol)
+        quote = get_quote(broker_id_from(broker_service), symbol)
     except Exception as exc:
         return CommandResult(success=False, error=str(exc))
     if quote is None:
@@ -65,7 +66,7 @@ def handle_depth(
         return result
     symbol, _gw = result
     try:
-        depth_obj = fetch_depth(broker_service, symbol)
+        depth_obj = get_depth(broker_id_from(broker_service), symbol)
     except Exception as exc:
         return CommandResult(success=False, error=str(exc))
     if depth_obj is None:
@@ -87,7 +88,7 @@ def handle_history(
         return result
     symbol, _gw = result
     try:
-        series = fetch_history(broker_service, symbol, days=10)
+        series = get_history(broker_id_from(broker_service), symbol, days=10)
     except Exception as exc:
         return CommandResult(success=False, error=str(exc))
     bars = getattr(series, "bars", None)

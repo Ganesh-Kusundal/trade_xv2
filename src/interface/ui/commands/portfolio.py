@@ -7,7 +7,8 @@ import logging
 from rich.console import Console
 
 from interface.ui.commands.registry import CommandResult
-from interface.ui.services.broker_ops import fetch_holdings, fetch_positions
+from interface.ui.services.broker_ops import get_holdings, get_positions
+from interface.ui.commands._broker import broker_id_from
 from interface.ui.services.renderers import render_holdings, render_positions
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ def show_holdings(broker_service=None, console: Console | None = None) -> Comman
     if console is None:
         console = Console()
     try:
-        holdings = fetch_holdings(broker_service) or []
+        holdings = get_holdings(broker_id_from(broker_service)) or []
         render_holdings(console, holdings)
         holdings_data = [
             {
@@ -45,7 +46,7 @@ def show_positions(broker_service=None, console: Console | None = None) -> None:
     if console is None:
         console = Console()
     try:
-        positions = fetch_positions(broker_service) or []
+        positions = get_positions(broker_id_from(broker_service)) or []
         render_positions(console, positions)
     except Exception as exc:
         console.print(f"[red]Error fetching positions: {exc}[/red]")

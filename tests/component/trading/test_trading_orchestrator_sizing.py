@@ -21,6 +21,7 @@ def _make_orchestrator(equity: Decimal = Decimal("100000")) -> TradingOrchestrat
         strategy_evaluator=MagicMock(),
         feature_fetcher=MagicMock(),
         config=OrchestratorConfig(),
+        execution_engine=MagicMock(),
     )
 
 

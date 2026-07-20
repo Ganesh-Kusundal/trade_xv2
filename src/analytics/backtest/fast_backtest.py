@@ -3,6 +3,12 @@
 The standard ReplayEngine runs FeaturePipeline on every bar (O(n²)).
 This module pre-computes all features once, then runs the strategy in O(n).
 
+Ownership: ``FastBacktestEngine`` is the opt-in performance variant for signal
+pre-filtering and quick scans. ``BacktestEngine`` (``analytics.backtest.engine``)
+is the authoritative path for equity curves and fill semantics through the shared
+OMS spine. Use FastBacktest when you need speed on large universes; use
+BacktestEngine when results must match replay/live parity tests.
+
 Canonical home: analytics.backtest.fast_backtest
 (moved out of datalake so the storage layer does not depend on analytics).
 """

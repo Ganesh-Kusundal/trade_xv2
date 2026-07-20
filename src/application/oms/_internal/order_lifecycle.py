@@ -11,6 +11,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from application.oms._internal.order_mutation_guard import OrderMutationGuard
 from domain.events.types import EventType
 from domain.execution_contracts import OrderIntent, SubmissionOutcome, SubmissionState
 from domain.ports.time_service import ClockPort, get_current_clock
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
     from application.oms._internal.order_state_validator import OrderStateValidator
     from application.oms.idempotency_guard import IdempotencyGuard
     from application.oms.order_manager import OmsOrderCommand, OrderResult
-    from application.oms.risk_manager import RiskManager
+    from application.oms._internal.risk_manager import RiskManager
     from application.oms.trade_recorder import TradeRecorder
     from domain.entities import Order
     from domain.ports import ExecutionLedgerPort
@@ -93,6 +94,16 @@ class OrderLifecycle:
         self._active_orders = active_orders
         self._execution_ledger = execution_ledger
         self._clock = clock or get_current_clock()
+        self._mutation_guard = OrderMutationGuard(risk_manager)
+
+    def _guard_mutation(self, action: str) -> OrderResult | None:
+        """Return OrderResult on kill-switch block, else None."""
+        from application.oms.order_manager import OrderResult
+
+        guard = self._mutation_guard.check(action)  # type: ignore[arg-type]
+        if guard.allowed:
+            return None
+        return OrderResult(success=False, error=guard.reason)
 
     @property
     def execution_ledger(self) -> ExecutionLedgerPort | None:
@@ -113,6 +124,10 @@ class OrderLifecycle:
         Returns (order, None) on success, or (None, OrderResult) on failure.
         """
         from application.oms.order_manager import OrderResult
+
+        blocked = self._guard_mutation("place")
+        if blocked is not None:
+            return None, blocked
 
         if submit_fn is None:
             return order, None
@@ -287,6 +302,10 @@ class OrderLifecycle:
             if order.status.is_terminal:
                 return OrderResult(success=False, error="Order already final")
 
+        blocked = self._guard_mutation("cancel")
+        if blocked is not None:
+            return blocked
+
         if cancel_fn is not None:
             try:
                 if not cancel_fn(order_id):
@@ -343,12 +362,9 @@ class OrderLifecycle:
             if order.status.is_terminal:
                 return OrderResult(success=False, error="Order already final")
 
-        # Kill-switch / risk guard (shared RiskManager owns the switch).
-        if self._risk_manager is not None and self._risk_manager.is_kill_switch_active():
-            return OrderResult(
-                success=False,
-                error=f"Order blocked: kill switch active (modify_order {req.order_id})",
-            )
+        blocked = self._guard_mutation("modify")
+        if blocked is not None:
+            return blocked
 
         if modify_fn is not None:
             try:

@@ -268,7 +268,7 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
     from decimal import Decimal
 
     from application.oms.position_manager import PositionManager
-    from application.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms._internal.risk_manager import RiskConfig, RiskManager
 
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()
@@ -298,7 +298,7 @@ def test_place_order_transport_only_does_not_bypass_risk_check(fake_client, reso
     from decimal import Decimal
 
     from application.oms.position_manager import PositionManager
-    from application.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms._internal.risk_manager import RiskConfig, RiskManager
 
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()

@@ -22,7 +22,7 @@ from domain.ports.order_service import OrderServicePort
 from domain.ports.order_store import OrderStorePort
 from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult, SubscriptionHandle
 from domain.ports.risk_manager import RiskManagerPort
-from domain.ports.strategy_evaluator import StrategyEvaluator
+from domain.ports.execution_target import ExecutionTarget, ExecutionTargetKind
 from domain.ports.time_service import ClockPort
 
 __all__ = [
@@ -40,6 +40,8 @@ __all__ = [
     "ExchangeAdapter",
     "ExecutionLedgerPort",
     "ExecutionProvider",
+    "ExecutionTarget",
+    "ExecutionTargetKind",
     "LifecycleManagerPort",
     "ManagedServicePort",
     "MarginProviderPort",

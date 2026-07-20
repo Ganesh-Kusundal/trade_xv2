@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from domain.universe import Session as DomainSession
 
 if TYPE_CHECKING:
-    from brokers.session import BrokerSession
+    from runtime.platform_bridge import broker_session_type as BrokerSession
 
     SessionLike = DomainSession | BrokerSession
 else:

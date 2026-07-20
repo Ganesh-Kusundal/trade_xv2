@@ -33,7 +33,7 @@ def wire_runtime_hooks() -> None:
     if _wired:
         return
 
-    from application.execution.factory import create_oms_backtest_adapter
+    from application.execution.oms_backtest_adapter import create_oms_backtest_adapter
     from application.oms.factory import create_trading_context
 
     register_oms_backtest_factory(create_oms_backtest_adapter)

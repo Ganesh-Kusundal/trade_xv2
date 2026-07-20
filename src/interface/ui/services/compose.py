@@ -1,17 +1,15 @@
 """Composition root — single entry point for wiring the trading runtime.
 
 Owns BrokerService construction (CLI). API bootstrap uses
-:mod:`runtime.api_compose` (registered factory below). All paths delegate to
-:func:`runtime.factory.build` (ADR-017).
+:mod:`runtime.api_compose`. All paths delegate to :func:`runtime.factory.build`.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from runtime.api_compose import build_for_api, register_broker_service_factory
-from runtime.factory import build
-from runtime.factory import Runtime
+from runtime.api_compose import build_for_api
+from runtime.factory import Runtime, build
 
 
 def build_runtime(
@@ -23,11 +21,7 @@ def build_runtime(
     wire_intelligent_gateway: bool | None = None,
     skip_parity_gate: bool | None = None,
 ) -> Runtime:
-    """Single composition root for the trading runtime (CLI path).
-
-    ``skip_parity_gate`` defaults from ``SKIP_PARITY_GATE`` env (via
-    ``runtime.factory.build``). Do not hardcode True — production forbids skip.
-    """
+    """Single composition root for the trading runtime (CLI path)."""
     from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
@@ -44,24 +38,15 @@ def build_runtime(
     return build(bs, **kwargs)
 
 
-# Register BrokerService so runtime.api_compose.build_for_api works without
-# runtime importing interface (import-linter).
-def _register() -> None:
-    from interface.ui.services.broker_service import BrokerService
-    from runtime.session_opener import set_session_opener as _set_runtime_opener
-    from tradex.session import open_session
-
-    register_broker_service_factory(BrokerService)
-    _set_runtime_opener(open_session)
-
-    # Wire the application-layer port so application.portfolio.active_session
-    # does not import runtime.session_opener directly.
-    from application.portfolio.active_session import set_session_opener as _set_app_opener
-
-    _set_app_opener(open_session)
-
-
-_register()
-
-
 __all__ = ["Runtime", "build_runtime", "build_for_api"]
+
+
+def _ensure_wired() -> None:
+    from runtime.composition import wire_domain_port_sinks
+    from runtime.interface_compose import wire_interface_compose
+
+    wire_domain_port_sinks()
+    wire_interface_compose()
+
+
+_ensure_wired()

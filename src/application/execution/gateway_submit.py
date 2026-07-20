@@ -14,7 +14,6 @@ from domain.entities import OrderResponse
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.execution_context import oms_managed
 from domain.ports.time_service import ClockPort, get_current_clock
-from application.observability import trace_operation
 
 
 def order_from_response(
@@ -53,7 +52,6 @@ def make_gateway_submit_fn(
     """
     _clock = clock or get_current_clock()
 
-    @trace_operation("gateway_submit")
     def submit(command: OmsOrderCommand) -> Order:
         with oms_managed():
             response = gateway.place_order(

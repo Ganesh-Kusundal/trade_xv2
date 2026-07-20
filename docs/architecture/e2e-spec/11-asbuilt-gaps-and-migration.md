@@ -2,8 +2,8 @@
 
 This document gates implementation. It maps current code to the E2E spec and orders the work. Reference reviews:
 
-- `docs/superpowers/reviews/PRINCIPAL-ENGINEER-REVIEW-TradeXV2-vs-nautilus.md`
-- `docs/architecture/backlog.md` (G1–G8)
+- `docs/constitution/07-gap-analysis.md` (supersedes removed PE review docs)
+- `docs/architecture/backlog.md` (redirect stub → constitution)
 - Nautilus kernel/execution/risk/cache contracts (`00-nautilus-reference.md`)
 
 ---

@@ -102,7 +102,7 @@ def test_place_order_failure_does_not_publish() -> None:
 
 def test_place_order_risk_check_blocks_order() -> None:
     from application.oms.position_manager import PositionManager
-    from application.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms._internal.risk_manager import RiskConfig, RiskManager
     from domain.models.dtos import BrokerOrderPayload
 
     resolver = MagicMock()
@@ -141,7 +141,7 @@ def test_place_order_risk_check_blocks_order() -> None:
 def test_place_order_always_enforces_risk_check() -> None:
     """Risk checks are always enforced regardless of any transport flags."""
     from application.oms.position_manager import PositionManager
-    from application.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms._internal.risk_manager import RiskConfig, RiskManager
     from domain.models.dtos import BrokerOrderPayload
 
     resolver = MagicMock()

@@ -46,7 +46,8 @@ from interface.ui.commands.doctor.strategies import (
     LifecycleCheck,
     OMSRiskManagerCheck,
 )
-from interface.ui.services.broker_ops import doctor_broker
+from interface.ui.commands._broker import broker_id_from
+from runtime.platform_bridge import run_doctor
 from interface.ui.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,7 @@ def _run_checks_in_parallel(
 
 def _services_doctor_results(broker_service: BrokerService) -> list[CheckResult]:
     """Map brokers.services.run_doctor output to UI CheckResult rows."""
-    report = doctor_broker(broker_service)
+    report = run_doctor(broker_id_from(broker_service))
     out: list[CheckResult] = []
     for c in getattr(report, "checks", []) or []:
         status_val = getattr(getattr(c, "status", None), "value", str(getattr(c, "status", "INFO")))

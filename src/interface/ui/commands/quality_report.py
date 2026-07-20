@@ -10,7 +10,8 @@ from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import fetch_history_df, fetch_option_chain, fetch_quote
+from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from interface.ui.commands._broker import broker_id_from, history_as_df
 
 
 def _env_kwargs(env: Path) -> dict:
@@ -39,7 +40,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     for name, broker_id, env in brokers:
         kw = _env_kwargs(env)
         try:
-            df = fetch_history_df(None, "TCS", days=30, default=broker_id, **kw)
+            df = history_as_df(get_history(broker_id_from(None, default=broker_id), "TCS", days=30, **kw))
             rows = len(df)
             duplicates = (
                 df.duplicated(subset=["timestamp"]).sum()
@@ -73,7 +74,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     for name, broker_id, env in brokers:
         try:
-            q = fetch_quote(None, "TCS", default=broker_id, **_env_kwargs(env))
+            q = get_quote(broker_id_from(None, default=broker_id), "TCS", **_env_kwargs(env))
             table.add_row(name, "PASS", f"₹{q.ltp}", f"{q.volume:,}")
         except Exception as e:
             table.add_row(name, "ERROR", "-", str(e)[:20])
@@ -89,8 +90,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     try:
         t0 = time.time()
-        chain = fetch_option_chain(
-            None, "NIFTY", default=BrokerId.DHAN, **_env_kwargs(Path(".env.local"))
+        chain = get_option_chain(
+            broker_id_from(None, default=BrokerId.DHAN), "NIFTY", **_env_kwargs(Path(".env.local"))
         )
         latency = (time.time() - t0) * 1000
         strikes = len(getattr(chain, "strikes", []) or [])
@@ -112,7 +113,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         capabilities = ["Historical"]
         with contextlib.suppress(Exception):
-            fetch_quote(None, "TCS", default=broker_id, **_env_kwargs(env))
+            get_quote(broker_id_from(None, default=broker_id), "TCS", **_env_kwargs(env))
             capabilities.append("Quote")
 
         console.print(f"  {broker_name}:")

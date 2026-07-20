@@ -8,13 +8,18 @@ from typing import Protocol, runtime_checkable
 
 from domain.models.features import FeatureSet
 from domain.models.trading import SignalDTO
+from domain.ports.time_service import get_current_clock
+
+
+def _utc_now() -> datetime:
+    return get_current_clock().now()
 
 
 @dataclass(frozen=True)
 class ExecutionRequest:
     signal: SignalDTO
     correlation_id: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=_utc_now)
 
 
 @dataclass

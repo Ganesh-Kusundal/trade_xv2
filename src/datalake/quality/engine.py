@@ -137,8 +137,9 @@ class DataQualityEngine:
             if zero_vol > 0:
                 report.issues.append(f"{zero_vol} rows with zero volume")
 
-        # Completeness (uses exchange calendar when available)
-        if report.gap_days > 0 and report.min_date and report.max_date:
+        if report.gap_days == 0:
+            report.completeness_pct = 100.0
+        elif report.min_date and report.max_date:
             try:
                 from datalake.exchange_registry import get_active_adapter
                 calendar = get_active_adapter().calendar

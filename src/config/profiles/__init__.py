@@ -12,10 +12,17 @@ Usage::
     profile = load_profile()  # Loads from APP_ENV or defaults to dev
 """
 
-from config.profiles.base import BaseProfile, EnvironmentProfile
-from config.profiles.dev import DevProfile
-from config.profiles.prod import ProdProfile
-from config.profiles.staging import StagingProfile
+from __future__ import annotations
+
+import os
+
+from config.profiles.base import (
+    BaseProfile,
+    DevProfile,
+    EnvironmentProfile,
+    ProdProfile,
+    StagingProfile,
+)
 
 __all__ = [
     "BaseProfile",
@@ -26,32 +33,22 @@ __all__ = [
     "load_profile",
 ]
 
+_PROFILES = {
+    "dev": DevProfile,
+    "staging": StagingProfile,
+    "prod": ProdProfile,
+}
+
 
 def load_profile(profile_name: str | None = None) -> EnvironmentProfile:
-    """Load environment profile.
-
-    Args:
-        profile_name: Profile name (dev/staging/prod). If None,
-            loads from APP_ENV env var or defaults to 'dev'.
-
-    Returns:
-        EnvironmentProfile instance for the specified environment.
-    """
-    import os
-
+    """Load environment profile."""
     if profile_name is None:
         profile_name = os.environ.get("APP_ENV", "dev")
 
-    profiles = {
-        "dev": DevProfile,
-        "staging": StagingProfile,
-        "prod": ProdProfile,
-    }
-
-    profile_class = profiles.get(profile_name)
+    profile_class = _PROFILES.get(profile_name)
     if profile_class is None:
         raise ValueError(
-            f"Unknown profile '{profile_name}'. Available profiles: {list(profiles.keys())}"
+            f"Unknown profile '{profile_name}'. Available profiles: {list(_PROFILES.keys())}"
         )
 
     return profile_class()

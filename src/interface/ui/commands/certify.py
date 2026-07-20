@@ -6,7 +6,7 @@ import json
 
 import click
 
-from brokers.services import run_certify
+from interface.ui.services.broker_ops import run_certify
 
 
 @click.command()

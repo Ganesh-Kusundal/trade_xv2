@@ -32,6 +32,7 @@ After sync, also refresh the option analytics views:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -48,6 +49,7 @@ from datalake.core.option_format import (
 )
 from datalake.core.symbols import normalize_symbol_for_storage
 from datalake.quality.validation import validate_candles
+from infrastructure.paths import project_root_from
 
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
@@ -56,10 +58,18 @@ if not logging.getLogger().handlers:
     configure_logging()
 logger = logging.getLogger(__name__)
 
-TRADE_J_DUCKDB = "/Users/apple/Downloads/Trade_J/runtime-dev/historical.duckdb"
 from domain.ports.data_catalog import DEFAULT_DATA_PATHS
 
 TARGET_ROOT = Path(DEFAULT_DATA_PATHS.lake_root) / "options" / "candles"
+
+
+def _resolve_trade_j_duckdb(explicit: str | Path | None) -> Path:
+    if explicit is not None:
+        return Path(explicit)
+    if env := os.environ.get("TRADE_J_DUCKDB"):
+        return Path(env)
+    # ponytail: default under gitignored data/; override via TRADE_J_DUCKDB env
+    return project_root_from(__file__) / "data" / "external" / "trade_j" / "historical.duckdb"
 
 
 def _get_watermark(target_file: Path, conn: duckdb.DuckDBPyConnection) -> int:
@@ -93,12 +103,13 @@ def sync_options(
     Parameters
     ----------
     trade_j_duckdb : str | Path | None
-        Path to Trade_J DuckDB. Defaults to TRADE_J_DUCKDB constant.
+        Path to Trade_J DuckDB. Defaults to ``TRADE_J_DUCKDB`` env or
+        ``data/external/trade_j/historical.duckdb`` under the repo root.
         Parameterized for testability (tests pass a tmp_path DuckDB).
     target_root : str | Path | None
         Where to write Parquet files. Defaults to TARGET_ROOT.
     """
-    src_path = Path(trade_j_duckdb) if trade_j_duckdb else Path(TRADE_J_DUCKDB)
+    src_path = _resolve_trade_j_duckdb(trade_j_duckdb)
     tgt_root = Path(target_root) if target_root else TARGET_ROOT
     summary = {
         "files_merged": 0,
@@ -108,7 +119,9 @@ def sync_options(
         "groups": [],
     }
 
-    src = duckdb.connect(str(src_path), read_only=True)
+    from datalake.core.duckdb_utils import connect_with_retry
+
+    src = connect_with_retry(str(src_path), read_only=True)
     try:
         # Discover all (underlying, expiry_kind, expiry_code) groups in source
         groups = src.execute("""

@@ -9,8 +9,6 @@ from __future__ import annotations
 from infrastructure.resilience.backoff import (
     BackoffStrategy,
     ExponentialBackoff,
-    FixedBackoff,
-    NoBackoff,
 )
 from infrastructure.resilience.broker_health_monitor import (
     BrokerHealthMonitor,
@@ -63,10 +61,8 @@ __all__ = [
     "ConfigError",
     "DataError",
     "ExponentialBackoff",
-    "FixedBackoff",
     "InstrumentNotFoundError",
     "MultiBucketRateLimiter",
-    "NoBackoff",
     "NonRetryableError",
     "NotSupportedError",
     "OrderError",

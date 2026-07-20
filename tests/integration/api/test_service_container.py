@@ -236,13 +236,14 @@ class TestDIDependencies:
         assert "TradingContext not initialized" in detail
         assert "event_bus" in detail.lower() or "trading_context" in detail.lower()
 
-    def test_get_order_manager_returns_null_when_no_real_context(self):
-        """get_order_manager should return NullOrderManager when no real context."""
+    def test_get_order_manager_raises_503_when_unconfigured(self):
+        """get_order_manager should raise 503 when OMS is not wired."""
         initialize_all_services()
 
-        result = get_order_manager()
-        # With NullProviders, order_manager is always set
-        assert result is not None
+        with pytest.raises(HTTPException) as exc_info:
+            get_order_manager()
+
+        assert exc_info.value.status_code == 503
 
     def test_get_order_manager_falls_back_to_trading_context(self):
         """get_order_manager should fall back to TradingContext when not directly registered."""
@@ -255,29 +256,19 @@ class TestDIDependencies:
         # Initialize with trading_context but explicitly set order_manager to None
         import interface.api.deps as deps
         from types import SimpleNamespace
-        from infrastructure.providers.null.stubs import (
-            NullDataLakeGateway,
-            NullViewManager,
-            NullDataCatalog,
-            NullEventBus,
-            NullBrokerService,
-            NullPositionManager,
-            NullRiskManager,
-            NullMarketDataComposer,
-            NullExecutionComposer,
-        )
+
         ns = SimpleNamespace(
-            datalake_gateway=NullDataLakeGateway(),
-            view_manager=NullViewManager(),
-            data_catalog=NullDataCatalog(),
+            datalake_gateway=None,
+            view_manager=None,
+            data_catalog=None,
             event_bus=event_bus,
-            broker_service=NullBrokerService(),
+            broker_service=None,
             trading_context=ctx,
             order_manager=None,
-            position_manager=NullPositionManager(),
-            risk_manager=NullRiskManager(),
-            market_data_composer=NullMarketDataComposer(),
-            execution_composer=NullExecutionComposer(),
+            position_manager=None,
+            risk_manager=None,
+            market_data_composer=None,
+            execution_composer=None,
             extra={},
         )
         deps._container = ns
@@ -285,19 +276,23 @@ class TestDIDependencies:
         result = get_order_manager()
         assert result is ctx.order_manager
 
-    def test_get_position_manager_returns_null_when_no_real_context(self):
-        """get_position_manager should return NullPositionManager when no real context."""
+    def test_get_position_manager_raises_503_when_unconfigured(self):
+        """get_position_manager should raise 503 when OMS is not wired."""
         initialize_all_services()
 
-        result = get_position_manager()
-        assert result is not None
+        with pytest.raises(HTTPException) as exc_info:
+            get_position_manager()
 
-    def test_get_risk_manager_returns_null_when_no_real_context(self):
-        """get_risk_manager should return NullRiskManager when no real context."""
+        assert exc_info.value.status_code == 503
+
+    def test_get_risk_manager_raises_503_when_unconfigured(self):
+        """get_risk_manager should raise 503 when OMS is not wired."""
         initialize_all_services()
 
-        result = get_risk_manager()
-        assert result is not None
+        with pytest.raises(HTTPException) as exc_info:
+            get_risk_manager()
+
+        assert exc_info.value.status_code == 503
 
 
 class TestDIFallbackBehavior:

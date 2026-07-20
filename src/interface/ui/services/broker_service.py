@@ -1,17 +1,11 @@
 """Broker service layer — bridges CLI/TUI to the new BrokerGateway architecture.
 
-This module is now a **thin orchestrator** (~250 lines) that composes three
-focused classes:
+This module is a **thin orchestrator** that delegates OMS wiring to
+:class:`~interface.ui.services.oms_bootstrap.OmsBootstrap` and exposes
+:meth:`~BrokerService.build_runtime` as the single composition entry
+(ADR-017 → :func:`runtime.factory.build`).
 
-- :class:`~cli.services.oms_bootstrap.OmsBootstrap` — OMS setup, DI wiring,
-  risk manager construction, HTTP observability, WebSocket services.
-- :class:`~cli.services.cli_broker_facade.CliBrokerFacade` — Order routing
-  for the CLI (place, cancel, get orders/trades).
-- :class:`~cli.services.broker_manager.BrokerManager` — Active broker
-  switching, status queries, readiness properties.
-
-All business logic lives in the extracted modules; BrokerService owns the
-shared mutable state and delegates.
+Focused helpers:
 """
 
 from __future__ import annotations
@@ -148,6 +142,10 @@ class BrokerService:
 
             event_bus = build_production_event_bus(resilience=ResilienceConfig.from_env())
         self._event_bus = event_bus
+        from infrastructure.event_bus.async_event_bus import AsyncEventBus
+
+        if isinstance(event_bus, AsyncEventBus):
+            self._lifecycle.register(event_bus.as_managed_service())
 
         # ── Compose the focused modules ──────────────────────────────────
         self._oms = OmsBootstrap(self)
@@ -416,7 +414,7 @@ class BrokerService:
 
         # Wire the live-actionable gate so the fail-closed production
         # readiness check is live on the order path (not just the bool).
-        from brokers.services._session import set_live_actionable_gate
+        from runtime.platform_bridge import set_live_actionable_gate
 
         set_live_actionable_gate(lambda: self._live_actionable)
 
@@ -491,6 +489,17 @@ class BrokerService:
 
     def get_broker_statuses(self) -> list[dict[str, str]]:
         return self._manager.get_broker_statuses()
+
+    # ==================================================================
+    # Composition root
+    # ==================================================================
+
+    def build_runtime(self, **kwargs: Any) -> Any:
+        """Canonical runtime wiring (ADR-017): ``runtime.factory.build`` after init."""
+        from runtime.factory import build
+
+        self._ensure_initialized()
+        return build(self, **kwargs)
 
     # ==================================================================
     # Shutdown

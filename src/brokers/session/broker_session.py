@@ -20,7 +20,7 @@ hidden inside the broker plugin selected by ``BrokerSession``.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Any, Callable
 
@@ -38,8 +38,8 @@ from domain.instruments.instrument import (
 )
 from domain.options.option_chain import OptionChain
 from domain.universe import Session as DomainSession
-from domain.candles.historical import HistoricalSeries, InstrumentRef
-from application.data.historical_coordinator import HistoricalQuery
+from domain.candles.historical import HistoricalSeries
+from runtime.session_historical import fetch_historical_sync
 from runtime.session_opener import get_session_opener
 
 
@@ -192,16 +192,13 @@ class BrokerSession:
         (with explicit ``gaps``) on partial failure rather than raising, so
         callers can inspect ``series.is_degraded``.
         """
-        coordinator = self._build_historical_coordinator()
-        today = date.today()
-        query = HistoricalQuery(
-            instrument=InstrumentRef(symbol=instrument.symbol, exchange=instrument.exchange),
+        return fetch_historical_sync(
+            self._session,
+            symbol=instrument.symbol,
+            exchange=instrument.exchange,
             timeframe=timeframe,
-            from_date=today - timedelta(days=days),
-            to_date=today,
+            days=days,
         )
-        series, _ = coordinator.fetch_sync(query)
-        return series
 
     def history_batch(
         self,
@@ -217,75 +214,23 @@ class BrokerSession:
         """
         if not instruments:
             return {}
-        coordinator = self._build_historical_coordinator()
-        today = date.today()
         result_map: dict[str, HistoricalSeries] = {}
         for inst in instruments:
-            query = HistoricalQuery(
-                instrument=InstrumentRef(symbol=inst.symbol, exchange=inst.exchange),
+            series = fetch_historical_sync(
+                self._session,
+                symbol=inst.symbol,
+                exchange=inst.exchange,
                 timeframe=timeframe,
-                from_date=today - timedelta(days=days),
-                to_date=today,
+                days=days,
             )
-            series, _ = coordinator.fetch_sync(query)
             result_map[inst.symbol] = series
         return result_map
 
     def _build_historical_coordinator(self):
-        """Construct a single-broker ``HistoricalDataCoordinator`` for this session.
+        """Return a session-scoped historical coordinator via composition root."""
+        from runtime.session_historical import build_historical_coordinator
 
-        Wraps this session's wire adapter (``provider._gw``) in the
-        ``BrokerAdapter`` adapter and registers it with a fresh
-        registry/router/quota scheduler. This is the 3-line coordinator
-        construction (registry + router + quota_fn) inlined — no new module.
-        """
-        from application.composer.registry import BrokerRegistry
-        from application.composer.router import BrokerRouter
-        from application.data.historical_coordinator import (
-            HistoricalDataCoordinator,
-        )
-        from application.scheduling.quota_scheduler import QuotaScheduler, PriorityClass
-        from domain.policies.source_selection import auto_dual_broker_policy
-        from infrastructure.adapters.market_data_gateway_adapter import (
-            MarketDataGatewayAdapter,
-        )
-
-        provider = self._session.provider
-        gw = getattr(provider, "_gw", None)
-        if gw is None:
-            raise RuntimeError(
-                f"broker {self._broker_id!r} has no wire adapter (provider._gw is None)"
-            )
-
-        caps_fn = getattr(gw, "capabilities", None)
-        if not callable(caps_fn):
-            raise RuntimeError(
-                f"broker {self._broker_id!r} wire adapter has no capabilities()"
-            )
-        caps = caps_fn()
-        if caps is None or not getattr(caps, "supports_historical_data", False):
-            raise RuntimeError(
-                f"broker {self._broker_id!r} does not support historical data"
-            )
-
-        adapter = MarketDataGatewayAdapter(gw, broker_id=self._broker_id, capabilities=caps)
-        registry = BrokerRegistry()
-        registry.register(adapter)
-        scheduler = QuotaScheduler()
-        for profile in caps.rate_limit_profiles:
-            scheduler.register_profile(self._broker_id, profile)
-        router = BrokerRouter(
-            registry,
-            auto_dual_broker_policy(),
-            quota_headroom_fn=scheduler.headroom_for,
-        )
-        return HistoricalDataCoordinator(
-            registry=registry,
-            router=router,
-            quota_fn=lambda bid, ep, pri: scheduler.acquire(
-                bid, ep, PriorityClass[pri]
-            ),
-        )
+        return build_historical_coordinator(self._session)
 
     def subscribe(
         self,

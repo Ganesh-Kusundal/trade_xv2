@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from interface.ui.tests.endpoint_manifest import LIVE_READONLY_ENDPOINTS, CliEndpoint
+from tests.component.ui.endpoint_manifest import LIVE_READONLY_ENDPOINTS, CliEndpoint
 from domain.capability_manifest import CAPABILITY_SURFACES, surface_by_id
 
 # Map capability_id -> expected live REST path templates.

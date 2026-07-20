@@ -18,7 +18,7 @@ from application.oms.process_context import (
     reset_oms_context,
 )
 from application.oms.reconciliation_service import ReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager, RiskResult
+from application.oms._internal.risk_manager import RiskConfig, RiskManager, RiskResult
 from application.oms.session_bridge import (
     OmsOrderService,
     build_oms_service,

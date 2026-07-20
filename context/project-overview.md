@@ -1,24 +1,13 @@
 # Project Overview — TradeXV2 / TradeX Trading OS
 
-> Part of the **Six-File Context System**. Read this first. This file is the
-> product vision contract: when a spec is ambiguous, resolve against this, not a guess.
-> Code-grounded facts come from `docs/architecture/baseline.md` and
-> `docs/architecture/target-layering.md`. Keep it in sync with those docs.
+> Part of the **Six-File Context System**. Read this first.
+> **Canonical product identity:** [`docs/constitution/00-vision-and-product.md`](../docs/constitution/00-vision-and-product.md)
+> **Ubiquitous language:** [`docs/constitution/00b-glossary.md`](../docs/constitution/00b-glossary.md)
+> When a spec is ambiguous, resolve against the constitution, not a guess.
 
 ## 1. What This Is (one paragraph)
 
-TradeXV2 is a deployable, **multi-broker market analytics and research console** —
-a `git`/`kubectl`/`dbt`-style CLI (plus FastAPI, Textual TUI, and two
-MCP servers) for scanning, analyzing, and backtesting strategies against Dhan / Upstox
-market data. The broker layer's job is market-data acquisition and lifecycle
-(quotes, depth, history, instruments, subscriptions), not order placement — there is
-no `order`/`position`/`portfolio` CLI surface. **Execution and order management remain
-internal infrastructure**, not a customer-facing product goal: the OMS/RiskManager/
-ExecutionEngine kernel exists solely to give backtest, replay, and paper-trading
-simulation a single, shared, zero-parity fill path (same code, same results across all
-three) so research results are trustworthy — not to route real money. Core principle:
-**backtest, replay, and paper analytics must share identical OMS logic** (zero-parity
-rule), even though none of them are reachable from a live broker order-placement path.
+**TradeXV2 is an event-driven quantitative trading kernel that supports multiple execution capabilities.** Execution capabilities include Replay, Backtesting, Paper Trading, and Live Broker Execution. All capabilities share the same domain model, execution pipeline, event contracts, and lifecycle. **Live execution is an optional capability** that can remain disabled without changing the architecture. The immutable pipeline is: Market Data → Feature Pipeline → Indicators → Strategies → Signals → Risk → OMS → Execution Target. Product surfaces (CLI, API, TUI, MCP) select which execution target is wired at the composition root. Core principle: **zero-parity** — backtest, replay, paper, and live share identical OMS and Risk logic; only the Execution Target adapter differs.
 
 ## 2. Goals (measurable)
 
@@ -109,8 +98,11 @@ rule), even though none of them are reachable from a live broker order-placement
 
 ## 8. Source of Truth
 
-- `docs/architecture/baseline.md` — current-state, code-derived.
-- `docs/architecture/target-layering.md` — target contract (import-linter rules).
-- `docs/architecture/roadmap.md` — 8-phase transformation plan.
-- `docs/architecture/backlog.md` — ranked gap inventory (G1–G8).
-- `docs/architecture/adr/` — architecture decision records.
+- [`docs/constitution/`](../docs/constitution/) — canonical product + architecture (start at `00-vision-and-product.md`, `01-architecture-constitution.md`).
+- [`context/architecture.md`](architecture.md) — enforced layering contract (Six-File Context).
+- [`docs/architecture/target-layering.md`](../docs/architecture/target-layering.md) — import-linter target rules.
+- [`docs/architecture/adr/`](../docs/architecture/adr/) — architecture decision records.
+- [`docs/architecture/FLOWS.md`](../docs/architecture/FLOWS.md) — flow contracts (architecture tests).
+- Operational runbooks: [`docs/config/README.md`](../docs/config/README.md), [`docs/brokers/`](../docs/brokers/), [`docs/ops/`](../docs/ops/).
+
+Deprecated stubs (redirect only): `baseline.md`, `CURRENT-STATE.md`, `TARGET-STATE.md`, `roadmap.md`, `backlog.md`.

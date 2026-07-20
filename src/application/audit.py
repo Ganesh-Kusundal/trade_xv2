@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
@@ -28,9 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from application.observability import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------

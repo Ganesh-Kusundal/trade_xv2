@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from unittest.mock import patch
 
 from application.execution.execution_engine import ExecutionEngine
 from application.oms import PositionManager, RiskManager, TradingContext
 from application.oms._internal.margin_checker import MarginChecker
 from application.oms.order_manager import OmsOrderCommand, OrderManager
-from application.oms.risk_manager import RiskConfig
+from application.oms._internal.risk_manager import RiskConfig
 from domain.entities import Order, Trade
 from domain.enums import OrderType, ProductType, Side
 from domain.events.types import DomainEvent, EventType
@@ -265,10 +266,35 @@ def test_concentration_includes_in_flight_pending():
     assert "position" in second.reason.lower()
 
 
-def test_build_order_dispatcher_is_oms_backed():
-    """2.5: factory stamps __oms_backed__ and routes through OrderManager."""
-    from runtime.commands import build_order_dispatcher
+def test_order_placer_routes_through_execution_engine():
+    """OrderPlacer calls ExecutionEngine.place_order (zero-parity spine)."""
+    from application.trading.order_placer import OrderPlacer
+    from application.oms.order_manager import OmsOrderCommand, OrderManager
+    from domain.enums import OrderType, ProductType, Side
+    from domain.models.trading import SignalDTO
+    from decimal import Decimal
+    from unittest.mock import MagicMock
 
     om = OrderManager()
-    fn = build_order_dispatcher(om)
-    assert getattr(fn, "__oms_backed__", False) is True
+    engine = MagicMock()
+    placer = OrderPlacer(order_manager=om, execution_engine=engine)
+    cmd = OmsOrderCommand(
+        correlation_id="c1",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        quantity=1,
+        price=Decimal("100"),
+        order_type=OrderType.LIMIT,
+        product_type=ProductType.INTRADAY,
+    )
+    signal = SignalDTO(
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        signal_type="BUY",
+        confidence=Decimal("0.9"),
+        entry_price=Decimal("100"),
+    )
+    placer.place(cmd, signal)
+    engine.place_order.assert_called_once_with(cmd)

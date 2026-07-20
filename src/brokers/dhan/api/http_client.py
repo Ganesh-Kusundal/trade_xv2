@@ -228,9 +228,6 @@ class DhanHttpClient:
                 "access-token": access_token,
             }
         )
-        self._last_request_time: dict[str, float] = {}
-        self._adaptive_intervals: dict[str, float] = {}
-        self._rate_lock = threading.Lock()
         self._last_refresh_time: float = 0.0
 
     def _get_circuit_breaker(self, endpoint: str) -> CircuitBreaker | None:
@@ -262,20 +259,6 @@ class DhanHttpClient:
 
     def delete(self, endpoint: str) -> dict[str, Any]:
         return self._request("DELETE", endpoint)
-
-    def _throttle(self, endpoint: str) -> None:
-        # Use config-based rate limits
-        static_interval = self._match_rate_limit(endpoint, self._config.rate_limit.limits)
-        adaptive_interval = self._match_rate_limit(endpoint, self._adaptive_intervals)
-        min_interval = max(static_interval, adaptive_interval)
-        if min_interval <= 0:
-            return
-        with self._rate_lock:
-            last = self._last_request_time.get(endpoint, 0.0)
-            elapsed = time.time() - last
-            if elapsed < min_interval:
-                time.sleep(min_interval - elapsed)
-            self._last_request_time[endpoint] = time.time()
 
     def _acquire_rate_limit_token(self, endpoint: str, timeout: float = 5.0) -> bool:
         """Acquire a rate limit token if rate limiter is configured.
@@ -438,7 +421,6 @@ class DhanHttpClient:
         if not self._acquire_rate_limit_token(endpoint):
             raise DhanError(f"Rate limit timeout: {method} {endpoint}")
 
-        self._throttle(endpoint)
         url = f"{self._base_url}{endpoint}" if endpoint.startswith("/") else endpoint
 
         if _is_ambiguous_write(method, endpoint):
@@ -504,15 +486,10 @@ class DhanHttpClient:
                     retry_after = self._parse_retry_after(resp)
                     if retry_after is not None:
                         delay = retry_after
-                        prefix = self._match_prefix(endpoint, self._config.rate_limit.limits)
-                        key = prefix or endpoint
-                        self._adaptive_intervals[key] = max(
-                            delay, self._adaptive_intervals.get(key, 0)
-                        )
                         logger.info(
                             "http_adaptive_rate_adjust",
                             extra={
-                                "endpoint": key,
+                                "endpoint": endpoint,
                                 "retry_after_s": round(delay, 3),
                             },
                         )

@@ -249,7 +249,7 @@ class TestRiskManagerBenchmarks:
     def risk_manager(self):
         """Create a fresh RiskManager for testing."""
         from application.oms.position_manager import PositionManager
-        from application.oms.risk_manager import RiskConfig, RiskManager
+        from application.oms._internal.risk_manager import RiskConfig, RiskManager
 
         config = RiskConfig(
             max_position_pct=Decimal("10"),

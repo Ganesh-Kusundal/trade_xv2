@@ -154,14 +154,7 @@ class ExecutionPlanner:
             )
             return PlanResult(commands=[], rejected=True)
 
-        # 3 — kill switch
-        if self._kill_switch_check():
-            logger.warning(
-                "Kill switch active, blocking execution for %s", signal.symbol,
-            )
-            return PlanResult(commands=[], rejected=True)
-
-        # 4 — dry-run
+        # 3 — dry-run
         if self._dry_run:
             logger.info(
                 "DRY RUN: Would execute signal: %s %s (confidence=%.2f, entry=%.2f)",
@@ -236,13 +229,6 @@ class ExecutionPlanner:
 
     def intent_to_command(self, intent: object, signal: SignalDTO) -> OmsOrderCommand:
         """Bridge a domain :class:`OrderIntent` into an :class:`OmsOrderCommand`."""
-        return OmsOrderCommand(
-            symbol=intent.symbol,
-            exchange=intent.exchange,
-            side=intent.side,
-            quantity=intent.quantity,
-            price=intent.price,
-            order_type=intent.order_type,
-            product_type=intent.product_type,
-            correlation_id=intent.correlation_id,
-        )
+        from application.oms.order_command_mapper import order_intent_to_oms_command
+
+        return order_intent_to_oms_command(intent)

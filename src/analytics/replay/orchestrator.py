@@ -15,7 +15,7 @@ Deterministic replay guarantees
 
 2. **No side effects**: In replay mode, the EventBus disables auto-
    persistence (no recursive writes to EventLog) and uses the
-   original event timestamps instead of ``datetime.now()``.
+   original event timestamps instead of injecting fresh wall-clock time.
 
 3. **Idempotent pipelines**: FeaturePipeline and StrategyPipeline are
    pure functions of their input. Caching is disabled during replay

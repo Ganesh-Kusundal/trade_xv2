@@ -108,37 +108,18 @@ def test_session_close_clears_default_provider():
 def test_session_buy_requires_order_path():
     session, _, _, _ = _new_session(with_exec=False)
     eq = session.universe.equity("RELIANCE")
-    with pytest.raises(RuntimeError, match="No order_service|execution_provider"):
+    with pytest.raises(RuntimeError, match="No order_service"):
         session.buy(eq, 10, price=Decimal("2500"))
 
 
-def test_session_buy_via_execution_provider_legacy():
-    """Legacy path: ExecutionProvider only (no OMS) still works for unit tests."""
+def test_session_buy_never_bypasses_oms_for_execution_provider():
+    """ExecutionProvider alone must not place orders (Risk/OMS spine required)."""
     session, _, _, executor = _new_session(with_exec=True)
     assert executor is not None
     eq = session.universe.equity("RELIANCE")
-    result = session.buy(eq, 10, price=Decimal("2500"))
-    assert result.success is True
-    assert len(executor.requests) == 1
-    req = executor.requests[0]
-    assert req.symbol == "RELIANCE"
-    assert req.quantity == 10
-    assert req.transaction_type == Side.BUY
-    assert req.price == Decimal("2500")
-    assert req.order_type == OrderType.LIMIT
-    assert req.correlation_id  # intent always stamps correlation_id
-
-
-def test_session_market_order():
-    session, _, _, executor = _new_session(with_exec=True)
-    assert executor is not None
-    eq = session.universe.equity("RELIANCE")
-    result = session.market(eq, 5, side="SELL")
-    assert result.success is True
-    req = executor.requests[0]
-    assert req.transaction_type == Side.SELL
-    assert req.order_type == OrderType.MARKET
-    assert req.quantity == 5
+    with pytest.raises(RuntimeError, match="No order_service"):
+        session.buy(eq, 10, price=Decimal("2500"))
+    assert executor.requests == []
 
 
 def test_session_intent_builder():

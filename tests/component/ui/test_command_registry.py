@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 from interface.ui.commands import registry
-from interface.ui.tests.endpoint_manifest import TOP_LEVEL_COMMANDS
+from tests.component.ui.endpoint_manifest import TOP_LEVEL_COMMANDS
 
 
 @pytest.fixture(autouse=True)

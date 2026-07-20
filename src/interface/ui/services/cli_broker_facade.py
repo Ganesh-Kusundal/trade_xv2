@@ -137,7 +137,7 @@ class CliBrokerFacade:
         not been wired into a ``TradingContext``).
         """
         self._svc._ensure_initialized()
-        from brokers.services._session import check_live_actionable
+        from runtime.platform_bridge import check_live_actionable
 
         check_live_actionable(self._svc.active_broker_name)
         if not self._svc._live_actionable:
@@ -149,12 +149,11 @@ class CliBrokerFacade:
         if self._svc._trading_context is not None:
             import uuid
 
-            from application.execution.execution_engine import ExecutionEngine
-            from application.execution.fill_source import BrokerFillSource
             from application.oms.order_manager import OmsOrderCommand
             from domain import OrderType as Ot
             from domain import ProductType as Pt
             from domain import Side
+            from runtime.execution_target import build_execution_engine
 
             try:
                 ot = Ot(order_type)
@@ -176,9 +175,10 @@ class CliBrokerFacade:
                 product_type=Pt.INTRADAY,
                 correlation_id=f"cli:{uuid.uuid4().hex[:12]}",
             )
-            engine = ExecutionEngine(
-                fill_source=BrokerFillSource(gw),
-                trading_context=self._svc._trading_context,
+            engine = build_execution_engine(
+                self._svc._trading_context,
+                "live",
+                gateway=gw,
             )
             result = engine.place_order(command)
             if not result.success:

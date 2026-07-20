@@ -8,14 +8,14 @@ Provides FastAPI dependencies for:
 - EventBus (real-time events)
 - BrokerService (live broker connections)
 
-All services are stored in the infrastructure DI container (infrastructure.di.container)
-as the single source of truth. This module provides typed FastAPI Depends() wrappers
-that resolve from that container.
+All services are stored in a typed :class:`ServiceContainer` as the single
+source of truth. This module provides FastAPI Depends() wrappers.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
@@ -31,25 +31,55 @@ from domain.exceptions import ServiceNotFoundError
 
 logger = logging.getLogger(__name__)
 
-# Module-level typed wrapper — set once during startup, provides attribute access
-_container: SimpleNamespace | None = None
+
+@dataclass
+class ServiceContainer:
+    """Typed API service container (G-P2-1)."""
+
+    datalake_gateway: Any | None = None
+    view_manager: Any | None = None
+    data_catalog: Any | None = None
+    event_bus: EventBusPort | None = None
+    broker_service: Any | None = None
+    trading_context: Any | None = None
+    order_manager: OrderServicePort | None = None
+    position_manager: Any | None = None
+    risk_manager: RiskManagerPort | None = None
+    market_data_composer: DataProvider | None = None
+    execution_composer: Any | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+# Module-level typed wrapper — set once during startup
+_container: ServiceContainer | SimpleNamespace | None = None
 
 
 def _resolve(name: str) -> Any:
     """Resolve a service from the container by name.
 
-    Raises ServiceNotFoundError if the container is not initialized or the
-    service is not registered.
+    Raises HTTP 503 if the container is not initialized or the service is unset.
     """
     if _container is None:
-        raise ServiceNotFoundError(f"Service '{name}' is not registered (container not initialized).")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Service '{name}' is not available (container not initialized). "
+                "Check server logs for initialization errors."
+            ),
+        )
     value = getattr(_container, name, None)
     if value is None:
-        raise ServiceNotFoundError(f"Service '{name}' is not registered.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Service '{name}' is not configured. "
+                "Related endpoints will return 503 until wired at startup."
+            ),
+        )
     return value
 
 
-def get_container() -> SimpleNamespace:
+def get_container() -> ServiceContainer | SimpleNamespace:
     """Get the service container. Raises 503 if not initialized."""
     if _container is None:
         raise HTTPException(
@@ -63,18 +93,24 @@ def get_container() -> SimpleNamespace:
     return _container
 
 
-def set_container(services: SimpleNamespace | dict[str, Any]) -> None:
-    """Set services and register them in the DI container. Idempotent."""
+def set_container(services: ServiceContainer | SimpleNamespace | dict[str, Any]) -> None:
+    """Set services container. Idempotent."""
     global _container  # intentional module singleton — DI container
     if _container is not None:
         logger.warning("Service container already initialized — ignoring duplicate")
         return
 
-    ns = SimpleNamespace(**services) if isinstance(services, dict) else services
+    if isinstance(services, dict):
+        ns = ServiceContainer(**{k: v for k, v in services.items() if k in ServiceContainer.__dataclass_fields__})
+        extra = {k: v for k, v in services.items() if k not in ServiceContainer.__dataclass_fields__}
+        ns.extra = extra
+        _container = ns
+    elif isinstance(services, ServiceContainer):
+        _container = services
+    else:
+        _container = services
 
-    _container = ns
-
-    initialized = [k for k in vars(ns) if not k.startswith("_") and getattr(ns, k) is not None]
+    initialized = [k for k in ServiceContainer.__dataclass_fields__ if getattr(services, k, None) is not None]
     logger.info("Service container initialized with: %s", initialized)
 
 
@@ -92,24 +128,31 @@ def reset_container() -> None:
 # ── FastAPI Dependencies ─────────────────────────────────────────────────────
 
 
-def get_datalake_gateway() -> Any:
-    """Get DataLakeGateway instance for historical data queries."""
-    return _resolve("datalake_gateway")
+def _container_get(attr: str) -> Any:
+    """Resolve a registered service attribute from the container."""
+    return _resolve(attr)
 
 
-def get_view_manager() -> Any:
-    """Get ViewManager instance for DuckDB analytics queries."""
-    return _resolve("view_manager")
+def _make_getter(attr: str, doc: str):
+    def getter() -> Any:
+        return _container_get(attr)
+
+    getter.__doc__ = doc
+    getter.__name__ = f"get_{attr}"
+    return getter
 
 
-def get_data_catalog() -> Any:
-    """Get DataCatalog instance for symbol metadata."""
-    return _resolve("data_catalog")
+get_datalake_gateway = _make_getter(
+    "datalake_gateway", "Get DataLakeGateway instance for historical data queries."
+)
+get_view_manager = _make_getter("view_manager", "Get ViewManager instance for DuckDB analytics queries.")
+get_data_catalog = _make_getter("data_catalog", "Get DataCatalog instance for symbol metadata.")
+get_broker_service = _make_getter("broker_service", "Get BrokerService instance for live broker connections.")
 
 
 def get_event_bus() -> EventBusPort:
     """Get EventBus instance for real-time events."""
-    return _resolve("event_bus")  # type: ignore[no-any-return]
+    return _container_get("event_bus")  # type: ignore[no-any-return]
 
 
 def get_trading_context() -> Any:
@@ -202,21 +245,7 @@ def get_risk_manager() -> RiskManagerPort:
     return ctx.risk_manager  # type: ignore[no-any-return]
 
 
-def get_order_repository() -> Any:
-    """Get OrderRepository adapter backed by OrderManager."""
-    from application.oms.order_repository_adapter import OrderManagerRepository
-
-    return OrderManagerRepository(get_order_manager())
-
-
-def get_position_repository() -> Any:
-    """Get PositionRepository backed by PositionManager."""
-    return get_position_manager()
-
-
-def get_broker_service() -> Any:
-    """Get BrokerService instance for live broker connections."""
-    return _resolve("broker_service")
+get_position_repository = get_position_manager
 
 
 def get_market_data_composer() -> DataProvider:
@@ -372,31 +401,18 @@ def initialize_all_services(
         # G7: use the public TradingContext.risk_manager property (no getattr reflection).
         risk_manager = trading_context.risk_manager
 
-    from infrastructure.providers.null.stubs import (
-        NullBrokerService,
-        NullDataCatalog,
-        NullDataLakeGateway,
-        NullEventBus,
-        NullExecutionComposer,
-        NullMarketDataComposer,
-        NullOrderManager,
-        NullPositionManager,
-        NullRiskManager,
-        NullViewManager,
-    )
-
-    services = SimpleNamespace(
-        datalake_gateway=datalake_gateway or NullDataLakeGateway(),
-        view_manager=view_manager or NullViewManager(),
-        data_catalog=data_catalog or NullDataCatalog(),
-        event_bus=event_bus or NullEventBus(),
-        broker_service=broker_service or NullBrokerService(),
+    services = ServiceContainer(
+        datalake_gateway=datalake_gateway,
+        view_manager=view_manager,
+        data_catalog=data_catalog,
+        event_bus=event_bus,
+        broker_service=broker_service,
         trading_context=trading_context,
-        order_manager=order_manager or NullOrderManager(),
-        position_manager=position_manager or NullPositionManager(),
-        risk_manager=risk_manager or NullRiskManager(),
-        market_data_composer=market_data_composer or NullMarketDataComposer(),
-        execution_composer=execution_composer or NullExecutionComposer(),
+        order_manager=order_manager,
+        position_manager=position_manager,
+        risk_manager=risk_manager,
+        market_data_composer=market_data_composer,
+        execution_composer=execution_composer,
         extra=additional_services,
     )
 
@@ -416,4 +432,4 @@ def initialize_all_services(
             missing,
         )
     else:
-        logger.info("All services initialized (with NullProviders for missing components)")
+        logger.info("All services initialized")

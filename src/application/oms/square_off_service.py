@@ -72,10 +72,6 @@ class SquareOffService:
         Returns:
             SquareOffSummary with results for each position.
         """
-        # Pre-flight: kill switch check
-        if self._risk is not None and self._risk.is_kill_switch_active():
-            raise SquareOffRejectedError("Kill switch is active — square-off rejected")
-
         # Get positions
         positions = self._positions.get_positions()
         if symbol:

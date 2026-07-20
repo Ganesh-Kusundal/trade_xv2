@@ -216,6 +216,44 @@ class IdempotencyService(Generic[T]):
             
             return False
 
+    def claim(self, key: str, value: T, ttl_seconds: int | None = None) -> bool:
+        """Atomically claim a key. Returns True if first claim, False if duplicate."""
+        ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
+        with self._lock:
+            try:
+                if self._primary.contains(key):
+                    return False
+            except Exception as exc:
+                logger.warning(f"Primary cache contains check failed for key {key}: {exc}")
+
+            if self._fallback is not None:
+                try:
+                    if self._fallback.contains(key):
+                        return False
+                except Exception as exc:
+                    logger.warning(f"Fallback cache contains check failed for key {key}: {exc}")
+
+            self._metrics["put_operations"] += 1
+            try:
+                self._primary.put(key, value, ttl)
+            except Exception as exc:
+                self._metrics["primary_failures"] += 1
+                logger.warning(f"Primary cache put failed for key {key}: {exc}")
+                if self._enable_fallback and self._fallback is not None:
+                    self._metrics["fallback_operations"] += 1
+                    try:
+                        self._fallback.put(key, value, ttl)
+                    except Exception as fallback_exc:
+                        logger.error(
+                            f"Fallback cache put also failed for key {key}: {fallback_exc}"
+                        )
+                        raise IdempotencyError(
+                            f"Failed to store idempotency key {key}: {fallback_exc}"
+                        ) from fallback_exc
+                else:
+                    raise IdempotencyError(f"Failed to store idempotency key {key}: {exc}") from exc
+            return True
+
     def health_check(self) -> dict[str, bool]:
         """Check health of all backends."""
         health = {}

@@ -48,7 +48,7 @@ def test_run_verify_uses_broker_certifier() -> None:
     "rel_path",
     [
         "src/brokers/cli/broker.py",
-        "src/interface/ui/services/broker_ops.py",
+        "src/interface/ui/commands/benchmark.py",
     ],
 )
 def test_frontends_do_not_import_broker_certifier_directly(rel_path: str) -> None:

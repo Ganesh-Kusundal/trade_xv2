@@ -7,9 +7,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from interface.api.deps import get_order_repository, get_position_manager
+from interface.api.deps import get_order_manager, get_position_manager
 from interface.api.schemas import TradeResponse, TradesResponse
 from domain import OrderStatus
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ async def get_trades(
     from_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
     to_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(100, ge=1, le=1000, description="Max trades"),
-    repo=Depends(get_order_repository),
+    om=Depends(get_order_manager),
 ):
     """Get trade/executed order history.
 
@@ -30,7 +31,7 @@ async def get_trades(
     """
     try:
         # Get all orders and filter for filled/completed ones
-        orders = repo.get_orders(status=OrderStatus.FILLED)
+        orders = om.get_orders(status=OrderStatus.FILLED)
 
         # Apply date filters if provided
         if from_date:
@@ -56,7 +57,7 @@ async def get_trades(
                         transaction_type=order.side.value,
                         quantity=order.filled_quantity,
                         price=float(order.average_price) if order.average_price else 0.0,
-                        timestamp=order.timestamp or datetime.now(),
+                        timestamp=order.timestamp or get_current_clock().now(),
                     )
                 )
 
@@ -78,7 +79,7 @@ async def get_trades(
 async def get_tradebook(
     from_date: str | None = Query(None, description="Start date"),
     to_date: str | None = Query(None, description="End date"),
-    repo=Depends(get_order_repository),
+    om=Depends(get_order_manager),
     position_manager=Depends(get_position_manager),
 ):
     """Get complete tradebook with P&L analysis.
@@ -87,7 +88,7 @@ async def get_tradebook(
     that fills update), NOT recomputed per-request from a divergent source.
     """
     try:
-        orders = repo.get_orders(status=OrderStatus.FILLED)
+        orders = om.get_orders(status=OrderStatus.FILLED)
 
         if from_date:
             from_dt = datetime.fromisoformat(from_date)

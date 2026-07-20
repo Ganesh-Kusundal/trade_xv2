@@ -6,12 +6,81 @@
 
 ## Current Phase
 
+- **Kernel Constitution Program (C+) — Phase H Contexts 1–4 complete** — spine + clock purity. `place_order_spine`, `VirtualClock` on backtest path, extended clock ratchet. 43+ execution/arch tests green via `venv/bin/pytest`.
+- Next: **Context 5** Market Data (datalake duckdb pool) or **G-P1-5** Composer merge.
 - **Phase A + B + D-Phase1 (E2E spec gap closure) complete** — clock injection (I2), PaperOrders legacy bypass retired (I1), ExecutionEngine promoted to production (I1 structural), DataPaths config spine (D-Phase1).
 - **F7 (single composition root) fixed** — `TradingRuntimeFactory` consolidated into `runtime.factory`; deprecated re-export retained.
 - **G3 exchange plugin bypasses closed** — 5 datalake call sites migrated from hardcoded NSE/IST to `exchange_registry`.
 - **Application→runtime violations fixed** — `application.ports` module created; `run_coro_sync` and session opener injected at composition root.
 - Next: **Phase D-Phase2** — physical split (create `data/lake` + `data/state`, move files).
 - Parallel: remaining `ExecutionService`/`SimulatedOMSAdapter` can be deleted once backtest path is migrated to `ExecutionEngine`.
+
+### Ponytail Wave 1 (dead-code deletes) — 2026-07-20
+
+- Deleted FeatureFlags subsystem + `/flags` API; toggles remain in `config.schema` env vars.
+- Deleted `CompositeDataProvider`, dead Protocols (`BrokerPluginInterface`, `CliCommand`), `evaluator_bridge`, `domain/scanners`, `exchange_adapters` shim, unused Redis cache path, `runtime/historical_data` re-export.
+- Integration tests use `tests/integration/_strategy_pipeline_evaluator.py` helper.
+
+### Ponytail Wave 2 (W2.1–W2.3) — 2026-07-20
+
+- **W2.1** `tradex validate data` → `datalake.quality.validation.validate_candles`; deleted `application.services.data_validator`.
+- **W2.2** CLI commands call `brokers.services` / `brokers.platform_ops` directly; deleted `interface.ui.services.broker_ops`; helper `interface.ui.commands._broker`.
+- **W2.3** Collapsed CQRS: deleted `runtime/commands/` + `runtime/queries/`; `OrderPlacer` / `Session` use `OrderManager.place_order` directly.
+
+### Ponytail Wave 2 (W2.9–W2.14) — 2026-07-20
+
+- **W2.9** Merged `api_readiness.py` into `production_readiness.py` (`evaluate_api_readiness` + gate types); deleted `api_readiness.py`.
+- **W2.10** `deps.py` trivial getters via `_make_getter` helper.
+- **W2.11** Deleted `broker_facade.py` + `event_bus_service.py`; symbols/helpers on `broker_registry.py`; `EventBusService` in `commands/events.py`.
+- **W2.12** Deleted `order_repository_adapter.py`, `execution_mode_adapter.py`, `factory.py`; API orders/trades use `get_order_manager`; sim adapter + factory in `oms_backtest_adapter.py`.
+- **W2.13** Removed `@trace_operation` from application layer; `application/observability.py` is `get_logger` only.
+- **W2.14** Profiles → one dataclass + env table; dropped `NoBackoff`/`FixedBackoff` from src; Dhan resilience imports `retry_policies` directly (deleted `retry_executor.py` re-export).
+
+### Ponytail Wave 3 (composition root) — 2026-07-20
+
+- API bootstrap uses `runtime.api_compose.build_for_api` → `runtime.factory.build` (`interface/api/bootstrap.py`).
+- CLI compose uses `BrokerService.build_runtime()` → `runtime.factory.build` (`interface/ui/services/compose.py`).
+- `tradex.session` trade mode already delegates to `runtime.factory.build` when `broker_service` is present.
+- Removed orphaned CQRS packages (`runtime/commands`, `runtime/queries`) and Session dispatcher attach APIs.
+
+### Phase A — Money-Safety Redesign — 2026-07-20
+
+- **OrderMutationGuard** — single kill-switch gate in
+  `application/oms/_internal/order_mutation_guard.py`; enforced on
+  place/modify/cancel in `OrderLifecycle`. Removed scattered pre-checks from
+  `ExecutionComposer`, `SquareOffService`, `ExecutionPlanner` (orchestrator path).
+- **Extended/live paths** use same guard via `ExtendedOrderService` /
+  `authorize_live_order`.
+- **DuckDB** — `DataLakeMarketDataProvider.query()` routes through
+  `duckdb_connection` read pool; exemption removed from architecture ratchet.
+- **Dhan HTTP** — legacy `_throttle()` removed; `MultiBucketRateLimiter` only.
+- **Capital events** — `domain/events/capital_events.py` canonical
+  `is_capital_event()` wired into sync `EventBus` + `AsyncEventBus`.
+- **RiskManager** — fail-closed tick validation when instrument provider configured.
+- Tests: `tests/component/oms/test_phase_a_money_safety.py` (13 green in Phase A batch).
+
+### Comprehensive Platform Review — 2026-07-20
+
+- Independent 13-persona virtual review board (9 parallel domain subagents);
+  all 13 review areas + 11 deliverables in one report.
+- Report: [`docs/architecture/COMPREHENSIVE-PLATFORM-REVIEW-2026-07-20.md`](../docs/architecture/COMPREHENSIVE-PLATFORM-REVIEW-2026-07-20.md)
+- **Production Readiness Score: 4.2/10** — OMS kernel real; default operator paths
+  bypass it; not live-money-ready without Phase 0–2 action plan.
+- Top P0: PARITY default, Dhan dual publisher, Upstox idempotency race, API cancel/modify
+  auth bypass, kill-switch fail-open, capital event drops, live/lake divergence.
+- **No code changes** — review + prioritized action plan only.
+
+### Code Quality Review (static analysis) — 2026-07-20
+
+- Full-repo static analysis pass: `radon` CC/MI, `vulture` dead-code, `graphify` hub
+  analysis, layer-scoped review of `src/` (1,077 files, ~151k LOC).
+- Report: [`docs/architecture/CODE-QUALITY-REVIEW-2026-07-20.md`](../docs/architecture/CODE-QUALITY-REVIEW-2026-07-20.md)
+- **4 Critical, 22 High, 28 Medium, 12 Low** findings; deduped against
+  `docs/constitution/07-gap-analysis.md` (overlaps cited as G-P#-#).
+- Top priorities: kill-switch on `cancel_order`, broken `:memory:` DuckDB query,
+  Dhan dual rate limiting, spine bypass in `OrderPlacer`, AsyncEventBus unwired,
+  triple composition roots, EventBus god-class split.
+- **No code changes** — audit + refactoring roadmap only (Phases A–E in report).
 
 ### Analytics Platform Roadmap — Phase 0 (baseline guardrail) — 2026-07-17
 
@@ -944,6 +1013,17 @@ All architectural phases from the roadmap are now complete:
 - **Phase 6 (Feature Delivery)**: Business capabilities (Market Access, Trading, Options, Portfolio, Analytics, Replay, Strategy Engine, AI Agents)
 - **Phase 7 (Production Hardening)**: Perf/load, chaos/recovery, observability, security, runbooks
 
+### Ponytail Wave 2 (W2.4–W2.8) — 2026-07-20
+
+YAGNI / pass-through collapse (no second composition root):
+
+- **W2.4** `application/oms/protocols.py` shrunk to `IReconciliationService` only; importers use concrete types / domain ports.
+- **W2.5** Deleted F401 shims under `application/oms/`; src+tests import `application.oms._internal.*`.
+- **W2.6** `deps.py` Optional+503 (no Null stubs); `stubs.py` emptied; service-container + single-bus tests updated.
+- **W2.7** `MemoryIdempotencyCache` → `cachetools.TTLCache`.
+- **W2.8** Feature pipeline indicators delegate to `domain/indicators/*`; parity test added.
+- **Verification**: 443 passed (component/oms + related suites); lint-imports 15/15.
+
 ### Files Modified This Session
 - `src/application/oms/_internal/margin_checker.py` (R3 fix)
 - `src/application/oms/_internal/risk_manager.py` (R3 fix)
@@ -1046,4 +1126,118 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
 - `src/datalake/analytics/features.py` — Pandas-based indicators
 - `src/analytics/pipeline/features.py` — Pipeline RSI wrapper
 
+---
+
+## 2026-07-20 — Repository reorg (Phases 0–5)
+
+**Completed:**
+- Phase 0: Root scratch cleanup; moved notebooks to `examples/notebooks/`; removed dead stubs (`strategy_engine`, `scoring`, `interface/ui/tests` shim); fixed test imports to use `tests.component.ui.endpoint_manifest`.
+- Phase 1: Dependency violations fixed via `application/ports` (execution target), `domain/ports/async_bridge` (async loop), `runtime/session_historical` (broker history), `datalake/research/float_data` (MCP float data).
+- Phase 2: `interface/ui/services/broker_ops.py` delegation layer; API server wires via `runtime/interface_compose` (not `interface.ui.compose`); compose delegates to `runtime.factory.build`.
+- Phase 3: `datalake/materialized/features.py` RSI/ATR/MACD delegate to `domain/indicators`.
+- Phase 4: `datalake/analytics/` → `datalake/materialized/` with compatibility shims under `datalake/analytics/`.
+- Phase 5: Instrument cache default → `data/cache/instruments/`; `application/research/` package stub for future analytics move.
+
+**Verification:** import-linter 15/15 kept; architecture boundary test green; targeted unit tests pass.
+
+**Deferred:** Full `src/analytics/` → `application/research/` physical move (200+ import sites); name collision renames (TradingSession, OmsOrderResult); broker folder standardization.
+
+**Follow-up (2026-07-20):**
+- Fixed `test_tradex_session_paper_smoke`: paper SDK path now wires in-memory `EventBus` + `ProcessedTradeRepository` at `tradex.session` composition root.
+- Deleted `application/observability.py` (stdlib `logging.getLogger` at call sites).
+
 **Report:** `.superpowers/sdd/task-12-report.md`
+
+---
+
+## 2026-07-20 — Repo cleanup (docs, temp scripts, local artifacts)
+
+**Phase 0 (local, gitignored):** Removed `graphify-out/2026-07-*` dated snapshots and stale `.graphify_*` intermediates (~464 MB freed); deleted legacy `runtime-dev/`, `src/runtime-dev/`, `analytics_cache/` (instrument cache now under `data/cache/instruments/`).
+
+**Phase 1 (tracked deletes):**
+- Root `audit/` phase scripts (one-off discovery; no imports).
+- `scripts/_archived/` migration scripts.
+- Stale docs: `docs/architecture/AUDIT-*`, `COMPLEXITY-AUDIT.md`, `PRIORITIZED-AUDIT.md`, `REVIEW*.md`, `phase0-baseline.md`, `runtime-dev-inventory.md`.
+- Session plans: `docs/superpowers/plans/2026-07-*.md` (directory kept for future plans).
+- Scratch: `examples/test.ipynb`, `examples/ARCHITECTURE_REVIEW.md`, `tests/CONSOLIDATION_PLAN.md`, `src/brokers/OBJECT_MODEL_PLAN.md`.
+
+**Kept:** `context/`, `docs/constitution/`, test-bound `FLOWS.md` / `STATE_MACHINES.md` / `ERROR_TAXONOMY.md`, `e2e-spec/`, ADRs, operational `scripts/verify/` and `scripts/audit/`.
+
+**Fix:** `sync_options.py` — removed hardcoded `Trade_J` path; defaults to `TRADE_J_DUCKDB` env or `data/external/trade_j/historical.duckdb`.
+
+**Cross-ref updates:** `CURRENT-STATE.md`, `TARGET-STATE.md`, `baseline.md`, `tests/README.md` → point to `docs/constitution/07-gap-analysis.md`.
+
+---
+
+## 2026-07-20 — Repo cleanup Phase 2/3 (doc consolidation)
+
+**Phase 2 — canonical docs:**
+- Replaced bulky `CURRENT-STATE.md`, `TARGET-STATE.md`, `baseline.md`, `roadmap.md`, `backlog.md` with redirect stubs → `docs/constitution/` + `context/architecture.md`.
+- Updated `context/project-overview.md` §8 Source of Truth to constitution-first.
+- Deleted historical `docs/superpowers/reviews/*.md` (2 files).
+
+**Phase 3 — src markdown relocation:**
+- `src/brokers/README.md` → `docs/brokers/README.md`
+- `src/brokers/dhan/CONFIGURATION.md` → `docs/brokers/dhan/CONFIGURATION.md`
+- `src/config/README.md` → `docs/config/README.md`
+- `src/application/oms/RECOVERY.md` → `docs/ops/oms-recovery.md`
+- `src/analytics/scanner/README.md` → `docs/analytics/scanner.md`
+- Updated `src/brokers/__init__.py` docstring path.
+
+**Kept (operational):** `scripts/_connect.py`, `repair_tz_window.py`, `correct_tz_window.py` (verify scripts depend on `_connect`).
+
+**Deleted:** `scripts/migrate_options_timestamp_unit.py` (one-time migration, already applied).
+
+**Kept (test-bound):** `docs/architecture/e2e-spec/`, `FLOWS.md`, `STATE_MACHINES.md`, `ERROR_TAXONOMY.md`.
+
+---
+
+## 2026-07-20 — Architecture review remediation (lazy fixes)
+
+**Completed:**
+- **G-P2-4 / session bypass:** Removed `ExecutionProvider` fallback in `domain/_session_trading.py::place()` — orders require OMS spine; updated `tests/unit/domain/test_universe.py`.
+- **Datalake dedup:** Deleted unwired `datalake/materialized/` shim target; restored `datalake/analytics/` from git as canonical; `datalake/__init__.py` imports analytics paths only.
+- **EventBus idempotency:** Added atomic `IdempotencyService.claim()`; `EventBus._is_duplicate_event` uses single claim (closes TOCTOU vs `contains`+`put`); test in `tests/unit/infrastructure/test_idempotency_claim.py`.
+- **Docs:** G-P1-5 marked ✅ closed in `docs/constitution/07-gap-analysis.md`; `FastBacktestEngine` ownership note in `analytics/backtest/fast_backtest.py`.
+
+**Verification:** `venv/bin/pytest tests/architecture/ tests/unit/domain/ tests/unit/infrastructure/test_idempotency_claim.py` — 1714 passed (8 pre-existing failures unrelated: broker-name ratchet, fill_recorder `Decimal`, mock baseline, dhan retry loop). `graphify update .` run.
+
+**Skipped (ponytail):** deps.py Protocol typing, StateMachine runtime lock, Trade/Fill rename — no behavior change warranted.
+
+---
+
+## 2026-07-20 — Design remediation Phase B (zero-parity spine)
+
+**Completed:**
+- **Mandatory ExecutionTarget:** `PlaceOrderUseCase` requires `execution_target`; removed `submit_fn` fallback. `SimulatedOMSAdapter.place_order` always routes through spine (no test bypass).
+- **OrderPlacer → ExecutionEngine:** `OrderPlacer.place()` calls `ExecutionEngine.place_order()`; `TradingOrchestrator` requires injected `execution_engine`; factory wires via `build_execution_engine`.
+- **Canonical mapper:** New `application/oms/order_command_mapper.py`; migrated `session_bridge`, `composer/execution`, `execution_planner`, `place_order_use_case`.
+- **RISK event dedup:** Removed duplicate `RISK_APPROVED`/`RISK_REJECTED` publish from `TradingOrchestrator`; sole publisher is `OrderValidator`.
+- **AsyncEventBus API bootstrap:** `create_api_event_bus()` wraps sync bus in `AsyncEventBus`; `BrokerService` registers `AsyncEventBusManagedService` on lifecycle; delegates `replay_mode` + EventBus surface via `__getattr__`.
+
+**Tests:** `test_order_command_mapper.py`, updated orchestrator/execution parity/runtime factory tests; Phase B batch green (build_for_api integration tests may fail in envs without live broker readiness — pre-existing).
+
+**Next:** Phase C–E remediation complete (2026-07-20). Monitor graphify degree on EventBus/BrokerService in follow-up.
+
+---
+
+## 2026-07-20 — Design remediation Phases C–E
+
+**Phase C — Hub decomposition:**
+- EventBus split: `EventIdempotencyGuard`, `EventPersistenceHook` collaborators; alerting removed from ctor (LifecycleManager only).
+- `runtime/platform_bridge.py` — interface→brokers indirection; broker_ops delegates here.
+- `brokers/common/http/resilient_transport.py` — shared HTTP shell.
+- `brokers/dhan/adapters/order_gateway.py` — Dhan order gateway extract (mirrors Upstox pattern).
+- CLI `main.py` — registry-only dispatch (validate nested subcommands retained).
+
+**Phase D — Data quality:**
+- All G-P2-3 duckdb.connect drift sites routed through `duckdb_utils` pools; exemptions cleared.
+- `datalake/quality/contract.py` — `validate_at_ingest`, fixed `validate_parquet_file`, `completeness_pct` zero-gap.
+- Loader single validation at write boundary; engine completeness 100% when no gaps.
+- `datalake/analytics/features.py` RSI/ATR/MACD delegate to `domain/indicators/`.
+- `datalake/ports/read_ports.py` — HistoryReadPort/BatchReadPort/OptionsChainPort protocols.
+
+**Phase E — Interface cleanup:**
+- Typed `ServiceContainer` dataclass in `interface/api/deps.py`.
+- Architecture ratchet `test_no_interface_broker_imports.py`.
+- `run_analytics_command` + `parse_common_args` wrapper in analytics_utils.

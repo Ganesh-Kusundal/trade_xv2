@@ -133,24 +133,15 @@ class DataLakeMarketDataProvider:
     def query(self, sql: str, params: list | None = None) -> pd.DataFrame:
         """Execute raw SQL against the DuckDB analytical engine.
 
-        This is an explicit escape hatch for analytical workloads
-        (scanners, ranking, feature engineering) that benefit from
-        direct SQL.
-
-        Uses a short-lived read-only connection from the pool.
+        Uses a short-lived read-only connection from the sanctioned pool.
         """
-        import duckdb
+        from domain.ports.data_catalog import DEFAULT_DATA_PATHS
+        from datalake.core.duckdb_utils import duckdb_connection
 
-        # Use a short-lived in-memory connection for ad-hoc queries.
-        # For queries that reference the catalog, callers should use
-        # the catalog path explicitly in their SQL.
-        conn = duckdb.connect(":memory:")
-        try:
+        with duckdb_connection(DEFAULT_DATA_PATHS.catalog_path, read_only=True) as conn:
             if params:
                 return conn.execute(sql, params).fetchdf()
             return conn.execute(sql).fetchdf()
-        finally:
-            conn.close()
 
     # ── Convenience pass-throughs ───────────────────────────────────
 

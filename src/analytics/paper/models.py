@@ -20,6 +20,7 @@ from domain.portfolio_projection import PortfolioProjector
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
 from domain.trading_costs import CommissionModel, IndianMarketFees
+from domain.ports.time_service import get_current_clock
 
 OrderSide = Side  # backward-compat alias (canonical Side)
 
@@ -317,7 +318,7 @@ class PaperSession:
             side=side,
             entry_price=float(pos.avg_price),
             quantity=abs(pos.quantity),
-            entry_time=meta.entry_time if meta else datetime.now(),
+            entry_time=meta.entry_time if meta else get_current_clock().now(),
             current_price=float(pos.ltp),
             stop_loss=meta.stop_loss if meta else None,
             take_profit=meta.take_profit if meta else None,

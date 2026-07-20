@@ -110,9 +110,10 @@ class DailyPnlTracker:
         from datetime import datetime
 
         from domain.constants.market import IST as ist
+        from domain.ports.time_service import get_current_clock
 
         reset_date = datetime.fromtimestamp(self._last_reset_at, tz=ist).date()
-        today = datetime.now(ist).date()
+        today = get_current_clock().exchange_now("NSE").date()
         return reset_date < today
 
     def _maybe_publish_risk_limit_breach(self, pnl: Decimal, capital: Decimal) -> None:

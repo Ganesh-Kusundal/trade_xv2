@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from application.oms.order_manager import OrderManager
-from application.oms.risk_manager import RiskConfig, RiskManager
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from domain import OrderStatus, OrderType, ProductType, Side
 
 

@@ -21,7 +21,7 @@ from domain.events.types import DomainEvent, EventType
 
 from application.oms import PositionManager, RiskManager, TradingContext
 from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-from application.oms.risk_manager import RiskConfig
+from application.oms._internal.risk_manager import RiskConfig
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.event_bus.processed_trade_repository import ProcessedTradeRepository
 

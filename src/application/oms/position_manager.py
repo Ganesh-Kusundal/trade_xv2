@@ -15,13 +15,13 @@ from domain.entities import Position, Trade
 from domain.portfolio_projection import project_trade
 from domain.events.types import DomainEvent, EventType
 from domain.symbols import make_position_key
+import logging
+
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
 from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
-from application.observability import get_logger
 from domain.state_machine import IllegalTransitionError, StateMachine
-from application.observability import trace_operation
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PositionManager:
@@ -73,7 +73,6 @@ class PositionManager:
 
     # ── Public API ──────────────────────────────────────────────────────────
 
-    @trace_operation("position_manager.apply_trade")
     def apply_trade(self, trade: Trade) -> Position:
         """Apply a trade to the position book and return the new position.
 
@@ -298,7 +297,6 @@ class PositionManager:
 
     # ── Event handlers ───────────────────────────────────────────────────────
 
-    @trace_operation("position_manager.on_trade")
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the event bus.
 

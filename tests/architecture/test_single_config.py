@@ -35,7 +35,7 @@ def test_no_duplicate_settings_modules():
     """No duplicate settings modules should exist inside src/config/.
 
     The config package may contain focused sub-modules (schema, validator,
-    feature_flags, …) but must NOT contain multiple competing 'settings'
+    profiles, …) but must NOT contain multiple competing 'settings'
     files that each define their own config loading logic.
     """
     py_files = list(_CONFIG_DIR.glob("*.py"))
@@ -111,6 +111,12 @@ def test_app_config_is_central():
 
 
 # ── 5. No scattered os.getenv in non-config modules ─────────────────────
+
+
+@pytest.mark.architecture
+def test_feature_flags_module_removed():
+    """FeatureFlags subsystem removed; toggles live in config.schema env vars."""
+    assert not (_CONFIG_DIR / "feature_flags.py").exists()
 
 
 @pytest.mark.architecture

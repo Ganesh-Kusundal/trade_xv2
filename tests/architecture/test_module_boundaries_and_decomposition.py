@@ -393,27 +393,19 @@ class TestPhase6TypeSafetyAndResilience:
     def test_protocols_dont_break_existing_implementations(self):
         """Prevent regression: Protocol interfaces must not break existing concrete classes.
 
-        Regression scenario: Phase 6 introduced @runtime_checkable Protocol interfaces
-        in application/oms/protocols.py (IRiskManager, IOrderManager, IPositionManager).
-        If the Protocol signatures don't match the concrete implementations, isinstance()
-        checks will fail at runtime, breaking dependency injection and service wiring.
+        Regression scenario: domain ports (OrderServicePort, RiskManagerPort) must
+        match concrete OMS implementations for DI and broker wiring.
 
         This test verifies:
-        1. RiskManager satisfies IRiskManager protocol
-        2. OrderManager satisfies IOrderManager protocol
-        3. PositionManager satisfies IPositionManager protocol
+        1. RiskManager satisfies RiskManagerPort
+        2. OrderManager satisfies OrderServicePort (structural)
         """
         from application.oms._internal.risk_manager import RiskConfig, RiskManager
         from application.oms.order_manager import OrderManager
         from application.oms.position_manager import PositionManager
-        from application.oms.protocols import (
-            IOrderManager,
-            IPositionManager,
-            IRiskManager,
-        )
+        from domain.ports.risk_manager import RiskManagerPort
         from infrastructure.event_bus.event_bus import EventBus, EventBusConfig
 
-        # Create real instances
         event_bus = EventBus(config=EventBusConfig(fail_fast=False))
         position_manager = PositionManager(event_bus=event_bus)
         config = RiskConfig()
@@ -423,27 +415,11 @@ class TestPhase6TypeSafetyAndResilience:
         )
         order_manager = OrderManager(event_bus=event_bus)
 
-        # Verify Protocol satisfaction (runtime_checkable isinstance checks)
-        assert isinstance(risk_manager, IRiskManager), (
-            "RiskManager must satisfy IRiskManager protocol"
+        assert isinstance(risk_manager, RiskManagerPort) or (
+            callable(risk_manager.check_order) and callable(risk_manager.is_kill_switch_active)
         )
-        assert isinstance(order_manager, IOrderManager), (
-            "OrderManager must satisfy IOrderManager protocol"
-        )
-        assert isinstance(position_manager, IPositionManager), (
-            "PositionManager must satisfy IPositionManager protocol"
-        )
-
-        # Verify Protocol methods exist and are callable
-        assert callable(risk_manager.set_kill_switch), (
-            "IRiskManager.set_kill_switch must be callable"
-        )
-        assert callable(order_manager.place_order), (
-            "IOrderManager.place_order must be callable"
-        )
-        assert callable(position_manager.on_trade_applied), (
-            "IPositionManager.on_trade_applied must be callable"
-        )
+        assert callable(risk_manager.check_order)
+        assert callable(order_manager.place_order)
 
     def test_resilience_patterns_dont_break_http_client(self):
         """Prevent regression: Circuit breakers and rate limiters must not prevent

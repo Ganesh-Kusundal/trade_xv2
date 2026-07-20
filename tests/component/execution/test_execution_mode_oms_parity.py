@@ -8,9 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from application.execution.execution_mode_adapter import (
-    create_execution_adapter,
-)
+from application.execution.oms_backtest_adapter import create_execution_adapter
 from application.execution.gateway_submit import make_gateway_submit_fn
 from application.oms.factory import create_trading_context
 from application.oms.order_manager import OmsOrderCommand
@@ -73,25 +71,27 @@ def test_live_mode_uses_submit_fn_and_records_in_oms(trading_context) -> None:
 
 def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
     """Each mode must leave the order OPEN in OMS after placement."""
+    from runtime.execution_target import build_execution_engine
+
     gateway = MagicMock()
     gateway.place_order.return_value = OrderResponse.ok(order_id="LIVE-002")
 
     paper_adapter = create_execution_adapter("paper", trading_context)
     replay_adapter = create_execution_adapter("replay", trading_context)
-    submit_fn = make_gateway_submit_fn(gateway)
+    live_engine = build_execution_engine(trading_context, "live", gateway=gateway)
 
     cases = [
         ("paper", paper_adapter, None),
         ("replay", replay_adapter, None),
-        ("live", None, submit_fn),
+        ("live", None, live_engine),
     ]
     statuses: list[OrderStatus] = []
-    for mode, adapter, sf in cases:
+    for mode, adapter, engine in cases:
         cmd = _command(f"test:parity:status:{mode}")
         if adapter is not None:
-            result = adapter.place_order(cmd, submit_fn=sf)
+            result = adapter.place_order(cmd)
         else:
-            result = trading_context.order_manager.place_order(cmd, submit_fn=sf)
+            result = engine.place_order(cmd)
         assert result.success, mode
         statuses.append(result.order.status)
 

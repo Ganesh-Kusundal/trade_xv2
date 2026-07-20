@@ -14,6 +14,10 @@ verbatim — no local reimplementation.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("opentelemetry.sdk.trace")
+
 from decimal import Decimal
 
 from opentelemetry.sdk.trace import TracerProvider

@@ -122,60 +122,58 @@ def check_coverage(conn: duckdb.DuckDBPyConnection, min_rows: int = 100000) -> l
 
 
 def run_health_check(db_path: str | None = None, min_rows: int = 100000) -> int:
+    """Run all health checks. Returns 0 if healthy, 1 if issues found."""
     if db_path is None:
         from domain.ports.data_catalog import DEFAULT_DATA_PATHS
         db_path = str(DEFAULT_DATA_PATHS.catalog_path)
-    """Run all health checks. Returns 0 if healthy, 1 if issues found."""
     if not Path(db_path).exists():
         logger.error("Database not found: %s", db_path)
         return 1
 
-    conn = duckdb.connect(db_path, read_only=True)
-    logger.info("=" * 60)
-    logger.info("DATA HEALTH CHECK")
-    logger.info("=" * 60)
+    from datalake.core.duckdb_utils import duckdb_connection
 
-    all_issues: list[str] = []
+    with duckdb_connection(db_path, read_only=True) as conn:
+        logger.info("=" * 60)
+        logger.info("DATA HEALTH CHECK")
+        logger.info("=" * 60)
 
-    # Derive market hours from the active exchange calendar
-    try:
-        from datalake.exchange_registry import get_market_open_time, get_market_close_time
-        open_t = get_market_open_time()
-        close_t = get_market_close_time()
-        open_h, open_m = open_t.hour, open_t.minute
-        close_h, close_m = close_t.hour, close_t.minute
-    except Exception:
-        open_h, open_m, close_h, close_m = 9, 15, 15, 30
+        all_issues: list[str] = []
 
-    market_label = f"Market hours ({open_h}:{open_m:02d}-{close_h}:{close_m:02d})"
+        try:
+            from datalake.exchange_registry import get_market_open_time, get_market_close_time
+            open_t = get_market_open_time()
+            close_t = get_market_close_time()
+            open_h, open_m = open_t.hour, open_t.minute
+            close_h, close_m = close_t.hour, close_t.minute
+        except Exception:
+            open_h, open_m, close_h, close_m = 9, 15, 15, 30
 
-    checks = [
-        (market_label, lambda c: check_market_hours(c, open_h, open_m, close_h, close_m)),
-        ("Duplicate timestamps", check_duplicates),
-        ("OHLCV consistency", check_ohlcv_consistency),
-        ("Symbol normalization", check_symbols),
-        ("Future timestamps", check_future_timestamps),
-        ("Data coverage", lambda c: check_coverage(c, min_rows=min_rows)),
-    ]
+        market_label = f"Market hours ({open_h}:{open_m:02d}-{close_h}:{close_m:02d})"
 
-    for name, check_fn in checks:
-        logger.info("Checking: %s...", name)
-        issues = check_fn(conn)
-        if issues:
-            logger.warning("FAIL (%d issue(s))", len(issues))
-            for issue in issues:
-                all_issues.append(issue)
-                logger.warning(issue)
-        else:
-            logger.info("OK")
+        checks = [
+            (market_label, lambda c: check_market_hours(c, open_h, open_m, close_h, close_m)),
+            ("Duplicate timestamps", check_duplicates),
+            ("OHLCV consistency", check_ohlcv_consistency),
+            ("Symbol normalization", check_symbols),
+            ("Future timestamps", check_future_timestamps),
+            ("Data coverage", lambda c: check_coverage(c, min_rows=min_rows)),
+        ]
 
-    conn.close()
+        for name, check_fn in checks:
+            logger.info("Checking: %s...", name)
+            issues = check_fn(conn)
+            if issues:
+                logger.warning("FAIL (%d issue(s))", len(issues))
+                for issue in issues:
+                    all_issues.append(issue)
+                    logger.warning(issue)
+            else:
+                logger.info("OK")
 
-    logger.info("=" * 60)
-    if all_issues:
-        logger.warning("FAILED: %d issue(s) found", len(all_issues))
-        return 1
-    else:
+        logger.info("=" * 60)
+        if all_issues:
+            logger.warning("FAILED: %d issue(s) found", len(all_issues))
+            return 1
         logger.info("ALL CHECKS PASSED")
         return 0
 

@@ -10,7 +10,7 @@ from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from application.oms.protocols import IReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.ports import (
     DeadLetterQueuePort,
@@ -58,7 +58,7 @@ def create_trading_context(
         reconciliation_interval_seconds: Seconds between reconciliation runs.
         risk_config: Custom risk configuration.
         capital_fn: Callable returning current available capital.
-        event_bus: Pre-existing EventBus (created if *None*).
+        event_bus: Pre-existing EventBus (required; composition root must inject).
         order_manager: Pre-existing OrderManager.
         position_manager: Pre-existing PositionManager.
         risk_manager: Pre-existing RiskManager.

@@ -11,7 +11,8 @@ from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import fetch_history, fetch_option_chain, fetch_quote
+from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
+from interface.ui.commands._broker import broker_id_from
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     try:
         try:
-            fetch_quote(None, "TCS", default=BrokerId.DHAN, **env)
+            get_quote(broker_id_from(None, default=BrokerId.DHAN), "TCS", **env)
             checks["Login Status"] = ("Connected", "green")
         except Exception as exc:
             logger.debug("dashboard_check_failed", extra={"check": "Login Status", "error": str(exc)})
@@ -33,7 +34,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         try:
             t0 = time.time()
-            fetch_history(None, "TCS", days=5, default=BrokerId.DHAN, **env)
+            get_history(broker_id_from(None, default=BrokerId.DHAN), "TCS", days=5, **env)
             latency = (time.time() - t0) * 1000
             checks["Historical Status"] = (f"Healthy ({latency:.0f}ms)", "green")
         except Exception as exc:
@@ -44,7 +45,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         try:
             t0 = time.time()
-            fetch_quote(None, "TCS", default=BrokerId.DHAN, **env)
+            get_quote(broker_id_from(None, default=BrokerId.DHAN), "TCS", **env)
             latency = (time.time() - t0) * 1000
             checks["Quote Status"] = (f"Healthy ({latency:.0f}ms)", "green")
         except Exception as exc:
@@ -53,7 +54,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         try:
             t0 = time.time()
-            chain = fetch_option_chain(None, "NIFTY", default=BrokerId.DHAN, **env)
+            chain = get_option_chain(broker_id_from(None, default=BrokerId.DHAN), "NIFTY", **env)
             latency = (time.time() - t0) * 1000
             strikes = len(getattr(chain, "strikes", []) or [])
             checks["Option Chain"] = (f"Healthy ({strikes} strikes, {latency:.0f}ms)", "green")

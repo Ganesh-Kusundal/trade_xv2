@@ -30,7 +30,7 @@ from application.oms.context import TradingContext
 from application.oms.factory import create_trading_context
 from application.oms.order_manager import OrderRequest
 from application.oms.position_manager import PositionManager
-from application.oms.risk_manager import RiskConfig, RiskManager
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from domain import (
     Order,
     OrderStatus,

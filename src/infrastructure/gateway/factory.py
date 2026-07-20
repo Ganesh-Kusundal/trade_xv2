@@ -114,15 +114,15 @@ def _ensure_default_builders() -> None:
 
     Builders live in ``runtime.broker_builders`` (composition root) and are
     imported lazily so ``infrastructure`` never statically depends on broker
-    packages.
+    packages at import time.
     """
     if _GATEWAY_BUILDERS:
         return
     from runtime.broker_builders import (
-        create_dhan_gateway,
-        create_upstox_gateway,
-        create_paper_gateway,
         create_datalake_gateway,
+        create_dhan_gateway,
+        create_paper_gateway,
+        create_upstox_gateway,
     )
 
     register_gateway_builder("dhan", create_dhan_gateway)

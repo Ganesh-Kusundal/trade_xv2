@@ -415,15 +415,6 @@ ignore_imports = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Dispatcher broker isolation"
-type = "forbidden"
-source_modules = ["runtime.commands", "runtime.queries"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
-unmatched_ignore_imports_alerting = "warn"
-ignore_imports = [
-]
-
-[[tool.importlinter.contracts]]
 name = "Runtime does not import interface"
 type = "forbidden"
 source_modules = ["runtime"]

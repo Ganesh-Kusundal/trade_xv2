@@ -29,7 +29,7 @@ DEFAULT_SYMBOL = "RELIANCE"
 DEFAULT_QUANTITY = 10
 
 from application.oms.order_manager import OmsOrderCommand
-from application.oms.risk_manager import RiskConfig
+from application.oms._internal.risk_manager import RiskConfig
 from domain import (
     Order,
     OrderStatus,

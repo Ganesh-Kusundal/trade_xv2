@@ -361,7 +361,7 @@ class HttpObservabilityServer(ManagedService):
         port_holder: list[int] = []
 
         def _serve() -> None:
-            from runtime.event_loop import new_dedicated_loop
+            from domain.ports.async_bridge import new_dedicated_loop
 
             loop = new_dedicated_loop()
             asyncio.set_event_loop(loop)

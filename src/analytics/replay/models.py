@@ -25,6 +25,7 @@ from analytics.strategy.models import Signal
 from domain.portfolio_projection import PortfolioProjector
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
+from domain.ports.time_service import get_current_clock
 
 # ---------------------------------------------------------------------------
 # ReplayItem — single item in the merged replay stream
@@ -375,7 +376,7 @@ class ReplaySession:
             side="BUY" if pos.quantity > 0 else "SELL",
             entry_price=float(pos.avg_price),
             quantity=abs(pos.quantity),
-            entry_time=meta.entry_time if meta else datetime.now(timezone.utc),
+            entry_time=meta.entry_time if meta else get_current_clock().now(),
             stop_loss=meta.stop_loss if meta else None,
             target=meta.target if meta else None,
             strategy=meta.strategy if meta else "",

@@ -209,7 +209,14 @@ def scan_afternoon_expansion(
       AND h.hit_ge5 >= {p['MIN_HIT_GE5']}
     ORDER BY h.hit_ge5 DESC, t.rvol DESC, h.avg_mfe DESC
     """
-    return duckdb.connect().execute(sql).fetchdf()
+    from datalake.core.duckdb_utils import get_memory_pool
+
+    pool = get_memory_pool()
+    conn = pool.acquire()
+    try:
+        return conn.execute(sql).fetchdf()
+    finally:
+        pool.release(conn)
 
 
 def industry_diversified_top_k(
@@ -261,12 +268,17 @@ def run_scan(
     sector-diversified subset (empty if ``pick`` is False).
     """
     cfg = config or AfternoonExpansionConfig()
-    con = duckdb.connect()
-    date = resolve_trade_date(con, trade_date, root=root)
+    from datalake.core.duckdb_utils import get_memory_pool
+
+    pool = get_memory_pool()
+    conn = pool.acquire()
+    date = resolve_trade_date(conn, trade_date, root=root)
     passes = scan_afternoon_expansion(date, config=cfg, root=root)
     mapper = SectorMapper.default()
     passes = mapper.assign_sectors(passes)
     if not pick:
+        pool.release(conn)
         return passes, passes.iloc[0:0]
     picks = industry_diversified_top_k(passes, k=cfg.top_k)
+    pool.release(conn)
     return passes, picks

@@ -18,6 +18,7 @@ def test_start_subscribes_and_stop_unsubscribes_from_candidate_events() -> None:
         strategy_evaluator=mock.MagicMock(),
         feature_fetcher=mock.MagicMock(),
         config=OrchestratorConfig(),
+        execution_engine=mock.MagicMock(),
     )
 
     orchestrator.start()
@@ -41,6 +42,7 @@ def test_start_is_idempotent_when_already_subscribed() -> None:
         strategy_evaluator=mock.MagicMock(),
         feature_fetcher=mock.MagicMock(),
         config=OrchestratorConfig(),
+        execution_engine=mock.MagicMock(),
     )
 
     orchestrator.attach_event_subscription()

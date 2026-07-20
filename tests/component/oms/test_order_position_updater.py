@@ -14,7 +14,7 @@ from decimal import Decimal
 
 import pytest
 
-from application.oms.order_position_updater import OrderPositionUpdater
+from application.oms._internal.order_position_updater import OrderPositionUpdater
 from domain import Order, Trade
 from domain.types import OrderStatus, OrderType, ProductType, Side
 

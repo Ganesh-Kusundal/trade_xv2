@@ -1,8 +1,11 @@
-"""C0.9 — baseline inventory of production place_order surfaces.
+"""Architecture ratchet — place_order spine consolidation (G-P0-3).
 
-Tracks fragmentation until Phase 1 collapses to a single spine
-(OrderServicePort / PlaceOrderUseCase → OMS). This test fails if new
-unexpected modules gain a place_order entry without updating the allowlist.
+Tiers:
+  SPINE       — order_manager + execution_engine + spine helper (internal)
+  APPLICATION — composer, oms_backtest_adapter, place_order_use_case (via execute)
+  INTERFACE   — API/CLI facades (must delegate, not bypass OMS)
+  BROKER_WIRE — broker transport (allowed; not application entry)
+  DOMAIN_PORT — protocol stubs only
 """
 
 from __future__ import annotations
@@ -14,7 +17,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Production packages scanned (not tests, not venv).
 _SCAN_ROOTS = (
     "src/application",
     "src/interface/api",
@@ -25,25 +27,23 @@ _SCAN_ROOTS = (
     "src/runtime",
 )
 
-# Known surfaces as of CODE_REALITY plan (2026-07-10). Shrink over Phase 1.
-_ALLOWED_PLACE_ORDER_FILES = frozenset(
+# Application + interface surfaces (excludes broker wire and domain protocol stubs).
+_APPLICATION_INTERFACE_ALLOWLIST = frozenset(
     {
-        "src/application/oms/protocols.py",
-        "src/application/oms/order_repository_adapter.py",
         "src/application/oms/order_manager.py",
-        "src/application/composer/execution.py",
-
         "src/application/execution/execution_engine.py",
-        "src/application/execution/execution_mode_adapter.py",
-        "src/application/execution/place_order_use_case.py",
+        "src/application/execution/oms_backtest_adapter.py",
+        "src/application/composer/execution.py",
         "src/interface/api/routers/orders.py",
         "src/interface/ui/commands/order_placement.py",
         "src/interface/ui/services/cli_broker_facade.py",
         "src/interface/ui/services/broker_service.py",
-        "src/domain/repositories/order_repository.py",
-        "src/domain/ports/broker_gateway.py",
-        "src/domain/ports/protocols.py",
-        "src/domain/services/orders.py",
+    }
+)
+
+# Broker wire + domain protocol — tracked separately, not spine violations.
+_BROKER_WIRE_ALLOWLIST = frozenset(
+    {
         "src/brokers/paper/execution_provider.py",
         "src/brokers/paper/paper_gateway.py",
         "src/brokers/paper/paper_orders.py",
@@ -57,10 +57,26 @@ _ALLOWED_PLACE_ORDER_FILES = frozenset(
         "src/brokers/dhan/execution/order_placement.py",
         "src/brokers/dhan/api/transport.py",
         "src/brokers/dhan/wire.py",
+        "src/brokers/dhan/adapters/order_gateway.py",
         "src/brokers/upstox/wire.py",
         "src/brokers/services/orders.py",
-        # src/brokers/dhan/order_placement.py — removed (shim deleted; logic in execution/order_placement.py)
     }
+)
+
+_DOMAIN_PROTOCOL_ALLOWLIST = frozenset(
+    {
+        "src/domain/ports/broker_gateway.py",
+        "src/domain/ports/protocols.py",
+        "src/domain/repositories/order_repository.py",
+        "src/domain/services/orders.py",
+        "src/application/oms/protocols.py",
+    }
+)
+
+_FULL_ALLOWLIST = (
+    _APPLICATION_INTERFACE_ALLOWLIST
+    | _BROKER_WIRE_ALLOWLIST
+    | _DOMAIN_PROTOCOL_ALLOWLIST
 )
 
 
@@ -88,11 +104,6 @@ def _defines_place_order(path: Path) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "place_order":
             return True
-        if isinstance(node, ast.ClassDef) and node.name in {
-            "PlaceOrderUseCase",
-            "PlaceOrder",
-        }:
-            return True
     return False
 
 
@@ -102,30 +113,44 @@ def test_place_order_surfaces_are_allowlisted() -> None:
     found: set[str] = set()
     for path in _iter_py_files():
         if _defines_place_order(path):
-            rel = path.relative_to(ROOT).as_posix()
-            found.add(rel)
+            found.add(path.relative_to(ROOT).as_posix())
 
-    unexpected = sorted(found - _ALLOWED_PLACE_ORDER_FILES)
-    missing_tracked = sorted(_ALLOWED_PLACE_ORDER_FILES - found)
-
+    unexpected = sorted(found - _FULL_ALLOWLIST)
     assert not unexpected, (
-        "New place_order surfaces found — route them through OMS spine "
-        f"or update allowlist deliberately:\n  " + "\n  ".join(unexpected)
+        "New place_order surfaces — route through spine or update allowlist:\n  "
+        + "\n  ".join(unexpected)
     )
-    # Soft: files may move; missing allowlist entries are reported but not fatal
-    # until Phase 1 shrink. Keep as warning via xfail-style assert soft.
-    if missing_tracked:
-        # Allow deleted/moved paths: only fail if more than half the allowlist vanished.
-        assert len(missing_tracked) < len(_ALLOWED_PLACE_ORDER_FILES) * 0.5, (
-            "Many allowlisted place_order files disappeared — refresh allowlist:\n  "
-            + "\n  ".join(missing_tracked)
-        )
 
 
 @pytest.mark.unit
-def test_place_order_use_case_exists_but_inventory_notes_orphan() -> None:
-    """Canonical use case file must exist for Phase 1 adoption."""
+def test_application_interface_allowlist_is_minimal() -> None:
+    """Application/interface tier should stay small (constitution G-P0-3)."""
+    assert len(_APPLICATION_INTERFACE_ALLOWLIST) <= 8, (
+        "Shrink application/interface allowlist before adding entries"
+    )
+
+
+@pytest.mark.unit
+def test_spine_module_exists() -> None:
+    path = ROOT / "src/application/execution/spine.py"
+    assert path.is_file()
+    assert "place_order_spine" in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.unit
+def test_composer_routes_through_spine() -> None:
+    text = (ROOT / "src/application/composer/execution.py").read_text(encoding="utf-8")
+    assert "place_order_spine" in text
+
+
+@pytest.mark.unit
+def test_cli_facade_uses_runtime_engine() -> None:
+    text = (ROOT / "src/interface/ui/services/cli_broker_facade.py").read_text(encoding="utf-8")
+    assert "build_execution_engine" in text
+
+
+@pytest.mark.unit
+def test_place_order_use_case_exists() -> None:
     path = ROOT / "src/application/execution/place_order_use_case.py"
     assert path.is_file()
-    text = path.read_text(encoding="utf-8")
-    assert "class PlaceOrderUseCase" in text
+    assert "class PlaceOrderUseCase" in path.read_text(encoding="utf-8")

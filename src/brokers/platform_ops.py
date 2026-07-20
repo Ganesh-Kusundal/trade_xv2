@@ -2,7 +2,7 @@
 
 Single import surface for ``verify``, ``certify``, ``doctor``, ``diagnose``,
 ``health``, and ``benchmark``. Used by broker CLI, MCP, tradex certify, and
-``interface.ui.services.broker_ops``.
+Used by broker CLI, MCP, tradex certify, and UI doctor command.
 """
 
 from __future__ import annotations

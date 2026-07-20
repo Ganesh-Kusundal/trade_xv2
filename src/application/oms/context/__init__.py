@@ -20,13 +20,9 @@ from application.oms.event_log_replay import EventLogReplayService
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from application.oms.shutdown_coordinator import ShutdownCoordinator
-from application.oms.protocols import (
-    IBrokerGateway,
-    IReconciliationService,
-    ITradingOrchestrator,
-)
+from application.oms.protocols import IReconciliationService
 from application.oms.reconciliation_service import ReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager
+from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
 from domain.events.types import DomainEvent, EventType
 from domain.ports import (
@@ -108,7 +104,7 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         metrics: EventMetricsPort | None = None,
         metrics_registry: MetricsRegistryPort | None = None,
         dead_letter_queue: DeadLetterQueuePort | None = None,
-        orchestrator: ITradingOrchestrator | None = None,
+        orchestrator: Any | None = None,
         durable_order_store: OrderStorePort | None = None,
         execution_ledger: ExecutionLedgerPort | None = None,
         enable_durable_orders: bool | None = None,
@@ -260,7 +256,7 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
         if self._risk_manager is not None:
             self._risk_manager.reset_daily_pnl()
 
-        self._orchestrator: ITradingOrchestrator | None = orchestrator
+        self._orchestrator: Any | None = orchestrator
 
         # Shutdown thread-safety: _shutdown_lock prevents concurrent shutdown
         # attempts from both passing the guard simultaneously (TD-12).
@@ -305,21 +301,6 @@ class TradingContext(TradingContextLifecycleMixin, TradingContextWiringMixin):
     def orchestrator(self) -> Any | None:
         """Access the TradingOrchestrator if configured."""
         return self._orchestrator
-
-    @property
-    def command_dispatcher(self) -> Any | None:
-        """CQRS CommandDispatcher if attached by the composition root (ADR-012).
-
-        The composition root (tradex.session / runtime factory) may set this
-        attribute after construction; TradingContext does not build it itself
-        to avoid an application -> runtime dependency cycle.
-        """
-        return self._command_dispatcher if hasattr(self, "_command_dispatcher") else None
-
-    @property
-    def query_dispatcher(self) -> Any | None:
-        """CQRS QueryDispatcher if attached by the composition root (ADR-012)."""
-        return self._query_dispatcher if hasattr(self, "_query_dispatcher") else None
 
     def health(self) -> dict[str, Any]:
         """Snapshot of observability state for the SRE / alerting layer."""

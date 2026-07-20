@@ -19,6 +19,9 @@ DEFAULT_DATA_ROOT: str = "data/lake"
 DEFAULT_CATALOG_PATH: Path = Path("data/lake/catalog.duckdb")
 """Default path for DuckDB catalog database."""
 
+DEFAULT_INSTRUMENT_CACHE_DIR: Path = Path("data/cache/instruments")
+"""On-disk instrument master CSV cache (broker symbol downloads)."""
+
 
 @dataclass(frozen=True)
 class DataPaths:

@@ -230,26 +230,7 @@ def validate_candles(
 
 
 def validate_parquet_file(path: str | Path, symbol: str = "") -> dict:
-    """Validate a Parquet file and return a report.
+    """Validate a Parquet file and return a report."""
+    from datalake.quality.contract import validate_parquet_file as _validate
 
-    Returns
-    -------
-    Dict with keys: total_rows, valid_rows, invalid_rows, issues
-    """
-    df = pd.read_parquet(path)
-    if df.empty:
-        return {"total_rows": 0, "valid_rows": 0, "invalid_rows": 0, "issues": []}
-
-    total = len(df)
-    validated = validate_candles(df, symbol=symbol, drop_invalid=False)
-    issues = []
-
-    if validated.empty:
-        issues.append("all rows failed validation")
-
-    return {
-        "total_rows": total,
-        "valid_rows": len(validated),
-        "invalid_rows": total - len(validated),
-        "issues": issues,
-    }
+    return _validate(path, symbol=symbol)

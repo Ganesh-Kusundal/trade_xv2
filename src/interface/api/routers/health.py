@@ -36,7 +36,7 @@ async def health_check():
 
 async def _readiness_probe() -> ReadinessResponse:
     """Shared readiness logic for ``/readyz`` and ``/ready``."""
-    from application.services.api_readiness import evaluate_api_readiness
+    from application.services.production_readiness import evaluate_api_readiness
     from interface.api.deps import get_container
 
     try:

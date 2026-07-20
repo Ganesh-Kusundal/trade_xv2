@@ -39,18 +39,10 @@ import threading
 from collections import deque
 from typing import Any
 
-from domain.events.types import EventType
+from domain.events.capital_events import is_capital_event
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventHandler
 
 logger = logging.getLogger(__name__)
-
-# Critical event types are never dropped — they overflow the queue rather
-# than being silently discarded. Normal events are dropped when full.
-CRITICAL_EVENT_TYPES: frozenset[str] = frozenset({
-    EventType.TRADE_APPLIED.value,
-    EventType.TRADE_FILLED.value,
-    EventType.ORDER_PLACED.value,
-})
 
 
 class AsyncEventBus:
@@ -103,7 +95,7 @@ class AsyncEventBus:
         Normal events are dropped when the queue is full, applying
         backpressure to prevent memory exhaustion.
         """
-        is_critical = event.event_type in CRITICAL_EVENT_TYPES
+        is_critical = is_capital_event(event.event_type)
 
         with self._lock:
             if len(self._queue) >= self._max_queue_size:
@@ -218,3 +210,46 @@ class AsyncEventBus:
     def event_bus(self) -> EventBus:
         """Access the underlying synchronous EventBus."""
         return self._bus
+
+    @property
+    def replay_mode(self) -> bool:
+        return self._bus.replay_mode
+
+    def set_replay_mode(self, enabled: bool) -> None:
+        self._bus.set_replay_mode(enabled)
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate EventBus surface (metrics, event_log, etc.) to sync bus."""
+        return getattr(self._bus, name)
+
+    def as_managed_service(self) -> "AsyncEventBusManagedService":
+        """Return a LifecycleManager-compatible wrapper."""
+        return AsyncEventBusManagedService(self)
+
+
+class AsyncEventBusManagedService:
+    """LifecycleManager-compatible wrapper for :class:`AsyncEventBus`."""
+
+    name: str = "async_event_bus"
+
+    def __init__(self, bus: AsyncEventBus) -> None:
+        self._bus = bus
+
+    def start(self) -> None:
+        self._bus.start()
+
+    def stop(self, timeout_seconds: float = 5.0) -> None:
+        self._bus.stop(timeout=timeout_seconds)
+
+    def health(self) -> Any:
+        from domain.lifecycle_health import HealthState, HealthStatus
+        from domain.ports.time_service import get_current_clock
+
+        stats = self._bus.get_stats()
+        alive = bool(stats.get("worker_alive"))
+        return HealthStatus(
+            state=HealthState.HEALTHY if alive else HealthState.DEGRADED,
+            service=self.name,
+            last_check=get_current_clock().now(),
+            detail=f"queue_depth={stats.get('queue_depth', 0)}",
+        )

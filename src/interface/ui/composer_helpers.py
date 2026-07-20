@@ -48,12 +48,12 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
         List of broker IDs to initialize. If None, auto-detects from env.
     """
     try:
-        from interface.ui.services.broker_facade import DhanBrokerGateway
+        from interface.ui.services.broker_registry import DhanBrokerGateway
     except ImportError:
         DhanBrokerGateway = None  # noqa: N806
 
     try:
-        from interface.ui.services.broker_facade import PaperBrokerGateway
+        from interface.ui.services.broker_registry import PaperBrokerGateway
     except ImportError:
         PaperBrokerGateway = None  # noqa: N806
     if broker_ids is None:

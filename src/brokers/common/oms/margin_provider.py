@@ -3,7 +3,7 @@
 **Not the OMS** — the canonical OMS is :mod:`application.oms`. This module
 is a broker-side adapter only: it bridges broker margin APIs to the
 :class:`~brokers.common.api.MarginProvider` / domain margin port used by
-:class:`~application.oms.risk_manager.RiskManager`.
+:class:`~application.oms._internal.risk_manager.RiskManager`.
 
 Design rules
 ------------

@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from application.services.api_readiness import evaluate_api_readiness
+from application.services.production_readiness import evaluate_api_readiness
 
 
 def test_readiness_fails_without_event_bus_or_oms() -> None:

@@ -226,7 +226,7 @@ class TestMockBroker:
         from decimal import Decimal
 
         from application.oms.context import TradingContext
-        from application.oms.risk_manager import RiskConfig
+        from application.oms._internal.risk_manager import RiskConfig
 
         ctx = build_test_trading_context(
             risk_config=RiskConfig(max_position_pct=Decimal("1")),

@@ -12,7 +12,6 @@ import threading
 from typing import Any  # Only for signal handler frame type
 
 from application.oms.context._types import CancellationResult
-from application.oms.protocols import IBrokerGateway
 from domain.lifecycle_health import HealthState, HealthStatus
 from domain.ports.lifecycle import ManagedServicePort
 from domain.ports.time_service import get_current_clock
@@ -34,12 +33,12 @@ class TradingContextLifecycleMixin(ManagedServicePort):
 
     # ManagedService protocol attributes
     name: str = "oms.trading_context"
-    _shutdown_gateway: IBrokerGateway | None = None  # Injectable gateway for testing
+    _shutdown_gateway: Any | None = None  # Injectable gateway for testing
 
     async def shutdown(
         self,
         cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> dict:
         """Graceful shutdown sequence.
 
@@ -76,7 +75,7 @@ class TradingContextLifecycleMixin(ManagedServicePort):
     def _execute_shutdown_sequence(
         self,
         cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> dict:
         """Shared shutdown steps — delegates to :class:`ShutdownCoordinator`."""
         effective_gateway = gateway or self._shutdown_gateway
@@ -87,7 +86,7 @@ class TradingContextLifecycleMixin(ManagedServicePort):
 
     def cancel_all_open_orders(
         self,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> CancellationResult:
         """Cancel all open orders, optionally via a broker gateway.
 

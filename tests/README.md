@@ -4,8 +4,6 @@ Tests are the **living specification** of platform guarantees. They describe
 behavior that must remain true across refactors — not the history of how a
 change was introduced.
 
-**Consolidation plan:** see [`CONSOLIDATION_PLAN.md`](./CONSOLIDATION_PLAN.md).
-
 ## Pyramid + source hierarchy
 
 ```text

@@ -27,7 +27,6 @@ from domain.reconciliation import ReconciliationReport
 from domain.ports import EventBusPort
 from domain.lifecycle_health import HealthState, build_health
 from domain.ports.lifecycle import ManagedServicePort
-from application.observability import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +141,6 @@ class ReconciliationService(ManagedServicePort):
         """
         self._immediate_request.set()
 
-    @trace_operation("reconciliation.run_now")
     def run_now(self) -> ReconciliationReport | None:
         """Run reconciliation immediately."""
         return self._run_once()

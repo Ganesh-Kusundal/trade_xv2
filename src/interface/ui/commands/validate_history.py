@@ -9,7 +9,8 @@ from domain.enums import BrokerId
 from rich.console import Console
 from rich.table import Table
 
-from interface.ui.services.broker_ops import fetch_history_df
+from interface.ui.services.broker_ops import get_history
+from interface.ui.commands._broker import broker_id_from, history_as_df
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -29,7 +30,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         kw = {"env_path": str(env), "load_instruments": True}
         try:
             t0 = time.time()
-            df = fetch_history_df(None, symbol, days=30, default=broker_id, **kw)
+            df = history_as_df(get_history(broker_id_from(None, default=broker_id), symbol, days=30, **kw))
             latency = (time.time() - t0) * 1000
 
             rows = len(df)

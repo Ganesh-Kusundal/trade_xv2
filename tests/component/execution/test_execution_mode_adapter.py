@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from application.execution.execution_mode_adapter import (
+from application.execution.oms_backtest_adapter import (
     SimulatedOMSAdapter,
     create_execution_adapter,
 )
@@ -28,7 +28,7 @@ def test_create_execution_adapter_modes(trading_context) -> None:
 
 
 def test_create_execution_adapter_live_raises(trading_context) -> None:
-    with pytest.raises(ValueError, match="Unknown execution mode"):
+    with pytest.raises(ValueError, match="Live mode"):
         create_execution_adapter("live", trading_context)
 
 

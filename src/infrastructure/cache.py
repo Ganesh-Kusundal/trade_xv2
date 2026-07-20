@@ -188,14 +188,3 @@ def async_cached(cache: Cache | None = None, ttl: int = 300) -> Callable[[F], F]
 
 
 memory_cache = MemoryCache()
-
-
-def create_cache() -> Cache:
-    """Pick Redis or Memory cache based on environment.
-
-    Returns :class:`RedisCache` when ``REDIS_URL`` is set **and** the
-    ``redis`` package is installed; otherwise returns :class:`MemoryCache`.
-    """
-    from infrastructure.cache_redis import get_redis_cache
-
-    return get_redis_cache()

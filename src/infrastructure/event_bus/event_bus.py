@@ -34,6 +34,8 @@ from typing import TYPE_CHECKING, Any
 
 from domain.events import DomainEvent
 from domain.events.types import EventType, canonical_event_types
+from infrastructure.event_bus.event_idempotency_guard import EventIdempotencyGuard
+from infrastructure.event_bus.event_persistence_hook import EventPersistenceHook
 
 if TYPE_CHECKING:
     from domain.ports.observability import AlertingEnginePort, EventMetricsPort
@@ -137,22 +139,23 @@ class EventBus:
         self._alerting_thread: threading.Thread | None = None
         self._alerting_stop = threading.Event()
 
-        # Idempotency - track processed event_ids to prevent duplicate processing.
-        # When an ``IdempotencyService`` is injected it is the SINGLE authority
-        # for event dedup (TTL-based, with backend fallback). The local bounded
-        # set below is only a fallback used when no service is wired, so there is
-        # never a double-write to two independent dedup stores.
-        self._processed_events: deque[str] = deque(maxlen=self._config.max_processed_events)
-        self._processed_event_ids: set[str] = set()
-        self._idempotency_lock = threading.Lock()
-        self._idempotency = idempotency
-        self._idempotency_ttl_seconds = self._config.idempotency_ttl_seconds
+        self._idempotency_guard = EventIdempotencyGuard(
+            idempotency=idempotency,
+            ttl_seconds=self._config.idempotency_ttl_seconds,
+            max_processed_events=self._config.max_processed_events,
+        )
+        self._persistence = EventPersistenceHook(
+            event_log,
+            logging_enabled=self._logging_enabled,
+            replay_mode=self._replay_mode,
+            dead_letter_queue=dead_letter_queue,
+            metrics=metrics,
+            fail_fast=self._fail_fast,
+        )
         self._enforce_event_types = self._config.enforce_event_types
         self._known_event_types = canonical_event_types()
 
-        # Start background alerting thread if engine is provided.
-        if self._alerting_engine is not None:
-            self._start_alerting()
+        # Alerting starts via LifecycleManager (EventBusAlertingService), not ctor.
 
     @property
     def replay_mode(self) -> bool:
@@ -172,6 +175,7 @@ class EventBus:
         method instead of touching ``_replay_mode`` directly.
         """
         self._replay_mode = enabled
+        self._persistence.set_replay_mode(enabled)
 
     @property
     def logging_enabled(self) -> bool:
@@ -190,6 +194,7 @@ class EventBus:
             enabled: True to persist events, False to suppress persistence.
         """
         self._logging_enabled = enabled
+        self._persistence.set_logging_enabled(enabled)
 
     def set_event_log(self, event_log: Any | None) -> None:
         """Attach or replace the persistent event log (ENG-010).
@@ -199,24 +204,7 @@ class EventBus:
         reconstructing the bus (which would drop subscribers).
         """
         self._event_log = event_log
-
-    @staticmethod
-    def _is_capital_event(event_type: str) -> bool:
-        """True for money-path events that must fsync on BufferedEventLog."""
-        et = (event_type or "").upper()
-        if et in {
-            EventType.TRADE.value,
-            EventType.TRADE_APPLIED.value,
-            EventType.TRADE_FILLED.value,
-            EventType.ORDER_PLACED.value,
-            EventType.ORDER_UPDATED.value,
-            EventType.ORDER_CANCELLED.value,
-            EventType.ORDER_REJECTED.value,
-            EventType.ORDER_SUBMITTED.value,
-        }:
-            return True
-        # Prefix match for ORDER_* / TRADE_* / POSITION_* capital lifecycle.
-        return et.startswith("ORDER_") or et.startswith("TRADE_") or et.startswith("POSITION_")
+        self._persistence.set_event_log(event_log)
 
     @property
     def alerting_engine(self) -> AlertingEnginePort | None:
@@ -388,49 +376,7 @@ class EventBus:
     # ── Idempotency ─────────────────────────────────────────────────────
 
     def _is_duplicate_event(self, event: DomainEvent) -> bool:
-        """Check if event has already been processed (idempotency guard).
-
-        Under at-least-once delivery (websockets, network retries),
-        duplicate events can arrive.
-
-        Authority
-        ----------
-        If an :class:`IdempotencyService` was injected into the bus, it is the
-        SINGLE authority for event dedup: ``contains``/``put`` are routed there
-        (TTL-based, with backend fallback) and the local bounded set is not
-        touched — so there is no double-write to two independent stores.
-
-        When no service is wired, a bounded in-memory set is used as a
-        degraded fallback (per-bus-lifetime, no persistence).
-
-        Returns True if duplicate (should be skipped), False if new.
-        """
-        event_id = event.event_id
-        if not event_id:
-            return False  # No ID, can't check - allow through
-
-        # Single authority path: delegate to the injected IdempotencyService.
-        if self._idempotency is not None:
-            if self._idempotency.contains(event_id):
-                return True
-            self._idempotency.put(event_id, event_id, self._idempotency_ttl_seconds)
-            return False
-
-        # Fallback path (no service injected): local bounded set.
-        with self._idempotency_lock:
-            if event_id in self._processed_event_ids:
-                return True  # Duplicate
-
-            # Mark as processed
-            self._processed_event_ids.add(event_id)
-            self._processed_events.append(event_id)
-
-            # Evict oldest if cache is full (handled by deque maxlen)
-            if len(self._processed_events) == self._processed_events.maxlen:
-                oldest = self._processed_events.popleft()
-                self._processed_event_ids.discard(oldest)
-
-            return False
+        return self._idempotency_guard.is_duplicate(event)
 
     # ── Publishing ────────────────────────────────────────────────────────
 
@@ -470,36 +416,7 @@ class EventBus:
                 self._metrics.add_timestamped_counter(event.event_type, "published")
 
             # 1. Persist first (so a crash mid-dispatch can be recovered).
-            # Skip persistence in replay mode (no recursive writes).
-            # Capital events force sync/fsync on BufferedEventLog.
-            if self._event_log is not None and self._logging_enabled and not self._replay_mode:
-                try:
-                    sync = self._is_capital_event(event.event_type)
-                    try:
-                        self._event_log.append(event, sync_mode=sync)  # type: ignore[call-arg]
-                    except TypeError:
-                        # Plain EventLog.append has no sync_mode kwarg.
-                        self._event_log.append(event)
-                except Exception as exc:
-                    # Surface, never swallow.
-                    if self._metrics is not None:
-                        self._metrics.add_timestamped_counter(
-                            event.event_type, f"log_error:{type(exc).__name__}"
-                        )
-                    logger.exception(
-                        "EventBus: failed to persist %s to log: %s",
-                        event.event_type,
-                        exc,
-                    )
-                    if self._dead_letter_queue is not None:
-                        self._dead_letter_queue.push_failure(
-                            event=event,
-                            handler_id="<event_log>",
-                            exc=exc,
-                            traceback=traceback.format_exc(),
-                        )
-                    if self._fail_fast:
-                        raise
+            self._persistence.persist(event)
 
             # 2. Dispatch (snapshot handlers to be lock-safe).
             # Skip handler dispatch during replay to prevent TRADE_APPLIED re-publishing

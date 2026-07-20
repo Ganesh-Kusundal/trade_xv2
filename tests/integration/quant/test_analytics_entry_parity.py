@@ -140,7 +140,7 @@ def test_analytics_entry_points_parity_rejects_risk_blocked_order() -> None:
     """
     from decimal import Decimal
 
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
     from domain.events.types import EventType
 
     pipeline = FeaturePipeline()
@@ -234,7 +234,7 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     from decimal import Decimal
 
     from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
     from domain.events.types import EventType
 
     pipeline = FeaturePipeline()
@@ -315,7 +315,7 @@ def test_paper_flipflop_journals_trades_and_binds_capital() -> None:
     from decimal import Decimal
 
     from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
 
     pipeline = FeaturePipeline()
     strategy = StrategyPipeline(strategies=[FlipFlopStrategy()])
@@ -363,7 +363,7 @@ def test_analytics_parity_scope_restores_context() -> None:
     """
     from decimal import Decimal
 
-    from application.oms.risk_manager import RiskConfig
+    from application.oms._internal.risk_manager import RiskConfig
 
     pipeline = FeaturePipeline()
     strategy = StrategyPipeline(strategies=[AlwaysBuyStrategy()])

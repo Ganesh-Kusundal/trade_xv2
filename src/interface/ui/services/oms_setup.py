@@ -90,7 +90,7 @@ def _build_reconciliation_service(gateway: Any) -> Any:
         DhanReconciliationService or None if construction fails
     """
     try:
-        from interface.ui.services.broker_facade import create_reconciliation_service
+        from interface.ui.services.broker_registry import create_reconciliation_service
 
         conn = getattr(gateway, "_conn", None)
         if conn is not None:

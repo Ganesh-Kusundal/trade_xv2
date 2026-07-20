@@ -110,7 +110,8 @@ def _wire_trading_orchestrator(
         TradingOrchestrator,
     )
     from infrastructure.event_bus import EventType
-    from runtime.commands import build_order_dispatcher
+
+    from runtime.execution_target import build_execution_engine
 
     pipeline = (
         FeaturePipeline()
@@ -132,18 +133,16 @@ def _wire_trading_orchestrator(
         dry_run=orchestrator_dry_run,
     )
 
-    _, order_command_fn = build_order_dispatcher(
-        tc.order_manager,
-        event_bus=tc.event_bus,
-    )
+    kind = "live" if gateway is not None else "paper"
+    execution_engine = build_execution_engine(tc, kind, gateway=gateway)
 
     orchestrator = TradingOrchestrator(
         event_bus=tc.event_bus,
         order_manager=tc.order_manager,
         strategy_evaluator=strategy_pipeline,
         feature_fetcher=feature_fetcher,
+        execution_engine=execution_engine,
         config=config,
-        order_command_fn=order_command_fn,
     )
     tc.event_bus.subscribe(EventType.CANDIDATE_GENERATED, orchestrator.on_candidate)
     lifecycle.register(orchestrator)

@@ -18,8 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from application.oms.order_manager import OrderManager
-    from application.oms.protocols import IBrokerGateway
-    from application.oms.risk_manager import RiskManager
+    from application.oms._internal.risk_manager import RiskManager
     from domain.ports import EventBusPort, EventLogPort
 
 logger = logging.getLogger(__name__)
@@ -69,7 +68,7 @@ class ShutdownCoordinator:
     def execute(
         self,
         cancel_orders: bool = True,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> dict[str, Any]:
         """Run the full shutdown sequence and return a result dict.
 
@@ -141,7 +140,7 @@ class ShutdownCoordinator:
 
     def cancel_all(
         self,
-        gateway: IBrokerGateway | None = None,
+        gateway: Any | None = None,
     ) -> tuple[int, int, tuple[str, ...]]:
         """Cancel every OPEN order in the OMS, optionally via a broker gateway.
 
