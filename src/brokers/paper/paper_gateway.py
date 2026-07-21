@@ -91,6 +91,7 @@ class PaperGateway:
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
+        disclosed_quantity: int = 0,
     ) -> OrderResponse:
         order = self._orders.place_order(
             symbol=symbol,
@@ -105,9 +106,9 @@ class PaperGateway:
             correlation_id=correlation_id,
         )
         return OrderResponse(
-            success=True,
+            success=order.status not in (OrderStatus.REJECTED, OrderStatus.EXPIRED),
             order_id=order.order_id,
-            message="Order filled (paper)",
+            message="Order filled (paper)" if order.status == OrderStatus.FILLED else f"Order {order.status.value.lower()} (paper)",
             status=order.status,
         )
 
@@ -147,7 +148,10 @@ class PaperGateway:
             else:
                 mapped_changes[k] = v
 
-        order = self._orders.modify_order(order_id, **mapped_changes)
+        try:
+            order = self._orders.modify_order(order_id, **mapped_changes)
+        except ValueError as exc:
+            return OrderResponse.fail(message=str(exc), status=OrderStatus.REJECTED)
         return OrderResponse(
             success=order is not None,
             order_id=order_id,
@@ -226,6 +230,9 @@ class PaperGateway:
 
     def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         return self._market_data.get_ltp(symbol, exchange)
+
+    def ltp_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Decimal]:
+        return {sym: self.ltp(sym, exchange) for sym in symbols}
 
     def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         d = self._market_data.get_depth(symbol, exchange)
