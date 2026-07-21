@@ -1,7 +1,0 @@
-{
-  "access_token": "test_token",
-  "refresh_token": null,
-  "source": "TOTP",
-  "issued_at": "2026-07-10T09:33:38.426790",
-  "expires_at": "2026-07-11T09:33:38.426790"
-}

@@ -104,5 +104,8 @@ src/runtime/event-log/
 src/brokers/runtime/*.json
 src/brokers/runtime/*.lock
 src/brokers/runtime/*.log
+
+# Canonical token storage (migration target for src/brokers/runtime/ token files)
+~/.tradex/tokens/
 .hypothesis/
 worktrees/
