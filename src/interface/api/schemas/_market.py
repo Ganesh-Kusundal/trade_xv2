@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.value_objects.money import MoneyField
 
 
@@ -34,7 +35,7 @@ class CandlesResponse(BaseModel):
 
     symbol: str
     timeframe: str
-    exchange: str = "NSE"
+    exchange: str = DEFAULT_EXCHANGE
     candles: list[Candle]
     count: int
 

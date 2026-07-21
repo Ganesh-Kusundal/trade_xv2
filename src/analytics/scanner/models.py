@@ -17,6 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 import pandas as pd
 
 from analytics.pipeline.pipeline import FeaturePipeline
+from domain.constants import DEFAULT_EXCHANGE
 
 # ---------------------------------------------------------------------------
 # Scanner State (P2-Phase 2)
@@ -63,7 +64,7 @@ class Candidate:
     score: Decimal
     reasons: list[str] = field(default_factory=list)
     metrics: dict[str, Decimal] = field(default_factory=dict)
-    exchange: str = "NSE"
+    exchange: str = DEFAULT_EXCHANGE
     candidate_id: str = ""
 
     def __post_init__(self) -> None:
@@ -213,7 +214,7 @@ class BaseScanner:
             }
 
             symbol = str(getattr(row, "symbol", "UNKNOWN"))
-            exchange = str(getattr(row, "exchange", "NSE"))
+            exchange = str(getattr(row, "exchange", DEFAULT_EXCHANGE))
             candidate_id = f"{self.name}:{exchange}:{symbol}:{self._scan_run_id}"
             candidate = Candidate(
                 symbol=symbol,

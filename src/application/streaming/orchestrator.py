@@ -34,7 +34,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
@@ -45,6 +45,7 @@ from application.streaming.tick_router import (
     TickRouter,
 )
 from domain.candles.historical import HistoricalBar, InstrumentRef, coerce_event_time
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.market import MarketTick
 from domain.ports.broker_gateway import BrokerStreamHandle
 from domain.ports.time_service import get_current_clock
@@ -411,8 +412,8 @@ class StreamOrchestrator:
 def _split_instrument_key(key: str) -> tuple[str, str]:
     if ":" in key:
         symbol, exchange = key.split(":", 1)
-        return symbol.strip(), exchange.strip() or "NSE"
-    return key.strip(), "NSE"
+        return symbol.strip(), exchange.strip() or DEFAULT_EXCHANGE
+    return key.strip(), DEFAULT_EXCHANGE
 
 
 def _reconciled_dict_to_bar(

@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.symbols import normalize_exchange
 from domain.symbols import normalize_symbol as _domain_normalize_symbol
 
@@ -91,7 +92,7 @@ def are_same_symbol(a: str, b: str) -> bool:
     return normalize_symbol_for_storage(a) == normalize_symbol_for_storage(b)
 
 
-def instrument_id_from_symbol(symbol: str, exchange: str = "NSE") -> str:
+def instrument_id_from_symbol(symbol: str, exchange: str = DEFAULT_EXCHANGE) -> str:
     """Convert (symbol, exchange) to canonical InstrumentId string.
 
     Example: instrument_id_from_symbol("RELIANCE", "NSE") → "NSE:RELIANCE"

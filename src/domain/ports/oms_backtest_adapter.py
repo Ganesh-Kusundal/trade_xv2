@@ -10,6 +10,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol, runtime_checkable
 
+from domain.constants import DEFAULT_EXCHANGE
+
 
 @runtime_checkable
 class OmsBacktestAdapterPort(Protocol):
@@ -63,7 +65,7 @@ class OmsBacktestAdapterPort(Protocol):
         """Cancel an open order. Returns True if cancellation accepted."""
         ...
 
-    def get_position(self, symbol: str, exchange: str = "NSE") -> dict[str, Any] | None:
+    def get_position(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> dict[str, Any] | None:
         """Return current position for a symbol, or None if flat.
 
         Returns dict with keys: symbol, exchange, quantity, avg_price, ltp,

@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 
 from domain.capabilities.broker_capabilities import BrokerCapabilities
+from domain.constants import DEFAULT_EXCHANGE
 from domain.ports.broker_id import BrokerId
 from interface.api.auth import require_admin, require_auth
 from interface.api.deps import (
@@ -260,7 +261,7 @@ async def live_edis(
         _extended(gw).authorize_edis(
             payload.get("isin", ""),
             int(payload.get("quantity", 0)),
-            payload.get("exchange", "NSE"),
+            payload.get("exchange", DEFAULT_EXCHANGE),
         )
     )
 

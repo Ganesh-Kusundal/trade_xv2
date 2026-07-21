@@ -15,6 +15,8 @@ import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from domain.constants import DEFAULT_EXCHANGE
+
 if TYPE_CHECKING:
     from domain.enums import Side
     from interface.ui.services.broker_service import BrokerService
@@ -120,7 +122,7 @@ class CliBrokerFacade:
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str | Side = "BUY",
         quantity: int = 0,
         price: Decimal | None = None,

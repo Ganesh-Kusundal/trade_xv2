@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import time
 from decimal import Decimal
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.market.hours import NSE_EQUITY_CLOSE, NSE_EQUITY_OPEN
 
@@ -44,7 +45,7 @@ class InstrumentMetadata:
     Immutable after construction.
     """
 
-    exchange: str = "NSE"
+    exchange: str = DEFAULT_EXCHANGE
     lot_size: int = 1
     tick_size: Decimal = DEFAULT_TICK_SIZE
     freeze_quantity: int | None = None
@@ -86,7 +87,7 @@ class InstrumentMetadata:
                 if isinstance(ca, dict)
             )
         return cls(
-            exchange=data.get("exchange", "NSE"),
+            exchange=data.get("exchange", DEFAULT_EXCHANGE),
             lot_size=int(data.get("lot_size", 1)),
             tick_size=Decimal(str(data.get("tick_size", str(DEFAULT_TICK_SIZE)))),
             freeze_quantity=data.get("freeze_quantity"),

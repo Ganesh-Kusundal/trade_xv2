@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.portfolio.portfolio import Portfolio
 
 if TYPE_CHECKING:
@@ -116,7 +117,7 @@ class AccountView:
         if not symbol:
             return None
         exchange = getattr(raw, "exchange", None) or (
-            raw.get("exchange", "NSE") if isinstance(raw, dict) else "NSE"
+            raw.get("exchange", DEFAULT_EXCHANGE) if isinstance(raw, dict) else DEFAULT_EXCHANGE
         )
         qty = getattr(raw, "quantity", None)
         if qty is None and isinstance(raw, dict):
@@ -129,7 +130,7 @@ class AccountView:
             ltp = raw.get("ltp", 0)
         return Position(
             symbol=str(symbol),
-            exchange=str(exchange or "NSE"),
+            exchange=str(exchange or DEFAULT_EXCHANGE),
             quantity=int(qty or 0),
             avg_price=Decimal(str(avg or 0)),
             ltp=Decimal(str(ltp or 0)),

@@ -122,12 +122,13 @@ def authorize_live_order(
     from decimal import Decimal
 
     from domain import Order, OrderStatus, OrderType, ProductType, Side, Validity
+    from domain.constants import DEFAULT_EXCHANGE
 
     try:
         order = Order(
             order_id="",
             symbol=risk_payload.get("symbol", ""),
-            exchange=risk_payload.get("exchange", "NSE"),
+            exchange=risk_payload.get("exchange", DEFAULT_EXCHANGE),
             side=Side(risk_payload.get("side", "BUY")),
             order_type=OrderType(risk_payload.get("order_type", "MARKET")),
             quantity=int(risk_payload.get("quantity", 0)),

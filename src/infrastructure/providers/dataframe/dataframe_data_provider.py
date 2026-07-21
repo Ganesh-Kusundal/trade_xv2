@@ -14,6 +14,7 @@ from typing import Any
 
 import pandas as pd
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.market import MarketDepth, Quote
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -142,7 +143,7 @@ class DataFrameDataProvider:
         instruments = []
         for symbol in self._history:
             try:
-                instruments.append(InstrumentId.equity(exchange or "NSE", symbol))
+                instruments.append(InstrumentId.equity(exchange or DEFAULT_EXCHANGE, symbol))
             except ValueError:
                 continue
         return instruments

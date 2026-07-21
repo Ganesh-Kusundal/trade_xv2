@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from domain.constants import DEFAULT_EXCHANGE
 from interface.api.auth import require_auth
 from interface.api.schemas import (
     CreateReplaySessionRequest,
@@ -195,7 +196,7 @@ async def play_session(session_id: str):
 
         df = gateway.history(
             symbol=symbol,
-            exchange="NSE",
+            exchange=DEFAULT_EXCHANGE,
             timeframe=timeframe,
             lookback_days=1,
         )

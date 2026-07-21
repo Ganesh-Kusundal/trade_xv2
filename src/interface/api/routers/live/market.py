@@ -11,10 +11,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
+from domain.constants import DEFAULT_EXCHANGE
 from interface.api.auth import require_auth
 from interface.api.candle_mapper import series_to_api_candles
-from interface.api.session_state import get_session, set_session
 from interface.api.routers.live.headers import apply_live_headers
+from interface.api.session_state import get_session
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
@@ -22,7 +23,7 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 @router.get("/quote/{symbol}")
 async def live_quote(
     symbol: str,
-    exchange: str = Query("NSE"),
+    exchange: str = Query(DEFAULT_EXCHANGE),
     response: Response = None,
 ) -> dict[str, Any]:
     instrument = get_session().universe.equity(symbol, exchange)
@@ -51,7 +52,7 @@ async def live_quote(
 @router.get("/ltp/{symbol}")
 async def live_ltp(
     symbol: str,
-    exchange: str = Query("NSE"),
+    exchange: str = Query(DEFAULT_EXCHANGE),
     response: Response = None,
 ) -> dict[str, Any]:
     instrument = get_session().universe.equity(symbol, exchange)
@@ -65,7 +66,7 @@ async def live_ltp(
 @router.get("/depth/{symbol}")
 async def live_depth(
     symbol: str,
-    exchange: str = Query("NSE"),
+    exchange: str = Query(DEFAULT_EXCHANGE),
     response: Response = None,
 ) -> dict[str, Any]:
     instrument = get_session().universe.equity(symbol, exchange)
@@ -87,7 +88,7 @@ async def live_candles(
     timeframe: str = Query("1d"),
     days: int = Query(30, ge=1, le=365),
     response: Response = None,
-    exchange: str = Query("NSE"),
+    exchange: str = Query(DEFAULT_EXCHANGE),
 ) -> dict[str, Any]:
     instrument = get_session().universe.equity(symbol, exchange)
     end = date.today()

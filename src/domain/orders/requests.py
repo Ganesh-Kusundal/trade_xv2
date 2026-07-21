@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.types import (
     OrderType,
     ProductType,
@@ -38,7 +39,7 @@ class OrderRequest:
     """
 
     symbol: str = ""
-    exchange: str = "NSE"
+    exchange: str = DEFAULT_EXCHANGE
     transaction_type: Side = Side.BUY
     quantity: int = 0
     price: Decimal = Decimal("0")
@@ -87,7 +88,7 @@ class SliceOrderRequest:
     """Request for splitting a large order into child orders."""
 
     symbol: str = ""
-    exchange: str = "NSE"
+    exchange: str = DEFAULT_EXCHANGE
     side: Side = Side.BUY
     quantity: int = 0
     order_type: OrderType = OrderType.MARKET

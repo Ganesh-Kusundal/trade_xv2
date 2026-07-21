@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 
 from domain.candles.historical import InstrumentRef
+from domain.constants import DEFAULT_EXCHANGE
 from domain.ports.time_service import get_current_clock
 from domain.stream_health import FreshnessState
 
@@ -203,7 +204,7 @@ class TickRouter:
             if isinstance(frame, dict):
                 symbol = frame.get("symbol") or frame.get("trading_symbol") or ""
                 if symbol:
-                    exchange = frame.get("exchange") or "NSE"
+                    exchange = frame.get("exchange") or DEFAULT_EXCHANGE
                     event_time = _parse_exchange_time(
                         frame.get("timestamp") or frame.get("exchange_timestamp"), now
                     )
@@ -241,7 +242,7 @@ class TickRouter:
         if not isinstance(frame, dict):
             return None
         symbol = frame.get("symbol") or frame.get("trading_symbol") or ""
-        exchange = frame.get("exchange") or "NSE"
+        exchange = frame.get("exchange") or DEFAULT_EXCHANGE
         if not symbol:
             return None
         event_time = _parse_exchange_time(

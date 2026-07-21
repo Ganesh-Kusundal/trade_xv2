@@ -19,6 +19,8 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
+from domain.constants import DEFAULT_EXCHANGE
+
 # Public aliases → extension.name / method used by product code
 _CAPABILITY_ALIASES: dict[str, tuple[str, ...]] = {
     "depth20": ("depth_20", "depth20", "full_depth"),
@@ -143,7 +145,7 @@ class BoundBrokerFacade:
         inst = self._instrument
         return (
             str(getattr(inst, "symbol", "") or ""),
-            str(getattr(inst, "exchange", "NSE") or "NSE"),
+            str(getattr(inst, "exchange", DEFAULT_EXCHANGE) or DEFAULT_EXCHANGE),
         )
 
     def _find_extension(self, name: str) -> Any | None:

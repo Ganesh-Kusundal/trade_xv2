@@ -10,6 +10,7 @@ import math
 from datetime import date
 from decimal import Decimal
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.constants.market import DEFAULT_TICK_SIZE
 
 # Actual/365.25 year fraction
@@ -200,9 +201,9 @@ def cost_of_carry_basis(
 
 def map_underlying_cash_exchange(derivative_exchange: str) -> str:
     """NFO/MCX futures → cash exchange for spot quote (v1: NSE for NFO)."""
-    ex = (derivative_exchange or "NSE").upper()
+    ex = (derivative_exchange or DEFAULT_EXCHANGE).upper()
     if ex == "NFO":
-        return "NSE"
+        return DEFAULT_EXCHANGE
     if ex == "BFO":
         return "BSE"
-    return "NSE"
+    return DEFAULT_EXCHANGE

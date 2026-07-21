@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.constants.market import IST
 from infrastructure.io.parquet import atomic_parquet_write
 
@@ -233,7 +234,7 @@ class HistoricalDataService:
             if df.empty:
                 return []
             symbol = str(df["symbol"].iloc[0]) if "symbol" in df.columns else ""
-            exchange = str(df["exchange"].iloc[0]) if "exchange" in df.columns else "NSE"
+            exchange = str(df["exchange"].iloc[0]) if "exchange" in df.columns else DEFAULT_EXCHANGE
             timeframe = str(df["timeframe"].iloc[0]) if "timeframe" in df.columns else "1D"
             series = HistoricalSeries.from_datalake_df(
                 df,

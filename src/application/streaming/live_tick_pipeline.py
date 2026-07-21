@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from application.streaming.candle_aggregator import CandleAggregator
 from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.market import MarketTick, Quote
 from domain.provenance import DataProvenance
 
@@ -51,7 +52,7 @@ def market_tick_from_event(event: DomainEvent) -> MarketTick | None:
         symbol = (quote.symbol or event.symbol or "").strip()
         if not symbol:
             return None
-        exchange = str(payload.get("exchange") or "NSE")
+        exchange = str(payload.get("exchange") or DEFAULT_EXCHANGE)
         event_time = _coerce_event_time(quote.timestamp or event.timestamp)
         ltp = quote.ltp
         volume = int(quote.volume or 0)
@@ -60,7 +61,7 @@ def market_tick_from_event(event: DomainEvent) -> MarketTick | None:
         symbol = (event.symbol or payload.get("symbol") or "").strip()
         if not symbol:
             return None
-        exchange = str(payload.get("exchange") or "NSE")
+        exchange = str(payload.get("exchange") or DEFAULT_EXCHANGE)
         ltp_raw = payload.get("ltp") or payload.get("last_price")
         if ltp_raw is None:
             return None

@@ -6,13 +6,15 @@ import contextlib
 import logging
 from typing import Any
 
+from domain.constants import DEFAULT_EXCHANGE
+
 logger = logging.getLogger(__name__)
 
 # Tracks API-client-driven subscriptions for symmetric unstream on disconnect.
 _api_subscriptions: dict[str, tuple[str, str]] = {}
 
 
-def subscribe_symbols_to_broker(symbols: list[str], exchange: str = "NSE") -> None:
+def subscribe_symbols_to_broker(symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> None:
     """Subscribe *symbols* on the live broker gateway so ticks reach the EventBus.
 
     Called when API WebSocket clients subscribe to market data. Uses the
@@ -60,7 +62,7 @@ def subscribe_symbols_to_broker(symbols: list[str], exchange: str = "NSE") -> No
                 logger.debug("feed_wiring: depth_20 subscribe failed for %s: %s", symbol, exc)
 
 
-def unsubscribe_symbols_from_broker(symbols: list[str], exchange: str = "NSE") -> None:
+def unsubscribe_symbols_from_broker(symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> None:
     """Unsubscribe *symbols* when API WebSocket clients disconnect."""
     if not symbols:
         return

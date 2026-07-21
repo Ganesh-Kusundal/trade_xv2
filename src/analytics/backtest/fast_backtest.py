@@ -32,6 +32,7 @@ from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.trade import Trade
 from domain.enums import Side
 from domain.trading_costs import apply_slippage as _apply_slippage
@@ -196,7 +197,7 @@ class FastBacktestEngine:
                         trade_id=f"backtest:{symbol}:{len(trades)}",
                         order_id="",
                         symbol=symbol,
-                        exchange="NSE",
+                        exchange=DEFAULT_EXCHANGE,
                         side=Side.BUY if position["side"] == "LONG" else Side.SELL,
                         quantity=position["quantity"],
                         price=Decimal(str(position["entry_price"])),
@@ -223,7 +224,7 @@ class FastBacktestEngine:
                 trade_id=f"backtest:{symbol}:{len(trades)}",
                 order_id="",
                 symbol=symbol,
-                exchange="NSE",
+                exchange=DEFAULT_EXCHANGE,
                 side=Side.BUY if position["side"] == "LONG" else Side.SELL,
                 quantity=position["quantity"],
                 price=Decimal(str(position["entry_price"])),

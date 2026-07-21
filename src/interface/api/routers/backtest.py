@@ -13,6 +13,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from datalake.research.backtest_cache_store import BacktestCacheStore
+from domain.constants import DEFAULT_EXCHANGE
 from interface.api.auth import require_auth
 from interface.api.deps import get_datalake_gateway
 from interface.api.schemas import (
@@ -101,7 +102,7 @@ async def run_backtest(
         lookback_days = req.years * 365
         df = gateway.history(
             symbol=req.symbol,
-            exchange="NSE",
+            exchange=DEFAULT_EXCHANGE,
             timeframe=req.timeframe,
             lookback_days=lookback_days,
         )

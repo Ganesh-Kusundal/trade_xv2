@@ -20,6 +20,7 @@ from enum import Enum
 from typing import Any
 
 from analytics.strategy.models import Signal
+from domain.constants import DEFAULT_EXCHANGE
 from domain.enums import Side
 from domain.events.types import DomainEvent
 from domain.portfolio_projection import PortfolioProjector
@@ -107,7 +108,6 @@ class ReplayMode(str, Enum):
 # Re-export canonical models from domain.trading_costs (single source of truth)
 from analytics.simulation.models import FillModel
 from domain.candles.historical import HistoricalBar  # noqa: F401 — re-exported via __init__
-from domain.constants import DEFAULT_EXCHANGE
 from domain.trading_costs import (
     CommissionModel,
     IndianMarketFees,
@@ -276,7 +276,7 @@ class SimulatedPosition:
 
         return Position(
             symbol=self.symbol,
-            exchange="NSE",
+            exchange=DEFAULT_EXCHANGE,
             quantity=self.quantity if self.side == Side.BUY else -self.quantity,
             avg_price=Decimal(str(self.entry_price)),
             ltp=Decimal(str(self.entry_price)),

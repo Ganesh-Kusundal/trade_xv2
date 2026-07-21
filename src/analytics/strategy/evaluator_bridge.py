@@ -8,6 +8,7 @@ import pandas as pd
 
 from analytics.scanner.models import Candidate
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.constants import DEFAULT_EXCHANGE
 from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 
@@ -26,7 +27,7 @@ def _to_dto(signal: object) -> SignalDTO:
     st_val = st.value if hasattr(st, "value") else str(st)
     return SignalDTO(
         symbol=str(getattr(signal, "symbol", "")),
-        exchange=str(getattr(signal, "exchange", "NSE")),
+        exchange=str(getattr(signal, "exchange", DEFAULT_EXCHANGE)),
         side=st_val,
         signal_type=st_val,
         confidence=Decimal(str(getattr(signal, "confidence", 0))),

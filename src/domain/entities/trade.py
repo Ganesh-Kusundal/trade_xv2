@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities._coercion import _as_money, _as_quantity
 from domain.primitives import Money, Quantity
 from domain.types import ProductType, Side
@@ -19,7 +20,7 @@ def build_domain_trade(
     quantity: int | Quantity,
     price: Money | Decimal | int | float | str,
     trade_value: Money | Decimal | int | float | str | None = None,
-    exchange: str = "NSE",
+    exchange: str = DEFAULT_EXCHANGE,
     order_id: str = "",
 ) -> Trade:
     """Shared paper/replay → domain Trade converter (zero-parity helper).

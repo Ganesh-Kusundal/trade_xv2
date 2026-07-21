@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from application.oms._internal.order_mutation_guard import OrderMutationGuard
+from domain.constants import DEFAULT_EXCHANGE
 from domain.events.types import EventType
 from domain.exceptions import TradeXV2Error
 from domain.extensions.order_capability import OrderCapabilityPort
@@ -97,7 +98,7 @@ class ExtendedOrderService:
             order = Order(
                 order_id="",
                 symbol=payload.get("symbol", ""),
-                exchange=payload.get("exchange", "NSE"),
+                exchange=payload.get("exchange", DEFAULT_EXCHANGE),
                 side=Side(payload.get("side", "BUY")),
                 order_type=OrderType(payload.get("order_type", "MARKET")),
                 quantity=int(payload.get("quantity", 0)),

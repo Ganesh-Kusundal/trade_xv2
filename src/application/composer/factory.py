@@ -19,6 +19,8 @@ from datetime import date, datetime
 from datetime import timedelta as _TIMEDELTA
 from typing import TYPE_CHECKING, Any
 
+from domain.constants import DEFAULT_EXCHANGE
+
 if TYPE_CHECKING:
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.source_selection import SourceSelectionPolicy
@@ -55,7 +57,7 @@ def _split_instrument_key(key: str) -> tuple[str, str]:
     if ":" in key:
         parts = key.split(":")
         return parts[0], parts[-1]
-    return key, "NSE"
+    return key, DEFAULT_EXCHANGE
 
 
 def _run_async(coro: Any) -> Any:
@@ -185,7 +187,7 @@ def _build_default_backfill_callback(
                 else [str(symbols)]
             )
             # Subtract the range the reconnect backfill just filled.
-            covered = {k: to_dt for k in keys}
+            covered = dict.fromkeys(keys, to_dt)
             gap_reconciler.reconcile(keys, already_covered_to=covered)
         except Exception as exc:  # pragma: no cover - defensive
             logger.debug(

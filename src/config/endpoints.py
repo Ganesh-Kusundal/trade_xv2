@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from domain.constants import DEFAULT_EXCHANGE
+
 # ── Shared host-independent constants ────────────────────────────────────────
 _UPSTOX_ASSET_INSTRUMENTS_JSON = (
     "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
@@ -168,7 +170,7 @@ class _UpstoxUrls:
             url += f"/{from_date}"
         return url
 
-    def market_status_url(self, exchange: str = "NSE") -> str:
+    def market_status_url(self, exchange: str = DEFAULT_EXCHANGE) -> str:
         return f"{self._v2()}/market/status/{exchange}"
 
     def market_holidays_url(self) -> str:

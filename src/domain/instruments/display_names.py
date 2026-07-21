@@ -19,6 +19,7 @@ import re
 from datetime import date
 from decimal import Decimal
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.instruments.instrument_id import InstrumentId
 from domain.symbols import normalize_exchange, normalize_symbol
 
@@ -155,7 +156,7 @@ def _default_fno_exchange(underlying: str, default_exchange: str) -> str:
 def parse_display_name(
     name: str,
     *,
-    default_exchange: str = "NSE",
+    default_exchange: str = DEFAULT_EXCHANGE,
     default_year: int | None = None,
     as_of: date | None = None,
     treat_as_index: bool | None = None,
@@ -221,8 +222,8 @@ def parse_display_name(
         # Indices on NSE/BSE/INDEX → NSE for our InstrumentId
         if is_index:
             if exch not in InstrumentId.VALID_EXCHANGES:
-                exch = "NSE"
-            return InstrumentId.index(exch if exch in {"NSE", "BSE"} else "NSE", sym)
+                exch = DEFAULT_EXCHANGE
+            return InstrumentId.index(exch if exch in {"NSE", "BSE"} else DEFAULT_EXCHANGE, sym)
         return InstrumentId.equity(exch, sym)
 
     raise ValueError(

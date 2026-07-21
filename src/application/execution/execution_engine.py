@@ -11,6 +11,7 @@ import logging
 from application.execution.fill_source import FillSource
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from domain.constants import DEFAULT_EXCHANGE
 from domain.ports.execution_target import ExecutionTarget
 
 logger = logging.getLogger(__name__)
@@ -118,7 +119,7 @@ class ExecutionEngine:
                 symbol = getattr(pos, "symbol", "") or ""
                 if not symbol:
                     continue
-                exchange = getattr(pos, "exchange", "NSE") or "NSE"
+                exchange = getattr(pos, "exchange", DEFAULT_EXCHANGE) or DEFAULT_EXCHANGE
                 qty = int(getattr(pos, "quantity", 0) or 0)
                 avg_price = getattr(pos, "avg_price", 0)
                 ltp = getattr(pos, "ltp", 0)

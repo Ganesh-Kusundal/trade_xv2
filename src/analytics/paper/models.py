@@ -171,7 +171,7 @@ class PaperPosition:
         qty = self.quantity if self.side == PositionSide.LONG else -self.quantity
         return Position(
             symbol=self.symbol,
-            exchange="NSE",
+            exchange=DEFAULT_EXCHANGE,
             quantity=qty,
             avg_price=Decimal(str(self.entry_price)),
             ltp=Decimal(str(self.current_price)),
@@ -293,7 +293,9 @@ class PaperSession:
             return None
         return pos
 
-    def _to_paper_position(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> PaperPosition | None:
+    def _to_paper_position(
+        self, symbol: str, exchange: str = DEFAULT_EXCHANGE
+    ) -> PaperPosition | None:
         pos = self._domain_position(symbol, exchange)
         if pos is None:
             return None

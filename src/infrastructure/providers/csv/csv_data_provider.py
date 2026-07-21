@@ -14,6 +14,7 @@ from typing import Any
 
 import pandas as pd
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.market import MarketDepth
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -199,7 +200,7 @@ class CsvDataProvider:
             for csv_file in self._path.glob("*.csv"):
                 symbol = csv_file.stem.upper()
                 try:
-                    instruments.append(InstrumentId.equity(exchange or "NSE", symbol))
+                    instruments.append(InstrumentId.equity(exchange or DEFAULT_EXCHANGE, symbol))
                 except ValueError:
                     continue
         return instruments

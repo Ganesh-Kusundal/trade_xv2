@@ -15,6 +15,7 @@ from typing import Any
 
 import pandas as pd
 
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
@@ -225,7 +226,7 @@ class BrokerDataProvider:
     ) -> pd.DataFrame:
         """Load historical OHLCV for multiple instruments via gateway.history_batch()."""
         symbols = [iid.underlying for iid in instrument_ids]
-        exchange = instrument_ids[0].exchange if instrument_ids else "NSE"
+        exchange = instrument_ids[0].exchange if instrument_ids else DEFAULT_EXCHANGE
         return self._gateway.history_batch(
             symbols=symbols,
             exchange=exchange,
@@ -246,7 +247,7 @@ class BrokerDataProvider:
             for r in results:
                 try:
                     iid = InstrumentId(
-                        exchange=r.get("exchange", exchange or "NSE"),
+                        exchange=r.get("exchange", exchange or DEFAULT_EXCHANGE),
                         underlying=r.get("symbol", ""),
                     )
                     instruments.append(iid)

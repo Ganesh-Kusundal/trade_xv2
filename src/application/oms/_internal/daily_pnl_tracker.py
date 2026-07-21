@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from application.oms._internal.loss_circuit_breaker import LossCircuitBreaker
 from application.oms._internal.risk_types import RiskConfig
+from domain.constants import DEFAULT_EXCHANGE
 from domain.events.types import EventType
 
 logger = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ class DailyPnlTracker:
         from domain.ports.time_service import get_current_clock
 
         reset_date = datetime.fromtimestamp(self._last_reset_at, tz=ist).date()
-        today = get_current_clock().exchange_now("NSE").date()
+        today = get_current_clock().exchange_now(DEFAULT_EXCHANGE).date()
         return reset_date < today
 
     def _maybe_publish_risk_limit_breach(self, pnl: Decimal, capital: Decimal) -> None:

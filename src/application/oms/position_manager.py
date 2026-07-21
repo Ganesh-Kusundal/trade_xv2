@@ -12,6 +12,7 @@ from collections import deque
 from decimal import Decimal
 
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities import Position, Trade
 from domain.events.types import DomainEvent, EventType
 from domain.portfolio_projection import project_trade
@@ -260,7 +261,7 @@ class PositionManager:
         normalized = {_KEY_MAP.get(k, k): v for k, v in data.items()}
 
         symbol = normalized.get("symbol", "")
-        exchange = normalized.get("exchange", "NSE")
+        exchange = normalized.get("exchange", DEFAULT_EXCHANGE)
         quantity = int(normalized.get("quantity") or 0)
         avg_price = Decimal(str(normalized.get("avg_price") or 0))
         ltp = Decimal(str(normalized.get("ltp") or 0))
