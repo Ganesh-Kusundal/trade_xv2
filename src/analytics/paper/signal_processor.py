@@ -61,7 +61,7 @@ class PaperSignalProcessor:
         else:
             session.capital += delta
 
-    def _commission(self, notional: float, side: str) -> float:
+    def _commission(self, notional: float, side: Side) -> float:
         cfg = self._config
         return compute_commission(
             notional,

@@ -124,7 +124,7 @@ def fast_backtest(
         price = float(row["close"])
         ts = row["timestamp"]
 
-        if signal_str == "BUY" and position is None:
+        if signal_str == Side.BUY and position is None:
             qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
             if qty > 0:
                 entry_p = float(
@@ -135,7 +135,7 @@ def fast_backtest(
                 position = {"entry": entry_p, "qty": qty, "time": ts}
                 capital -= config.commission_flat
 
-        elif signal_str == "SELL" and position is not None:
+        elif signal_str == Side.SELL and position is not None:
             exit_p = float(
                 _apply_slippage(Decimal(str(price)), side=Side.SELL, slippage_pct=config.slippage_pct)
             )
