@@ -35,6 +35,8 @@ class FakeGateway:
         validity="DAY",
         trigger_price=Decimal("0"),
         correlation_id=None,
+        disclosed_quantity=0,
+        **kwargs,
     ):
         self.calls.append(
             ("place_order", symbol, exchange, side, quantity, order_type, product_type)

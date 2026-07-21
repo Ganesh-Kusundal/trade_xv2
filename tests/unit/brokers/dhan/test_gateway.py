@@ -168,15 +168,15 @@ class TestBrokerGateway:
         gateway = DhanBrokerGateway(conn)
         assert gateway.is_connected is False
 
-    def test_is_connected_delegates_to_feed_when_present(self):
-        """When a market feed exists, its socket state is authoritative."""
+    def test_is_connected_true_when_feed_down_but_rest_auth_ok(self):
+        """REST auth remains sufficient when a WS feed exists but is disconnected."""
         client = FakeHttpClient(access_token="valid-token")
         conn = DhanConnection(client=client)
         feed = MagicMock()
         feed.is_connected = False
         conn.market_feed = feed
         gateway = DhanBrokerGateway(conn)
-        assert gateway.is_connected is False
+        assert gateway.is_connected is True
 
     # -- history batch (shared batch_execute) ---------------------------
 

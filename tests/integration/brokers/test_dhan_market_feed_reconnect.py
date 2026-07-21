@@ -39,7 +39,7 @@ def test_r1_get_feed_evicts_oldest_without_busy_wait():
     The R1 guarantee under test is that get_feed does not busy-wait and returns
     the new feed promptly.
     """
-    from brokers.dhan.depth_200 import Depth200ConnectionPool
+    from brokers.dhan.data.depth_200 import Depth200ConnectionPool
 
     pool = Depth200ConnectionPool(
         client_id="CID",
@@ -73,7 +73,7 @@ def test_r1_get_feed_source_has_no_spin_wait():
     """
     import ast
 
-    from brokers.dhan.depth_200 import Depth200ConnectionPool
+    from brokers.dhan.data.depth_200 import Depth200ConnectionPool
 
     tree = ast.parse(textwrap.dedent(inspect.getsource(Depth200ConnectionPool.get_feed)))
 
@@ -170,7 +170,7 @@ def test_r2_auth_refresh_is_throttled():
 def test_r2_create_order_stream_accepts_token_refresh_fn():
     """connection_lifecycle.create_order_stream exposes token_refresh_fn and
     forwards it (plus event_bus) to DhanOrderStream."""
-    from brokers.dhan.connection_lifecycle import ConnectionLifecycle
+    from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 
     sig = inspect.signature(ConnectionLifecycle.create_order_stream)
     assert "token_refresh_fn" in sig.parameters
@@ -185,7 +185,7 @@ def test_r2_create_order_stream_accepts_token_refresh_fn():
 
 
 def _make_binary_depth_feed():
-    from brokers.dhan.depth_feed_base import BinaryDepthFeed
+    from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
 
     return BinaryDepthFeed(
         client_id="CID",
@@ -227,20 +227,16 @@ def test_m1_off_quote_removes_same_callback_list():
 
 
 def test_m1_staleness_threshold_default_is_60():
-    """_staleness_threshold_seconds honours DHAN_STALENESS_THRESHOLD_SECONDS
-    (default 60)."""
-    from brokers.dhan.depth_feed_base import BinaryDepthFeed
+    """_staleness_threshold_seconds honours DHAN_STALENESS_THRESHOLD_SECONDS (default 60)."""
+    from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
+    from brokers.dhan.data import depth_feed_base
 
-    prev = os.environ.pop("DHAN_STALENESS_THRESHOLD_SECONDS", None)
+    assert BinaryDepthFeed._staleness_threshold_seconds() == 60.0
+    depth_feed_base.connection.DHAN_STALENESS_THRESHOLD_SECONDS = 45.0
     try:
-        assert BinaryDepthFeed._staleness_threshold_seconds() == 60.0
-        os.environ["DHAN_STALENESS_THRESHOLD_SECONDS"] = "45"
         assert BinaryDepthFeed._staleness_threshold_seconds() == 45.0
     finally:
-        if prev is None:
-            os.environ.pop("DHAN_STALENESS_THRESHOLD_SECONDS", None)
-        else:
-            os.environ["DHAN_STALENESS_THRESHOLD_SECONDS"] = prev
+        depth_feed_base.connection.DHAN_STALENESS_THRESHOLD_SECONDS = 60.0
 
 
 def test_m1_health_reports_stale_and_threshold():
@@ -337,7 +333,7 @@ def test_m4_polling_carries_ohlc_volume_not_zero():
 def test_m4_create_polling_feed_forwards_event_bus():
     """connection_lifecycle.create_polling_feed passes event_bus to
     PollingMarketFeed (source-level guard)."""
-    from brokers.dhan.connection_lifecycle import ConnectionLifecycle
+    from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 
     src = inspect.getsource(ConnectionLifecycle.create_polling_feed)
     assert "event_bus=self._event_bus" in src

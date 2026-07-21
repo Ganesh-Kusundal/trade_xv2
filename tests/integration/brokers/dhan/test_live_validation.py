@@ -48,13 +48,13 @@ class TestLiveValidation:
         # Use the resolver to find a NIFTY future
         try:
             # NIFTY index itself has lot_size=1, find a future instead
-            futures = gateway.extended.get_futures_contracts("NIFTY", "INDEX")
+            futures = gateway.extended.data.get_futures_contracts("NIFTY", "INDEX")
             if futures:
                 fut = futures[0]
                 symbol = fut["symbol"]
                 lot_size = fut.get("lot_size", 75)
                 if lot_size > 1:
-                    errors = gateway.extended.validate_order(
+                    errors = gateway.extended.data.validate_order(
                         symbol=symbol,
                         exchange="NFO",
                         quantity=7,  # Not a multiple of lot_size
@@ -73,7 +73,7 @@ class TestLiveValidation:
         except Exception as exc:
             logger.debug("lot_size_validation_fallback: %s", exc)
         # Fallback: test that unknown instrument is rejected
-        errors = gateway.extended.validate_order(
+        errors = gateway.extended.data.validate_order(
             symbol="DOESNOTEXIST",
             exchange="NSE",
             quantity=7,
@@ -88,10 +88,10 @@ class TestLiveValidation:
         """CNC product type is not valid for F&O segment."""
         # Find a real F&O instrument
         try:
-            futures = gateway.extended.get_futures_contracts("NIFTY", "INDEX")
+            futures = gateway.extended.data.get_futures_contracts("NIFTY", "INDEX")
             if futures:
                 symbol = futures[0]["symbol"]
-                errors = gateway.extended.validate_order(
+                errors = gateway.extended.data.validate_order(
                     symbol=symbol,
                     exchange="NFO",
                     quantity=75,
@@ -107,7 +107,7 @@ class TestLiveValidation:
         except Exception as exc:
             logger.debug("cnc_validation_fallback: %s", exc)
         # Fallback: test that unknown instrument on NFO is rejected
-        errors = gateway.extended.validate_order(
+        errors = gateway.extended.data.validate_order(
             symbol="DOESNOTEXIST",
             exchange="NFO",
             quantity=75,
@@ -118,7 +118,7 @@ class TestLiveValidation:
         assert len(errors) > 0
 
     def test_validate_rejects_zero_quantity(self, gateway):
-        errors = gateway.extended.validate_order(
+        errors = gateway.extended.data.validate_order(
             symbol="RELIANCE",
             exchange="NSE",
             quantity=0,
@@ -129,7 +129,7 @@ class TestLiveValidation:
         assert any("quantity" in e.lower() for e in errors)
 
     def test_validate_rejects_limit_without_price(self, gateway):
-        errors = gateway.extended.validate_order(
+        errors = gateway.extended.data.validate_order(
             symbol="RELIANCE",
             exchange="NSE",
             quantity=10,
@@ -142,7 +142,7 @@ class TestLiveValidation:
 
     def test_validate_accepts_valid_equity_order(self, gateway):
         """A valid equity order should have no errors."""
-        errors = gateway.extended.validate_order(
+        errors = gateway.extended.data.validate_order(
             symbol="RELIANCE",
             exchange="NSE",
             quantity=10,
@@ -155,11 +155,11 @@ class TestLiveValidation:
     def test_validate_accepts_valid_fno_order(self, gateway):
         """A valid F&O order with correct lot size should have no errors."""
         try:
-            futures = gateway.extended.get_futures_contracts("NIFTY", "INDEX")
+            futures = gateway.extended.data.get_futures_contracts("NIFTY", "INDEX")
             if futures:
                 symbol = futures[0]["symbol"]
                 lot_size = futures[0].get("lot_size", 75)
-                errors = gateway.extended.validate_order(
+                errors = gateway.extended.data.validate_order(
                     symbol=symbol,
                     exchange="NFO",
                     quantity=lot_size,

@@ -2,11 +2,30 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pandas as pd
 
 from datalake.quality.validation import ValidationAudit, validate_candles
+
+_SPIKE_GUARD = os.getenv("DATALAKE_SPIKE_GUARD", "").lower() in ("1", "true", "yes")
+_SPIKE_PCT = float(os.getenv("DATALAKE_SPIKE_PCT", "0.25") or "0.25")
+
+
+def _drop_spike_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Optional rate-of-change guard — drops bars whose close jumps > threshold vs prior."""
+    if not _SPIKE_GUARD or df.empty or "close" not in df.columns:
+        return df, []
+    issues: list[str] = []
+    closes = pd.to_numeric(df["close"], errors="coerce")
+    prev = closes.shift(1)
+    pct = ((closes - prev).abs() / prev.abs().replace(0, pd.NA)).fillna(0)
+    bad = pct > _SPIKE_PCT
+    if bad.any():
+        issues.append(f"spike_guard_dropped={int(bad.sum())}")
+        df = df.loc[~bad].reset_index(drop=True)
+    return df, issues
 
 
 def validate_at_ingest(
@@ -23,6 +42,7 @@ def validate_at_ingest(
             total_rows=0, valid_rows=0, dropped_rows=0, issues=["empty frame"]
         )
 
+    df, spike_issues = _drop_spike_rows(df)
     validated, audit = validate_candles(
         df,
         symbol=symbol,
@@ -33,6 +53,7 @@ def validate_at_ingest(
     audit.total_rows = total
     audit.valid_rows = len(validated)
     audit.dropped_rows = total - len(validated)
+    audit.issues.extend(spike_issues)
     return validated, audit
 
 

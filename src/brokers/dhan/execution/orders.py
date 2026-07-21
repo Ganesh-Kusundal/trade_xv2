@@ -142,6 +142,28 @@ class OrdersAdapter:
     # ── Cancellation / modification (delegated) ─────────────────────────
 
     def modify_order(self, order_id: str, **changes: object) -> OrderResponse:
+        try:
+            existing = self.get_order(order_id)
+        except Exception:
+            existing = None
+        if existing is not None:
+            qty = int(changes.get("quantity", existing.quantity))
+            price = changes.get("price", existing.price)
+            if price is not None and not isinstance(price, Decimal):
+                try:
+                    price = Decimal(str(price))
+                except Exception:
+                    price = existing.price if isinstance(existing.price, Decimal) else None
+            errors = self._validator.validate_order(
+                existing.symbol,
+                existing.exchange,
+                qty,
+                changes.get("order_type", existing.order_type),
+                changes.get("product_type", existing.product_type),
+                price if isinstance(price, Decimal) else None,
+            )
+            if errors:
+                return OrderResponse.fail("; ".join(errors))
         return self._canceller.modify_order(order_id, **changes)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
@@ -158,10 +180,13 @@ class OrdersAdapter:
 
     # ── Read-only queries ──────────────────────────────────────────────
 
-    def get_order(self, order_id: str) -> Order:
+    def get_order(self, order_id: str) -> Order | None:
         data = self._client.get(f"/orders/{order_id}")
         raw = data.get("data", data) if isinstance(data, dict) else data
-        return self._parse_order(raw if isinstance(raw, dict) else {})
+        order = self._parse_order(raw if isinstance(raw, dict) else {})
+        if not order.order_id:
+            return None
+        return order
 
     def get_order_by_correlation_id(self, correlation_id: str) -> Order:
         data = self._client.get(f"/orders/external/{correlation_id}")
@@ -184,6 +209,8 @@ class OrdersAdapter:
 
     def get_order_status(self, order_id: str) -> OrderStatus:
         order = self.get_order(order_id)
+        if order is None:
+            raise ValueError(f"Order not found: {order_id}")
         return order.status
 
     def get_trade_history(self, from_date: str, to_date: str, page: int = 0) -> list[Trade]:

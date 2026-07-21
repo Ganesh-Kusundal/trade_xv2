@@ -55,7 +55,7 @@ class TestLiveLTP:
     def test_ltp_nfo_future(self, gateway: DhanBrokerGateway):
         """ltp() for NFO future should return Decimal > 0."""
         # Get a NIFTY future contract
-        contracts = gateway.extended.get_futures_contracts("NIFTY", "INDEX")
+        contracts = gateway.extended.data.get_futures_contracts("NIFTY", "INDEX")
         if contracts:
             fut_symbol = contracts[0]["symbol"]
             ltp = gateway.ltp(fut_symbol, "NFO")

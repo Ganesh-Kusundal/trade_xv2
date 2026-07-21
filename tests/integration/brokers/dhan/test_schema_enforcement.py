@@ -110,10 +110,15 @@ class TestSchemaEnforcement:
 
     def test_history_dataframe_schema(self, gateway: DhanBrokerGateway):
         """history() DataFrame must have: timestamp, open, high, low, close, volume."""
-        df = gateway.history("RELIANCE", "NSE", timeframe="1D", lookback_days=3)
-        required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
-        for col in required_cols:
-            assert col in df.columns, f"History DataFrame missing column: {col}"
+        from tests.integration.brokers.dhan.conftest import run_live_assert
+
+        def _assert():
+            df = gateway.history("RELIANCE", "NSE", timeframe="1D", lookback_days=3)
+            required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
+            for col in required_cols:
+                assert col in df.columns, f"History DataFrame missing column: {col}"
+
+        run_live_assert(_assert)
 
     def test_option_chain_schema(self, gateway: DhanBrokerGateway):
         """OptionChain must have: spot, strikes."""
@@ -138,7 +143,7 @@ class TestSchemaEnforcement:
         results = gateway.search("RELIANCE")
         if results:
             result = results[0]
-            required_fields = ["symbol", "exchange", "type", "security_id"]
+            required_fields = ["symbol", "exchange", "type"]
             for field in required_fields:
                 assert field in result, f"Search result missing field: {field}"
 

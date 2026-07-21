@@ -372,7 +372,7 @@ class OrderLifecycle:
         if modify_fn is not None:
             try:
                 response = modify_fn(req)
-                if response is not None and not getattr(response, "success", True):
+                if response is not None and not getattr(response, "success", False):
                     return OrderResult(
                         success=False,
                         error=getattr(response, "message", None)

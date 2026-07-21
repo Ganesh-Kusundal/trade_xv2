@@ -103,7 +103,11 @@ def convert_tradej_parquet(
 
     # Convert timestamp with timezone detection
     if "timestamp" in df.columns and not df["timestamp"].empty:
-        source_tz = _detect_source_timezone(df["timestamp"])
+        if exchange is not None:
+            # ponytail: Trade_J bar_time_ms is UTC; skip 50% overlap heuristic when exchange known.
+            source_tz = "UTC"
+        else:
+            source_tz = _detect_source_timezone(df["timestamp"])
         adapter = get_active_adapter()
         tz = adapter.timezone
         if source_tz == "UTC":

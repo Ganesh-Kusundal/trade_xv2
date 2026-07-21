@@ -38,17 +38,17 @@ class TestLiveOptions:
 
     def test_nifty_expiries(self, gateway: DhanBrokerGateway):
         """get_expiries for NIFTY INDEX should return a non-empty list."""
-        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
     def test_nifty_option_chain(self, gateway: DhanBrokerGateway):
         """get_option_chain should return a dict with spot > 0 and strikes > 0."""
-        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
         time.sleep(3.5)
 
-        chain = gateway.extended.get_option_chain("NIFTY", "INDEX", expiries[0])
+        chain = gateway.extended.data.get_option_chain("NIFTY", "INDEX", expiries[0])
 
         assert "spot" in chain
         assert chain["spot"] > 0
@@ -58,12 +58,12 @@ class TestLiveOptions:
 
     def test_option_chain_has_greeks(self, gateway: DhanBrokerGateway):
         """First strike's call dict must contain delta, theta, gamma, vega keys."""
-        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
         time.sleep(3.5)
 
-        chain = gateway.extended.get_option_chain("NIFTY", "INDEX", expiries[0])
+        chain = gateway.extended.data.get_option_chain("NIFTY", "INDEX", expiries[0])
         assert len(chain["strikes"]) > 0
 
         first_strike = chain["strikes"][0]
@@ -93,7 +93,7 @@ class TestExpiredOptionsData:
 
     def test_nifty_expired_call_weekly(self, gateway: DhanBrokerGateway):
         """NIFTY expired CALL weekly options should return OHLCV data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -111,7 +111,7 @@ class TestExpiredOptionsData:
 
     def test_nifty_expired_put_weekly(self, gateway: DhanBrokerGateway):
         """NIFTY expired PUT weekly options should return OHLCV data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -126,7 +126,7 @@ class TestExpiredOptionsData:
 
     def test_nifty_expired_atm_plus_one(self, gateway: DhanBrokerGateway):
         """NIFTY expired ATM+1 strike should return data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -141,7 +141,7 @@ class TestExpiredOptionsData:
 
     def test_nifty_expired_atm_minus_one(self, gateway: DhanBrokerGateway):
         """NIFTY expired ATM-1 strike should return data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -156,7 +156,7 @@ class TestExpiredOptionsData:
 
     def test_nifty_expired_date_range(self, gateway: DhanBrokerGateway):
         """NIFTY expired data with multi-day range should return candles for each day."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -172,7 +172,7 @@ class TestExpiredOptionsData:
 
     def test_nifty_expired_monthly(self, gateway: DhanBrokerGateway):
         """NIFTY expired monthly options should return data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="MONTH",
             expiry_code=1,
@@ -187,7 +187,7 @@ class TestExpiredOptionsData:
 
     def test_banknifty_expired_call_weekly(self, gateway: DhanBrokerGateway):
         """BANKNIFTY expired CALL weekly options should return OHLCV data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=BANKNIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -202,7 +202,7 @@ class TestExpiredOptionsData:
 
     def test_banknifty_expired_put_weekly(self, gateway: DhanBrokerGateway):
         """BANKNIFTY expired PUT weekly options should return OHLCV data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=BANKNIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -217,7 +217,7 @@ class TestExpiredOptionsData:
 
     def test_banknifty_expired_atm_plus_one(self, gateway: DhanBrokerGateway):
         """BANKNIFTY expired ATM+1 strike should return data."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=BANKNIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -232,7 +232,7 @@ class TestExpiredOptionsData:
 
     def test_expired_data_has_required_fields(self, gateway: DhanBrokerGateway):
         """Expired options data should contain all required OHLCV fields."""
-        result = gateway.extended.get_expired_options_data(
+        result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -251,7 +251,7 @@ class TestExpiredOptionsData:
 
     def test_expired_data_interval_5min(self, gateway: DhanBrokerGateway):
         """Expired options data with 5-min interval should return fewer candles."""
-        result_1m = gateway.extended.get_expired_options_data(
+        result_1m = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,
@@ -261,7 +261,7 @@ class TestExpiredOptionsData:
             to_date="2026-06-12",
             interval=1,
         )
-        result_5m = gateway.extended.get_expired_options_data(
+        result_5m = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
             expiry_flag="WEEK",
             expiry_code=1,

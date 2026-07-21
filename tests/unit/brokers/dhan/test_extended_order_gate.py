@@ -83,7 +83,7 @@ def test_forever_order_blocked_before_wire(fake_client, resolver):
 
 def test_exit_all_blocked_before_wire(fake_client):
     fake_client.set_response("POST", "/exitall", {"data": {"success": True}})
-    adapter = ExitAllAdapter(fake_client)
+    adapter = ExitAllAdapter(fake_client, allow_live_orders=True)
     with pytest.raises(_Blocked):
         adapter.exit_all(authorize=_block)
     assert fake_client.calls_for("POST", "/exitall") == []
@@ -91,6 +91,6 @@ def test_exit_all_blocked_before_wire(fake_client):
 
 def test_exit_all_reaches_wire_when_authorized(fake_client):
     fake_client.set_response("POST", "/exitall", {"data": {"success": True}})
-    adapter = ExitAllAdapter(fake_client)
+    adapter = ExitAllAdapter(fake_client, allow_live_orders=True)
     adapter.exit_all(authorize=lambda: None)
     assert len(fake_client.calls_for("POST", "/exitall")) == 1

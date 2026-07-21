@@ -6,7 +6,17 @@
 
 ## Current Phase
 
+- **Broker Reliability Phase 0 — Money Safety COMPLETE (2026-07-21):** 7 P0 fixes shipped + 39 gate tests + 1820 broker suite green, 0 regressions. Design spec: `docs/superpowers/specs/2026-07-21-broker-reliability-design.md`, plan: `docs/superpowers/plans/2026-07-21-phase-0-money-safety.md`.
+  - P0.1: API cancel/modify async→sync bridge (orders.py, order_lifecycle.py) — phantom cancel/modify fixed
+  - P0.2: Paper `success=False` on REJECTED/EXPIRED (paper_gateway.py)
+  - P0.3: `disclosed_quantity` accepted by all gateway signatures (wire.py, paper_gateway.py)
+  - P0.4: Idempotency reservation preserved on ambiguous POST (dhan order_placement, upstox order_command_adapter)
+  - P0.5: Upstox CB only counts transport/5xx failures, not 4xx (upstox/auth/http.py)
+  - P0.6: Dhan `cancel_all_orders` parses per-order status (order_cancellation.py)
+  - P0.7: Token JSON untracked from git; `~/.tradex/tokens/` gitignored (.gitignore)
+- **Next: Phase 1** — Session lifecycle (connect/close/reconnect) + Phase 2 — Behavioral LSP contract parity.
 - **Broker + market-data remediation (2026-07-21):** Combined P0/P1 pass — Dhan subscription ownership + typed read-path errors + live-order guard parity; Upstox modify_order/idempotency/lifecycle/capability fixes; market-data async parquet sink + IST bucketing + gap bar injection + single-broker StreamOrchestrator + shutdown flush. Regression manifests + unit/integration tests added; gap analysis addendum in `docs/constitution/09-broker-subsystem-gap-analysis.md`.
+- **Gateway legacy contract gaps closed (2026-07-21):** Removed pre-existing xfails — Dhan `option_chain` returns `OptionChain`; Dhan placement uses `StatusMapperRegistry.normalize_strict` (unknown → `UNMAPPED_STATUS` fail-closed); Paper `ltp_batch`; DataLake `stream` raises `UnsupportedGatewayOperationError`; Dhan/Upstox `unstream` contract tests green.
 - **Doc cleanup (2026-07-21):** Removed old/dated docs under `docs/` (reviews, stubs, gap notes, runbooks, superpowers specs) and local `.trae/repowiki/`. **Kept:** `docs/constitution/`, `docs/architecture/adr/`, test-bound `FLOWS.md` / `STATE_MACHINES.md` / `ERROR_TAXONOMY.md` / `DEPENDENCY_*.md` / `e2e-spec/`.
 - **Next Maturity Contexts — complete** (2026-07-20): DP-04 tick authority, quote-zero fail-closed, deploy-profile auth (SEC-009 profile-scoped), Context 7 StrategyEvaluator bridge
 - **Architecture Maturity Program — Contexts 5–7, 8, 10 complete** (2026-07-20)
@@ -27,7 +37,7 @@
 
 - **Production:** `DhanWireAdapter.stream_order` / `unstream_order` delegate to `subscription_engine`; gateway surface freeze updated.
 - **Historical routing:** `build_coordinator` resolves `broker_id` from `session.status`, `caps.broker_id`, and `provider.name` (fixes paper verify `RoutingError` when `PaperGateway` lacks `broker_id`).
-- **Unit suite:** `tests/unit/brokers` **1771 passed**, 0 failed (44 skipped, 4 xfailed pre-existing).
+- **Unit suite:** `tests/unit/brokers` **1790 passed**, 0 failed (45 skipped, **0 xfailed** — legacy contract gaps closed 2026-07-21).
 - **Architecture:** `tests/architecture -k broker` **100 passed**.
 - **Integration:** `tests/integration/brokers` still has ~94 pre-existing failures (module path drift, extended-capability attrs, orchestrator renames) — out of this plan’s scoped root causes; regression manifest paths mostly green with clean off-market skips.
 

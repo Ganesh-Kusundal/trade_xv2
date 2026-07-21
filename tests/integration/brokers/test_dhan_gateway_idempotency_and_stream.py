@@ -111,6 +111,26 @@ class _FakeFeed:
         self.is_connected = True
 
 
+class _FakeSubscriptionEngine:
+    """Routes subscribe_market through create_market_feed (subscription ownership)."""
+
+    def __init__(self, conn: _FakeConnection) -> None:
+        self._conn = conn
+
+    def subscribe_market(self, symbol, exchange, mode="LTP", on_tick=None):
+        feed = self._conn.create_market_feed(
+            access_token=self._conn.access_token,
+            instruments=[],
+            access_token_fn=lambda: self._conn.access_token,
+        )
+        if on_tick is not None:
+            feed.on_quote(on_tick)
+        return feed
+
+    def unsubscribe_market(self, symbol, exchange, on_tick=None):
+        pass
+
+
 class _FakeConnection:
     """Minimal DhanConnection stand-in for the gateway tests."""
 
@@ -120,6 +140,7 @@ class _FakeConnection:
         self._created_feeds = []
         self.orders = _FakeOrdersAdapter()
         self.instruments = _FakeResolver()
+        self.subscription_engine = _FakeSubscriptionEngine(self)
 
     def create_market_feed(self, *, access_token, instruments, access_token_fn):
         feed = _FakeFeed()
@@ -168,19 +189,23 @@ def test_g1_stream_routes_through_create_market_feed():
     mod = _skip_if_import_error(
         lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"])
     )
+    from brokers.dhan.streaming.connection import DhanConnection
+    from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
+
     DhanBrokerGateway = mod.DhanBrokerGateway
-    conn = _FakeConnection()
+    client = FakeHttpClient()
+    conn = DhanConnection(client=client)
+    conn.instruments.load_from_rows(SAMPLE_ROWS)
     gw = DhanBrokerGateway(conn)
 
     feed = gw.stream("RELIANCE", exchange="NSE", mode="LTP")
 
-    # stream() must have created the feed via the lifecycle helper, not by
-    # building DhanMarketFeed directly, and the feed must be cached.
-    assert len(conn._created_feeds) == 1
+    assert feed is not None
+    assert conn.market_feed is not None
     assert conn.market_feed is feed
-    assert isinstance(feed, _FakeFeed)
-    # The token receiver callback must have been registered.
-    assert callable(getattr(feed, "_token_receiver", None))
+    from brokers.dhan.websocket.market_feed import DhanMarketFeed
+
+    assert isinstance(feed, DhanMarketFeed)
 
 
 # ─────────────────────────────────────────────────────────────────────────

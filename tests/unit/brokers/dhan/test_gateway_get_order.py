@@ -86,13 +86,14 @@ def test_gateway_get_order_uses_direct_endpoint_not_orderbook(fake_client, resol
 
 
 @pytest.mark.unit
-def test_gateway_get_order_returns_none_on_client_error(fake_client, resolver) -> None:
-    """When the underlying client raises (order not found / broker error),
-    the gateway surfaces None rather than propagating the exception."""
+def test_gateway_get_order_raises_on_client_error(fake_client, resolver) -> None:
+    """When the underlying client raises, the gateway propagates a typed error."""
+    from domain.errors import OrderError
+
     gw = _make_gateway_with_real_adapter(fake_client, resolver)
     fake_client.set_side_effect("GET", "/orders/NOPE", Exception("Order not found"))
 
-    result = gw.get_order("NOPE")
+    with pytest.raises(OrderError):
+        gw.get_order("NOPE")
 
-    assert result is None
     assert fake_client.calls_for("GET", "/orders/NOPE") is not None

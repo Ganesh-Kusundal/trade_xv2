@@ -7,7 +7,7 @@ from brokers.dhan.portfolio.portfolio import PortfolioAdapter
 
 def test_convert_position_payload(fake_client, resolver):
     fake_client.set_response("POST", "/positions/convert", {"status": "SUCCESS"})
-    adapter = PortfolioAdapter(fake_client, resolver)
+    adapter = PortfolioAdapter(fake_client, resolver, allow_live_orders=True)
 
     result = adapter.convert_position(
         "RELIANCE",
@@ -32,7 +32,7 @@ def test_convert_position_payload(fake_client, resolver):
 
 def test_convert_position_with_explicit_security_id(fake_client, resolver):
     fake_client.set_response("POST", "/positions/convert", {})
-    adapter = PortfolioAdapter(fake_client, resolver)
+    adapter = PortfolioAdapter(fake_client, resolver, allow_live_orders=True)
 
     adapter.convert_position(
         "TCS",
@@ -48,7 +48,7 @@ def test_convert_position_with_explicit_security_id(fake_client, resolver):
 
 
 def test_convert_position_rejects_same_product(fake_client, resolver):
-    adapter = PortfolioAdapter(fake_client, resolver)
+    adapter = PortfolioAdapter(fake_client, resolver, allow_live_orders=True)
     with pytest.raises(ValueError, match="must differ"):
         adapter.convert_position(
             "RELIANCE",
@@ -59,7 +59,7 @@ def test_convert_position_rejects_same_product(fake_client, resolver):
 
 
 def test_convert_position_rejects_non_positive_qty(fake_client, resolver):
-    adapter = PortfolioAdapter(fake_client, resolver)
+    adapter = PortfolioAdapter(fake_client, resolver, allow_live_orders=True)
     with pytest.raises(ValueError, match="positive"):
         adapter.convert_position(
             "RELIANCE",

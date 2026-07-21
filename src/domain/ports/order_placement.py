@@ -33,6 +33,7 @@ def invoke_place_order(port: OrderPlacementPort, request: OrderRequest) -> Order
         validity=_enum_value(request.validity),
         trigger_price=request.trigger_price or Decimal("0"),
         correlation_id=request.correlation_id,
+        disclosed_quantity=request.disclosed_quantity,
     )
 
 

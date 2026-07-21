@@ -315,9 +315,6 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.trades()
         assert isinstance(result, list)
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: option_chain() returns dict, not OptionChain; gateway needs fix"
-    )
     def test_option_chain_returns_option_chain(self, dhan_gw):
         options_adapter = MagicMock()
         options_adapter.get_expiries.return_value = ["2026-06-26"]
@@ -331,9 +328,6 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.option_chain("NIFTY", "NFO")
         assert isinstance(result, OptionChain)
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: future_chain() returns dict, not FutureChain; gateway needs fix"
-    )
     def test_future_chain_returns_future_chain(self, dhan_gw):
         dhan_gw._conn.futures = MagicMock()
         dhan_gw._conn.futures.get_contracts.return_value = []
@@ -341,9 +335,6 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.future_chain("NIFTY", "NFO")
         assert isinstance(result, FutureChain)
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: unstream() was from deleted MarketDataGateway ABC; never implemented in Dhan"
-    )
     def test_unstream_exists_and_is_callable(self, dhan_gw):
         assert callable(getattr(dhan_gw, "unstream", None))
 
@@ -447,7 +438,6 @@ class TestUpstoxGatewayReturnTypes:
         result = upstox_gw.search("RELIANCE")
         assert isinstance(result, list)
 
-    @pytest.mark.xfail(reason="unstream was from deleted MarketDataGateway ABC")
     def test_unstream_exists_and_is_callable(self, upstox_gw):
         assert callable(getattr(upstox_gw, "unstream", None))
 
@@ -527,7 +517,6 @@ class TestPaperGatewayContract:
         result = paper_gw.search("RELIANCE")
         assert isinstance(result, list)
 
-    @pytest.mark.xfail(reason="ltp_batch was from deleted BatchFetchMixin")
     def test_ltp_batch_returns_dict(self, paper_gw):
         result = paper_gw.ltp_batch(["RELIANCE", "TCS"], "NSE")
         assert isinstance(result, dict)

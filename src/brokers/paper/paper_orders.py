@@ -22,6 +22,11 @@ from domain.ports.time_service import get_current_clock
 from domain.symbols import normalize_exchange, normalize_symbol
 
 from .paper_market_data import PaperMarketData
+from .sim_config import (
+    apply_slippage,
+    partial_fill_quantity,
+    paper_fill_outside_hours,
+)
 
 
 class PaperOrders:
@@ -49,6 +54,19 @@ class PaperOrders:
         self._order_seq = 0
         self._trade_seq = 0
         self._lock = RLock()
+
+    @staticmethod
+    def _fills_allowed_now(exchange: str) -> bool:
+        if paper_fill_outside_hours():
+            return True
+        try:
+            from brokers.certification.market_hours import is_nse_market_open
+
+            if normalize_exchange(exchange) in {"NSE", "NFO", "BSE", "INDEX", "MCX"}:
+                return is_nse_market_open()
+        except Exception:
+            return True
+        return True
 
     def _risk_check(self, order: Order) -> tuple[bool, str | None]:
         """Delegate to the central risk manager if available."""
@@ -132,15 +150,40 @@ class PaperOrders:
             correlation_id=correlation_id or f"ppr:{seq}",
         )
 
+        is_market = order_type == OrderType.MARKET
         fill_price = (
             price
             if price > 0 and order_type == OrderType.LIMIT
             else self._md.get_ltp(symbol, exchange)
         )
-        is_market = order_type == OrderType.MARKET
+        if is_market:
+            fill_price = apply_slippage(fill_price, side)
+        fill_qty = partial_fill_quantity(quantity) if is_market else quantity
 
         def _fill(cmd: OrderIntent) -> Order:
             if is_market:
+                if not self._fills_allowed_now(exchange):
+                    return Order(
+                        order_id=f"PPR-{seq:06d}",
+                        symbol=cmd.symbol,
+                        exchange=cmd.exchange,
+                        side=cmd.side,
+                        order_type=cmd.order_type,
+                        quantity=cmd.quantity,
+                        filled_quantity=0,
+                        price=cmd.price,
+                        trigger_price=trigger_price,
+                        status=OrderStatus.OPEN,
+                        timestamp=get_current_clock().now(),
+                        product_type=cmd.product_type,
+                        avg_price=Decimal("0"),
+                        correlation_id=cmd.correlation_id,
+                    )
+                status = (
+                    OrderStatus.PARTIALLY_FILLED
+                    if fill_qty < cmd.quantity
+                    else OrderStatus.FILLED
+                )
                 return Order(
                     order_id=f"PPR-{seq:06d}",
                     symbol=cmd.symbol,
@@ -148,10 +191,10 @@ class PaperOrders:
                     side=cmd.side,
                     order_type=cmd.order_type,
                     quantity=cmd.quantity,
-                    filled_quantity=cmd.quantity,
+                    filled_quantity=fill_qty,
                     price=cmd.price,
                     trigger_price=trigger_price,
-                    status=OrderStatus.FILLED,
+                    status=status,
                     timestamp=get_current_clock().now(),
                     product_type=cmd.product_type,
                     avg_price=fill_price,
@@ -202,8 +245,8 @@ class PaperOrders:
             self._orders.append(result.order)
             self._order_seq = seq  # sync sequence counter
 
-        # Only record trade / positions on market fills
-        if is_market and result.order.status == OrderStatus.FILLED:
+        # Only record trade / positions on market fills (single lock for atomicity).
+        if is_market and result.order.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
             self._trade_seq += 1
             trade = Trade(
                 trade_id=f"PPR-T-{self._trade_seq:06d}",
@@ -211,9 +254,9 @@ class PaperOrders:
                 symbol=symbol,
                 exchange=exchange,
                 side=side,
-                quantity=quantity,
+                quantity=result.order.filled_quantity,
                 price=fill_price,
-                trade_value=fill_price * quantity,
+                trade_value=fill_price * Decimal(int(result.order.filled_quantity)),
                 timestamp=get_current_clock().now(),
                 product_type=product_type,
             )
@@ -223,7 +266,7 @@ class PaperOrders:
                     symbol,
                     exchange,
                     side,
-                    quantity,
+                    result.order.filled_quantity,
                     fill_price,
                     product_type,
                 )
@@ -292,7 +335,7 @@ class PaperOrders:
                     side=filled_order.side,
                     quantity=filled_order.quantity,
                     price=limit_price,
-                    trade_value=limit_price * filled_order.quantity,
+                    trade_value=limit_price * Decimal(int(filled_order.quantity)),
                     timestamp=now,
                     product_type=filled_order.product_type,
                 )

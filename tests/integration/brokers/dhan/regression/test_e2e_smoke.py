@@ -100,7 +100,7 @@ class TestOffMarketSmoke:
         chain = live_gateway.option_chain(underlying, exchange)
         assert chain.spot > 0, f"{underlying} option chain spot invalid"
         assert len(chain.strikes) > 0, f"{underlying} option chain empty"
-        expiries = live_gateway.extended.get_option_expiries(
+        expiries = live_gateway.extended.data.get_option_expiries(
             underlying, "INDEX" if underlying in ("NIFTY", "BANKNIFTY", "FINNIFTY") else "NSE"
         )
         assert len(expiries) >= 1, f"{underlying} extended expiries empty"

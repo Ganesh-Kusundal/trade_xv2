@@ -323,7 +323,9 @@ class DataLakeGateway(MarketDataGateway):
         return out
 
     def stream(self, symbols: list[str], exchange: str = "NSE") -> Any:
-        raise NotImplementedError("DataLakeGateway does not support live streaming")
+        from domain.errors import UnsupportedGatewayOperationError
+
+        raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Batch

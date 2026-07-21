@@ -90,7 +90,7 @@ class TestDhanBrokerContract(BrokerContractSuite):
 
     def test_option_chain_returns_dict(self, gateway: DhanBrokerGateway) -> None:
         # Offline SAMPLE_ROWS has no option legs; assert via futures contracts shape instead.
-        contracts = gateway.extended.get_futures_contracts("GOLD", "MCX")
+        contracts = gateway.extended.data.get_futures_contracts("GOLD", "MCX")
         assert isinstance(contracts, list)
         assert len(contracts) > 0
 
@@ -148,7 +148,7 @@ class TestDhanExtendedContract:
         time.sleep(1.5)
 
     def test_order_validation_rejects_bad_lot(self, offline_gateway: DhanBrokerGateway) -> None:
-        errors = offline_gateway.extended.validate_order(
+        errors = offline_gateway.extended.data.validate_order(
             symbol="NIFTY 26 JUN FUT",
             exchange="NFO",
             quantity=10,
@@ -159,7 +159,7 @@ class TestDhanExtendedContract:
         assert any("lot size" in e.lower() or "multiple" in e.lower() for e in errors)
 
     def test_order_validation_rejects_bad_product(self, offline_gateway: DhanBrokerGateway) -> None:
-        errors = offline_gateway.extended.validate_order(
+        errors = offline_gateway.extended.data.validate_order(
             symbol="NIFTY 26 JUN FUT",
             exchange="NFO",
             quantity=75,
@@ -170,8 +170,8 @@ class TestDhanExtendedContract:
         assert any("CNC" in e or "product" in e.lower() for e in errors)
 
     def test_idempotency_cache_exists(self, offline_gateway: DhanBrokerGateway) -> None:
-        assert hasattr(offline_gateway.extended.orders, "_idempotency")
-        assert isinstance(offline_gateway.extended.orders._idempotency, IdempotencyCache)
+        assert hasattr(offline_gateway._conn.orders, "_idempotency")
+        assert isinstance(offline_gateway._conn.orders._idempotency, IdempotencyCache)
 
 
 class TestDhanExtendedOrderExecutionSurface:
@@ -186,35 +186,35 @@ class TestDhanExtendedOrderExecutionSurface:
         from brokers.dhan.exceptions import OrderError
 
         with pytest.raises(OrderError, match="Live orders are disabled"):
-            offline_gateway.extended.kill_switch(True)
+            offline_gateway._conn.orders.kill_switch(True)
 
     def test_status_kill_switch_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
-        result = offline_gateway.extended.status_kill_switch()
+        result = offline_gateway._conn.orders.status_kill_switch()
         assert isinstance(result, dict)
 
     def test_place_slice_order_delegates_and_honors_live_orders_guard(
         self, offline_gateway: DhanBrokerGateway
     ) -> None:
-        response = offline_gateway.extended.place_slice_order(
+        response = offline_gateway._conn.orders.place_slice_order(
             symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10
         )
         assert response.success is False
         assert "Live orders disabled" in response.message
 
     def test_get_trade_history_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
-        trades = offline_gateway.extended.get_trade_history("2026-01-01", "2026-01-31")
+        trades = offline_gateway._conn.orders.get_trade_history("2026-01-01", "2026-01-31")
         assert isinstance(trades, list)
 
     def test_get_order_by_correlation_id_delegates(
         self, offline_gateway: DhanBrokerGateway
     ) -> None:
-        order = offline_gateway.extended.get_order_by_correlation_id("some-correlation-id")
+        order = offline_gateway._conn.orders.get_order_by_correlation_id("some-correlation-id")
         assert hasattr(order, "order_id")
 
     def test_calculate_margin_delegates(self, offline_gateway: DhanBrokerGateway) -> None:
         from brokers.dhan.domain import MarginRequest
 
-        result = offline_gateway.extended.calculate_margin(
+        result = offline_gateway._conn.margin.calculate(
             MarginRequest(
                 symbol="RELIANCE",
                 exchange="NSE",
@@ -227,30 +227,30 @@ class TestDhanExtendedOrderExecutionSurface:
 
     @skip_live
     def test_positions_returns_list(self, live_gateway: DhanBrokerGateway) -> None:
-        assert isinstance(live_gateway.extended.get_positions(), list)
+        assert isinstance(live_gateway.extended.positions.get_positions(), list)
 
     @skip_live
     def test_holdings_returns_list(self, live_gateway: DhanBrokerGateway) -> None:
-        assert isinstance(live_gateway.extended.get_holdings(), list)
+        assert isinstance(live_gateway.extended.positions.get_holdings(), list)
 
     @skip_live
     def test_balance_returns_balance(self, live_gateway: DhanBrokerGateway) -> None:
-        balance = live_gateway.extended.get_balance()
+        balance = live_gateway.extended.positions.get_balance()
         assert hasattr(balance, "available_balance")
         assert isinstance(balance.available_balance, Decimal)
 
     @skip_live
     def test_expiries_returns_list(self, live_gateway: DhanBrokerGateway) -> None:
-        expiries = live_gateway.extended.get_expiries("NIFTY", "INDEX")
+        expiries = live_gateway.extended.data.get_expiries("NIFTY", "INDEX")
         assert isinstance(expiries, list)
         assert len(expiries) > 0
 
     @skip_live
     def test_option_chain_has_strikes(self, live_gateway: DhanBrokerGateway) -> None:
-        expiries = live_gateway.extended.get_expiries("NIFTY", "INDEX")
+        expiries = live_gateway.extended.data.get_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
         time.sleep(3.5)
-        chain = live_gateway.extended.get_option_chain("NIFTY", "INDEX", expiries[0])
+        chain = live_gateway.extended.data.get_option_chain("NIFTY", "INDEX", expiries[0])
         assert "strikes" in chain
         assert len(chain["strikes"]) > 0
         first_strike = chain["strikes"][0]
@@ -258,7 +258,7 @@ class TestDhanExtendedOrderExecutionSurface:
         assert "put" in first_strike
 
     def test_futures_returns_contracts(self, offline_gateway: DhanBrokerGateway) -> None:
-        contracts = offline_gateway.extended.get_futures_contracts("GOLD", "MCX")
+        contracts = offline_gateway.extended.data.get_futures_contracts("GOLD", "MCX")
         assert isinstance(contracts, list)
         assert len(contracts) > 0
         for contract in contracts:
@@ -267,8 +267,8 @@ class TestDhanExtendedOrderExecutionSurface:
             assert "lot_size" in contract
 
     def test_is_commodity(self, offline_gateway: DhanBrokerGateway) -> None:
-        assert offline_gateway.extended.is_commodity("GOLD") is True
-        assert offline_gateway.extended.is_commodity("SILVER") is True
-        assert offline_gateway.extended.is_commodity("CRUDEOIL") is True
-        assert offline_gateway.extended.is_commodity("RELIANCE") is False
-        assert offline_gateway.extended.is_commodity("NIFTY") is False
+        assert offline_gateway.extended.data.is_commodity("GOLD") is True
+        assert offline_gateway.extended.data.is_commodity("SILVER") is True
+        assert offline_gateway.extended.data.is_commodity("CRUDEOIL") is True
+        assert offline_gateway.extended.data.is_commodity("RELIANCE") is False
+        assert offline_gateway.extended.data.is_commodity("NIFTY") is False

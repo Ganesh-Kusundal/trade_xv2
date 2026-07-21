@@ -50,19 +50,19 @@ class TestLiveQuotes:
 
     def test_mcx_futures_exist(self, gateway: DhanBrokerGateway):
         """GOLD on MCX should have at least 3 futures contracts."""
-        contracts = gateway.extended.get_futures_contracts("GOLD", "MCX")
+        contracts = gateway.extended.data.get_futures_contracts("GOLD", "MCX")
         assert len(contracts) >= 3
 
     def test_mcx_crudeoil_futures(self, gateway: DhanBrokerGateway):
         """CRUDEOIL on MCX should have at least 3 futures contracts."""
-        contracts = gateway.extended.get_futures_contracts("CRUDEOIL", "MCX")
+        contracts = gateway.extended.data.get_futures_contracts("CRUDEOIL", "MCX")
         assert len(contracts) >= 3
 
     def test_mcx_quote_via_nearest(self, gateway: DhanBrokerGateway):
         """Fetch nearest GOLD future and quote it — ltp must be > 0."""
         nearest = (
-            gateway.extended.get_futures_contracts("GOLD", "MCX")[0]
-            if gateway.extended.get_futures_contracts("GOLD", "MCX")
+            gateway.extended.data.get_futures_contracts("GOLD", "MCX")[0]
+            if gateway.extended.data.get_futures_contracts("GOLD", "MCX")
             else None
         )
         assert nearest is not None, "No GOLD futures found in resolver"

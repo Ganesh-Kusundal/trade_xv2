@@ -28,6 +28,14 @@ from infrastructure.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
 
+# ponytail: retention is config-only — compaction script can read this; hot path never deletes.
+DATALAKE_RETENTION_DAYS: int = int(__import__("os").getenv("DATALAKE_RETENTION_DAYS", "0") or "0")
+
+
+def parquet_retention_days() -> int:
+    """Configured parquet retention (0 = disabled / grow unbounded)."""
+    return max(0, DATALAKE_RETENTION_DAYS)
+
 
 def _session_bounds():
     """Return (open, close) from the active trading calendar."""
@@ -476,6 +484,9 @@ class HistoricalDataLoader:
         invalid_count = audit.dropped_rows
         fetched_rows = len(df)
 
+        import time
+
+        t0 = time.perf_counter()
         with file_lock(target):
             merged = df
             if target.exists():
@@ -492,6 +503,12 @@ class HistoricalDataLoader:
             table = pa.Table.from_pandas(merged, preserve_index=False)
             table = enforce_canonical_schema(table)
             atomic_parquet_write(target, table, compression="snappy")
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug(
+            "parquet_merge_write_ms",
+            extra={"symbol": symbol, "timeframe": timeframe, "elapsed_ms": round(elapsed_ms, 2)},
+        )
 
         if merged.empty:
             first_ts = last_ts = None

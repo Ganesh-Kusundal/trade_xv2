@@ -186,3 +186,23 @@ class MarketDataAdapter:
                         oi=int(info.get("oi", 0) or 0),
                     )
         return result
+
+
+def merge_depth_with_rest(
+    ws_depth: MarketDepth | None,
+    *,
+    fetch_rest,
+) -> MarketDepth:
+    """Merge WS depth with REST when one side is empty (ponytail: feed-path helper)."""
+    if ws_depth is None:
+        return fetch_rest()
+    if ws_depth.bids and ws_depth.asks:
+        return ws_depth
+    rest = fetch_rest()
+    return MarketDepth(
+        symbol=ws_depth.symbol or rest.symbol,
+        bids=ws_depth.bids or rest.bids,
+        asks=ws_depth.asks or rest.asks,
+        depth_type=ws_depth.depth_type or rest.depth_type,
+        timestamp=ws_depth.timestamp or rest.timestamp,
+    )

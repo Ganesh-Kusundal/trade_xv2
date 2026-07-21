@@ -48,9 +48,6 @@ def test_datalake_gateway_raises_not_implemented_for_trading_methods(
         method()
 
 
-@pytest.mark.xfail(
-    reason="DataLakeGateway.stream() raises NotImplementedError, not UnsupportedGatewayOperation; pre-existing"
-)
 def test_datalake_stream_raises_unsupported() -> None:
     gw = DataLakeGateway(root="market_data")
     with pytest.raises(UnsupportedGatewayOperation) as exc_info:

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.integration.brokers.dhan.conftest import run_live_assert
 from tests.integration.brokers.dhan.regression.manifest import (
     MARKET_HOURS_CASES,
     OFF_MARKET_CASES,
@@ -48,7 +49,7 @@ from tests.market_hours import require_market_hours
 @pytest.mark.regression
 def test_off_market_regression(case: RegressionCase, live_gateway) -> None:
     """Off-market regression: REST/read-only Dhan capabilities."""
-    case.assert_fn(live_gateway)
+    run_live_assert(lambda: case.assert_fn(live_gateway))
 
 
 @pytest.mark.parametrize(

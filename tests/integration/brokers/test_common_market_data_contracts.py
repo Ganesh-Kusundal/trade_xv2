@@ -189,22 +189,22 @@ def test_m2_seen_ids_bounded_lru_and_dedup(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_orch() -> object:
-    """Build a StreamOrchestrator without running __init__ (heavy deps)."""
+def _make_router():
+    """Build a TickRouter without running __init__ (heavy deps)."""
     try:
-        from application.streaming.orchestrator import StreamOrchestrator
+        from application.streaming.tick_router import TickRouter
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"application.streaming.orchestrator unavailable: {exc}")
-    orch = object.__new__(StreamOrchestrator)
-    orch._dedup_seen = {}  # type: ignore[attr-defined]
-    return orch
+        pytest.skip(f"application.streaming.tick_router unavailable: {exc}")
+    router = object.__new__(TickRouter)
+    router._dedup_seen = {}  # type: ignore[attr-defined]
+    return router
 
 
 def test_m3_exchange_timestamp_preserved_not_now():
     try:
-        from application.streaming.orchestrator import StreamOrchestrator
+        from application.streaming.tick_router import TickRouter
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"application.streaming.orchestrator unavailable: {exc}")
+        pytest.skip(f"application.streaming.tick_router unavailable: {exc}")
 
     now = datetime(2020, 1, 1, tzinfo=timezone.utc)  # "arrival" time
     # Upstox-style epoch-millis exchange timestamp (2023-01-01 UTC)
@@ -217,35 +217,35 @@ def test_m3_exchange_timestamp_preserved_not_now():
         "ltp": 2500.0,
         "exchange_timestamp": exch_ts_ms,
     }
-    tick = StreamOrchestrator._normalize_tick(frame, "sess-1", "upstox", now)
+    tick = TickRouter._normalize_tick(frame, "sess-1", "upstox", now)
     assert tick is not None
     assert tick.event_time == expected, "event_time must be the exchange ts"
     assert tick.event_time != now, "event_time must NOT fall back to arrival now"
 
 
 def test_m3_repeated_key_within_window_is_dropped():
-    orch = _make_orch()
+    router = _make_router()
     inst = "RELIANCE:NSE"
     et = datetime(2024, 5, 1, tzinfo=timezone.utc)
     seq = 42
 
-    first = orch._dedup_drop(inst, et, seq)  # type: ignore[attr-defined]
-    second = orch._dedup_drop(inst, et, seq)  # type: ignore[attr-defined]
+    first = router.dedup_drop(inst, et, seq)  # type: ignore[attr-defined]
+    second = router.dedup_drop(inst, et, seq)  # type: ignore[attr-defined]
 
     assert first is False, "first occurrence should be kept"
     assert second is True, "repeated (instrument, exchange_time, seq) must be dropped"
 
 
 def test_m3_dhan_no_timestamp_not_wrongly_deduped():
-    orch = _make_orch()
+    router = _make_router()
     inst = "RELIANCE:NSE"
     # Dhan tick carries no exchange ts -> event_time == arrival time.
     dhan_arrival = datetime(2024, 1, 1, tzinfo=timezone.utc)
     # A different (Upstox, timestamped) tick for the same instrument.
     upstox_exch = datetime(2024, 6, 1, tzinfo=timezone.utc)
 
-    dhan_drop = orch._dedup_drop(inst, dhan_arrival, None)  # type: ignore[attr-defined]
-    upstox_drop = orch._dedup_drop(inst, upstox_exch, None)  # type: ignore[attr-defined]
+    dhan_drop = router.dedup_drop(inst, dhan_arrival, None)  # type: ignore[attr-defined]
+    upstox_drop = router.dedup_drop(inst, upstox_exch, None)  # type: ignore[attr-defined]
 
     assert dhan_drop is False
     # A Dhan tick (no timestamp) must NOT be collapsed with a timestamped tick.

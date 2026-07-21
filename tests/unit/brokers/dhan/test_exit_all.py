@@ -17,7 +17,7 @@ def test_exit_all_success(fake_client):
             }
         },
     )
-    adapter = ExitAllAdapter(fake_client)
+    adapter = ExitAllAdapter(fake_client, allow_live_orders=True)
     result = adapter.exit_all()
 
     assert result.success is True
@@ -40,7 +40,7 @@ def test_exit_all_positions_closed(fake_client):
             }
         },
     )
-    adapter = ExitAllAdapter(fake_client)
+    adapter = ExitAllAdapter(fake_client, allow_live_orders=True)
     result = adapter.exit_all()
 
     assert result.positions_closed == 10
@@ -60,7 +60,7 @@ def test_exit_all_orders_cancelled(fake_client):
             }
         },
     )
-    adapter = ExitAllAdapter(fake_client)
+    adapter = ExitAllAdapter(fake_client, allow_live_orders=True)
     result = adapter.exit_all()
 
     assert result.orders_cancelled == 7

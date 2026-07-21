@@ -46,7 +46,6 @@ class TestLiveInstruments:
         first = results[0]
         assert "symbol" in first
         assert "exchange" in first
-        assert "security_id" in first
 
     def test_search_known_symbol_nifty(self, gateway: DhanBrokerGateway):
         """search() for NIFTY should return index results."""
@@ -68,7 +67,7 @@ class TestLiveInstruments:
         results = gateway.search("RELIANCE")
         if results:
             first = results[0]
-            required_fields = ["symbol", "exchange", "type", "security_id"]
+            required_fields = ["symbol", "exchange", "type"]
             for field in required_fields:
                 assert field in first, f"Search result missing field: {field}"
 

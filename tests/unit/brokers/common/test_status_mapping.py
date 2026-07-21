@@ -161,32 +161,29 @@ class TestUpstoxStatusMapping:
 class TestStrictStatusMappingIntegration:
     """Integration tests for strict status mapping in order placement."""
 
-    @pytest.mark.xfail(
-        reason="Mock bypasses status mapping; gateway delegates to connection without validation"
-    )
     def test_dhan_gateway_uses_strict_status_mapping(self):
-        """Test that DhanGateway uses strict status mapping and fails on unknown statuses."""
-        from unittest.mock import Mock
+        """Unknown broker orderStatus on placement fails closed (UNMAPPED_STATUS)."""
+        from brokers.dhan.resolver import SymbolResolver
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
+        from tests.unit.brokers.dhan.test_gateway_get_order import (
+            _make_gateway_with_real_adapter,
+        )
 
-        from brokers.dhan.wire import DhanBrokerGateway
+        client = FakeHttpClient()
+        resolver = SymbolResolver()
+        resolver.load_from_rows(SAMPLE_ROWS)
+        client.set_response(
+            "POST",
+            "/orders",
+            {"data": {"orderId": "ORD-UNMAPPED", "orderStatus": "UNKNOWN_STATUS"}},
+        )
+        gateway = _make_gateway_with_real_adapter(client, resolver)
 
-        # Create a mock connection that returns an order with unknown status
-        mock_conn = Mock()
-        mock_order = Mock()
-        mock_order.order_id = "test_order_123"
-        mock_order.status.value = "UNKNOWN_STATUS"  # This should cause failure
-
-        mock_conn.orders.place_order.return_value = mock_order
-
-        gateway = DhanBrokerGateway(mock_conn)
-
-        # This should return a failed response due to unmapped status
         response = gateway.place_order("RELIANCE", "NSE", "BUY", 1)
 
-        # Should not be successful due to unmapped status
         assert not response.success
-        assert "UNMAPPED_STATUS" in response.message or "unmapped" in response.message.lower()
         assert response.error_code == "UNMAPPED_STATUS"
+        assert "UNMAPPED_STATUS" in (response.message or "")
 
     def test_upstox_domain_mapper_uses_strict_status_mapping(self):
         """Test that UpstoxDomainMapper uses strict status mapping."""

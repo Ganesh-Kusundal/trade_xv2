@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from domain import Order, OrderResponse, OrderStatus
+from tests.fixtures.domain_helpers import make_order
 
 
 @pytest.fixture
@@ -30,11 +31,10 @@ class TestPaperGatewayCancelVerification:
 
     @pytest.fixture
     def paper_gateway(self):
-        """Create PaperGateway without TradingContext (legacy path)."""
         from brokers.paper.paper_gateway import PaperGateway
+        from tests.unit.brokers.paper.conftest import MockPaperOrderManager
 
-        gw = PaperGateway()
-        return gw
+        return PaperGateway(order_manager=MockPaperOrderManager())
 
     def test_cancel_open_order_succeeds(self, paper_gateway):
         """Paper trading instantly fills all orders, so this test verifies
@@ -203,81 +203,56 @@ class TestDhanGatewayCancelVerification:
 
 
 class TestUpstoxGatewayCancelVerification:
-    """Test post-cancellation verification with Upstox gateway (mocked)."""
+    """Test post-cancellation verification with Upstox gateway."""
 
     @pytest.fixture
     def mock_upstox_gateway(self):
-        """Create Upstox gateway with mocked broker and order command."""
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.wire import UpstoxBrokerGateway
 
-        # Mock settings directly
         mock_settings = MagicMock()
         mock_settings.analytics_only = False
         mock_settings.allow_live_orders = True
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = MagicMock()
         mock_broker.settings = mock_settings
-
         mock_order_cmd = MagicMock()
+        mock_order_query = MagicMock()
+        mock_broker.order_command = mock_order_cmd
+        mock_broker.order_query = mock_order_query
 
-        gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
-        gw._broker = mock_broker
-        gw._order_command = mock_order_cmd
-        gw._market_data_adapter = MagicMock()
-        gw._stream_manager = MagicMock()
-        # Wire the OrderGateway delegate that cancel_order() uses
-        gw._order_gw = MagicMock()
-        gw._order_gw.cancel_order = mock_order_cmd.cancel_order
-        gw._order_gw.get_order = MagicMock(return_value=None)
-
-        return gw, mock_order_cmd
+        gw = UpstoxBrokerGateway(mock_broker)
+        return gw, mock_order_cmd, mock_order_query
 
     def test_cancel_open_order_with_verification(self, mock_upstox_gateway):
-        """Cancel OPEN order should succeed after verification."""
-        gw, mock_order_cmd = mock_upstox_gateway
-
-        # Mock cancel_order to return success
+        gw, mock_order_cmd, mock_order_query = mock_upstox_gateway
         mock_order_cmd.cancel_order.return_value = OrderResponse.ok(
             order_id="UPSTOX-123",
             message="Cancel request accepted",
         )
-
-        # Mock get_orderbook to return cancelled order
-        mock_order = MagicMock(spec=Order)
-        mock_order.order_id = "UPSTOX-123"
-        mock_order.status = OrderStatus.CANCELLED
-        gw.get_orderbook = MagicMock(return_value=[mock_order])
+        mock_order_query.get_order.return_value = make_order(
+            order_id="UPSTOX-123", status=OrderStatus.CANCELLED
+        )
 
         cancel_resp = gw.cancel_order("UPSTOX-123")
         assert cancel_resp.success is True
 
     def test_cancel_filled_order_detects_race_condition(self, mock_upstox_gateway):
-        """Cancel should detect if order was FILLED before cancel completed."""
-        gw, mock_order_cmd = mock_upstox_gateway
-
-        # Mock cancel_order to return success
+        gw, mock_order_cmd, mock_order_query = mock_upstox_gateway
         mock_order_cmd.cancel_order.return_value = OrderResponse.ok(
             order_id="UPSTOX-456",
             message="Cancel request accepted",
         )
-
-        # Mock get_orderbook to show order was FILLED (race condition)
-        mock_order = MagicMock(spec=Order)
-        mock_order.order_id = "UPSTOX-456"
-        mock_order.status = OrderStatus.FILLED
-        gw.get_orderbook = MagicMock(return_value=[mock_order])
+        mock_order_query.get_order.return_value = make_order(
+            order_id="UPSTOX-456", status=OrderStatus.FILLED
+        )
 
         cancel_resp = gw.cancel_order("UPSTOX-456")
-
-        # Should fail because order was already filled
         assert cancel_resp.success is False
         assert "already filled" in cancel_resp.message.lower()
         assert cancel_resp.status == OrderStatus.FILLED
 
     def test_analytics_only_mode_blocks_cancel(self, mock_upstox_gateway):
-        """Cancel should be blocked in analytics-only mode."""
-        gw, _mock_order_cmd = mock_upstox_gateway
+        gw, _mock_order_cmd, _mock_order_query = mock_upstox_gateway
         gw._broker.settings.analytics_only = True
 
         cancel_resp = gw.cancel_order("UPSTOX-789")
@@ -290,11 +265,10 @@ class TestCancelVerificationEdgeCases:
 
     @pytest.fixture
     def paper_gateway(self):
-        """Create PaperGateway without TradingContext (legacy path)."""
         from brokers.paper.paper_gateway import PaperGateway
+        from tests.unit.brokers.paper.conftest import MockPaperOrderManager
 
-        gw = PaperGateway()
-        return gw
+        return PaperGateway(order_manager=MockPaperOrderManager())
 
     def test_cancel_partially_filled_order(self, paper_gateway):
         """Paper trading instantly fills all orders, verifying race condition

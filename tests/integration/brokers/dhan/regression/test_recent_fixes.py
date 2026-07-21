@@ -36,7 +36,10 @@ from domain import DepthLevel, MarketDepth
 
 
 class TestCompleteDepthSnapshot:
-    """gateway._complete_depth_snapshot merges REST fallback when a side is empty."""
+    """merge_depth_with_rest merges REST fallback when a WS side is empty."""
+
+    def _fetch_rest(self, gw):
+        return gw._conn.market_data.get_depth("RELIANCE", "NSE")
 
     def _make_gateway(self):
         from brokers.dhan.resolver import SymbolResolver
@@ -70,32 +73,38 @@ class TestCompleteDepthSnapshot:
         return gw
 
     def test_none_ws_depth_returns_rest(self):
+        from brokers.dhan.data.market_data import merge_depth_with_rest
+
         gw = self._make_gateway()
-        result = gw._complete_depth_snapshot(None, "RELIANCE", "NSE")
+        result = merge_depth_with_rest(None, fetch_rest=lambda: self._fetch_rest(gw))
         assert result.depth_type == "DEPTH_5"
         assert len(result.bids) == 1
         gw._conn.market_data.get_depth.assert_called_once()
 
     def test_ws_depth_both_sides_no_rest_call(self):
+        from brokers.dhan.data.market_data import merge_depth_with_rest
+
         gw = self._make_gateway()
         ws = MarketDepth(
             bids=[DepthLevel(Decimal("1330"), 50, 2)],
             asks=[DepthLevel(Decimal("1331"), 30, 1)],
             depth_type="DEPTH_20",
         )
-        result = gw._complete_depth_snapshot(ws, "RELIANCE", "NSE")
+        result = merge_depth_with_rest(ws, fetch_rest=lambda: self._fetch_rest(gw))
         assert result.depth_type == "DEPTH_20"
         gw._conn.market_data.get_depth.assert_not_called()
 
     def test_ws_depth_bids_only_merges_rest_asks(self):
         """When WS has bids but no asks, REST asks are merged in."""
+        from brokers.dhan.data.market_data import merge_depth_with_rest
+
         gw = self._make_gateway()
         ws = MarketDepth(
             bids=[DepthLevel(Decimal("1330"), 50, 2)],
             asks=[],
             depth_type="DEPTH_20",
         )
-        result = gw._complete_depth_snapshot(ws, "RELIANCE", "NSE")
+        result = merge_depth_with_rest(ws, fetch_rest=lambda: self._fetch_rest(gw))
         assert result.depth_type == "DEPTH_20"
         assert len(result.bids) == 1
         assert len(result.asks) == 1, "REST asks must be merged when WS asks empty"
@@ -103,13 +112,15 @@ class TestCompleteDepthSnapshot:
 
     def test_ws_depth_asks_only_merges_rest_bids(self):
         """When WS has asks but no bids, REST bids are merged in."""
+        from brokers.dhan.data.market_data import merge_depth_with_rest
+
         gw = self._make_gateway()
         ws = MarketDepth(
             bids=[],
             asks=[DepthLevel(Decimal("1331"), 30, 1)],
             depth_type="DEPTH_20",
         )
-        result = gw._complete_depth_snapshot(ws, "RELIANCE", "NSE")
+        result = merge_depth_with_rest(ws, fetch_rest=lambda: self._fetch_rest(gw))
         assert result.depth_type == "DEPTH_20"
         assert len(result.asks) == 1
         assert len(result.bids) == 1, "REST bids must be merged when WS bids empty"

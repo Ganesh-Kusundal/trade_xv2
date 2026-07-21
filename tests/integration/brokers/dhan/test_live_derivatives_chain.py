@@ -65,7 +65,7 @@ class TestLiveOptionChain:
     def test_option_chain_with_explicit_expiry(self, gateway: DhanBrokerGateway):
         """option_chain() with explicit expiry should work."""
         # Get available expiries
-        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         if expiries:
             time.sleep(2)
             chain = gateway.option_chain("NIFTY", "NFO", expiry=expiries[0])
@@ -138,7 +138,7 @@ class TestLiveStockFnO:
 
     def test_reliance_stock_option_chain_has_expiries(self, gateway: DhanBrokerGateway):
         """RELIANCE OPTSTK must have at least one expiry via extended API."""
-        expiries = gateway.extended.get_option_expiries("RELIANCE", "NSE")
+        expiries = gateway.extended.data.get_option_expiries("RELIANCE", "NSE")
         assert isinstance(expiries, list)
         assert len(expiries) >= 1, "RELIANCE extended expiries empty"
         time.sleep(1.5)
