@@ -40,11 +40,11 @@ class TestGetOrderbook:
     """Verify get_orderbook uses get_order_list() not _parse_order."""
 
     def test_get_orderbook_calls_get_order_list(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.order_query.get_order_list.return_value = []
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         result = gw.get_orderbook()
         broker.order_query.get_order_list.assert_called_once()
         assert result == []
@@ -54,7 +54,7 @@ class TestDepthResponseParsing:
     """Verify get_depth parses the nested quotes response format."""
 
     def test_depth_parses_nested_format(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
         from domain import MarketDepth
 
         broker = MagicMock()
@@ -71,7 +71,7 @@ class TestDepthResponseParsing:
                 }
             }
         }
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         depth = gw.depth("RELIANCE", "NSE")
         assert isinstance(depth, MarketDepth)
         assert len(depth.bids) == 1
@@ -80,14 +80,14 @@ class TestDepthResponseParsing:
         assert depth.asks[0].price == Decimal("101.0")
 
     def test_depth_handles_empty_data(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.instrument_resolver.resolve.return_value = MagicMock(
             instrument_key="NSE_EQ|INE002A01018"
         )
         broker.market_data_v2.get_order_book.return_value = {"data": {}}
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         depth = gw.depth("RELIANCE", "NSE")
         assert depth.bids == []
         assert depth.asks == []
@@ -97,17 +97,17 @@ class TestHistoricalProperty:
     """Verify historical access works via extended or direct history() method."""
 
     def test_history_method_exists(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         assert hasattr(gw, "history")
 
     def test_history_callable(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         assert callable(gw.history)
 
 
@@ -151,10 +151,10 @@ class TestGatewayClose:
     """Verify gateway has a close method."""
 
     def test_gateway_close_exists(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         assert hasattr(gw, "close")
         gw.close()
         broker.disconnect.assert_called_once()

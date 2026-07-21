@@ -43,7 +43,7 @@ class TestCompleteDepthSnapshot:
 
     def _make_gateway(self):
         from brokers.dhan.resolver import SymbolResolver
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         resolver = SymbolResolver()
         resolver.load_from_rows(
@@ -68,7 +68,7 @@ class TestCompleteDepthSnapshot:
         )
         conn.market_data.get_depth.return_value = rest_depth
 
-        gw = DhanBrokerGateway.__new__(DhanBrokerGateway)
+        gw = DhanWireAdapter.__new__(DhanWireAdapter)
         gw._conn = conn
         return gw
 
@@ -446,9 +446,9 @@ class TestAuditLeakAndMultiplexingFixes:
         assert len(conn._token_manager._token_receivers) == 0
 
     def test_broker_gateway_callback_leak_prevention(self):
-        """DhanBrokerGateway unstream removes wrapper callback from feed."""
+        """DhanWireAdapter unstream removes wrapper callback from feed."""
         from brokers.dhan.data.subscription_engine import SubscriptionEngine
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         feed = mock.MagicMock()
         feed.is_connected = False
@@ -461,7 +461,7 @@ class TestAuditLeakAndMultiplexingFixes:
         )
         conn.subscription_engine = SubscriptionEngine(conn)
 
-        gw = DhanBrokerGateway(conn)
+        gw = DhanWireAdapter(conn)
 
         cb1 = mock.MagicMock()
         gw.stream("RELIANCE", "NSE", on_tick=cb1)

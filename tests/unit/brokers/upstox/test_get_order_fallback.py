@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.upstox.adapters.order_gateway import OrderGateway
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import OrderStatus
 from tests.fixtures.domain_helpers import make_order
 
@@ -23,7 +23,7 @@ def test_get_order_fallback_when_no_order_query() -> None:
     portfolio = MagicMock()
     portfolio.get_orderbook.return_value = [_make_order("ORD-789")]
 
-    gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
+    gw = UpstoxWireAdapter.__new__(UpstoxWireAdapter)
     gw._order_gw = OrderGateway(broker, MagicMock(), portfolio)
 
     result = gw.get_order("ORD-789")
@@ -38,7 +38,7 @@ def test_get_order_fallback_returns_none_if_not_in_orderbook() -> None:
     portfolio = MagicMock()
     portfolio.get_orderbook.return_value = []
 
-    gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
+    gw = UpstoxWireAdapter.__new__(UpstoxWireAdapter)
     gw._order_gw = OrderGateway(broker, MagicMock(), portfolio)
 
     assert gw.get_order("NONEXISTENT") is None

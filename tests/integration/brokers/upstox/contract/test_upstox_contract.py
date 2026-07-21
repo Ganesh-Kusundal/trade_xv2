@@ -1,6 +1,6 @@
 """Upstox broker contract tests.
 
-Verifies that UpstoxBrokerGateway conforms to the frozen v1.0 MarketDataGateway contract.
+Verifies that UpstoxWireAdapter conforms to the frozen v1.0 MarketDataGateway contract.
 Subclasses BrokerContractSuite to inherit all 16 contract tests.
 """
 
@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import (
     Balance,
     DepthLevel,
@@ -23,7 +23,7 @@ from tests.integration.fixtures.upstox import make_mock_broker
 
 
 class TestUpstoxContract(BrokerContractSuite):
-    """Contract tests for UpstoxBrokerGateway.
+    """Contract tests for UpstoxWireAdapter.
 
     Inherits all 16 contract tests from BrokerContractSuite:
     - Lifecycle: test_gateway_is_market_data_gateway, test_describe_returns_dict, test_capabilities_returns_broker_capabilities
@@ -35,14 +35,14 @@ class TestUpstoxContract(BrokerContractSuite):
     """
 
     @pytest.fixture
-    def gateway(self) -> UpstoxBrokerGateway:
-        """Provide an UpstoxBrokerGateway backed by a mock broker."""
+    def gateway(self) -> UpstoxWireAdapter:
+        """Provide an UpstoxWireAdapter backed by a mock broker."""
         mock_broker = make_mock_broker(ws_connected=False, allow_live_orders=False)
-        return UpstoxBrokerGateway(mock_broker)
+        return UpstoxWireAdapter(mock_broker)
 
     # ── Override market data tests with Upstox-specific mocks ──────────────
 
-    def test_quote_returns_quote(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_quote_returns_quote(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox quote response."""
         # Mock the adapter's quote method
         gateway._market_data.quote = MagicMock(
@@ -61,14 +61,14 @@ class TestUpstoxContract(BrokerContractSuite):
         assert result.symbol == "RELIANCE"
         assert isinstance(result.ltp, Decimal)
 
-    def test_ltp_returns_decimal(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_ltp_returns_decimal(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox LTP response."""
         gateway._market_data.ltp = MagicMock(return_value=Decimal("2550.00"))
         result = gateway.ltp("RELIANCE", "NSE")
         assert isinstance(result, Decimal)
         assert result >= Decimal("0")
 
-    def test_depth_returns_market_depth(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_depth_returns_market_depth(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox depth response."""
         gateway._market_data.depth = MagicMock(
             return_value=MarketDepth(
@@ -84,19 +84,19 @@ class TestUpstoxContract(BrokerContractSuite):
         if result.bids:
             assert isinstance(result.bids[0], DepthLevel)
 
-    def test_positions_returns_list(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_positions_returns_list(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox positions response."""
         gateway._portfolio.get_positions = MagicMock(return_value=[])
         result = gateway.positions()
         assert isinstance(result, list)
 
-    def test_holdings_returns_list(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_holdings_returns_list(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox holdings response."""
         gateway._portfolio.get_holdings = MagicMock(return_value=[])
         result = gateway.holdings()
         assert isinstance(result, list)
 
-    def test_funds_returns_balance(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_funds_returns_balance(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox funds response."""
         gateway._portfolio.get_funds = MagicMock(
             return_value=Balance(
@@ -108,7 +108,7 @@ class TestUpstoxContract(BrokerContractSuite):
         assert isinstance(result, Balance)
         assert result.available_balance >= Decimal("0")
 
-    def test_option_chain_returns_dict(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_option_chain_returns_dict(self, gateway: UpstoxWireAdapter) -> None:
         from domain import OptionChain
 
         gateway._broker.options.get_option_chain.return_value = []
@@ -119,7 +119,7 @@ class TestUpstoxContract(BrokerContractSuite):
         assert isinstance(result, dict)
         assert "underlying" in result
 
-    def test_future_chain_returns_dict(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_future_chain_returns_dict(self, gateway: UpstoxWireAdapter) -> None:
         """Override to mock Upstox futures adapter."""
         gateway._broker.futures.get_contracts.return_value = [
             {
@@ -139,7 +139,7 @@ class TestUpstoxContract(BrokerContractSuite):
         assert result.get("underlying") == "NIFTY"
         assert result.get("contracts")
 
-    def test_port_methods_do_not_return_raw_wire_dicts(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_port_methods_do_not_return_raw_wire_dicts(self, gateway: UpstoxWireAdapter) -> None:
         gateway._market_data.quote = MagicMock(
             return_value=Quote(
                 symbol="RELIANCE",
@@ -164,7 +164,7 @@ class TestUpstoxContract(BrokerContractSuite):
         assert isinstance(funds, Balance)
         assert isinstance(gateway.positions(), list)
 
-    def test_search_returns_list(self, gateway: UpstoxBrokerGateway) -> None:
+    def test_search_returns_list(self, gateway: UpstoxWireAdapter) -> None:
         gateway._data_gw.search = MagicMock(return_value=[{"symbol": "RELIANCE"}])
         result = gateway.search("RELIANCE")
         assert isinstance(result, list)

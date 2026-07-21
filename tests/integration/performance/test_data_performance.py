@@ -230,7 +230,7 @@ class TestBatchOperationPerformance:
     """Benchmark batch operations with increasing symbol counts."""
 
     def _make_dhan_gw_with_mock(self):
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -246,7 +246,7 @@ class TestBatchOperationPerformance:
         inst.security_id = "2885"
         conn.instruments.resolve.return_value = inst
 
-        return DhanBrokerGateway(conn)
+        return DhanWireAdapter(conn)
 
     def test_ltp_batch_10_symbols_latency(self):
         """ltp_batch for 10 symbols must complete in < 100ms (mocked)."""
@@ -316,7 +316,7 @@ class TestRESTEndpointLatency:
     """Regression tests for REST endpoint processing latency (client-side)."""
 
     def _make_dhan_gw(self):
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -336,7 +336,7 @@ class TestRESTEndpointLatency:
         inst.canonical_symbol = "RELIANCE"
         conn.instruments.resolve.return_value = inst
 
-        return DhanBrokerGateway(conn)
+        return DhanWireAdapter(conn)
 
     def test_ltp_processing_latency(self):
         """LTP retrieval + parsing must complete in < 10ms (mocked I/O)."""

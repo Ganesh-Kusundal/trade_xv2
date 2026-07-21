@@ -44,7 +44,7 @@ from brokers.dhan.resilience.retry_policies import (
     create_retry_executor,
 )
 from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from infrastructure.resilience.backoff import ExponentialBackoff
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
@@ -83,12 +83,12 @@ def _expire_open_window(monkeypatch, cb: CircuitBreaker) -> None:
 
 
 @pytest.fixture()
-def chaos_gateway() -> DhanBrokerGateway:
+def chaos_gateway() -> DhanWireAdapter:
     """Create a gateway with a fake HTTP client for chaos testing."""
     client = FakeHttpClient()
     conn = DhanConnection(client=client)
     conn.instruments.load_from_rows(SAMPLE_ROWS)
-    gw = DhanBrokerGateway(conn)
+    gw = DhanWireAdapter(conn)
     gw._test_client = client
     return gw
 

@@ -80,47 +80,47 @@ class TestUpstoxGatewayNewFeatures:
         return mock_broker
 
     def test_gateway_ipo_property(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.ipo = MagicMock()
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "get_ipos")
 
     def test_gateway_payments_property(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.payments = MagicMock()
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "initiate_payout")
 
     def test_gateway_mutual_funds_property(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.mutual_funds = MagicMock()
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "get_mutual_fund_holdings")
 
     def test_gateway_fundamentals_property(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.fundamentals = MagicMock()
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "get_pnl")
 
     def test_gateway_capabilities_includes_new_features(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.portfolio = MagicMock()
@@ -130,7 +130,7 @@ class TestUpstoxGatewayNewFeatures:
         mock_broker.instrument_resolver = MagicMock()
         mock_broker.order_command = MagicMock()  # Required by gateway __init__
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         caps = gateway.capabilities()
 
         assert caps.supports_news is True

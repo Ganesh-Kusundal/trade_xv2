@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 # Concrete broker symbols the CLI references — resolved through accessors.
 AccountConnectionRegistry = get_dhan_account_registry_class()
-DhanBrokerGateway = get_dhan_broker_gateway_class()
+DhanWireAdapter = get_dhan_broker_gateway_class()
 InstrumentLoader = get_dhan_instrument_loader_class()
 create_reconciliation_service = get_dhan_reconciliation_service_fn()
 DhanSymbolValidator = get_dhan_symbol_validator_class()
@@ -90,7 +90,7 @@ def create_instrument(
 __all__ = [
     "ENV_FILES",
     "AccountConnectionRegistry",
-    "DhanBrokerGateway",
+    "DhanWireAdapter",
     "DhanSymbolValidator",
     "InstrumentLoader",
     "PaperBrokerGateway",

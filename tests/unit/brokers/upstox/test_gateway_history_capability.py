@@ -1,10 +1,10 @@
-"""Regression tests for UpstoxBrokerGateway history() and capability self-check.
+"""Regression tests for UpstoxWireAdapter history() and capability self-check.
 
 TASK B: history() must surface fetch failures instead of silently returning an
 empty DataFrame (so callers can distinguish "no data" from "fetch failed").
 
-TASK C: UpstoxBrokerGateway.__init__ must run validate_gateway_capabilities(self)
-for symmetry with DhanBrokerGateway.
+TASK C: UpstoxWireAdapter.__init__ must run validate_gateway_capabilities(self)
+for symmetry with DhanWireAdapter.
 """
 
 from __future__ import annotations
@@ -18,18 +18,18 @@ from brokers.common.capabilities_validator import (
     enforce_gateway_capabilities,
     validate_gateway_capabilities,
 )
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 
 # ── TASK B: history() surfaces errors ──
 
 
-def _gateway_with_failing_fetch(exc: BaseException) -> UpstoxBrokerGateway:
+def _gateway_with_failing_fetch(exc: BaseException) -> UpstoxWireAdapter:
     """Build a gateway whose underlying candle fetch raises ``exc``."""
     broker = MagicMock()
     broker.instrument_resolver.resolve.return_value = MagicMock(
         instrument_key="NSE_EQ|INE002A01018"
     )
-    gw = UpstoxBrokerGateway(broker)
+    gw = UpstoxWireAdapter(broker)
     gw._historical.fetch_candles = MagicMock(side_effect=exc)
     return gw
 
@@ -63,7 +63,7 @@ def test_history_success_path_unaffected() -> None:
     broker.instrument_resolver.resolve.return_value = MagicMock(
         instrument_key="NSE_EQ|INE002A01018"
     )
-    gw = UpstoxBrokerGateway(broker)
+    gw = UpstoxWireAdapter(broker)
     df = pd.DataFrame({"close": [1, 2, 3]})
     gw._historical.fetch_candles = MagicMock(return_value=df)
     out = gw.history("RELIANCE", "NSE", timeframe="1D", lookback_days=5)
@@ -79,8 +79,8 @@ def test_gateway_construct_runs_capability_check() -> None:
         "brokers.upstox.wire.enforce_gateway_capabilities",
         wraps=enforce_gateway_capabilities,
     ) as spy:
-        gw = UpstoxBrokerGateway(broker)
-        assert isinstance(gw, UpstoxBrokerGateway)
+        gw = UpstoxWireAdapter(broker)
+        assert isinstance(gw, UpstoxWireAdapter)
         spy.assert_called_once_with(gw)
 
 

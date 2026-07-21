@@ -9,7 +9,7 @@ own boundary checks without needing a ``transport_only`` policy flag.
 
 Usage
 -----
-Gateways (``DhanBrokerGateway``, ``UpstoxBrokerGateway``) construct a
+Gateways (``DhanWireAdapter``, ``UpstoxWireAdapter``) construct a
 ``BrokerOrderPayload`` from flat parameters and pass it to the broker adapter::
 
     from domain.models.dtos import BrokerOrderPayload

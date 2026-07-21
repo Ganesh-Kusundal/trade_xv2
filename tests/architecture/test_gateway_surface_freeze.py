@@ -137,17 +137,17 @@ def _class_body_public_methods(cls: type) -> set[str]:
 
 
 def test_dhan_gateway_public_surface_frozen():
-    from brokers.dhan.wire import DhanBrokerGateway
+    from brokers.dhan.wire import DhanWireAdapter
 
-    actual = _class_body_public_methods(DhanBrokerGateway)
+    actual = _class_body_public_methods(DhanWireAdapter)
     extra = actual - _DHAN_PUBLIC
     missing = _DHAN_PUBLIC - actual
     assert not extra, (
-        f"DhanBrokerGateway gained public methods {sorted(extra)}. "
+        f"DhanWireAdapter gained public methods {sorted(extra)}. "
         "Prefer ports/extensions; if required, update _DHAN_PUBLIC in this test."
     )
     assert not missing, (
-        f"DhanBrokerGateway lost methods {sorted(missing)} — update freeze if intentional."
+        f"DhanWireAdapter lost methods {sorted(missing)} — update freeze if intentional."
     )
 
 
@@ -174,6 +174,6 @@ def test_paper_gateway_public_surface_frozen():
 
 
 def test_dhan_broker_gateway_alias():
-    from brokers.dhan.wire import DhanBrokerGateway
+    from brokers.dhan.wire import DhanWireAdapter
 
-    assert DhanBrokerGateway is DhanBrokerGateway
+    assert DhanWireAdapter is DhanWireAdapter

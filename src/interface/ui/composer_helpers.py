@@ -48,9 +48,9 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
         List of broker IDs to initialize. If None, auto-detects from env.
     """
     try:
-        from interface.ui.services.broker_registry import DhanBrokerGateway
+        from interface.ui.services.broker_registry import DhanWireAdapter
     except ImportError:
-        DhanBrokerGateway = None  # noqa: N806
+        DhanWireAdapter = None  # noqa: N806
 
     try:
         from interface.ui.services.broker_registry import PaperBrokerGateway
@@ -63,15 +63,15 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
 
     for broker_id in broker_ids:
         if broker_id == BrokerId.DHAN:
-            if DhanBrokerGateway is None:
-                logger.warning("DhanBrokerGateway not available")
+            if DhanWireAdapter is None:
+                logger.warning("DhanWireAdapter not available")
                 continue
             try:
-                gateway = DhanBrokerGateway.from_env()
+                gateway = DhanWireAdapter.from_env()
                 gateways.append(gateway)
-                logger.info("Initialized DhanBrokerGateway")
+                logger.info("Initialized DhanWireAdapter")
             except Exception as exc:
-                logger.warning("Failed to initialize DhanBrokerGateway: %s", exc)
+                logger.warning("Failed to initialize DhanWireAdapter: %s", exc)
         elif broker_id == BrokerId.PAPER:
             if PaperBrokerGateway is None:
                 logger.warning("PaperBrokerGateway not available")

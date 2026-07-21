@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
@@ -37,7 +37,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveInstruments:
     """Instrument and search endpoint tests against live Dhan API."""
 
-    def test_search_known_symbol_reliance(self, gateway: DhanBrokerGateway):
+    def test_search_known_symbol_reliance(self, gateway: DhanWireAdapter):
         """search() for RELIANCE should return results."""
         results = gateway.search("RELIANCE")
         assert isinstance(results, list)
@@ -47,7 +47,7 @@ class TestLiveInstruments:
         assert "symbol" in first
         assert "exchange" in first
 
-    def test_search_known_symbol_nifty(self, gateway: DhanBrokerGateway):
+    def test_search_known_symbol_nifty(self, gateway: DhanWireAdapter):
         """search() for NIFTY should return index results."""
         results = gateway.search("NIFTY")
         assert isinstance(results, list)
@@ -56,13 +56,13 @@ class TestLiveInstruments:
         symbols = [r["symbol"] for r in results]
         assert any("NIFTY" in s for s in symbols)
 
-    def test_search_known_symbol_tcs(self, gateway: DhanBrokerGateway):
+    def test_search_known_symbol_tcs(self, gateway: DhanWireAdapter):
         """search() for TCS should return results."""
         results = gateway.search("TCS")
         assert isinstance(results, list)
         assert len(results) > 0
 
-    def test_search_returns_correct_fields(self, gateway: DhanBrokerGateway):
+    def test_search_returns_correct_fields(self, gateway: DhanWireAdapter):
         """search() results should have symbol, exchange, type, security_id, name."""
         results = gateway.search("RELIANCE")
         if results:
@@ -71,33 +71,33 @@ class TestLiveInstruments:
             for field in required_fields:
                 assert field in first, f"Search result missing field: {field}"
 
-    def test_search_partial_match(self, gateway: DhanBrokerGateway):
+    def test_search_partial_match(self, gateway: DhanWireAdapter):
         """search() with partial symbol should return matches."""
         results = gateway.search("REL")
         assert isinstance(results, list)
         # Should find RELIANCE and potentially others
         assert len(results) > 0
 
-    def test_search_limit_20_results(self, gateway: DhanBrokerGateway):
+    def test_search_limit_20_results(self, gateway: DhanWireAdapter):
         """search() should limit results to 20."""
         results = gateway.search("INF")  # Common prefix
         assert isinstance(results, list)
         assert len(results) <= 20
 
-    def test_load_instruments_success(self, gateway: DhanBrokerGateway):
+    def test_load_instruments_success(self, gateway: DhanWireAdapter):
         """load_instruments() should load instruments successfully."""
         # Gateway fixture already loads instruments, verify they're loaded
         desc = gateway.describe()
         assert desc["instruments_loaded"] is True
         assert desc["instrument_count"] > 0
 
-    def test_instrument_count_large(self, gateway: DhanBrokerGateway):
+    def test_instrument_count_large(self, gateway: DhanWireAdapter):
         """Instrument count should be > 100,000 for full Dhan universe."""
         desc = gateway.describe()
         count = desc["instrument_count"]
         assert count > 100000, f"Expected >100k instruments, got {count}"
 
-    def test_instrument_service_is_loaded(self, gateway: DhanBrokerGateway):
+    def test_instrument_service_is_loaded(self, gateway: DhanWireAdapter):
         """Broker-internal instrument service must be loaded and queryable."""
         svc = gateway._conn.instruments
         assert svc.is_loaded() is True
@@ -110,7 +110,7 @@ class TestLiveInstruments:
             "",
         )
 
-    def test_resolve_ref_stays_internal(self, gateway: DhanBrokerGateway):
+    def test_resolve_ref_stays_internal(self, gateway: DhanWireAdapter):
         """resolve_ref returns wire segment+security_id for connection use only."""
         ref = gateway._conn.instruments.resolve_dhan_ref("RELIANCE", "NSE")
         assert ref.security_id.isdigit()
@@ -120,7 +120,7 @@ class TestLiveInstruments:
         assert wire.require("security_id") == ref.security_id_str()
         assert wire.require("exchange_segment") == ref.exchange_segment
 
-    def test_gateway_stream_depth_delegate_to_connection(self, gateway: DhanBrokerGateway):
+    def test_gateway_stream_depth_delegate_to_connection(self, gateway: DhanWireAdapter):
         """Gateway stream/depth_20/depth_200 must not compute security_id themselves."""
         import inspect
 
@@ -131,7 +131,7 @@ class TestLiveInstruments:
             assert "instruments.resolve(" not in src, f"gateway.{name} still resolves wire ids"
             assert "subscribe_" in src, f"gateway.{name} should delegate to connection.subscribe_*"
 
-    def test_search_case_insensitive(self, gateway: DhanBrokerGateway):
+    def test_search_case_insensitive(self, gateway: DhanWireAdapter):
         """search() should be case-insensitive."""
         results_upper = gateway.search("RELIANCE")
         results_lower = gateway.search("reliance")

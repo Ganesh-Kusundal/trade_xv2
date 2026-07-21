@@ -1,4 +1,4 @@
-"""Tests for DhanBrokerGateway — delegation to connection adapters."""
+"""Tests for DhanWireAdapter — delegation to connection adapters."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 from brokers.dhan.domain import Position
 from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from domain import Balance, OrderRequest, Quote
 from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
 
 class TestBrokerGateway:
-    """Verify that DhanBrokerGateway delegates every call to the correct adapter."""
+    """Verify that DhanWireAdapter delegates every call to the correct adapter."""
 
-    def _make_gateway(self) -> tuple[DhanBrokerGateway, DhanConnection]:
+    def _make_gateway(self) -> tuple[DhanWireAdapter, DhanConnection]:
         """Create a gateway backed by a FakeHttpClient and mocked adapters."""
         client = FakeHttpClient()
         conn = DhanConnection(client=client)
@@ -29,7 +29,7 @@ class TestBrokerGateway:
         conn._orders = MagicMock()
         conn._portfolio = MagicMock()
 
-        gateway = DhanBrokerGateway(conn)
+        gateway = DhanWireAdapter(conn)
         return gateway, conn
 
     # -- market data delegation ------------------------------------------
@@ -142,7 +142,7 @@ class TestBrokerGateway:
         conn = DhanConnection(client=client)
         # Replace the client's close with a mock to track the call
         client.close = MagicMock()
-        gateway = DhanBrokerGateway(conn)
+        gateway = DhanWireAdapter(conn)
 
         gateway.close()
 
@@ -158,14 +158,14 @@ class TestBrokerGateway:
         """
         client = FakeHttpClient(access_token="valid-token")
         conn = DhanConnection(client=client)
-        gateway = DhanBrokerGateway(conn)
+        gateway = DhanWireAdapter(conn)
         assert gateway.is_connected is True
 
     def test_is_connected_false_when_token_missing(self):
         """Without a usable access token the session is not connected."""
         client = FakeHttpClient(access_token="")
         conn = DhanConnection(client=client)
-        gateway = DhanBrokerGateway(conn)
+        gateway = DhanWireAdapter(conn)
         assert gateway.is_connected is False
 
     def test_is_connected_true_when_feed_down_but_rest_auth_ok(self):
@@ -175,7 +175,7 @@ class TestBrokerGateway:
         feed = MagicMock()
         feed.is_connected = False
         conn.market_feed = feed
-        gateway = DhanBrokerGateway(conn)
+        gateway = DhanWireAdapter(conn)
         assert gateway.is_connected is True
 
     # -- history batch (shared batch_execute) ---------------------------
@@ -205,7 +205,7 @@ class TestBrokerGateway:
 
         client = FakeHttpClient()
         conn = DhanConnection(client=client)
-        gateway = DhanBrokerGateway(conn)
+        gateway = DhanWireAdapter(conn)
         assert (
             gateway.describe()["depth_200_max_instruments_per_connection"]
             == DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION

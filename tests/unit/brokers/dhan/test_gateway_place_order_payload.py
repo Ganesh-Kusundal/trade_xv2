@@ -1,11 +1,11 @@
-"""DhanBrokerGateway.place_order must pass BrokerOrderPayload to OrdersAdapter."""
+"""DhanWireAdapter.place_order must pass BrokerOrderPayload to OrdersAdapter."""
 
 from __future__ import annotations
 
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from domain.entities.order import OrderResponse
 from domain.enums import OrderStatus, OrderType, Side
 from domain.models.dtos import BrokerOrderPayload
@@ -16,7 +16,7 @@ def test_place_order_builds_broker_order_payload() -> None:
     conn.orders.place_order.return_value = OrderResponse(
         success=True, order_id="SBX-1", status=OrderStatus.OPEN
     )
-    gw = DhanBrokerGateway(conn)
+    gw = DhanWireAdapter(conn)
 
     result = gw.place_order(
         symbol="RELIANCE",

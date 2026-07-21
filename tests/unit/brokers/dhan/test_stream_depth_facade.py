@@ -1,4 +1,4 @@
-"""DhanBrokerGateway.stream_depth(levels=...) — canonical depth-level dispatch.
+"""DhanWireAdapter.stream_depth(levels=...) — canonical depth-level dispatch.
 
 Mirrors the Upstox facade test (tests/unit/brokers/upstox/test_stream_depth_facade.py)
 so both gateways can be driven by the same call shape.
@@ -10,15 +10,15 @@ import pytest
 
 from brokers.common.streaming import DepthStreamHandle
 from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from domain import MarketDepth
 from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
 
-def _make_gateway() -> DhanBrokerGateway:
+def _make_gateway() -> DhanWireAdapter:
     client = FakeHttpClient()
     conn = DhanConnection(client=client)
-    return DhanBrokerGateway(conn)
+    return DhanWireAdapter(conn)
 
 
 def test_stream_depth_levels_5_delegates_to_depth(monkeypatch):

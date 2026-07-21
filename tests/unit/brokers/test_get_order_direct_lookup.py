@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.wire import DhanBrokerGateway
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import OrderResponse, OrderStatus
 from tests.fixtures.domain_helpers import make_order
 
@@ -21,11 +21,11 @@ def _make_order(order_id: str = "ORD-123", status: OrderStatus = OrderStatus.OPE
 def gateway_bundle(request):
     if request.param == "dhan":
         conn = MagicMock()
-        gw = DhanBrokerGateway(conn)
+        gw = DhanWireAdapter(conn)
         return request.param, gw, conn.orders, conn.orders
     broker = MagicMock()
     broker.settings = MagicMock(analytics_only=False, allow_live_orders=True)
-    gw = UpstoxBrokerGateway(broker)
+    gw = UpstoxWireAdapter(broker)
     return request.param, gw, broker.order_query, broker.order_command
 
 

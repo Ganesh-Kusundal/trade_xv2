@@ -97,7 +97,7 @@ class TestAllowLiveOrdersGuards:
         """place_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -105,7 +105,7 @@ class TestAllowLiveOrdersGuards:
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order("RELIANCE", "NSE", "BUY", 10)
 
         assert result.success is False
@@ -115,7 +115,7 @@ class TestAllowLiveOrdersGuards:
         """cancel_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -123,7 +123,7 @@ class TestAllowLiveOrdersGuards:
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
 
         result = gateway.cancel_order("ORD123")
         assert result.success is False, f"cancel_order should be blocked: {result.message}"
@@ -133,7 +133,7 @@ class TestAllowLiveOrdersGuards:
         """modify_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -141,7 +141,7 @@ class TestAllowLiveOrdersGuards:
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
 
         result = gateway.modify_order("ORD123", quantity=20)
         assert result.success is False, f"modify_order should be blocked: {result.message}"

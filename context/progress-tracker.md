@@ -290,6 +290,24 @@ already landed by a concurrent process; verified, not re-done.
   `FakeHttpClient` default `client_id` "TEST_CLIENT"→"test", and removed
   `datalake.gateway.get_last_candle_fast`) — none touch price/candle-formula logic.
 
+### REF-8: Consolidate APIConfig into AppConfig (2026-07-21)
+
+Merged `interface.api.config.APIConfig` (dataclass) fields into `config.schema.AppConfig`
+(Pydantic) as the single root configuration. `interface/api/config.py` is now a thin
+backward-compat shim (`APIConfig` subclass of `AppConfig`) that maps legacy field names
+(`host`→`api_host`, `port`→`api_port`, `rate_limit_per_minute`→`rate_limit_max_requests`).
+
+- **AppConfig gains**: `auth_mode`, `api_key`, `cors_allow_credentials`, `cors_allow_methods`,
+  `cors_allow_headers`, `max_page_size`, `default_page_size`, `api_prefix` — all with
+  env-var loading (`TRADEX_AUTH_MODE`, `TRADEX_API_KEY`, etc.).
+- **Shim**: `interface/api/config.py:APIConfig` inherits `AppConfig`, accepts old constructor
+  kwargs (`host`, `port`, `rate_limit_per_minute`), provides `docs_url`/`redoc_url`/`openapi_url`
+  properties and `from_app_config()` classmethod.
+- **Verification**: 131 config/architecture tests pass; `from interface.api.config import APIConfig`
+  backward-compatible for all ~30+ call sites.
+- **Pre-existing `lint-imports` failure** (`Module 'application.execution' does not exist`)
+  unrelated to this change.
+
 ### Federated Historical Data — converged onto HistoricalDataCoordinator (2026-07-17)
 
 - **Zero-parity fix**: `BrokerSession.history()` / `history_batch()` now route through the

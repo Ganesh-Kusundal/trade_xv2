@@ -111,9 +111,9 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 1.2 is complete.
         """
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
-        place_order_sig = inspect.signature(DhanBrokerGateway.place_order)
+        place_order_sig = inspect.signature(DhanWireAdapter.place_order)
         params = list(place_order_sig.parameters.keys())
 
         # ABC requires explicit parameters, not *args/**kwargs

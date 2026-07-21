@@ -79,10 +79,10 @@ def get_dhan_account_registry_class() -> type:
 
 
 def get_dhan_broker_gateway_class() -> type:
-    """Return ``DhanBrokerGateway``."""
-    from brokers.dhan.wire import DhanBrokerGateway
+    """Return ``DhanWireAdapter``."""
+    from brokers.dhan.wire import DhanWireAdapter
 
-    return DhanBrokerGateway
+    return DhanWireAdapter
 
 
 def get_dhan_instrument_loader_class() -> type:

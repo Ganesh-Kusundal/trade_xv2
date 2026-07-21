@@ -1,4 +1,4 @@
-"""UpstoxBrokerGateway.stream_depth(levels=...) — canonical depth-level dispatch.
+"""UpstoxWireAdapter.stream_depth(levels=...) — canonical depth-level dispatch.
 
 Mirrors the Dhan facade test (tests/unit/brokers/dhan/test_stream_depth_facade.py)
 so both gateways can be driven by the same call shape. Reuses the

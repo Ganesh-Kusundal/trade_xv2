@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from infrastructure.gateway.factory import bootstrap_gateway
 
 _INTEGRATION_DIR = Path(__file__).resolve().parent
@@ -89,8 +89,8 @@ def run_live_assert(fn) -> None:
 
 
 @pytest.fixture(scope="session")
-def live_gateway() -> DhanBrokerGateway:
-    """Session-scoped live DhanBrokerGateway.
+def live_gateway() -> DhanWireAdapter:
+    """Session-scoped live DhanWireAdapter.
 
     Skipped automatically when .env.local is absent or has no DHAN_CLIENT_ID.
     Creating the gateway once per session loads the instrument CSV exactly
@@ -120,7 +120,7 @@ def live_gateway() -> DhanBrokerGateway:
 
 
 @pytest.fixture(scope="module")
-def gateway(live_gateway: DhanBrokerGateway) -> DhanBrokerGateway:
+def gateway(live_gateway: DhanWireAdapter) -> DhanWireAdapter:
     """Module-scoped alias for live_gateway (backward-compatible)."""
     return live_gateway
 

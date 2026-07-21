@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import MarketDepth, Quote
 from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live, skip_live_market_hours
 
@@ -32,7 +32,7 @@ def mock_gateway():
     from tests.integration.fixtures.upstox import make_mock_broker
 
     mock_broker = make_mock_broker(ws_connected=False, allow_live_orders=False)
-    gateway = UpstoxBrokerGateway(mock_broker)
+    gateway = UpstoxWireAdapter(mock_broker)
     gateway._market_data.quote = MagicMock(
         return_value=Quote(
             symbol="RELIANCE",
@@ -64,7 +64,7 @@ class TestUpstoxSharedBrokerContract(BrokerContractSuite):
 
 
 @pytest.fixture(scope="module")
-def live_gateway() -> UpstoxBrokerGateway:
+def live_gateway() -> UpstoxWireAdapter:
     from infrastructure.gateway.factory import bootstrap_gateway
 
     result = bootstrap_gateway(

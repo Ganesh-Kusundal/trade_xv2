@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
@@ -36,12 +36,12 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveOptions:
     """End-to-end option chain retrieval against the live Dhan API."""
 
-    def test_nifty_expiries(self, gateway: DhanBrokerGateway):
+    def test_nifty_expiries(self, gateway: DhanWireAdapter):
         """get_expiries for NIFTY INDEX should return a non-empty list."""
         expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
-    def test_nifty_option_chain(self, gateway: DhanBrokerGateway):
+    def test_nifty_option_chain(self, gateway: DhanWireAdapter):
         """get_option_chain should return a dict with spot > 0 and strikes > 0."""
         expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
@@ -56,7 +56,7 @@ class TestLiveOptions:
         assert "strikes" in chain
         assert len(chain["strikes"]) > 0
 
-    def test_option_chain_has_greeks(self, gateway: DhanBrokerGateway):
+    def test_option_chain_has_greeks(self, gateway: DhanWireAdapter):
         """First strike's call dict must contain delta, theta, gamma, vega keys."""
         expiries = gateway.extended.data.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
@@ -91,7 +91,7 @@ class TestExpiredOptionsData:
     data for expired weekly and monthly option contracts for NIFTY and BANKNIFTY.
     """
 
-    def test_nifty_expired_call_weekly(self, gateway: DhanBrokerGateway):
+    def test_nifty_expired_call_weekly(self, gateway: DhanWireAdapter):
         """NIFTY expired CALL weekly options should return OHLCV data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -109,7 +109,7 @@ class TestExpiredOptionsData:
         assert "close" in result["ce"]
         assert "oi" in result["ce"]
 
-    def test_nifty_expired_put_weekly(self, gateway: DhanBrokerGateway):
+    def test_nifty_expired_put_weekly(self, gateway: DhanWireAdapter):
         """NIFTY expired PUT weekly options should return OHLCV data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -124,7 +124,7 @@ class TestExpiredOptionsData:
         assert result["pe"] is not None, "PE data should not be None"
         assert len(result["pe"]["timestamp"]) > 0
 
-    def test_nifty_expired_atm_plus_one(self, gateway: DhanBrokerGateway):
+    def test_nifty_expired_atm_plus_one(self, gateway: DhanWireAdapter):
         """NIFTY expired ATM+1 strike should return data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -139,7 +139,7 @@ class TestExpiredOptionsData:
         assert result["ce"] is not None
         assert len(result["ce"]["timestamp"]) > 0
 
-    def test_nifty_expired_atm_minus_one(self, gateway: DhanBrokerGateway):
+    def test_nifty_expired_atm_minus_one(self, gateway: DhanWireAdapter):
         """NIFTY expired ATM-1 strike should return data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -154,7 +154,7 @@ class TestExpiredOptionsData:
         assert result["ce"] is not None
         assert len(result["ce"]["timestamp"]) > 0
 
-    def test_nifty_expired_date_range(self, gateway: DhanBrokerGateway):
+    def test_nifty_expired_date_range(self, gateway: DhanWireAdapter):
         """NIFTY expired data with multi-day range should return candles for each day."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -170,7 +170,7 @@ class TestExpiredOptionsData:
         # Multi-day range should have more candles than single day
         assert len(result["ce"]["timestamp"]) > 50, "Multi-day range should have 50+ candles"
 
-    def test_nifty_expired_monthly(self, gateway: DhanBrokerGateway):
+    def test_nifty_expired_monthly(self, gateway: DhanWireAdapter):
         """NIFTY expired monthly options should return data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -185,7 +185,7 @@ class TestExpiredOptionsData:
         assert result["ce"] is not None
         assert len(result["ce"]["timestamp"]) > 0
 
-    def test_banknifty_expired_call_weekly(self, gateway: DhanBrokerGateway):
+    def test_banknifty_expired_call_weekly(self, gateway: DhanWireAdapter):
         """BANKNIFTY expired CALL weekly options should return OHLCV data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=BANKNIFTY_SECURITY_ID,
@@ -200,7 +200,7 @@ class TestExpiredOptionsData:
         assert result["ce"] is not None
         assert len(result["ce"]["timestamp"]) > 0
 
-    def test_banknifty_expired_put_weekly(self, gateway: DhanBrokerGateway):
+    def test_banknifty_expired_put_weekly(self, gateway: DhanWireAdapter):
         """BANKNIFTY expired PUT weekly options should return OHLCV data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=BANKNIFTY_SECURITY_ID,
@@ -215,7 +215,7 @@ class TestExpiredOptionsData:
         assert result["pe"] is not None
         assert len(result["pe"]["timestamp"]) > 0
 
-    def test_banknifty_expired_atm_plus_one(self, gateway: DhanBrokerGateway):
+    def test_banknifty_expired_atm_plus_one(self, gateway: DhanWireAdapter):
         """BANKNIFTY expired ATM+1 strike should return data."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=BANKNIFTY_SECURITY_ID,
@@ -230,7 +230,7 @@ class TestExpiredOptionsData:
         assert result["ce"] is not None
         assert len(result["ce"]["timestamp"]) > 0
 
-    def test_expired_data_has_required_fields(self, gateway: DhanBrokerGateway):
+    def test_expired_data_has_required_fields(self, gateway: DhanWireAdapter):
         """Expired options data should contain all required OHLCV fields."""
         result = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
@@ -249,7 +249,7 @@ class TestExpiredOptionsData:
             assert field in ce, f"Missing field: {field}"
             assert len(ce[field]) > 0, f"Empty field: {field}"
 
-    def test_expired_data_interval_5min(self, gateway: DhanBrokerGateway):
+    def test_expired_data_interval_5min(self, gateway: DhanWireAdapter):
         """Expired options data with 5-min interval should return fewer candles."""
         result_1m = gateway.extended.data.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,

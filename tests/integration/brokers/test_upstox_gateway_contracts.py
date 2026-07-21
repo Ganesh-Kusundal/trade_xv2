@@ -41,11 +41,11 @@ def _make_broker_and_gateway():
     """Construct a real (offline) UpstoxBroker + gateway, or skip."""
     from brokers.upstox.auth.config import UpstoxConnectionSettings
     from brokers.upstox.broker import UpstoxBroker
-    from brokers.upstox.wire import UpstoxBrokerGateway
+    from brokers.upstox.wire import UpstoxWireAdapter
 
     settings = UpstoxConnectionSettings(client_id="regression-test", access_token="dummy-token")
     broker = UpstoxBroker(settings)
-    gateway = UpstoxBrokerGateway(broker)
+    gateway = UpstoxWireAdapter(broker)
     return broker, gateway
 
 

@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
 
@@ -39,7 +39,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestSchemaEnforcement:
     """Schema enforcement tests for all Dhan endpoint responses."""
 
-    def test_quote_schema(self, gateway: DhanBrokerGateway):
+    def test_quote_schema(self, gateway: DhanWireAdapter):
         """Quote must have: symbol, ltp, open, high, low, close, volume, change."""
         quote = gateway.quote("RELIANCE", "NSE")
         required_fields = ["symbol", "ltp", "open", "high", "low", "close", "volume", "change"]
@@ -49,7 +49,7 @@ class TestSchemaEnforcement:
         assert isinstance(quote.ltp, int | float | Decimal)
         assert isinstance(quote.volume, int | float)
 
-    def test_market_depth_schema(self, gateway: DhanBrokerGateway):
+    def test_market_depth_schema(self, gateway: DhanWireAdapter):
         """MarketDepth must have: bids (list), asks (list)."""
         depth = gateway.depth("RELIANCE", "NSE")
         assert hasattr(depth, "bids")
@@ -63,7 +63,7 @@ class TestSchemaEnforcement:
             assert hasattr(level, "quantity")
             assert hasattr(level, "orders")
 
-    def test_balance_schema(self, gateway: DhanBrokerGateway):
+    def test_balance_schema(self, gateway: DhanWireAdapter):
         """Balance must have: available_balance, used_margin, total_margin."""
         balance = gateway.funds()
         required_fields = ["available_balance", "used_margin", "total_margin"]
@@ -72,7 +72,7 @@ class TestSchemaEnforcement:
         # Type checks
         assert isinstance(balance.available_balance, int | float | Decimal)
 
-    def test_order_schema(self, gateway: DhanBrokerGateway):
+    def test_order_schema(self, gateway: DhanWireAdapter):
         """Order must have: order_id, symbol, exchange, side, quantity, status."""
         orderbook = gateway.get_orderbook()
         if orderbook:
@@ -81,7 +81,7 @@ class TestSchemaEnforcement:
             for field in required_fields:
                 assert hasattr(order, field), f"Order missing field: {field}"
 
-    def test_position_schema(self, gateway: DhanBrokerGateway):
+    def test_position_schema(self, gateway: DhanWireAdapter):
         """Position must have: symbol, exchange, quantity, average_price."""
         positions = gateway.positions()
         if positions:
@@ -90,7 +90,7 @@ class TestSchemaEnforcement:
             for field in required_fields:
                 assert hasattr(pos, field), f"Position missing field: {field}"
 
-    def test_holding_schema(self, gateway: DhanBrokerGateway):
+    def test_holding_schema(self, gateway: DhanWireAdapter):
         """Holding must have: symbol, exchange, quantity."""
         holdings = gateway.holdings()
         if holdings:
@@ -99,7 +99,7 @@ class TestSchemaEnforcement:
             for field in required_fields:
                 assert hasattr(holding, field), f"Holding missing field: {field}"
 
-    def test_trade_schema(self, gateway: DhanBrokerGateway):
+    def test_trade_schema(self, gateway: DhanWireAdapter):
         """Trade must have: symbol, exchange, quantity, price."""
         trades = gateway.trades()
         if trades:
@@ -108,7 +108,7 @@ class TestSchemaEnforcement:
             for field in required_fields:
                 assert hasattr(trade, field), f"Trade missing field: {field}"
 
-    def test_history_dataframe_schema(self, gateway: DhanBrokerGateway):
+    def test_history_dataframe_schema(self, gateway: DhanWireAdapter):
         """history() DataFrame must have: timestamp, open, high, low, close, volume."""
         from tests.integration.brokers.dhan.conftest import run_live_assert
 
@@ -120,7 +120,7 @@ class TestSchemaEnforcement:
 
         run_live_assert(_assert)
 
-    def test_option_chain_schema(self, gateway: DhanBrokerGateway):
+    def test_option_chain_schema(self, gateway: DhanWireAdapter):
         """OptionChain must have: spot, strikes."""
         chain = gateway.option_chain("NIFTY", "NFO")
         assert hasattr(chain, "spot")
@@ -128,7 +128,7 @@ class TestSchemaEnforcement:
         assert chain.spot > 0
         assert isinstance(chain.strikes, list | tuple)
 
-    def test_future_chain_schema(self, gateway: DhanBrokerGateway):
+    def test_future_chain_schema(self, gateway: DhanWireAdapter):
         """FutureChain must have: underlying, expiries, contracts."""
         chain = gateway.future_chain("NIFTY", "NFO")
         assert hasattr(chain, "underlying")
@@ -138,7 +138,7 @@ class TestSchemaEnforcement:
         assert isinstance(chain.expiries, list | tuple)
         assert isinstance(chain.contracts, list | tuple)
 
-    def test_search_result_schema(self, gateway: DhanBrokerGateway):
+    def test_search_result_schema(self, gateway: DhanWireAdapter):
         """Search results must have: symbol, exchange, type, security_id."""
         results = gateway.search("RELIANCE")
         if results:
@@ -147,7 +147,7 @@ class TestSchemaEnforcement:
             for field in required_fields:
                 assert field in result, f"Search result missing field: {field}"
 
-    def test_order_response_schema(self, gateway: DhanBrokerGateway):
+    def test_order_response_schema(self, gateway: DhanWireAdapter):
         """OrderResponse must have: success, message."""
         response = gateway.place_order(
             symbol="INVALID123",

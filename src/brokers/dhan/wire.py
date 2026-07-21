@@ -30,11 +30,12 @@ from domain.entities import (
 )
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
 from domain.entities.options import FutureChain, OptionChain
+from domain.ports.broker_adapter import BrokerAdapter
 
 logger = logging.getLogger(__name__)
 
 
-class DhanWireAdapter(BaseWireAdapter):
+class DhanWireAdapter(BaseWireAdapter, BrokerAdapter):
     """Unified Dhan broker API — all calls delegate to connection adapters."""
 
     # BrokerAdapter port requires a stable broker_id attribute.
@@ -558,10 +559,6 @@ def create_wire_adapter(connection: DhanConnection | DhanWireAdapter) -> DhanWir
 
 
 __all__ = [
-    "DhanBrokerGateway",
     "DhanWireAdapter",
     "create_wire_adapter",
 ]
-
-# Backward compatibility for old tests
-DhanBrokerGateway = DhanWireAdapter

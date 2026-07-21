@@ -166,7 +166,7 @@ class _FakeOrdersAdapter:
 
 def test_g1_gateway_has_modify_and_cancel_all_methods():
     gateway_mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"]).DhanBrokerGateway
+        lambda: __import__("brokers.dhan.wire", fromlist=["DhanWireAdapter"]).DhanWireAdapter
     )
     assert callable(getattr(gateway_mod, "modify_order", None))
     assert callable(getattr(gateway_mod, "cancel_all_orders", None))
@@ -174,11 +174,11 @@ def test_g1_gateway_has_modify_and_cancel_all_methods():
 
 def test_g1_gateway_init_runs_without_raising():
     mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"])
+        lambda: __import__("brokers.dhan.wire", fromlist=["DhanWireAdapter"])
     )
-    DhanBrokerGateway = mod.DhanBrokerGateway
+    DhanWireAdapter = mod.DhanWireAdapter
     conn = _FakeConnection()
-    gw = DhanBrokerGateway(conn)  # must not raise
+    gw = DhanWireAdapter(conn)  # must not raise
     assert gw is not None
     # The delegated methods should be present on the instance.
     assert callable(gw.modify_order)
@@ -187,16 +187,16 @@ def test_g1_gateway_init_runs_without_raising():
 
 def test_g1_stream_routes_through_create_market_feed():
     mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.wire", fromlist=["DhanBrokerGateway"])
+        lambda: __import__("brokers.dhan.wire", fromlist=["DhanWireAdapter"])
     )
     from brokers.dhan.streaming.connection import DhanConnection
     from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
 
-    DhanBrokerGateway = mod.DhanBrokerGateway
+    DhanWireAdapter = mod.DhanWireAdapter
     client = FakeHttpClient()
     conn = DhanConnection(client=client)
     conn.instruments.load_from_rows(SAMPLE_ROWS)
-    gw = DhanBrokerGateway(conn)
+    gw = DhanWireAdapter(conn)
 
     feed = gw.stream("RELIANCE", exchange="NSE", mode="LTP")
 

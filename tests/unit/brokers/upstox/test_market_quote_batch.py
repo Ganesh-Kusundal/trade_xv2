@@ -271,26 +271,26 @@ class TestMarketDataAdapterBatch:
 
 class TestGatewayNativeBatch:
     def test_quote_batch_maps_back_to_symbols(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
-        gw = object.__new__(UpstoxBrokerGateway)
+        gw = object.__new__(UpstoxWireAdapter)
         gw._data_gw = MagicMock()
         gw._data_gw.quote_batch.return_value = {
             "RELIANCE": Quote(symbol="RELIANCE", ltp=Decimal("10")),
             "TCS": Quote(symbol="TCS", ltp=Decimal("20")),
         }
-        result = UpstoxBrokerGateway.quote_batch(gw, ["RELIANCE", "TCS"], "NSE")
+        result = UpstoxWireAdapter.quote_batch(gw, ["RELIANCE", "TCS"], "NSE")
         assert result["RELIANCE"].ltp == Decimal("10")
         assert result["TCS"].ltp == Decimal("20")
         gw._data_gw.quote_batch.assert_called_once_with(["RELIANCE", "TCS"], "NSE")
 
     def test_ltp_batch_empty(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
-        gw = object.__new__(UpstoxBrokerGateway)
+        gw = object.__new__(UpstoxWireAdapter)
         gw._data_gw = MagicMock()
         gw._data_gw.ltp_batch.return_value = {}
-        assert UpstoxBrokerGateway.ltp_batch(gw, [], "NSE") == {}
+        assert UpstoxWireAdapter.ltp_batch(gw, [], "NSE") == {}
 
 
 # ---------------------------------------------------------------------------

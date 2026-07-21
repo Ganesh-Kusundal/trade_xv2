@@ -29,11 +29,11 @@ def test_all_gateways_implement_abc_methods() -> None:
         if getattr(obj, "__isabstractmethod__", False):
             abc_methods.add(name)
 
-    from brokers.dhan.wire import DhanBrokerGateway
+    from brokers.dhan.wire import DhanWireAdapter
     from brokers.paper.paper_gateway import PaperGateway
     from brokers.upstox.wire import UpstoxBrokerGateway
 
-    for gw_cls in (DhanBrokerGateway, UpstoxBrokerGateway, PaperGateway):
+    for gw_cls in (DhanWireAdapter, UpstoxBrokerGateway, PaperGateway):
         for method_name in abc_methods:
             assert hasattr(gw_cls, method_name), (
                 f"{gw_cls.__name__} is missing abstract method {method_name!r}"

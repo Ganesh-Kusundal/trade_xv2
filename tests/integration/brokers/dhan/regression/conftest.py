@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from infrastructure.gateway.factory import bootstrap_gateway
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -35,8 +35,8 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 
 
 @pytest.fixture(scope="session")
-def live_gateway() -> DhanBrokerGateway:
-    """Session-scoped live DhanBrokerGateway for regression tests.
+def live_gateway() -> DhanWireAdapter:
+    """Session-scoped live DhanWireAdapter for regression tests.
 
     Skipped automatically when .env.local is absent or has no DHAN_CLIENT_ID.
     """

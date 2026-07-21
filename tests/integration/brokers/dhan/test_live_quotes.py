@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
@@ -36,29 +36,29 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveQuotes:
     """End-to-end quote retrieval against the live Dhan API."""
 
-    def test_nse_equity_quote(self, gateway: DhanBrokerGateway):
+    def test_nse_equity_quote(self, gateway: DhanWireAdapter):
         """RELIANCE on NSE should return a quote with ltp > 0."""
         quote = gateway.quote("RELIANCE", "NSE")
         assert quote.ltp > 0
         time.sleep(1.5)
 
-    def test_index_quote(self, gateway: DhanBrokerGateway):
+    def test_index_quote(self, gateway: DhanWireAdapter):
         """NIFTY index should return a quote with ltp > 0."""
         quote = gateway.quote("NIFTY", "INDEX")
         assert quote.ltp > 0
         time.sleep(1.5)
 
-    def test_mcx_futures_exist(self, gateway: DhanBrokerGateway):
+    def test_mcx_futures_exist(self, gateway: DhanWireAdapter):
         """GOLD on MCX should have at least 3 futures contracts."""
         contracts = gateway.extended.data.get_futures_contracts("GOLD", "MCX")
         assert len(contracts) >= 3
 
-    def test_mcx_crudeoil_futures(self, gateway: DhanBrokerGateway):
+    def test_mcx_crudeoil_futures(self, gateway: DhanWireAdapter):
         """CRUDEOIL on MCX should have at least 3 futures contracts."""
         contracts = gateway.extended.data.get_futures_contracts("CRUDEOIL", "MCX")
         assert len(contracts) >= 3
 
-    def test_mcx_quote_via_nearest(self, gateway: DhanBrokerGateway):
+    def test_mcx_quote_via_nearest(self, gateway: DhanWireAdapter):
         """Fetch nearest GOLD future and quote it — ltp must be > 0."""
         nearest = (
             gateway.extended.data.get_futures_contracts("GOLD", "MCX")[0]

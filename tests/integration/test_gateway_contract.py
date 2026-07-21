@@ -62,19 +62,19 @@ class TestGatewayContract:
         assert issubclass(PaperGateway, MarketDataGateway)
 
     def test_dhan_gateway_is_subclass(self):
-        """Dhan DhanBrokerGateway must extend MarketDataGateway."""
-        from brokers.dhan.wire import DhanBrokerGateway
+        """Dhan DhanWireAdapter must extend MarketDataGateway."""
+        from brokers.dhan.wire import DhanWireAdapter
 
-        assert issubclass(DhanBrokerGateway, MarketDataGateway)
+        assert issubclass(DhanWireAdapter, MarketDataGateway)
 
     def test_upstox_gateway_is_subclass(self):
-        """Upstox UpstoxBrokerGateway must satisfy BrokerAdapter structurally."""
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        """Upstox UpstoxWireAdapter must satisfy BrokerAdapter structurally."""
+        from brokers.upstox.wire import UpstoxWireAdapter
         from tests.integration.fixtures.upstox import make_mock_broker
 
         # UpstoxWireAdapter implements BrokerAdapter structurally (Protocol),
         # not via explicit subclassing. Verify the surface is present.
-        gw = UpstoxBrokerGateway(make_mock_broker())
+        gw = UpstoxWireAdapter(make_mock_broker())
         required_methods = (
             "quote", "history", "depth", "ltp",
             "place_order", "cancel_order", "modify_order",
@@ -83,7 +83,7 @@ class TestGatewayContract:
             "stream", "unstream",
         )
         missing = [m for m in required_methods if not hasattr(gw, m)]
-        assert not missing, f"UpstoxBrokerGateway missing methods: {missing}"
+        assert not missing, f"UpstoxWireAdapter missing methods: {missing}"
         assert gw.broker_id == "upstox"
 
     def test_no_abstract_methods_remaining(self, paper_gateway):

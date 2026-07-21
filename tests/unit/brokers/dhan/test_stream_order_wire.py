@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 
 def test_gateway_constructible_with_order_stream_capability() -> None:
@@ -15,7 +15,7 @@ def test_gateway_constructible_with_order_stream_capability() -> None:
     client.access_token = "token"
     conn._client = client
 
-    gw = DhanBrokerGateway(conn)
+    gw = DhanWireAdapter(conn)
 
     assert gw.capabilities().supports_order_stream is True
     assert callable(gw.stream_order)
@@ -32,7 +32,7 @@ def test_stream_order_delegates_to_subscription_engine() -> None:
     client.access_token = "token"
     conn._client = client
 
-    gw = DhanBrokerGateway(conn)
+    gw = DhanWireAdapter(conn)
     cb = MagicMock()
     result = gw.stream_order(cb)
 
@@ -47,7 +47,7 @@ def test_unstream_order_delegates_to_subscription_engine() -> None:
     client.access_token = "token"
     conn._client = client
 
-    gw = DhanBrokerGateway(conn)
+    gw = DhanWireAdapter(conn)
     cb = MagicMock()
     gw.unstream_order(cb)
 

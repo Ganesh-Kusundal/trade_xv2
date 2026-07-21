@@ -372,7 +372,7 @@ class TestAuthIntegrationWithGateway:
         from unittest.mock import MagicMock, patch
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         # Create connection
         conn = DhanConnection(
@@ -385,7 +385,7 @@ class TestAuthIntegrationWithGateway:
             mock_client.post.return_value = MagicMock(status_code=200)
             mock_client.get.return_value = MagicMock(status_code=200)
 
-            gw = DhanBrokerGateway(conn)
+            gw = DhanWireAdapter(conn)
             yield gw
 
     def test_gateway_handles_401_gracefully(self, mock_dhan_gateway):

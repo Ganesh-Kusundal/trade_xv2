@@ -22,7 +22,7 @@ from decimal import Decimal
 import pytest
 
 from application.oms.order_manager import OmsOrderCommand, OrderManager
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import (
     Order,
     OrderResponse,
@@ -47,8 +47,8 @@ def mock_broker():
 
 @pytest.fixture
 def gateway(mock_broker):
-    """Create an UpstoxBrokerGateway with mock broker."""
-    return UpstoxBrokerGateway(mock_broker)
+    """Create an UpstoxWireAdapter with mock broker."""
+    return UpstoxWireAdapter(mock_broker)
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ class TestCompleteOrderLifecycle:
             message="Order placed successfully",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -108,7 +108,7 @@ class TestCompleteOrderLifecycle:
             order_id="UPSTOX-ORD-002",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -132,7 +132,7 @@ class TestCompleteOrderLifecycle:
             status=OrderStatus.OPEN,
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -150,7 +150,7 @@ class TestCompleteOrderLifecycle:
             order_id="UPSTOX-ORD-004",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -170,7 +170,7 @@ class TestCompleteOrderLifecycle:
             order_id="UPSTOX-ORD-005",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -198,7 +198,7 @@ class TestPartialFillHandling:
             status=OrderStatus.PARTIALLY_FILLED,
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -297,7 +297,7 @@ class TestRejectionHandling:
             error_code="BRO_ERR_MARGIN",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -360,7 +360,7 @@ class TestOrderCancellation:
         )
         mock_broker.order_query.get_order.return_value = None
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.cancel_order("ORD-CANCEL-001")
 
         assert result.success is True
@@ -657,7 +657,7 @@ class TestOrderManagerGatewayIntegration:
             order_id="UPSTOX-EVT-001",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",

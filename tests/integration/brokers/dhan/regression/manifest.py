@@ -19,7 +19,7 @@ import pytest
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 Tier = str  # "off_market_safe" | "market_hours" | "pre_prod" | "sandbox"
 
@@ -33,7 +33,7 @@ class RegressionCase:
     tier: Tier
     segment: str
     description: str
-    assert_fn: Callable[[DhanBrokerGateway], None]
+    assert_fn: Callable[[DhanWireAdapter], None]
     severity: str = "P0"  # P0 | P1 | P2
     tags: tuple[str, ...] = field(default_factory=tuple)
 
@@ -44,7 +44,7 @@ class RegressionCase:
 # ---------------------------------------------------------------------------
 
 
-def _assert_nse_depth(gw: DhanBrokerGateway) -> None:
+def _assert_nse_depth(gw: DhanWireAdapter) -> None:
     from tests.integration.brokers.dhan.conftest import skip_on_degraded_instrument_resolver
 
     skip_on_degraded_instrument_resolver(gw)
@@ -56,55 +56,55 @@ def _assert_nse_depth(gw: DhanBrokerGateway) -> None:
     assert depth.asks[0].price > 0
 
 
-def _assert_nse_history(gw: DhanBrokerGateway) -> None:
+def _assert_nse_history(gw: DhanWireAdapter) -> None:
     df = gw.history("RELIANCE", "NSE", timeframe="1D", lookback_days=5)
     assert df is not None and len(df) > 0, "NSE history returned empty"
     for col in ("open", "high", "low", "close", "volume"):
         assert col in df.columns, f"Missing column: {col}"
 
 
-def _assert_nfo_option_chain_banknifty(gw: DhanBrokerGateway) -> None:
+def _assert_nfo_option_chain_banknifty(gw: DhanWireAdapter) -> None:
     chain = gw.option_chain("BANKNIFTY", "NFO")
     assert chain.spot > 0
     assert len(chain.strikes) > 0
 
 
-def _assert_nfo_future_chain_reliance(gw: DhanBrokerGateway) -> None:
+def _assert_nfo_future_chain_reliance(gw: DhanWireAdapter) -> None:
     # For stock futures the underlying exchange is NSE (not NFO)
     fc = gw.future_chain("RELIANCE", "NSE")
     if len(fc.contracts) < 1:
         pytest.skip("RELIANCE future chain empty — entitlement or illiquid underlying")
 
 
-def _assert_portfolio_funds(gw: DhanBrokerGateway) -> None:
+def _assert_portfolio_funds(gw: DhanWireAdapter) -> None:
     bal = gw.funds()
     assert bal is not None, "funds() returned None"
     # available_balance may be 0 in a fresh account; must not raise
     assert hasattr(bal, "available_balance")
 
 
-def _assert_portfolio_positions(gw: DhanBrokerGateway) -> None:
+def _assert_portfolio_positions(gw: DhanWireAdapter) -> None:
     positions = gw.positions()
     assert isinstance(positions, list), "positions() must return a list"
 
 
-def _assert_portfolio_holdings(gw: DhanBrokerGateway) -> None:
+def _assert_portfolio_holdings(gw: DhanWireAdapter) -> None:
     holdings = gw.holdings()
     assert isinstance(holdings, list), "holdings() must return a list"
 
 
-def _assert_batch_ltp(gw: DhanBrokerGateway) -> None:
+def _assert_batch_ltp(gw: DhanWireAdapter) -> None:
     results = gw.ltp_batch(["RELIANCE", "TCS"], "NSE")
     assert isinstance(results, dict)
     assert len(results) >= 1, "batch LTP returned empty"
 
 
-def _assert_nse_instruments_search(gw: DhanBrokerGateway) -> None:
+def _assert_nse_instruments_search(gw: DhanWireAdapter) -> None:
     results = gw.search("RELIANCE")
     assert isinstance(results, list) and len(results) >= 1
 
 
-def _assert_observability_cb(gw: DhanBrokerGateway) -> None:
+def _assert_observability_cb(gw: DhanWireAdapter) -> None:
     if hasattr(gw, "health"):
         assert gw.health() is not None
         return
@@ -116,7 +116,7 @@ def _assert_observability_cb(gw: DhanBrokerGateway) -> None:
     pytest.skip("optional observability: health")
 
 
-def _assert_subscription_engine_wired(gw: DhanBrokerGateway) -> None:
+def _assert_subscription_engine_wired(gw: DhanWireAdapter) -> None:
     """P0: gateway must delegate streaming to SubscriptionEngine."""
     conn = gw._conn
     assert hasattr(conn, "subscription_engine"), "missing SubscriptionEngine on connection"
@@ -125,7 +125,7 @@ def _assert_subscription_engine_wired(gw: DhanBrokerGateway) -> None:
     assert callable(getattr(engine, "unsubscribe_market", None))
 
 
-def _assert_session_manager_wired(gw: DhanBrokerGateway) -> None:
+def _assert_session_manager_wired(gw: DhanWireAdapter) -> None:
     """P0: connection must expose consolidated session manager."""
     conn = gw._conn
     assert hasattr(conn, "_session_manager"), "missing DhanSessionManager on connection"
@@ -133,14 +133,14 @@ def _assert_session_manager_wired(gw: DhanBrokerGateway) -> None:
     assert callable(getattr(sm, "health_summary", None))
 
 
-def _assert_stream_order_not_market_alias(gw: DhanBrokerGateway) -> None:
+def _assert_stream_order_not_market_alias(gw: DhanWireAdapter) -> None:
     """P0: gateway must expose distinct order stream entry point."""
     assert callable(getattr(gw, "stream_order", None))
     assert callable(getattr(gw, "unstream_order", None))
     assert gw.stream_order is not gw.stream
 
 
-def _assert_post_cancel_fill_detection(_gw: DhanBrokerGateway) -> None:
+def _assert_post_cancel_fill_detection(_gw: DhanWireAdapter) -> None:
     from pathlib import Path
 
     text = (
@@ -151,7 +151,7 @@ def _assert_post_cancel_fill_detection(_gw: DhanBrokerGateway) -> None:
     assert "get_order_fn" in text
 
 
-def _assert_tick_normalize_logging(_gw: DhanBrokerGateway) -> None:
+def _assert_tick_normalize_logging(_gw: DhanWireAdapter) -> None:
     from pathlib import Path
 
     text = (
@@ -160,7 +160,7 @@ def _assert_tick_normalize_logging(_gw: DhanBrokerGateway) -> None:
     assert "tick_normalize_failed" in text
 
 
-def _assert_get_order_propagates_transport_errors(gw: DhanBrokerGateway) -> None:
+def _assert_get_order_propagates_transport_errors(gw: DhanWireAdapter) -> None:
     """P0: get_order must not swallow transport failures as None."""
     import inspect
 
@@ -169,21 +169,21 @@ def _assert_get_order_propagates_transport_errors(gw: DhanBrokerGateway) -> None
     assert "raise mapped" in source
 
 
-def _assert_nse_depth_both_sides(gw: DhanBrokerGateway) -> None:
+def _assert_nse_depth_both_sides(gw: DhanWireAdapter) -> None:
     """After the fix: REST depth always returns both sides."""
     depth = gw.depth("TCS", "NSE")
     assert len(depth.bids) >= 1, "depth() bids empty after fix"
     assert len(depth.asks) >= 1, "depth() asks empty after fix"
 
 
-def _assert_nfo_stock_option_chain(gw: DhanBrokerGateway) -> None:
+def _assert_nfo_stock_option_chain(gw: DhanWireAdapter) -> None:
     """Stock options (OPTSTK): RELIANCE option chain (underlying exchange = NSE)."""
     chain = gw.option_chain("RELIANCE", "NSE")
     assert chain.spot > 0
     assert len(chain.strikes) > 0, "Stock option chain (RELIANCE) has no strikes"
 
 
-def _assert_nfo_banknifty_future(gw: DhanBrokerGateway) -> None:
+def _assert_nfo_banknifty_future(gw: DhanWireAdapter) -> None:
     """BANKNIFTY futures via NFO."""
     fc = gw.future_chain("BANKNIFTY", "NFO")
     assert len(fc.contracts) >= 1, "BANKNIFTY future chain empty"
@@ -192,7 +192,7 @@ def _assert_nfo_banknifty_future(gw: DhanBrokerGateway) -> None:
 # Market-hours cases — WebSocket / streaming (skipped off-market)
 
 
-def _assert_depth_20_both_sides(gw: DhanBrokerGateway) -> None:
+def _assert_depth_20_both_sides(gw: DhanWireAdapter) -> None:
     """depth_20() initial return has both bids and asks (merged with REST)."""
     import time
 
@@ -203,7 +203,7 @@ def _assert_depth_20_both_sides(gw: DhanBrokerGateway) -> None:
     time.sleep(1.0)
 
 
-def _assert_full_mode_tick(gw: DhanBrokerGateway) -> None:
+def _assert_full_mode_tick(gw: DhanWireAdapter) -> None:
     """FULL mode stream receives at least one tick within 15 s during market hours."""
     import threading
 

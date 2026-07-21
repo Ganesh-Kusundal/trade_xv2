@@ -6,63 +6,63 @@ import contextlib
 import threading
 import time
 
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from tests.support.brokers.regression_manifest import RegressionCase
 
 
-def _assert_nse_quote(gw: UpstoxBrokerGateway) -> None:
+def _assert_nse_quote(gw: UpstoxWireAdapter) -> None:
     q = gw.quote("RELIANCE", "NSE")
     assert q.ltp > 0
 
 
-def _assert_nse_ltp(gw: UpstoxBrokerGateway) -> None:
+def _assert_nse_ltp(gw: UpstoxWireAdapter) -> None:
     ltp = gw.ltp("RELIANCE", "NSE")
     assert ltp > 0
 
 
-def _assert_nse_history(gw: UpstoxBrokerGateway) -> None:
+def _assert_nse_history(gw: UpstoxWireAdapter) -> None:
     df = gw.history("RELIANCE", "NSE", timeframe="1D", lookback_days=5)
     assert df is not None and len(df) > 0
     for col in ("open", "high", "low", "close", "volume"):
         assert col in getattr(df, "columns", ()), f"Missing column: {col}"
 
 
-def _assert_funds(gw: UpstoxBrokerGateway) -> None:
+def _assert_funds(gw: UpstoxWireAdapter) -> None:
     bal = gw.funds()
     assert bal is not None
 
 
-def _assert_positions(gw: UpstoxBrokerGateway) -> None:
+def _assert_positions(gw: UpstoxWireAdapter) -> None:
     assert isinstance(gw.positions(), list)
 
 
-def _assert_holdings(gw: UpstoxBrokerGateway) -> None:
+def _assert_holdings(gw: UpstoxWireAdapter) -> None:
     assert isinstance(gw.holdings(), list)
 
 
-def _assert_orderbook(gw: UpstoxBrokerGateway) -> None:
+def _assert_orderbook(gw: UpstoxWireAdapter) -> None:
     book = gw.get_orderbook() if hasattr(gw, "get_orderbook") else gw.orderbook()
     assert isinstance(book, list)
 
 
-def _assert_search(gw: UpstoxBrokerGateway) -> None:
+def _assert_search(gw: UpstoxWireAdapter) -> None:
     results = gw.search("RELIANCE")
     assert isinstance(results, list)
     assert len(results) >= 1
 
 
-def _assert_depth(gw: UpstoxBrokerGateway) -> None:
+def _assert_depth(gw: UpstoxWireAdapter) -> None:
     depth = gw.depth("RELIANCE", "NSE")
     assert depth is not None
     assert len(depth.bids) >= 1 or len(depth.asks) >= 1
 
 
-def _assert_option_chain(gw: UpstoxBrokerGateway) -> None:
+def _assert_option_chain(gw: UpstoxWireAdapter) -> None:
     chain = gw.option_chain("NIFTY", "NSE")
     assert chain is not None
 
 
-def _assert_connection_status(gw: UpstoxBrokerGateway) -> None:
+def _assert_connection_status(gw: UpstoxWireAdapter) -> None:
     if not hasattr(gw, "get_connection_status"):
         return
     status = gw.get_connection_status()
@@ -70,7 +70,7 @@ def _assert_connection_status(gw: UpstoxBrokerGateway) -> None:
     assert "portfolio_stream" in status
 
 
-def _assert_portfolio_stream_capability(gw: UpstoxBrokerGateway) -> None:
+def _assert_portfolio_stream_capability(gw: UpstoxWireAdapter) -> None:
     from domain import Capability
 
     broker = gw._broker
@@ -78,7 +78,7 @@ def _assert_portfolio_stream_capability(gw: UpstoxBrokerGateway) -> None:
     assert provider is broker.portfolio_stream
 
 
-def _assert_ltp_stream(gw: UpstoxBrokerGateway) -> None:
+def _assert_ltp_stream(gw: UpstoxWireAdapter) -> None:
     """LTP stream must receive ticks within 15 s during market hours."""
     received = threading.Event()
     ticks: list[object] = []

@@ -74,8 +74,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -89,8 +89,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -104,8 +104,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -119,8 +119,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
         ],
     )
     def test_place_order_signature(self, gw_module, gw_class):
@@ -145,8 +145,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -160,8 +160,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -175,8 +175,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanBrokerGateway"),
-            ("brokers.upstox.wire", "UpstoxBrokerGateway"),
+            ("brokers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.upstox.wire", "UpstoxWireAdapter"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
     )
@@ -192,7 +192,7 @@ class TestABCContractSignatures:
 
 
 class TestDhanGatewayReturnTypes:
-    """Test Dhan DhanBrokerGateway methods return correct types using mocked HTTP."""
+    """Test Dhan DhanWireAdapter methods return correct types using mocked HTTP."""
 
     @pytest.fixture()
     def dhan_gw(self):
@@ -214,9 +214,9 @@ class TestDhanGatewayReturnTypes:
         inst.canonical_symbol = "RELIANCE"
         conn.instruments.resolve.return_value = inst
 
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
-        gw = DhanBrokerGateway(conn)
+        gw = DhanWireAdapter(conn)
         return gw
 
     def test_ltp_returns_decimal(self, dhan_gw):
@@ -349,7 +349,7 @@ class TestDhanGatewayReturnTypes:
 
 
 class TestUpstoxGatewayReturnTypes:
-    """Test Upstox UpstoxBrokerGateway methods return correct types using mocked broker."""
+    """Test Upstox UpstoxWireAdapter methods return correct types using mocked broker."""
 
     @pytest.fixture()
     def upstox_gw(self):
@@ -361,9 +361,9 @@ class TestUpstoxGatewayReturnTypes:
         broker.instrument_resolver = MagicMock()
         broker.instrument_resolver.is_loaded.return_value = True
 
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         return gw
 
     def test_ltp_returns_decimal(self, upstox_gw):
@@ -537,7 +537,7 @@ class TestObservabilityProvider:
     )
 
     def test_dhan_get_connection_status(self):
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -545,13 +545,13 @@ class TestObservabilityProvider:
         conn.event_bus = None
         conn.market_feed = None
         conn._lifecycle = None
-        gw = DhanBrokerGateway(conn)
+        gw = DhanWireAdapter(conn)
 
         result = gw.get_connection_status()
         assert isinstance(result, dict)
 
     def test_dhan_get_circuit_breaker_states(self):
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -560,13 +560,13 @@ class TestObservabilityProvider:
         conn.market_feed = None
         conn._lifecycle = None
         conn.circuit_breaker_states = {"data": 0, "order": 0, "quote": 0}
-        gw = DhanBrokerGateway(conn)
+        gw = DhanWireAdapter(conn)
 
         result = gw.get_circuit_breaker_states()
         assert isinstance(result, dict)
 
     def test_dhan_get_token_refresh_metrics(self):
-        from brokers.dhan.wire import DhanBrokerGateway
+        from brokers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -575,7 +575,7 @@ class TestObservabilityProvider:
         conn.market_feed = None
         conn._lifecycle = None
         conn.token_refresh_metrics = {"refresh_count": 0, "last_refresh": None}
-        gw = DhanBrokerGateway(conn)
+        gw = DhanWireAdapter(conn)
 
         result = gw.get_token_refresh_metrics()
         assert isinstance(result, dict)
@@ -589,20 +589,20 @@ class TestUpstoxObservabilityProvider:
     """Upstox gateway must implement ObservabilityProvider methods."""
 
     def test_upstox_get_connection_status(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.market_data_websocket = MagicMock()
         broker.market_data_websocket.is_connected = False
         broker.order_stream_websocket = MagicMock()
         broker.order_stream_websocket.is_connected = False
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
 
         result = gw.get_connection_status()
         assert isinstance(result, dict)
 
     def test_upstox_get_circuit_breaker_states(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.context.http_client.circuit_breaker_states.return_value = {
@@ -610,7 +610,7 @@ class TestUpstoxObservabilityProvider:
             "write": 0,
             "admin": 0,
         }
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
 
         result = gw.get_circuit_breaker_states()
         assert isinstance(result, dict)
@@ -619,19 +619,19 @@ class TestUpstoxObservabilityProvider:
         assert "admin" in result
 
     def test_upstox_get_token_refresh_metrics(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.context.token_manager.refresh_count = 0
         broker.context.token_manager.error_count = 0
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
 
         result = gw.get_token_refresh_metrics()
         assert isinstance(result, dict)
         assert "refresh_count" in result
 
     def test_upstox_get_rate_limiter_metrics(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
         from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
 
         rl = MultiBucketRateLimiter(
@@ -644,7 +644,7 @@ class TestUpstoxObservabilityProvider:
         )
         broker = MagicMock()
         broker.context.rate_limiter = rl
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
 
         result = gw.get_rate_limiter_metrics()
         assert isinstance(result, dict)

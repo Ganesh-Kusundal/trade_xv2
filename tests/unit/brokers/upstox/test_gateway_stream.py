@@ -1,4 +1,4 @@
-"""Tests for UpstoxBrokerGateway.stream() and canonical Quote translation.
+"""Tests for UpstoxWireAdapter.stream() and canonical Quote translation.
 
 Covers:
 - subscription wiring (already-connected / disconnected paths)
@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import MarketDepth, Quote
 
 # ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ class _MockWebsocket:
 def _make_gateway(
     connected: bool = False,
     resolver_defn: Any = None,
-) -> tuple[UpstoxBrokerGateway, _MockWebsocket, MagicMock]:
+) -> tuple[UpstoxWireAdapter, _MockWebsocket, MagicMock]:
     ws = _MockWebsocket(connected=connected)
     broker = MagicMock()
     broker.market_data_websocket = ws
@@ -72,7 +72,7 @@ def _make_gateway(
     broker.instruments = MagicMock()
     broker.instruments.resolve_instrument_key = _resolve_key
 
-    gateway = UpstoxBrokerGateway(broker)
+    gateway = UpstoxWireAdapter(broker)
     return gateway, ws, broker
 
 
@@ -407,29 +407,29 @@ class TestCanonicalSymbolForDefn:
             symbol="NIFTY2924800CE",
             trading_symbol="NIFTY2924800CE",
         )
-        sym = UpstoxBrokerGateway._canonical_symbol_for_defn(defn, "NSE_FO|NIFTY2924800CE")
+        sym = UpstoxWireAdapter._canonical_symbol_for_defn(defn, "NSE_FO|NIFTY2924800CE")
         assert sym == "NIFTY 29 MAY 25 24800 CE"
 
     def test_symbol_used_when_name_empty(self):
         defn = _make_defn(name="", symbol="RELIANCE", trading_symbol="RELIANCE-EQ")
-        sym = UpstoxBrokerGateway._canonical_symbol_for_defn(defn, "NSE_EQ|RELIANCE")
+        sym = UpstoxWireAdapter._canonical_symbol_for_defn(defn, "NSE_EQ|RELIANCE")
         assert sym == "RELIANCE"
 
     def test_trading_symbol_fallback(self):
         defn = _make_defn(name="", symbol="", trading_symbol="TCS-EQ")
-        sym = UpstoxBrokerGateway._canonical_symbol_for_defn(defn, "NSE_EQ|TCS")
+        sym = UpstoxWireAdapter._canonical_symbol_for_defn(defn, "NSE_EQ|TCS")
         assert sym == "TCS-EQ"
 
     def test_instrument_key_rhs_fallback_when_no_defn(self):
-        sym = UpstoxBrokerGateway._canonical_symbol_for_defn(None, "NSE_EQ|HDFC")
+        sym = UpstoxWireAdapter._canonical_symbol_for_defn(None, "NSE_EQ|HDFC")
         assert sym == "HDFC"
 
     def test_bare_key_when_no_pipe(self):
-        sym = UpstoxBrokerGateway._canonical_symbol_for_defn(None, "UNKNOWN")
+        sym = UpstoxWireAdapter._canonical_symbol_for_defn(None, "UNKNOWN")
         assert sym == "UNKNOWN"
 
     def test_empty_fallback_key(self):
-        sym = UpstoxBrokerGateway._canonical_symbol_for_defn(None, "")
+        sym = UpstoxWireAdapter._canonical_symbol_for_defn(None, "")
         assert sym == ""
 
 

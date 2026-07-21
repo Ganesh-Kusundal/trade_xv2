@@ -38,20 +38,20 @@ class TestGatewayImplementationContract:
     """Gateway classes declare ABC methods (structural check via MRO)."""
 
     def test_dhan_gateway_implements_abc_methods(self) -> None:
-        from brokers.dhan.wire import DhanBrokerGateway as DhanGateway
+        from brokers.dhan.wire import DhanWireAdapter as DhanGateway
 
         abstract = _abstract_methods()
         for method in abstract:
-            assert hasattr(DhanGateway, method), f"Dhan DhanBrokerGateway missing {method}"
+            assert hasattr(DhanGateway, method), f"Dhan DhanWireAdapter missing {method}"
             impl = getattr(DhanGateway, method)
             assert getattr(impl, "__isabstractmethod__", False) is False
 
     def test_upstox_gateway_implements_abc_methods(self) -> None:
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         abstract = _abstract_methods()
         for method in abstract:
-            assert hasattr(UpstoxBrokerGateway, method), f"Upstox gateway missing {method}"
+            assert hasattr(UpstoxWireAdapter, method), f"Upstox gateway missing {method}"
 
     def test_paper_gateway_implements_abc_methods(self) -> None:
         from brokers.paper.paper_gateway import PaperGateway
@@ -65,12 +65,12 @@ class TestUpstoxFutureChain:
     """Upstox future_chain returns FutureChain via futures adapter."""
 
     def test_upstox_future_chain_returns_chain(self) -> None:
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
         from domain import FutureChain
         from tests.integration.fixtures.upstox import make_mock_broker
 
         broker = make_mock_broker()
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         result = gw.future_chain("NIFTY", "NFO")
         assert isinstance(result, FutureChain)
         assert result.underlying == "NIFTY"

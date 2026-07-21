@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from domain import OrderStatus
 
 # ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveOrderLifecycle:
     """End-to-end order lifecycle tests against live Dhan API."""
 
-    def test_get_orderbook_returns_list(self, gateway: DhanBrokerGateway):
+    def test_get_orderbook_returns_list(self, gateway: DhanWireAdapter):
         """get_orderbook() should return a list of Order objects."""
         orderbook = gateway.get_orderbook()
         assert isinstance(orderbook, list)
@@ -54,7 +54,7 @@ class TestLiveOrderLifecycle:
             assert hasattr(order, "quantity")
             assert hasattr(order, "status")
 
-    def test_get_orderbook_order_schema(self, gateway: DhanBrokerGateway):
+    def test_get_orderbook_order_schema(self, gateway: DhanWireAdapter):
         """Order objects should have all required fields."""
         orderbook = gateway.get_orderbook()
         if orderbook:
@@ -73,7 +73,7 @@ class TestLiveOrderLifecycle:
             for field in required_fields:
                 assert hasattr(order, field), f"Order missing field: {field}"
 
-    def test_order_status_values(self, gateway: DhanBrokerGateway):
+    def test_order_status_values(self, gateway: DhanWireAdapter):
         """Order status should be valid OrderStatus enum values."""
         orderbook = gateway.get_orderbook()
         valid_statuses = set(OrderStatus)
@@ -81,7 +81,7 @@ class TestLiveOrderLifecycle:
             if order.status is not None:
                 assert order.status in valid_statuses, f"Invalid status: {order.status}"
 
-    def test_cancel_nonexistent_order_returns_failure(self, gateway: DhanBrokerGateway):
+    def test_cancel_nonexistent_order_returns_failure(self, gateway: DhanWireAdapter):
         """Cancelling a non-existent order should return failure, not raise."""
         # Skip if live orders are disabled (safety guard)
         import os
@@ -94,7 +94,7 @@ class TestLiveOrderLifecycle:
         assert response.success is False
         assert response.message is not None
 
-    def test_get_order_for_nonexistent_id(self, gateway: DhanBrokerGateway):
+    def test_get_order_for_nonexistent_id(self, gateway: DhanWireAdapter):
         """get_order() for non-existent ID should return None."""
         order = gateway.get_order("NONEXISTENT-ORDER-123456")
         assert order is None
@@ -104,7 +104,7 @@ class TestLiveOrderLifecycle:
 class TestLiveOrderValidation:
     """Order validation and rejection path tests."""
 
-    def test_place_order_rejects_invalid_symbol(self, gateway: DhanBrokerGateway):
+    def test_place_order_rejects_invalid_symbol(self, gateway: DhanWireAdapter):
         """Placing order with invalid symbol should fail gracefully."""
         response = gateway.place_order(
             symbol="DOESNOTEXIST123",
@@ -118,7 +118,7 @@ class TestLiveOrderValidation:
         assert response.success is False
         assert response.message is not None
 
-    def test_place_order_rejects_invalid_exchange(self, gateway: DhanBrokerGateway):
+    def test_place_order_rejects_invalid_exchange(self, gateway: DhanWireAdapter):
         """Placing order with invalid exchange should fail."""
         try:
             response = gateway.place_order(
@@ -135,7 +135,7 @@ class TestLiveOrderValidation:
             # Raising for invalid exchange is also acceptable
             pass
 
-    def test_place_order_rejects_zero_quantity(self, gateway: DhanBrokerGateway):
+    def test_place_order_rejects_zero_quantity(self, gateway: DhanWireAdapter):
         """Placing order with zero quantity should fail."""
         response = gateway.place_order(
             symbol="RELIANCE",
@@ -147,7 +147,7 @@ class TestLiveOrderValidation:
         )
         assert response.success is False
 
-    def test_place_order_rejects_negative_quantity(self, gateway: DhanBrokerGateway):
+    def test_place_order_rejects_negative_quantity(self, gateway: DhanWireAdapter):
         """Placing order with negative quantity should fail."""
         response = gateway.place_order(
             symbol="RELIANCE",

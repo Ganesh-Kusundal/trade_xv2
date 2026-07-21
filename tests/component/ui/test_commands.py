@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from brokers.dhan.wire import DhanBrokerGateway as BrokerGateway
+from brokers.dhan.wire import DhanWireAdapter as BrokerGateway
 from interface.ui.commands import account as cmd_account
 from interface.ui.commands import broker as cmd_broker
 from interface.ui.commands import doctor as cmd_doctor

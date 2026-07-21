@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from infrastructure.gateway.factory import bootstrap_gateway
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -30,8 +30,8 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 
 
 @pytest.fixture(scope="session")
-def live_gateway() -> UpstoxBrokerGateway:
-    """Session-scoped live UpstoxBrokerGateway for regression tests."""
+def live_gateway() -> UpstoxWireAdapter:
+    """Session-scoped live UpstoxWireAdapter for regression tests."""
     if not _live_env_loaded:
         pytest.skip(".env.upstox with UPSTOX_CLIENT_ID required for Upstox regression tests")
 

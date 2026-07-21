@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
 
@@ -39,20 +39,20 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveLTP:
     """LTP endpoint tests against live Dhan API."""
 
-    def test_ltp_nse_equity(self, gateway: DhanBrokerGateway):
+    def test_ltp_nse_equity(self, gateway: DhanWireAdapter):
         """ltp() for NSE equity should return Decimal > 0."""
         ltp = gateway.ltp("RELIANCE", "NSE")
         assert isinstance(ltp, Decimal)
         assert ltp > 0
 
-    def test_ltp_index(self, gateway: DhanBrokerGateway):
+    def test_ltp_index(self, gateway: DhanWireAdapter):
         """ltp() for INDEX should return Decimal > 0."""
         ltp = gateway.ltp("NIFTY", "INDEX")
         assert isinstance(ltp, Decimal)
         assert ltp > 0
         time.sleep(1.5)
 
-    def test_ltp_nfo_future(self, gateway: DhanBrokerGateway):
+    def test_ltp_nfo_future(self, gateway: DhanWireAdapter):
         """ltp() for NFO future should return Decimal > 0."""
         # Get a NIFTY future contract
         contracts = gateway.extended.data.get_futures_contracts("NIFTY", "INDEX")
@@ -67,7 +67,7 @@ class TestLiveLTP:
 class TestLiveDepth:
     """Market depth endpoint tests against live Dhan API."""
 
-    def test_depth_nse_equity(self, gateway: DhanBrokerGateway):
+    def test_depth_nse_equity(self, gateway: DhanWireAdapter):
         """depth() for NSE equity should return MarketDepth with bids/asks."""
         depth = gateway.depth("RELIANCE", "NSE")
         assert depth is not None
@@ -76,14 +76,14 @@ class TestLiveDepth:
         assert isinstance(depth.bids, list)
         assert isinstance(depth.asks, list)
 
-    def test_depth_nse_equity_levels(self, gateway: DhanBrokerGateway):
+    def test_depth_nse_equity_levels(self, gateway: DhanWireAdapter):
         """depth() for liquid NSE equity should have ≥ 5 levels."""
         depth = gateway.depth("RELIANCE", "NSE")
         # RELIANCE is liquid enough to have depth
         assert len(depth.bids) >= 1, "Should have at least 1 bid level"
         assert len(depth.asks) >= 1, "Should have at least 1 ask level"
 
-    def test_depth_level_schema(self, gateway: DhanBrokerGateway):
+    def test_depth_level_schema(self, gateway: DhanWireAdapter):
         """DepthLevel objects should have price, quantity, orders."""
         depth = gateway.depth("RELIANCE", "NSE")
         if depth.bids:
@@ -97,7 +97,7 @@ class TestLiveDepth:
 class TestLiveHistory:
     """Historical data endpoint tests against live Dhan API."""
 
-    def test_history_nse_equity(self, gateway: DhanBrokerGateway):
+    def test_history_nse_equity(self, gateway: DhanWireAdapter):
         """history() for NSE equity should return DataFrame with OHLCV."""
         df = gateway.history("RELIANCE", "NSE", timeframe="1D", lookback_days=5)
         assert df is not None
@@ -107,7 +107,7 @@ class TestLiveHistory:
         for col in required_cols:
             assert col in df.columns, f"Missing column: {col}"
 
-    def test_history_with_date_range(self, gateway: DhanBrokerGateway):
+    def test_history_with_date_range(self, gateway: DhanWireAdapter):
         """history() with explicit from_date/to_date should work."""
         df = gateway.history(
             "RELIANCE",
@@ -119,7 +119,7 @@ class TestLiveHistory:
         assert df is not None
         assert len(df) > 0
 
-    def test_history_5min_timeframe(self, gateway: DhanBrokerGateway):
+    def test_history_5min_timeframe(self, gateway: DhanWireAdapter):
         """history() with 5m timeframe should return intraday candles."""
         df = gateway.history("RELIANCE", "NSE", timeframe="5m", lookback_days=1)
         assert df is not None
@@ -127,24 +127,24 @@ class TestLiveHistory:
         if len(df) > 0:
             assert "timestamp" in df.columns
 
-    def test_history_15min_timeframe(self, gateway: DhanBrokerGateway):
+    def test_history_15min_timeframe(self, gateway: DhanWireAdapter):
         """history() with 15m timeframe should return candles."""
         df = gateway.history("RELIANCE", "NSE", timeframe="15m", lookback_days=2)
         assert df is not None
 
-    def test_history_1hour_timeframe(self, gateway: DhanBrokerGateway):
+    def test_history_1hour_timeframe(self, gateway: DhanWireAdapter):
         """history() with 1h timeframe should return candles."""
         df = gateway.history("RELIANCE", "NSE", timeframe="1h", lookback_days=5)
         assert df is not None
 
-    def test_history_index(self, gateway: DhanBrokerGateway):
+    def test_history_index(self, gateway: DhanWireAdapter):
         """history() for INDEX should return candles."""
         df = gateway.history("NIFTY", "INDEX", timeframe="1D", lookback_days=5)
         assert df is not None
         assert len(df) > 0
         time.sleep(1.5)
 
-    def test_history_dataframe_schema(self, gateway: DhanBrokerGateway):
+    def test_history_dataframe_schema(self, gateway: DhanWireAdapter):
         """history() DataFrame should have canonical schema."""
         df = gateway.history("RELIANCE", "NSE", timeframe="1D", lookback_days=3)
         required_cols = ["timestamp", "open", "high", "low", "close", "volume"]

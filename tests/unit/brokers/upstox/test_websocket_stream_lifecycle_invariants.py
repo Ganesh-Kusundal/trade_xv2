@@ -15,7 +15,7 @@ import pytest
 
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 
 
 def _fake_authorizer() -> UpstoxFeedAuthorizer:
@@ -30,7 +30,7 @@ def _make_multiplexer() -> UpstoxMarketDataV3Multiplexer:
     return UpstoxMarketDataV3Multiplexer(authorizer=_fake_authorizer())
 
 
-def _make_gateway_with_mock_broker() -> UpstoxBrokerGateway:
+def _make_gateway_with_mock_broker() -> UpstoxWireAdapter:
     broker = MagicMock()
     ws = _make_multiplexer()
     broker.market_data_websocket = ws
@@ -41,7 +41,7 @@ def _make_gateway_with_mock_broker() -> UpstoxBrokerGateway:
     # directly (see resolve_instrument_key() in instruments/service.py for
     # the real fallback: f"{segment}|{symbol}").
     broker.instruments.resolve_instrument_key.return_value = "NSE_EQ|RELIANCE"
-    return UpstoxBrokerGateway(broker)
+    return UpstoxWireAdapter(broker)
 
 
 # ── Fix 1: Callback dedup + stream lock ─────────────────────────────────────

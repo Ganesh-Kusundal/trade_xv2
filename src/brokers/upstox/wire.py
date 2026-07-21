@@ -40,12 +40,13 @@ from domain.entities import (
 )
 from domain.market_enums import ExchangeSegment
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
+from domain.ports.broker_adapter import BrokerAdapter
 from infrastructure.batch_mixin import BatchFetchMixin
 
 logger = logging.getLogger(__name__)
 
 
-class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
+class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter, BrokerAdapter):
     """Unified Upstox broker API — composes gateway adapters over UpstoxBroker."""
 
     broker_id = "upstox"
@@ -332,10 +333,6 @@ def create_wire_adapter(broker: UpstoxBroker | UpstoxWireAdapter) -> UpstoxWireA
 
 
 __all__ = [
-    "UpstoxBrokerGateway",
     "UpstoxWireAdapter",
     "create_wire_adapter",
 ]
-
-# Backward compatibility for old tests
-UpstoxBrokerGateway = UpstoxWireAdapter

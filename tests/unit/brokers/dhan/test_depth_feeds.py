@@ -386,7 +386,7 @@ class TestDhanDepth200Feed:
 
 def _make_offline_gateway():
     from brokers.dhan.resolver import SymbolResolver
-    from brokers.dhan.wire import DhanBrokerGateway
+    from brokers.dhan.wire import DhanWireAdapter
 
     resolver = SymbolResolver()
     resolver.load_from_rows(
@@ -420,7 +420,7 @@ def _make_offline_gateway():
         depth_type="DEPTH_5",
     )
 
-    gw = DhanBrokerGateway.__new__(DhanBrokerGateway)
+    gw = DhanWireAdapter.__new__(DhanWireAdapter)
     gw._conn = conn
     return gw
 

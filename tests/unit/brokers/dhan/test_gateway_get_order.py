@@ -1,4 +1,4 @@
-"""C0.7a — DhanBrokerGateway exposes get_order and delegates end-to-end.
+"""C0.7a — DhanWireAdapter exposes get_order and delegates end-to-end.
 
 Contract test for R9 (P0): the gateway must expose ``get_order(order_id)``
 and delegate to the existing execution helper (``OrdersAdapter.get_order``
@@ -8,7 +8,7 @@ Dhan client at ``GET /orders/{order_id}``.
 The gateway method itself is a thin facade (see ``gateway.py::get_order``);
 this test proves the whole chain works without duplicating any logic:
 
-    DhanBrokerGateway.get_order
+    DhanWireAdapter.get_order
         -> DhanConnection.orders (OrdersAdapter).get_order   # execution helper
             -> DhanHttpClient.get("/orders/{order_id}")       # underlying client
 """
@@ -20,11 +20,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.dhan.execution.orders import OrdersAdapter
-from brokers.dhan.wire import DhanBrokerGateway
+from brokers.dhan.wire import DhanWireAdapter
 from domain import Order, OrderStatus
 
 
-def _make_gateway_with_real_adapter(fake_client, resolver) -> DhanBrokerGateway:
+def _make_gateway_with_real_adapter(fake_client, resolver) -> DhanWireAdapter:
     """Build a gateway whose ``_conn.orders`` is a *real* OrdersAdapter.
 
     The OrdersAdapter is wired to the (mocked) underlying Dhan client so we
@@ -35,7 +35,7 @@ def _make_gateway_with_real_adapter(fake_client, resolver) -> DhanBrokerGateway:
     conn = MagicMock()
     conn.orders = adapter
 
-    gw = object.__new__(DhanBrokerGateway)
+    gw = object.__new__(DhanWireAdapter)
     gw._conn = conn
     return gw
 
