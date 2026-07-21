@@ -26,8 +26,9 @@ class TestUnifiedTimeServiceNow:
         assert now.tzinfo == timezone.utc
 
     def test_now_utc_alias(self):
-        ts = TimeService()
-        assert ts.now() == ts.now_utc()
+        fixed = datetime(2024, 6, 15, tzinfo=timezone.utc)
+        ts = TimeService.with_clock(FakeClock(initial=fixed))
+        assert ts.now() == ts.now_utc() == fixed
 
 
 class TestFakeClock:
