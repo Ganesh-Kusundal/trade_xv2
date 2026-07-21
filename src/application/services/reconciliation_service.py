@@ -32,7 +32,7 @@ def _as_decimal(value: object) -> Decimal:
         return Decimal("0")
     to_dec = getattr(value, "to_decimal", None)
     if callable(to_dec):
-        return to_dec()
+        return Decimal(to_dec())
     if isinstance(value, Decimal):
         return value
     try:

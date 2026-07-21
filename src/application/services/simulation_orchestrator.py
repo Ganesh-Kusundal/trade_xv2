@@ -85,14 +85,15 @@ class SimulationFillPipeline:
         if trade.quantity <= 0:
             return False
         order_id = trade.order_id or f"sim-{trade.trade_id}"
-        oq = order_quantity if order_quantity is not None else trade.quantity
+        qty_int = int(trade.quantity)
+        oq = order_quantity if order_quantity is not None else qty_int
         prior = self._filled_by_order.get(order_id, 0)
         fill = FillReducer.fill_from_trade(
             str(trade.trade_id),
             order_id,
-            trade.quantity,
+            qty_int,
             prior,
-            trade.price,
+            trade.price.amount,
         )
         result = self.reducer.apply(
             fill,
@@ -101,7 +102,7 @@ class SimulationFillPipeline:
         )
         if not result.accepted:
             return False
-        self._filled_by_order[order_id] = prior + trade.quantity
+        self._filled_by_order[order_id] = prior + qty_int
         self.projector.apply_trade(trade)
         return True
 

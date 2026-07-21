@@ -73,6 +73,14 @@ repos:
         pass_filenames: false
         description: Run architecture fitness tests (fast subset)
 
+      - id: mypy-strict
+        name: mypy --strict (allowlisted modules)
+        entry: bash -c 'mypy --strict $(python -c "import sys; print(\' \'.join(\'src/\' + l.strip() for l in open(\"mypy-strict-allowlist.txt\") if l.strip() and not l.startswith(\"#\")))")'
+        language: system
+        files: \.py$
+        pass_filenames: false
+        description: Run mypy --strict on allowlisted modules (allowlist only grows)
+
       - id: check-scattered-constants
         name: Scattered Constants Check
         entry: python scripts/check_scattered_constants.py

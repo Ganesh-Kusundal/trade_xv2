@@ -83,14 +83,14 @@ class Money:
     ) -> Money:
         """Build Money from loose scalars; prefer over ``Money == int`` coercion."""
         if value is None:
-            return cls(0, currency)
+            return cls(Decimal("0"), currency)
         if isinstance(value, Money):
             return value
         # Quantity is numeric magnitude with a unit — take magnitude only.
         mag = getattr(value, "magnitude", None)
         if mag is not None and type(value).__name__ == "Quantity":
             return cls(mag, currency)
-        return cls(value, currency)
+        return cls(Decimal(str(value)), currency)
 
     def __float__(self) -> float:
         return float(self.amount)
