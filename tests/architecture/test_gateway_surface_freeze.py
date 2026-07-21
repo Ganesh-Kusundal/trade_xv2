@@ -113,10 +113,10 @@ _PAPER_PUBLIC = frozenset(
         "positions",
         "quote",
         "search",
-        "seed_holdings",
-        "seed_orders",
-        "seed_positions",
-        "seed_trades",
+        "_seed_holdings",
+        "_seed_orders",
+        "_seed_positions",
+        "_seed_trades",
         "stream",
         "stream_depth",
         "stream_order",
@@ -152,12 +152,12 @@ def test_dhan_gateway_public_surface_frozen():
 
 
 def test_upstox_gateway_public_surface_frozen():
-    from brokers.upstox.wire import UpstoxBrokerGateway
+    from brokers.upstox.wire import UpstoxWireAdapter
 
-    actual = _class_body_public_methods(UpstoxBrokerGateway)
+    actual = _class_body_public_methods(UpstoxWireAdapter)
     extra = actual - _UPSTOX_PUBLIC
     assert not extra, (
-        f"UpstoxBrokerGateway gained public methods {sorted(extra)}. "
+        f"UpstoxWireAdapter gained public methods {sorted(extra)}. "
         "Prefer ports/extensions; if required, update _UPSTOX_PUBLIC."
     )
 

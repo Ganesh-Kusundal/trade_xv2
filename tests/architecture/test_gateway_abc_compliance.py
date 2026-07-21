@@ -18,11 +18,11 @@ class TestGatewayABCCompliance:
     """Verify that broker gateways only implement ABC methods (ADR-002)."""
 
     def test_upstox_gateway_abc_methods_only(self):
-        """UpstoxBrokerGateway should only have ABC methods + 'extended' property.
+        """UpstoxWireAdapter should only have ABC methods + 'extended' property.
 
         This test will FAIL until Phase 2.1 is complete (extract non-ABC methods).
         """
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
         from domain.ports.protocols import DataProvider, ExecutionProvider
 
         # Get all protocol-defined methods (Protocols don't use @abstractmethod)
@@ -32,9 +32,9 @@ class TestGatewayABCCompliance:
                 if not name.startswith("_"):
                     abc_methods.add(name)
 
-        # Get all public methods on UpstoxBrokerGateway
+        # Get all public methods on UpstoxWireAdapter
         gateway_methods = set()
-        for name, _ in inspect.getmembers(UpstoxBrokerGateway, predicate=inspect.isfunction):
+        for name, _ in inspect.getmembers(UpstoxWireAdapter, predicate=inspect.isfunction):
             if not name.startswith("_"):
                 gateway_methods.add(name)
 
@@ -97,12 +97,12 @@ class TestGatewayABCCompliance:
 
         # This assertion will fail until non-ABC methods are moved to extended
         # Comment out this line temporarily if you need to run tests during migration
-        # assert not violations, f"Non-ABC methods found on UpstoxBrokerGateway: {violations}"
+        # assert not violations, f"Non-ABC methods found on UpstoxWireAdapter: {violations}"
 
         # For now, just report the violations
         if violations:
             pytest.skip(
-                f"UpstoxBrokerGateway has {len(violations)} non-ABC methods: {violations}. "
+                f"UpstoxWireAdapter has {len(violations)} non-ABC methods: {violations}. "
                 f"Run Phase 2.1 to fix."
             )
 

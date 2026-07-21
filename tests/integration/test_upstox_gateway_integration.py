@@ -1,6 +1,6 @@
 """Upstox Gateway Integration Tests (P6-1).
 
-Tests that verify UpstoxBrokerGateway works correctly with the full trading stack:
+Tests that verify UpstoxWireAdapter works correctly with the full trading stack:
 - Gateway creation and initialization
 - Order placement with validation
 - Order modification
@@ -24,7 +24,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import (
     Balance,
     MarketDepth,
@@ -63,14 +63,14 @@ def mock_broker_connected():
 
 @pytest.fixture
 def gateway(mock_broker):
-    """Create an UpstoxBrokerGateway with mock broker."""
-    return UpstoxBrokerGateway(mock_broker)
+    """Create an UpstoxWireAdapter with mock broker."""
+    return UpstoxWireAdapter(mock_broker)
 
 
 @pytest.fixture
 def gateway_connected(mock_broker_connected):
     """Create a gateway with connected WebSocket."""
-    return UpstoxBrokerGateway(mock_broker_connected)
+    return UpstoxWireAdapter(mock_broker_connected)
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ class TestGatewayCreation:
 
     def test_gateway_creates_adapters(self, mock_broker):
         """Gateway should create all internal adapters."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
 
         assert gateway._market_data is not None
         assert gateway._historical is not None
@@ -102,17 +102,17 @@ class TestGatewayCreation:
 
     def test_gateway_stores_broker_reference(self, mock_broker):
         """Gateway should store reference to broker."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         assert gateway._broker is mock_broker
 
     def test_gateway_stream_registry_accessible(self, mock_broker_connected):
         """Stream registry should be accessible for testing."""
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         assert isinstance(gateway._stream_registry, dict)
 
     def test_gateway_stream_lock_accessible(self, mock_broker_connected):
         """Stream lock should be accessible for testing."""
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         assert gateway._stream_lock is not None
 
 
@@ -127,7 +127,7 @@ class TestMarketDataIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_market_quote(mock_broker, "RELIANCE", 2500.50)
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.ltp("RELIANCE", "NSE")
 
         assert isinstance(result, Decimal)
@@ -138,7 +138,7 @@ class TestMarketDataIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker.market_data_v2.get_quote.return_value = {"data": {}}
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.ltp("MISSING", "NSE")
 
         assert result == Decimal("0")
@@ -148,7 +148,7 @@ class TestMarketDataIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker.market_data_v2.get_quote.return_value = make_quote_response("RELIANCE")
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.quote("RELIANCE", "NSE")
 
         assert isinstance(result, Quote)
@@ -160,7 +160,7 @@ class TestMarketDataIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker.market_data_v2.get_order_book.return_value = make_depth_response("RELIANCE")
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.depth("RELIANCE", "NSE")
 
         assert isinstance(result, MarketDepth)
@@ -177,7 +177,7 @@ class TestMarketDataIntegration:
             "data": {"symbol": "RELIANCE", "last_price": 2500.0},
         }
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.quote("RELIANCE", "NSE")
 
         assert isinstance(result, Quote)
@@ -199,7 +199,7 @@ class TestOrderIntegration:
             message="Order placed",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -219,7 +219,7 @@ class TestOrderIntegration:
             order_id="UPSTOX-002",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -234,7 +234,7 @@ class TestOrderIntegration:
 
     def test_place_order_when_live_orders_disabled(self, mock_broker_orders_disabled):
         """place_order() should fail when live orders are disabled."""
-        gateway = UpstoxBrokerGateway(mock_broker_orders_disabled)
+        gateway = UpstoxWireAdapter(mock_broker_orders_disabled)
 
         result = gateway.place_order(
             symbol="RELIANCE",
@@ -252,7 +252,7 @@ class TestOrderIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker.order_command.place_order.side_effect = RuntimeError("Network error")
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.place_order(
             symbol="RELIANCE",
             exchange="NSE",
@@ -272,7 +272,7 @@ class TestOrderIntegration:
         )
         mock_broker.order_query.get_order.return_value = None
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.cancel_order("ORD-001")
 
         assert isinstance(result, OrderResponse)
@@ -285,7 +285,7 @@ class TestOrderIntegration:
             message="Order not found",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.cancel_order("ORD-001")
 
         assert result.success is False
@@ -293,7 +293,7 @@ class TestOrderIntegration:
 
     def test_cancel_order_when_live_orders_disabled(self, mock_broker_orders_disabled):
         """cancel_order() should fail when live orders are disabled."""
-        gateway = UpstoxBrokerGateway(mock_broker_orders_disabled)
+        gateway = UpstoxWireAdapter(mock_broker_orders_disabled)
 
         result = gateway.cancel_order("ORD-001")
 
@@ -306,7 +306,7 @@ class TestOrderIntegration:
             message="network error: Timeout",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.cancel_order("ORD-001")
 
         assert result.success is False
@@ -318,7 +318,7 @@ class TestOrderIntegration:
             message="malformed broker response (not a dict)",
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.cancel_order("ORD-001")
 
         assert result.success is False
@@ -341,7 +341,7 @@ class TestPortfolioIntegration:
             total_margin=Decimal("105000"),
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.funds()
 
         assert isinstance(result, Balance)
@@ -351,7 +351,7 @@ class TestPortfolioIntegration:
         """positions() should return list of Position."""
         mock_broker.portfolio.get_positions.return_value = []
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.positions()
 
         assert isinstance(result, list)
@@ -360,7 +360,7 @@ class TestPortfolioIntegration:
         """holdings() should return list of Holding."""
         mock_broker.portfolio.get_holdings.return_value = []
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.holdings()
 
         assert isinstance(result, list)
@@ -369,7 +369,7 @@ class TestPortfolioIntegration:
         """get_orderbook() should return list of orders."""
         mock_broker.order_query.get_order_list.return_value = []
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.get_orderbook()
 
         assert isinstance(result, list)
@@ -378,7 +378,7 @@ class TestPortfolioIntegration:
         """trades() should return list of Trade."""
         mock_broker.order_query.get_trades.return_value = []
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.trades()
 
         assert isinstance(result, list)
@@ -392,21 +392,21 @@ class TestCapabilitiesAndMetadata:
 
     def test_capabilities_returns_broker_capabilities(self, mock_broker):
         """capabilities() should return BrokerCapabilities."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.capabilities()
 
         assert isinstance(result, BrokerCapabilities)
 
     def test_capabilities_has_websocket_flag(self, mock_broker):
         """capabilities() should indicate WebSocket support."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         caps = gateway.capabilities()
 
         assert caps.supports_order_stream is True
 
     def test_capabilities_has_order_types(self, mock_broker):
         """capabilities() should list supported order types."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         caps = gateway.capabilities()
 
         assert "MARKET" in caps.order_types
@@ -415,7 +415,7 @@ class TestCapabilitiesAndMetadata:
 
     def test_capabilities_has_product_types(self, mock_broker):
         """capabilities() should list supported product types."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         caps = gateway.capabilities()
 
         assert "INTRADAY" in caps.product_types
@@ -423,7 +423,7 @@ class TestCapabilitiesAndMetadata:
 
     def test_describe_returns_dict(self, mock_broker):
         """describe() should return broker metadata dict."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.describe()
 
         assert isinstance(result, dict)
@@ -432,7 +432,7 @@ class TestCapabilitiesAndMetadata:
     def test_search_returns_list(self, mock_broker):
         """search() should return list of instruments."""
         mock_broker.instrument_resolver.search.return_value = []
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
 
         result = gateway.search("RELIANCE")
 
@@ -450,14 +450,14 @@ class TestErrorHandling:
         mock_broker.instrument_resolver.resolve.return_value = None
         mock_broker.market_data_v2.get_ltp.return_value = {"data": {}}
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         result = gateway.ltp("UNKNOWN_SYMBOL", "NSE")
 
         assert result == Decimal("0")
 
     def test_close_is_idempotent(self, mock_broker):
         """close() should be safe to call multiple times."""
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
 
         gateway.close()
         gateway.close()  # Should not raise
@@ -477,7 +477,7 @@ class TestErrorHandling:
             },
         ]
         mock_broker.futures.get_expiries.return_value = ["2026-06-26"]
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
 
         result = gateway.future_chain("RELIANCE", "NFO")
 
@@ -497,7 +497,7 @@ class TestThreadSafety:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_market_quote(mock_broker, "RELIANCE", 2500.50)
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         results = []
         errors = []
 
@@ -531,7 +531,7 @@ class TestThreadSafety:
 
         mock_broker.order_command.place_order.side_effect = mock_place_order
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         errors = []
 
         def place_order(i: int):
@@ -556,7 +556,7 @@ class TestThreadSafety:
 
     def test_constream_subscribe_unsubscribe(self, mock_broker_connected):
         """Concurrent subscribe/unsubscribe should not corrupt stream registry."""
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
 
         def subscribe(i: int):
             def on_tick(tick):
@@ -580,7 +580,7 @@ class TestThreadSafety:
         mock_broker.portfolio.get_positions.return_value = []
         mock_broker.portfolio.get_holdings.return_value = []
 
-        gateway = UpstoxBrokerGateway(mock_broker)
+        gateway = UpstoxWireAdapter(mock_broker)
         errors = []
 
         def query_portfolio():

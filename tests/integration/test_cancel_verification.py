@@ -207,7 +207,7 @@ class TestUpstoxGatewayCancelVerification:
 
     @pytest.fixture
     def mock_upstox_gateway(self):
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = MagicMock()
         mock_settings.analytics_only = False
@@ -220,7 +220,7 @@ class TestUpstoxGatewayCancelVerification:
         mock_broker.order_command = mock_order_cmd
         mock_broker.order_query = mock_order_query
 
-        gw = UpstoxBrokerGateway(mock_broker)
+        gw = UpstoxWireAdapter(mock_broker)
         return gw, mock_order_cmd, mock_order_query
 
     def test_cancel_open_order_with_verification(self, mock_upstox_gateway):

@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.broker_capabilities import BrokerCapabilities
+from brokers.common.wire_base import BaseWireAdapter
 from domain.entities import (
     Balance,
     FutureChain,
@@ -24,19 +25,22 @@ from domain.entities import (
 from domain.enums import OrderStatus
 from domain.constants import DEFAULT_EXCHANGE
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
+from domain.ports.broker_adapter import BrokerAdapter
 
 from .paper_market_data import PaperMarketData
 from .paper_orders import PaperOrders
 from .paper_portfolio import PaperPortfolio
 
 
-class PaperGateway:
+class PaperGateway(BaseWireAdapter, BrokerAdapter):
     """Synthetic market-data adapter for tests — NOT authoritative for OMS state.
 
     ponytail: ADR-0012 — PaperGateway supplies quotes/history only. Paper orders,
     capital, positions, and risk authority live in the OMS + PaperFillSource path.
     Do not use ``portfolio``/``funds()`` output as production risk capital.
     """
+
+    broker_id = "paper"
 
     def __init__(
         self,
@@ -384,6 +388,14 @@ class PaperGateway:
 
         return _PaperStream()
 
+    def unstream(
+        self,
+        symbol: str,
+        exchange: str = DEFAULT_EXCHANGE,
+        on_tick: Any | None = None,
+    ) -> None:
+        pass  # Paper streams are noop
+
     def stream_order(self, on_order: Any | None = None) -> Any:
         class _PaperStream:
             def connect(self):
@@ -402,16 +414,16 @@ class PaperGateway:
     # Trading
     # =======================================================================
 
-    def seed_orders(self, orders: list[Order]) -> None:
+    def _seed_orders(self, orders: list[Order]) -> None:
         self._orders._orders = orders
 
-    def seed_trades(self, trades: list[Trade]) -> None:
+    def _seed_trades(self, trades: list[Trade]) -> None:
         self._orders._trades = trades
 
-    def seed_positions(self, positions: dict[str, Position]) -> None:
+    def _seed_positions(self, positions: dict[str, Position]) -> None:
         self._orders._positions = positions
 
-    def seed_holdings(self, holdings: list[Holding]) -> None:
+    def _seed_holdings(self, holdings: list[Holding]) -> None:
         self._portfolio._holdings = holdings
 
     def get_order(self, order_id: str) -> Order | None:
@@ -469,6 +481,10 @@ class PaperGateway:
         from brokers.common.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(self.capabilities(), frozenset())
+
+    def authenticate(self) -> bool:
+        """Paper gateway is always authenticated."""
+        return True
 
     def capabilities(self) -> BrokerCapabilities:
         from brokers.common.broker_capabilities import (

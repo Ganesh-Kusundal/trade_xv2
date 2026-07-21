@@ -6,6 +6,7 @@
 
 ## Current Phase
 
+- **REF-13+REF-5: Flatten domain constants + remove shared trade_types (2026-07-21):** Flattened `domain/constants/__init__.py` into pure re-export facade — moved OMS/reconciliation constants to `oms.py` and `reconciliation.py`, instrumentation to `instrumentation.py`, history defaults to `history.py`. Deleted `analytics/shared/trade_types.py` (absorbed into `analytics/simulation/trade_mapping.py`). Updated 3 consumers (`paper/models.py`, `simulation/models.py`, `replay/models.py`). 7 facade tests pass.
 - **REF-9: Canonical domain imports COMPLETE (2026-07-21):** Stripped `domain/__init__.py` facade to `__version__` only (145→2 lines). Converted `domain/types.py` to minimal re-export shim. Rewrote 119 files: all `from domain import X` → canonical submodule paths (e.g. `from domain.enums import Side`). All `from domain.types import X` → canonical paths. CI script `scripts/ci/check_canonical_domain_imports.py` simplified to strict check (no baseline ledger). Architecture test `test_canonical_domain_imports.py` rewritten with AST-based enforcement. All 5 canonical import tests pass.
 - **Broker Reliability Phase 0 — Money Safety COMPLETE (2026-07-21):** 7 P0 fixes shipped + 39 gate tests + 1820 broker suite green, 0 regressions. Design spec: `docs/superpowers/specs/2026-07-21-broker-reliability-design.md`, plan: `docs/superpowers/plans/2026-07-21-phase-0-money-safety.md`.
   - P0.1: API cancel/modify async→sync bridge (orders.py, order_lifecycle.py) — phantom cancel/modify fixed

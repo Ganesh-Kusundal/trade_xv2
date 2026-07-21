@@ -39,7 +39,7 @@ class TestPaperContract(BrokerContractSuite):
             initial_capital=Decimal("1000000"),
             order_manager=MockPaperOrderManager(),
         )
-        gw.seed_orders(
+        gw._seed_orders(
             [
                 make_order(
                     order_id="test-order-id",

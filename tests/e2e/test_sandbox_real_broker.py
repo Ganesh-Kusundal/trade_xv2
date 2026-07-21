@@ -275,7 +275,7 @@ class TestUpstoxSandboxE2E:
 
         from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.settings import UpstoxSettings
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         load_dotenv(".env.local")
 
@@ -295,7 +295,7 @@ class TestUpstoxSandboxE2E:
 
         # Create broker and gateway
         broker = UpstoxBroker(settings)
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         gw.load_instruments()
 
         yield gw
@@ -383,7 +383,7 @@ class TestCrossBrokerParity:
 
         from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.settings import UpstoxSettings
-        from brokers.upstox.wire import UpstoxBrokerGateway
+        from brokers.upstox.wire import UpstoxWireAdapter
 
         load_dotenv(".env.local")
 
@@ -401,7 +401,7 @@ class TestCrossBrokerParity:
         )
 
         broker = UpstoxBroker(settings)
-        gw = UpstoxBrokerGateway(broker)
+        gw = UpstoxWireAdapter(broker)
         gw.load_instruments()
 
         yield gw

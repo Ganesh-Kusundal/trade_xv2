@@ -22,7 +22,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.upstox.wire import UpstoxBrokerGateway
+from brokers.upstox.wire import UpstoxWireAdapter
 from domain import MarketDepth, Quote
 from tests.integration.fixtures.upstox import (
     make_depth_response,
@@ -51,13 +51,13 @@ def mock_broker_disconnected():
 @pytest.fixture
 def gateway_connected(mock_broker_connected):
     """Create gateway with connected WebSocket."""
-    return UpstoxBrokerGateway(mock_broker_connected)
+    return UpstoxWireAdapter(mock_broker_connected)
 
 
 @pytest.fixture
 def gateway_disconnected(mock_broker_disconnected):
     """Create gateway with disconnected WebSocket."""
-    return UpstoxBrokerGateway(mock_broker_disconnected)
+    return UpstoxWireAdapter(mock_broker_disconnected)
 
 
 @pytest.fixture
@@ -390,7 +390,7 @@ class TestQuoteAccuracy:
         mock_broker_connected.instrument_resolver.resolve.return_value = instrument_defn
         mock_market_quote(mock_broker_connected, "RELIANCE", 2500.50)
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         result = gateway.ltp("RELIANCE", "NSE")
 
         assert result == Decimal("2500.5000")
@@ -409,7 +409,7 @@ class TestQuoteAccuracy:
             net_change=25.50,
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         result = gateway.quote("RELIANCE", "NSE")
 
         assert result.ltp == Decimal("2500.5000")
@@ -435,7 +435,7 @@ class TestQuoteAccuracy:
             ],
         )
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         result = gateway.depth("RELIANCE", "NSE")
 
         assert isinstance(result, MarketDepth)
@@ -551,7 +551,7 @@ class TestMarketDataErrorHandling:
         mock_broker_connected.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker_connected.market_data_v2.get_quote.side_effect = ConnectionError("Timeout")
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
 
         with pytest.raises(ConnectionError):
             gateway.ltp("RELIANCE", "NSE")
@@ -561,7 +561,7 @@ class TestMarketDataErrorHandling:
         mock_broker_connected.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker_connected.market_data_v2.get_quote.return_value = {"data": {}}
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         result = gateway.quote("RELIANCE", "NSE")
 
         assert isinstance(result, Quote)
@@ -572,7 +572,7 @@ class TestMarketDataErrorHandling:
         mock_broker_connected.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker_connected.market_data_v2.get_order_book.return_value = {"data": {}}
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         result = gateway.depth("RELIANCE", "NSE")
 
         assert isinstance(result, MarketDepth)
@@ -591,7 +591,7 @@ class TestMarketDataErrorHandling:
         def on_tick(tick):
             pass
 
-        gateway = UpstoxBrokerGateway(mock_broker_connected)
+        gateway = UpstoxWireAdapter(mock_broker_connected)
         gateway.stream("RELIANCE", exchange="NSE", mode="LTP", on_tick=on_tick)
 
         # Should not raise even if unsubscribe fails
