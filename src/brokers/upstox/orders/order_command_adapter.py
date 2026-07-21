@@ -71,17 +71,26 @@ class UpstoxOrderCommandAdapter:
                     time.sleep(0.1)
                 raise OrderError("concurrent placement for same correlation_id timed out")
 
+        _post_sent = [False]
         try:
-            response = self._place_order_impl(request)
+            response = self._place_order_impl(request, _post_sent)
         except Exception:
-            if cid and self._idempotency_cache is not None:
+            # Only release the reservation when the POST was never sent.
+            # If POST succeeded but response parsing raised, the order may
+            # have been placed on the broker — clearing the reservation
+            # would allow a retry to place a duplicate (P0.4 fix).
+            if cid and self._idempotency_cache is not None and not _post_sent[0]:
                 self._idempotency_cache.clear_reservation(cid)
             raise
         if cid and self._idempotency_cache is not None and not response.success:
             self._idempotency_cache.clear_reservation(cid)
         return response
 
-    def _place_order_impl(self, request: BrokerOrderPayload) -> OrderResponse:
+    def _place_order_impl(
+        self,
+        request: BrokerOrderPayload,
+        _post_sent: list[bool] | None = None,
+    ) -> OrderResponse:
         from domain.errors import OrderError
 
         if self._risk_manager is not None:
@@ -109,6 +118,9 @@ class UpstoxOrderCommandAdapter:
                 result = self._order_client.place_order_v2(payload)
         except Exception as exc:
             return order_response_from_transport_error(exc)
+
+        if _post_sent is not None:
+            _post_sent[0] = True
 
         response = UpstoxDomainMapper.to_order_response(result)
         if response.success:

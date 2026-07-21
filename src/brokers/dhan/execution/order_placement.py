@@ -104,17 +104,31 @@ class OrderPlacer:
                 time.sleep(0.1)
             return OrderResponse.fail("concurrent placement for same correlation_id timed out")
 
+        _post_sent = [False]
         try:
-            return self._place_order_impl(request, cid)
-        finally:
-            # If we reserved but never committed (exception path), release
-            # so the next caller can try rather than waiting for TTL expiry.
-            # commit() already pops the reservation on success; this is a
-            # harmless no-op in that case and the real release on the
-            # exception path.
+            result = self._place_order_impl(request, cid, _post_sent)
+        except Exception:
+            # Only release the reservation when the POST was never sent.
+            # If POST succeeded but response parsing raised, the order may
+            # have been placed on the broker — clearing the reservation
+            # would allow a retry to place a duplicate (P0.4 fix).
+            if not _post_sent[0]:
+                self._idempotency.clear_reservation(cid)
+            raise
+        # Normal return path: pre-POST failures return OrderResponse.fail()
+        # without clearing the reservation, so release it here.
+        # commit() already popped the reservation on success, making
+        # this a harmless no-op for the success path.
+        if not _post_sent[0]:
             self._idempotency.clear_reservation(cid)
+        return result
 
-    def _place_order_impl(self, request: BrokerOrderPayload, cid: str) -> OrderResponse:
+    def _place_order_impl(
+        self,
+        request: BrokerOrderPayload,
+        cid: str,
+        _post_sent: list[bool] | None = None,
+    ) -> OrderResponse:
         """Internal placement after idempotency reservation is held."""
         # -- Safety guard ---------------------------------------------------
         # Adapter gate (DHAN_ALLOW_LIVE_ORDERS). OMS also enforces
@@ -179,6 +193,9 @@ class OrderPlacer:
             data = self._client.post("/orders", json=payload)
         except Exception as exc:
             return order_response_from_transport_error(exc)
+
+        if _post_sent is not None:
+            _post_sent[0] = True
 
         # -- Parse response ------------------------------------------------
         placed = self._build_placed_order(data, ref, request, cid)
@@ -340,14 +357,21 @@ class OrderPlacer:
             order_id = str(raw.get("orderId", raw.get("order_id", "")))
             broker_id = str(raw.get("orderId", raw.get("order_id", "")))
             status_str = str(raw.get("orderStatus", raw.get("status", ""))).upper()
-            # Delegates to the canonical, registered status mapper
-            # (domain.status_mapper.COMMON_STATUS_MAP + DHAN_STATUS_MAP)
-            # instead of a hand-rolled dict. The previous hand-rolled dict
-            # referenced OrderStatus.PENDING, which does not exist on the
-            # canonical enum (OPEN/PARTIALLY_FILLED/FILLED/CANCELLED/
-            # PARTIALLY_CANCELLED/REJECTED/EXPIRED/UNKNOWN) -- every Dhan
-            # place_order call raised AttributeError here.
-            status = OrderStatus.normalize(status_str) if status_str else OrderStatus.OPEN
+            from domain.status_mapper import UnmappedBrokerStatusError
+
+            if status_str:
+                try:
+                    from domain.status_mapper import StatusMapperRegistry
+
+                    status = StatusMapperRegistry.normalize_strict(status_str)
+                except UnmappedBrokerStatusError:
+                    return OrderResponse.fail(
+                        message=f"UNMAPPED_STATUS: {status_str}",
+                        error_code="UNMAPPED_STATUS",
+                        status=OrderStatus.UNKNOWN,
+                    )
+            else:
+                status = OrderStatus.OPEN
             err = raw.get("errorMessage") or raw.get("error", "")
             if err:
                 return OrderResponse.fail(
