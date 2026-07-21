@@ -154,7 +154,15 @@ class OrderCanceller:
                 "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
             )
 
-        data = self._client.delete("/orders")
+        try:
+            data = self._client.delete("/orders")
+        except Exception as exc:  # pragma: no cover - network path
+            logger.warning(
+                "cancel_all_orders_network_error",
+                extra={"error": str(exc)},
+            )
+            raise OrderError(str(exc)) from exc
+
         # Defensive: the broker may return a list/None instead of a dict on
         # certain error paths. Treat any non-dict as an empty payload rather
         # than raising AttributeError. A genuine error response (a dict with
@@ -168,7 +176,13 @@ class OrderCanceller:
                 "cancel_all_orders_unexpected_response",
                 extra={"raw": repr(data)[:500]},
             )
-        result = [(str(i.get("orderId", i)), True) for i in items]
+        result = [
+            (
+                str(i.get("orderId", i)),
+                str(i.get("status", "")).lower() in {"success", "ok"},
+            )
+            for i in items
+        ]
         logger.info("all_orders_cancelled", extra={"count": len(result)})
         return result
 
