@@ -85,7 +85,7 @@ from application.oms._internal.throttler import Throttler
 from application.oms._internal.trading_state import TradingState
 from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from application.oms.position_manager import PositionManager
-from domain import Order
+from domain.entities import Order
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.exchange_segments import is_derivative_segment

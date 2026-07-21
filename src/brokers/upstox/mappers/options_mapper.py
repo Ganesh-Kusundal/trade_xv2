@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from domain import OptionContract
+from domain.entities import OptionContract
 
 if TYPE_CHECKING:
     from domain.options.greeks import Greeks

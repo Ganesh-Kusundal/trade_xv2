@@ -15,7 +15,7 @@ from decimal import Decimal
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
 from brokers.dhan.websocket._helpers import _to_decimal
-from domain import Quote
+from domain.entities import Quote
 from domain.events import DomainEvent
 from domain.lifecycle_health import HealthStatus
 from domain.ports.time_service import get_current_clock

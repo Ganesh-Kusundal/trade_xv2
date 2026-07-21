@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from domain.events.types import DomainEvent, EventType
 from domain.ports.time_service import ClockPort, get_current_clock
-from domain.types import OrderStatus
+from domain.enums import OrderStatus
 
 if TYPE_CHECKING:
     from application.oms.order_manager import OmsOrderCommand, OrderResult

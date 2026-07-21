@@ -5,7 +5,7 @@ from __future__ import annotations
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from domain import Order, Trade
+from domain.entities import Order, Trade
 
 
 class UpstoxOrderQueryAdapter:

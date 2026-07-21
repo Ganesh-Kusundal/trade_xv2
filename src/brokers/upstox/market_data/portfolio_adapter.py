@@ -8,7 +8,7 @@ from typing import Any
 from brokers.common.api import PortfolioProvider
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
-from domain import FundLimits, Holding, Position
+from domain.entities import FundLimits, Holding, Position
 
 
 class UpstoxPortfolioAdapter(PortfolioProvider):
@@ -19,7 +19,7 @@ class UpstoxPortfolioAdapter(PortfolioProvider):
         """Get account balance/fund limits."""
         from decimal import Decimal
 
-        from domain import Balance
+        from domain.entities import Balance
 
         funds = self._client.get_funds()
         data = funds.get("data", {}) if isinstance(funds, dict) else {}

@@ -42,7 +42,7 @@ from application.trading.candidate_evaluator import CandidateEvaluator
 from application.trading.execution_planner import ExecutionPlanner
 from application.trading.models import FeatureFetcher
 from application.trading.order_placer import OrderPlacer
-from domain import OrderType, ProductType
+from domain.enums import OrderType, ProductType
 from domain.events.types import DomainEvent, EventType
 from domain.market_enums import ExchangeId
 from domain.models.trading import CandidateDTO, SignalDTO

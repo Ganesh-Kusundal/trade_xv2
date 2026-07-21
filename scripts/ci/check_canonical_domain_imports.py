@@ -4,15 +4,10 @@
 Canonical rule (see ``context/code-standards.md`` §3): import every domain type
 from its owning submodule — ``from domain.enums import Side`` — never from the
 ``domain`` mega-facade (``domain/__init__.py``) or the secondary ``domain.types``
-facade. Both facades are deprecated re-export shims kept only for backward
-compatibility during the REF-9 migration; new code must not add new imports
-through them.
+facade.
 
-A large pre-existing set of files still imports through the facades. Those are
-grandfathered in ``docs/superpowers/ledgers/domain-facade-import-baseline.txt``
-so CI can start blocking *new* violations today without requiring the full
-~125-file migration up front. Remove a file from the ledger once it is
-migrated to direct submodule imports.
+``domain/__init__.py`` only exports ``__version__``. ``domain/types.py`` is a
+backward-compat re-export shim that must not be imported from new code.
 """
 
 from __future__ import annotations
@@ -23,23 +18,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
-BASELINE_LEDGER = ROOT / "docs" / "superpowers" / "ledgers" / "domain-facade-import-baseline.txt"
 
 # domain/__init__.py and domain/types.py are the facades themselves — they are
-# allowed (required, even) to import from their own owning submodules.
+# allowed to import from their own owning submodules.
 SELF_FACADE_FILES = {
     "src/domain/__init__.py",
     "src/domain/types.py",
 }
 
 _FACADE_IMPORT = re.compile(r"^\s*from\s+domain(\.types)?\s+import\s")
-
-
-def _load_baseline() -> set[str]:
-    if not BASELINE_LEDGER.exists():
-        return set()
-    lines = BASELINE_LEDGER.read_text(encoding="utf-8").splitlines()
-    return {line.strip() for line in lines if line.strip() and not line.strip().startswith("#")}
 
 
 def _find_offenders() -> list[str]:
@@ -55,28 +42,21 @@ def _find_offenders() -> list[str]:
 
 
 def main() -> int:
-    baseline = _load_baseline()
     offenders = _find_offenders()
-    new_offenders = [o for o in offenders if o.split(":", 1)[0] not in baseline]
 
-    if new_offenders:
+    if offenders:
         print(
-            "New domain facade imports found — import from the owning submodule instead\n"
+            "Domain facade imports found — import from the owning submodule instead\n"
             "(e.g. `from domain.enums import Side`, not `from domain import Side`):",
             file=sys.stderr,
         )
-        for item in new_offenders[:40]:
+        for item in offenders[:40]:
             print(f"  {item}", file=sys.stderr)
-        if len(new_offenders) > 40:
-            print(f"  ... and {len(new_offenders) - 40} more", file=sys.stderr)
+        if len(offenders) > 40:
+            print(f"  ... and {len(offenders) - 40} more", file=sys.stderr)
         return 1
 
-    grandfathered = len(offenders)
-    print(
-        f"OK: no new domain facade imports in src/ "
-        f"({grandfathered} grandfathered import(s) remain in "
-        f"{BASELINE_LEDGER.relative_to(ROOT)})"
-    )
+    print("OK: no domain facade imports in src/")
     return 0
 
 

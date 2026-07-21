@@ -13,7 +13,8 @@ from typing import Any
 from brokers.common.transport_errors import order_response_from_transport_error
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.exceptions import OrderError
-from domain import Order, OrderResponse, OrderStatus
+from domain.entities import Order, OrderResponse
+from domain.enums import OrderStatus
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)

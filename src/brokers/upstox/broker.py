@@ -76,7 +76,7 @@ from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
-from domain import Capability, ConnectionStatus
+from domain.capabilities import Capability, ConnectionStatus
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus import EventBus
 from infrastructure.historical_data import HistoricalDataService

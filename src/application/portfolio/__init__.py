@@ -19,7 +19,7 @@ from application.portfolio.portfolio_service import (
     TradeStore,
     TradeSummary,
 )
-from domain import Balance
+from domain.entities import Balance
 
 __all__ = [
     "Balance",

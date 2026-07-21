@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.broker_capabilities import BrokerCapabilities
-from domain import (
+from domain.entities import (
     Balance,
     FutureChain,
     Holding,
@@ -17,11 +17,11 @@ from domain import (
     OptionChain,
     Order,
     OrderResponse,
-    OrderStatus,
     Position,
     Quote,
     Trade,
 )
+from domain.enums import OrderStatus
 from domain.constants import DEFAULT_EXCHANGE
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 

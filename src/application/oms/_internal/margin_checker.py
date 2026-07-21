@@ -24,7 +24,7 @@ from application.oms._internal.risk_types import (
     RiskConfig,
     RiskResult,
 )
-from domain import Order
+from domain.entities import Order
 from domain.ports.margin_provider import MarginProviderPort
 
 logger = logging.getLogger(__name__)

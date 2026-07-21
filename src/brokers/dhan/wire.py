@@ -22,7 +22,12 @@ from brokers.dhan.domain import (
 )
 from brokers.dhan.config.capabilities import DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION
 from brokers.dhan.streaming.connection import DhanConnection
-from domain import Balance, MarketDepth, OrderResponse, Quote
+from domain.entities import (
+    Balance,
+    MarketDepth,
+    OrderResponse,
+    Quote,
+)
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
 from domain.entities.options import FutureChain, OptionChain
 
@@ -303,7 +308,7 @@ class DhanWireAdapter(BaseWireAdapter):
             # Upstox's levels=5, which is a genuinely live "full" mode stream.
             from decimal import Decimal as _Decimal
 
-            from domain import DepthLevel
+            from domain.entities import DepthLevel
 
             def _on_raw_depth(data: dict) -> None:
                 if data.get("symbol") != symbol:

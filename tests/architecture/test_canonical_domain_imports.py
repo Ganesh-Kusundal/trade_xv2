@@ -1,15 +1,15 @@
-"""Architecture — canonical domain import paths, no new facade imports (REF-9).
+"""Architecture — canonical domain import paths, no facade imports (REF-9).
 
 Rule: import every domain type from its owning submodule
 (``from domain.enums import Side``), never from the ``domain`` mega-facade or
-the ``domain.types`` secondary facade. Enforced by
-``scripts/ci/check_canonical_domain_imports.py`` against a grandfathered
-baseline ledger so pre-existing debt doesn't block new callers while new
-violations are still caught.
+the ``domain.types`` secondary facade. The ``domain/__init__.py`` facade is
+stripped to ``__version__`` only; ``domain/types.py`` is a re-export shim that
+new code must not use.
 """
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -18,7 +18,6 @@ import pytest
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT = _PROJECT_ROOT / "scripts" / "ci" / "check_canonical_domain_imports.py"
-_LEDGER = _PROJECT_ROOT / "docs" / "superpowers" / "ledgers" / "domain-facade-import-baseline.txt"
 
 
 @pytest.mark.architecture
@@ -31,7 +30,7 @@ def test_ci_canonical_domain_imports_check_passes() -> None:
 
 @pytest.mark.architecture
 def test_canonical_domain_imports_script_flags_new_facade_import(tmp_path) -> None:
-    """A brand-new ``from domain import X`` (outside the baseline) must fail CI."""
+    """A brand-new ``from domain import X`` must fail CI."""
     offender = _PROJECT_ROOT / "src" / "domain" / "_test_ref9_offender.py"
     offender.write_text("from domain import Side\n", encoding="utf-8")
     try:
@@ -45,33 +44,53 @@ def test_canonical_domain_imports_script_flags_new_facade_import(tmp_path) -> No
 
 
 @pytest.mark.architecture
-def test_domain_init_and_types_facade_self_imports_are_allowed() -> None:
-    """The facades themselves import from their own owning submodules — allowed."""
+def test_no_domain_facade_imports() -> None:
+    """AST-based check: no file in src/ may use `from domain import X` (except __version__)."""
+    src = _PROJECT_ROOT / "src"
+    violations = []
+    for py in src.rglob("*.py"):
+        if "__pycache__" in str(py) or "tests" in str(py):
+            continue
+        # Allow the facades themselves
+        rel = py.relative_to(_PROJECT_ROOT).as_posix()
+        if rel in ("src/domain/__init__.py", "src/domain/types.py"):
+            continue
+        try:
+            tree = ast.parse(py.read_text())
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "domain":
+                if not any(alias.name == "__version__" for alias in node.names):
+                    violations.append(str(py))
+    assert violations == [], f"Facade imports found: {violations}"
+
+
+@pytest.mark.architecture
+def test_no_domain_types_facade_imports() -> None:
+    """AST-based check: no file in src/ may use `from domain.types import X`."""
+    src = _PROJECT_ROOT / "src"
+    violations = []
+    for py in src.rglob("*.py"):
+        if "__pycache__" in str(py) or "tests" in str(py):
+            continue
+        rel = py.relative_to(_PROJECT_ROOT).as_posix()
+        if rel == "src/domain/types.py":
+            continue
+        try:
+            tree = ast.parse(py.read_text())
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "domain.types":
+                violations.append(str(py))
+    assert violations == [], f"domain.types imports found: {violations}"
+
+
+@pytest.mark.architecture
+def test_domain_init_only_exports_version() -> None:
+    """domain/__init__.py should only define __version__, no re-exports."""
     init_text = (_PROJECT_ROOT / "src" / "domain" / "__init__.py").read_text(encoding="utf-8")
-    types_text = (_PROJECT_ROOT / "src" / "domain" / "types.py").read_text(encoding="utf-8")
-    assert "from domain import " not in init_text
-    assert "from domain import " not in types_text
-
-
-@pytest.mark.architecture
-def test_baseline_ledger_exists_and_is_nonempty() -> None:
-    assert _LEDGER.exists(), f"Missing REF-9 baseline ledger: {_LEDGER}"
-    entries = [
-        line.strip()
-        for line in _LEDGER.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
-    assert entries, "Baseline ledger should list grandfathered facade-import files"
-
-
-@pytest.mark.architecture
-def test_code_standards_documents_canonical_import_rule() -> None:
-    text = (_PROJECT_ROOT / "context" / "code-standards.md").read_text(encoding="utf-8")
-    assert "from domain.enums import Side" in text
-    assert "domain.types" in text
-
-
-@pytest.mark.architecture
-def test_domain_init_facade_carries_deprecation_notice() -> None:
-    init_text = (_PROJECT_ROOT / "src" / "domain" / "__init__.py").read_text(encoding="utf-8")
-    assert "DEPRECATED" in init_text
+    assert "__version__" in init_text
+    assert "from domain" not in init_text
+    assert "__all__" not in init_text

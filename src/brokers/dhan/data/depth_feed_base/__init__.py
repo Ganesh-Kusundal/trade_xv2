@@ -34,7 +34,7 @@ from brokers.dhan.data.depth_feed_base.connection import ConnectionMixin
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.data.depth_parser import DepthPacketParser
-from domain import DepthLevel, MarketDepth
+from domain.entities import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import ManagedService

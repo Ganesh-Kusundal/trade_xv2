@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from domain import OrderRequest, OrderResponse
+from domain.orders.requests import OrderRequest
+from domain.entities import OrderResponse
 
 
 @dataclass

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from domain import Order, OrderResponse
+from domain.entities import Order, OrderResponse
 from domain.orders.requests import OrderRequest
 
 

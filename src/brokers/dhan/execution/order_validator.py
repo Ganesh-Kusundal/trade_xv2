@@ -12,7 +12,7 @@ from decimal import Decimal
 from brokers.common.order_validation import validate_lot_size, validate_tick_alignment
 from brokers.dhan.exceptions import DhanError
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
-from domain import OrderType, ProductType
+from domain.enums import OrderType, ProductType
 from domain.constants.risk import DHAN_NOTIONAL_WARNING_INR
 
 logger = logging.getLogger(__name__)

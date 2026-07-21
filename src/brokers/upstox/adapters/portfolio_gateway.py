@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from domain import Balance, Holding, Position
+from domain.entities import Balance, Holding, Position
 
 
 class PortfolioGateway:

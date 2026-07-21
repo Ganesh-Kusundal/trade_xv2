@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 from application.oms.order_manager import OmsOrderCommand
-from domain import OrderType, ProductType
+from domain.enums import OrderType, ProductType
 from domain.market_enums import ExchangeId
 from domain.models.trading import SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, PlanContext

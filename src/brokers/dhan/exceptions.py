@@ -14,25 +14,25 @@ silent-bug risk of catching the wrong class.
 Usage::
 
     from brokers.dhan.exceptions import OrderError, InstrumentNotFoundError
-    from infrastructure.resilience.errors import RateLimitError  # canonical
+    from domain.exceptions import RateLimitError  # canonical
 """
 
 from __future__ import annotations
 
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     AuthenticationError as _CommonAuthenticationError,
 )
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     BrokerError,
     RateLimitError,
 )
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     ExitAllError as _CommonExitAllError,
 )
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     InstrumentNotFoundError as _CommonInstrumentNotFoundError,
 )
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     OrderError as _CommonOrderError,
 )
 

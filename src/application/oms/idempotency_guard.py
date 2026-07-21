@@ -83,7 +83,7 @@ class IdempotencyGuard:
         """
         from application.oms.order_manager import OrderResult
         from domain.execution_contracts import SubmissionState
-        from domain.types import OrderStatus
+        from domain.enums import OrderStatus
 
         with lock:
             existing = orders_by_correlation.get(correlation_id)

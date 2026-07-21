@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from decimal import Decimal
 
-from domain import Side
+from domain.enums import Side
 
 
 def _env_decimal(name: str, default: str) -> Decimal:

@@ -9,7 +9,7 @@ from decimal import Decimal
 from domain.constants import DEFAULT_EXCHANGE
 from domain.entities._coercion import _as_money, _as_quantity
 from domain.primitives import Money, Quantity
-from domain.types import ProductType, Side
+from domain.enums import ProductType, Side
 
 
 def build_domain_trade(

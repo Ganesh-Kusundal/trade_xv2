@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any
 
 from domain.ports.time_service import get_current_clock
-from domain.types import OrderStatus
+from domain.enums import OrderStatus
 
 logger = logging.getLogger(__name__)
 

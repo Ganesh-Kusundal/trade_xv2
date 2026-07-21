@@ -16,13 +16,9 @@ from brokers.common.transport_errors import order_response_from_transport_error
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from domain import (
-    Order,
-    OrderPreview,
-    OrderRequest,
-    OrderResponse,
-)
-from domain import Side as OrderSide
+from domain.entities import Order, OrderResponse
+from domain.orders.requests import OrderPreview, OrderRequest
+from domain.enums import Side as OrderSide
 from domain.events import DomainEvent
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort
@@ -180,7 +176,7 @@ class UpstoxOrderCommandAdapter:
             :class:`OrderResponse` indicating success or carrying the
             broker's error code/message on failure.
         """
-        from domain import OrderResponse
+        from domain.entities import OrderResponse
 
         try:
             result = self._order_client.cancel_order_v3(order_id)
@@ -274,7 +270,12 @@ class UpstoxOrderCommandAdapter:
         )
 
     def _to_domain_order(self, request: BrokerOrderPayload) -> Order:
-        from domain import OrderStatus, OrderType, ProductType, Validity
+        from domain.enums import (
+            OrderStatus,
+            OrderType,
+            ProductType,
+            Validity,
+        )
         from domain.ports.time_service import get_current_clock
 
         return Order(

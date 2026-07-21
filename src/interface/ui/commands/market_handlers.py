@@ -12,7 +12,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
-from domain import DepthLevel, MarketDepth
+from domain.entities import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 from interface.ui.commands import market as cmd_market
 from interface.ui.commands import oms as cmd_oms

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from infrastructure.resilience.errors import BrokerError
+from domain.exceptions import BrokerError
 
 
 class UpstoxApiError(BrokerError):

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from domain import OrderResponse
+from domain.entities import OrderResponse
 
 if TYPE_CHECKING:
     from brokers.dhan.streaming.connection import DhanConnection

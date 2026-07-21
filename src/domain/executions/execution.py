@@ -18,7 +18,7 @@ from domain.events.types import DomainEvent, EventType
 if TYPE_CHECKING:
     from domain.instruments.instrument_id import InstrumentId
     from domain.ports.event_publisher import EventBusPort
-    from domain.types import Side
+    from domain.enums import Side
 
 
 class Execution:

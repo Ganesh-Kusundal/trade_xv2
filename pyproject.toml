@@ -511,3 +511,15 @@ forbidden_modules = ["infrastructure.gateway.factory"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
 ]
+
+[[tool.importlinter.contracts]]
+name = "Analytics paper/replay isolation (B-3)"
+type = "forbidden"
+source_modules = ["analytics.paper"]
+forbidden_modules = ["analytics.replay"]
+
+[[tool.importlinter.contracts]]
+name = "Analytics replay/paper isolation (B-3 inverse)"
+type = "forbidden"
+source_modules = ["analytics.replay"]
+forbidden_modules = ["analytics.paper"]

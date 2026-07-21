@@ -17,13 +17,13 @@ import pandas as pd
 import pytest
 
 from brokers.common.broker_capabilities import BrokerCapabilities
-from domain import (
+from domain.entities import (
     Balance,
     DepthLevel,
     MarketDepth,
-    OrderStatus,
     Quote,
 )
+from domain.enums import OrderStatus
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.market_enums import ExchangeId
 
@@ -242,7 +242,7 @@ class BrokerContractSuite:
         if not hasattr(gateway, "place_order"):
             pytest.skip("gateway has no place_order")
         from domain.orders.requests import OrderRequest
-        from domain.types import Side
+        from domain.enums import Side
 
         request = OrderRequest(
             symbol="RELIANCE",

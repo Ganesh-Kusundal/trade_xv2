@@ -14,7 +14,7 @@ from application.oms._internal.order_mutation_guard import OrderMutationGuard
 from domain.events.types import EventType
 from domain.execution_contracts import OrderIntent, SubmissionOutcome, SubmissionState
 from domain.ports.time_service import ClockPort, get_current_clock
-from domain.types import OrderStatus
+from domain.enums import OrderStatus
 
 if TYPE_CHECKING:
     from application.oms._internal.order_audit_logger import OrderAuditLogger

@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from domain.orders.requests import OrderRequest
-from domain.types import ExchangeSegment
+from domain.market_enums import ExchangeSegment
 
 
 @dataclass(slots=True, frozen=True)

@@ -16,7 +16,8 @@ from typing import Any
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from domain import Order, SliceOrderRequest
+from domain.entities import Order
+from domain.orders.requests import SliceOrderRequest
 from domain.models.dtos import BrokerOrderPayload
 from domain.symbols import normalize_symbol
 

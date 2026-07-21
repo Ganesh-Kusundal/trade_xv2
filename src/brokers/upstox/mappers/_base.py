@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import logging
 
-from domain import (
-    ExchangeSegment,
-    InstrumentType,
+from domain.market_enums import ExchangeSegment, InstrumentType
+from domain.enums import (
     OrderStatus,
     OrderType,
     ProductType,

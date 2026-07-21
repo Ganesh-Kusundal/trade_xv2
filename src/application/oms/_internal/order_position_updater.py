@@ -21,10 +21,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from domain.types import OrderStatus
+from domain.enums import OrderStatus
 
 if TYPE_CHECKING:
-    from domain import Order, Trade
+    from domain.entities import Order, Trade
 
 
 class OrderPositionUpdater:

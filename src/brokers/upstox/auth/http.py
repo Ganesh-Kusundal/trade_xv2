@@ -290,7 +290,7 @@ class UpstoxHttpClient:
         cb = self._get_circuit_breaker(url, method)
         if cb is not None:
             from infrastructure.resilience.circuit_breaker import CircuitState
-            from infrastructure.resilience.errors import CircuitBreakerOpenError
+            from domain.exceptions import CircuitBreakerOpenError
 
             if cb.state == CircuitState.OPEN:
                 logger.warning(

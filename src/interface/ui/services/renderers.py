@@ -8,7 +8,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from domain import DepthLevel, MarketDepth, Position
+from domain.entities import DepthLevel, MarketDepth, Position
 from domain.symbols import normalize_symbol
 
 

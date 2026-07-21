@@ -46,6 +46,33 @@ class AppConfig(BaseModel):
     rate_limit_max_requests: int = 0
     rate_limit_window_seconds: float = 60.0
 
+    # ── API Security & Auth ─────────────────────────────────
+    auth_mode: str = "none"
+    api_key: str = ""
+
+    # ── CORS Details ────────────────────────────────────────
+    cors_allow_credentials: bool = True
+    cors_allow_methods: list[str] = [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS",
+    ]
+    cors_allow_headers: list[str] = [
+        "Authorization",
+        "Content-Type",
+        "X-Correlation-ID",
+        "X-API-Key",
+    ]
+
+    # ── Pagination ──────────────────────────────────────────
+    max_page_size: int = 1000
+    default_page_size: int = 100
+
+    # ── API Routing ─────────────────────────────────────────
+    api_prefix: str = "/api/v1"
+
     model_config = {"env_prefix": "TRADEX_", "env_file": ".env", "env_file_encoding": "utf-8"}
 
     @field_validator("log_level")
@@ -118,6 +145,41 @@ class AppConfig(BaseModel):
         # rate_limit_window_seconds
         rw_raw = os.environ.get("TRADEX_RATE_LIMIT_WINDOW_SECONDS", "60.0")
         kwargs["rate_limit_window_seconds"] = float(rw_raw)
+
+        # auth_mode: TRADEX_AUTH_MODE → AUTH_MODE
+        kwargs["auth_mode"] = os.environ.get(
+            "TRADEX_AUTH_MODE", os.environ.get("AUTH_MODE", "none")
+        )
+
+        # api_key: TRADEX_API_KEY → API_KEY
+        kwargs["api_key"] = os.environ.get(
+            "TRADEX_API_KEY", os.environ.get("API_KEY", "")
+        )
+
+        # cors_allow_credentials
+        cac_raw = os.environ.get("TRADEX_CORS_ALLOW_CREDENTIALS", "true")
+        kwargs["cors_allow_credentials"] = cac_raw.lower() in ("1", "true", "yes")
+
+        # cors_allow_methods: comma-separated
+        cam_raw = os.environ.get("TRADEX_CORS_ALLOW_METHODS", "")
+        if cam_raw:
+            kwargs["cors_allow_methods"] = [m.strip() for m in cam_raw.split(",") if m.strip()]
+
+        # cors_allow_headers: comma-separated
+        cah_raw = os.environ.get("TRADEX_CORS_ALLOW_HEADERS", "")
+        if cah_raw:
+            kwargs["cors_allow_headers"] = [h.strip() for h in cah_raw.split(",") if h.strip()]
+
+        # max_page_size
+        mps_raw = os.environ.get("TRADEX_MAX_PAGE_SIZE", "1000")
+        kwargs["max_page_size"] = int(mps_raw)
+
+        # default_page_size
+        dps_raw = os.environ.get("TRADEX_DEFAULT_PAGE_SIZE", "100")
+        kwargs["default_page_size"] = int(dps_raw)
+
+        # api_prefix
+        kwargs["api_prefix"] = os.environ.get("TRADEX_API_PREFIX", "/api/v1")
 
         return cls(**kwargs)
 

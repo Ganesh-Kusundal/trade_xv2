@@ -19,7 +19,7 @@ from infrastructure.resilience.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitState,
 )
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     AuthenticationError,
     BrokerDegradedError,
     BrokerError,

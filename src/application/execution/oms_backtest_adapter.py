@@ -15,7 +15,7 @@ from application.execution.simulated_fill import (
 )
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderResult
-from domain import OrderType, ProductType, Side
+from domain.enums import OrderType, ProductType, Side
 from domain.market_enums import ExchangeId
 from domain.ports.execution_target import ExecutionTargetKind
 from domain.ports.time_service import use_clock

@@ -7,9 +7,13 @@ This package splits the monolithic constants.py into focused sub-modules:
 - risk: Risk thresholds, position limits, capital defaults
 - market: Market hours, exchanges, tick sizes, timezone
 - observability: HTTP server configuration
+- oms: Time units, batching, dead-letter queue
+- reconciliation: SQLite busy timeout, reconciliation intervals, PnL reset
+- instrumentation: Logging levels
+- history: Historical data defaults
 
 All constants are re-exported here to maintain backward compatibility with
-existing imports from ``brokers.common.core.constants``.
+existing imports from ``domain.constants``.
 """
 
 from __future__ import annotations
@@ -41,6 +45,15 @@ from domain.constants.exchanges import (
     WIRE_NSE_EQ,
     WIRE_NSE_FNO,
 )
+from domain.constants.history import (
+    DEFAULT_HISTORY_PAGE_DAYS,
+    DEFAULT_MAX_DAILY_DAYS,
+    DEFAULT_MAX_INTRADAY_DAYS,
+)
+from domain.constants.instrumentation import (
+    DEFAULT_LOG_LEVEL,
+    THIRD_PARTY_LOG_LEVEL,
+)
 from domain.constants.market import (
     ATR_PERIOD_DEFAULT,
     DEFAULT_DERIVATIVES_EXCHANGE,
@@ -63,6 +76,20 @@ from domain.constants.market import (
 from domain.constants.observability import (
     OBSERVABILITY_DEFAULT_HOST,
     OBSERVABILITY_DEFAULT_PORT,
+)
+from domain.constants.oms import (
+    BATCH_MAX_WORKERS,
+    DEAD_LETTER_QUEUE_MAX_SIZE,
+    SECONDS_PER_DAY,
+    SECONDS_PER_HOUR,
+)
+from domain.constants.reconciliation import (
+    DAILY_PNL_POLL_INTERVAL_SECONDS,
+    DAILY_PNL_ROLLOVER_HOUR_IST,
+    PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS,
+    PROCESSED_TRADE_RETENTION_SECONDS,
+    RECONCILIATION_INTERVAL_SECONDS,
+    SQLITE_BUSY_TIMEOUT_MS,
 )
 from domain.constants.resilience import (
     BACKOFF_JITTER,
@@ -97,65 +124,6 @@ from domain.constants.timeouts import (
     MIN_SLEEP_SECONDS,
     QUOTE_CACHE_TTL_SECONDS,
 )
-
-# ── OMS / reconciliation cadence (not yet split) ──────────────────────────
-
-#: Base time units (seconds). Import these instead of hardcoding ``3600`` /
-#: ``86400`` for hour/day TTLs and intervals across the codebase.
-SECONDS_PER_HOUR: int = 3600
-SECONDS_PER_DAY: int = 86_400
-
-#: SQLite ``busy_timeout`` (milliseconds) applied to order/execution stores.
-SQLITE_BUSY_TIMEOUT_MS: int = 5_000
-
-#: Reconciliation cycle (seconds). Used by TradingContext, factory,
-#: and ReconciliationService default.
-RECONCILIATION_INTERVAL_SECONDS: float = 300.0
-
-#: Daily-PnL reset poll interval (seconds). Used by
-#: DailyPnlResetScheduler.
-DAILY_PNL_POLL_INTERVAL_SECONDS: float = 60.0
-
-#: Default rollover hour in IST (0 = midnight). Used by
-#: DailyPnlResetScheduler.
-DAILY_PNL_ROLLOVER_HOUR_IST: int = 0
-
-#: Number of days the ProcessedTradeRepository retains trade IDs in
-#: memory before cleanup() may evict them.
-PROCESSED_TRADE_RETENTION_SECONDS: int = 0  # 0 = no in-memory eviction (durable dedup)
-
-#: Periodic cleanup interval for ProcessedTradeRepository.
-PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS: int = 60 * 60  # 1h
-
-# ── Batching / threading ───────────────────────────────────────────────────
-
-#: Number of worker threads used by BatchFetchMixin.
-BATCH_MAX_WORKERS: int = 5
-
-# ── Dead-letter queue ──────────────────────────────────────────────────────
-
-#: Maximum events the DeadLetterQueue will buffer before dropping the
-#: oldest. Larger values consume more memory.
-DEAD_LETTER_QUEUE_MAX_SIZE: int = 10_000
-
-# ── Log / instrumentation ──────────────────────────────────────────────────
-
-#: Default log level used by :func:`brokers.common.logging_config.setup_logging`.
-DEFAULT_LOG_LEVEL: str = "INFO"
-
-#: Default log level for noisy third-party loggers.
-THIRD_PARTY_LOG_LEVEL: str = "WARNING"
-
-# ── History defaults ───────────────────────────────────────────────────────
-
-#: Default pagination window for historical candle downloads (days).
-DEFAULT_HISTORY_PAGE_DAYS: int = 365
-
-#: BrokerCapabilities default for max intraday history (days).
-DEFAULT_MAX_INTRADAY_DAYS: int = 90
-
-#: BrokerCapabilities default for max multi-day history (days).
-DEFAULT_MAX_DAILY_DAYS: int = 365 * 10
 
 __all__ = [
     "ATR_PERIOD_DEFAULT",

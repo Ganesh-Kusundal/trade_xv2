@@ -21,15 +21,14 @@ from brokers.dhan.execution.order_validator import OrderValidator
 from brokers.dhan.identity import DhanIdentityProvider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
 from brokers.dhan.segments import segment_to_exchange
-from domain import (
-    Order,
-    OrderResponse,
+from domain.entities import Order, OrderResponse
+from domain.enums import (
     OrderStatus,
     OrderType,
     ProductType,
     Validity,
 )
-from domain import Side as OrderSide
+from domain.enums import Side as OrderSide
 from domain.events import DomainEvent
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort

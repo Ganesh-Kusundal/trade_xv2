@@ -22,7 +22,7 @@ Design rules
 
 from __future__ import annotations
 
-from domain.types import ExchangeSegment
+from domain.market_enums import ExchangeSegment
 
 # ── Aliases ────────────────────────────────────────────────────────────────
 #

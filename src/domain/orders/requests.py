@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from domain.constants import DEFAULT_EXCHANGE
-from domain.types import (
+from domain.enums import (
     OrderType,
     ProductType,
     Side,

@@ -12,7 +12,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from domain import Order
+from domain.entities import Order
 from domain.models.dtos import BrokerOrderPayload
 
 

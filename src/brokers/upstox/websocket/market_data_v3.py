@@ -31,7 +31,7 @@ from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
 )
-from domain import Quote
+from domain.entities import Quote
 from domain.events import DomainEvent
 from infrastructure.event_bus.event_bus import EventBus
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from domain.types import ExchangeSegment
+from domain.market_enums import ExchangeSegment
 
 
 class SegmentMapper(Protocol):

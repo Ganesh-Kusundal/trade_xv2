@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain import Balance, Holding, Position
+from domain.entities import Balance, Holding, Position
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_orders import PaperOrders

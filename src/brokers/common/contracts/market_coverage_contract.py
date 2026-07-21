@@ -18,7 +18,7 @@ from decimal import Decimal
 
 import pytest
 
-from domain import Quote
+from domain.entities import Quote
 from domain.capabilities.market_surface import OPERATIONS, MarketCoverage
 from domain.instruments.instrument_id import allowed_exchanges
 

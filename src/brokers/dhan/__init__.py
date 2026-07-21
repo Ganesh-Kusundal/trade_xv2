@@ -3,7 +3,8 @@
 Canonical domain types (Order, Position, Holding, Trade, Side, OrderStatus,
 OrderType, ProductType, Validity, FundLimits) live in ``domain``::
 
-    from domain import Order, Side, OrderStatus
+    from domain.entities import Order
+    from domain.enums import Side, OrderStatus
     from brokers.dhan import Exchange, DhanInstrument
 """
 
@@ -44,7 +45,13 @@ from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
-from domain import Balance, DepthLevel, MarketDepth, Quote, ReconciliationReport
+from domain.entities import (
+    Balance,
+    DepthLevel,
+    MarketDepth,
+    Quote,
+)
+from domain.reconciliation import ReconciliationReport
 
 __all__ = [
     "DHAN_SEGMENTS",

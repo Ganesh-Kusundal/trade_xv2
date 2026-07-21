@@ -30,7 +30,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from domain import OptionChain
+from domain.entities import OptionChain
 from domain.market_enums import ExchangeId
 from domain.symbols import normalize_exchange, normalize_symbol
 

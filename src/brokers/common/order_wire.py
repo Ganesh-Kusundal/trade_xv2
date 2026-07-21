@@ -6,7 +6,7 @@ from typing import Any
 
 from domain.models.dtos import BrokerOrderPayload
 from domain.orders.requests import OrderRequest
-from domain.types import ExchangeSegment
+from domain.market_enums import ExchangeSegment
 
 
 def order_request_to_payload(request: OrderRequest, broker_id: str) -> BrokerOrderPayload:

@@ -11,7 +11,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from domain import DepthLevel, MarketDepth, Quote
+from domain.entities import DepthLevel, MarketDepth, Quote
 from domain.events import DomainEvent
 
 logger = logging.getLogger(__name__)

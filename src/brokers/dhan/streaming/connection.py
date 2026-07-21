@@ -34,7 +34,7 @@ from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 from brokers.dhan.streaming.session_manager import DhanSessionManager
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
-from domain import MarketDepth
+from domain.entities import MarketDepth
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import LifecycleManager

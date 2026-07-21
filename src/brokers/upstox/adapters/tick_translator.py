@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from domain import Quote
+from domain.entities import Quote
 
 if TYPE_CHECKING:
     pass

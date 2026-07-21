@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
 from application.oms.order_manager import OmsOrderCommand
-from domain import Order
+from domain.entities import Order
 from domain.ports.execution_target import ExecutionTargetKind
 
 

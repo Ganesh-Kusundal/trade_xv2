@@ -25,7 +25,7 @@ from domain.constants.exchanges import (
 )
 from domain.constants.market import DEFAULT_EXCHANGE_SEGMENT_FALLBACK
 from domain.exchange_segments import parse_segment as _parse_segment
-from domain.types import ExchangeSegment
+from domain.market_enums import ExchangeSegment
 
 DEFAULT_SEGMENT = DEFAULT_EXCHANGE_SEGMENT_FALLBACK
 

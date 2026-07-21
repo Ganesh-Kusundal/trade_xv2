@@ -52,7 +52,13 @@ from domain.ports import (
     ProcessedTradeRepositoryPort,
 )
 from domain.symbols import normalize_exchange, normalize_symbol
-from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
+from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
+from domain.enums import (
+    OrderStatus,
+    OrderType,
+    ProductType,
+    Side,
+)
 
 if TYPE_CHECKING:
     pass
@@ -268,7 +274,7 @@ class OrderManager:
         existing = self._orders.get(intent.order_id)
         if existing is not None:
             return existing
-        from domain.types import OrderStatus
+        from domain.enums import OrderStatus
 
         outcome = ledger.outcome_for(intent.intent_id)
         if outcome is not None and outcome.state is SubmissionState.UNKNOWN:

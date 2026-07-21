@@ -11,15 +11,13 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from domain import (
-    ExchangeSegment,
-    Order,
-    OrderResponse,
+from domain.market_enums import ExchangeSegment
+from domain.entities import Order, OrderResponse, Trade
+from domain.enums import (
     OrderStatus,
     OrderType,
     ProductType,
     Side,
-    Trade,
     Validity,
 )
 from domain.constants import DEFAULT_EXCHANGE
@@ -236,7 +234,7 @@ class OrderGateway:
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
-        from domain import OrderResponse
+        from domain.entities import OrderResponse
 
         # Safety guard: prevent live order modifications if disabled
         if self._broker.settings.analytics_only:

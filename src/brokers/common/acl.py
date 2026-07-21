@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from domain import OrderStatus
+from domain.enums import OrderStatus
 
 
 def normalize_order_status(raw: object | None) -> OrderStatus:

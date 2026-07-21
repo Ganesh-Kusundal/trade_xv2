@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from domain import (
+from domain.entities import (
     FundLimits,
     Holding,
     Position,
     Quote,
-    Side,
     Trade,
 )
+from domain.enums import Side
 
 from ._base import (
     exchange_from_wire,

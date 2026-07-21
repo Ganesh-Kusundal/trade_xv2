@@ -18,13 +18,7 @@ from brokers.upstox.adapters.historical_adapter import HistoricalAdapter
 from brokers.upstox.market_data.market_data_adapter import (
     UpstoxMarketDataAdapter as MarketDataAdapter,
 )
-from domain import (
-from domain.market_enums import ExchangeId
-    FutureChain,
-    MarketDepth,
-    OptionChain,
-    Quote,
-)
+from domain.entities import FutureChain as ExchangeId, MarketDepth, OptionChain, Quote
 
 logger = logging.getLogger(__name__)
 

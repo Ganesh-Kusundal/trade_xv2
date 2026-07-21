@@ -25,7 +25,8 @@ from cachetools import TTLCache
 
 from domain.constants import SECONDS_PER_DAY
 from domain.state_machine import IllegalTransitionError, StateMachine
-from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
+from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
+from domain.enums import OrderStatus
 
 if TYPE_CHECKING:
     pass

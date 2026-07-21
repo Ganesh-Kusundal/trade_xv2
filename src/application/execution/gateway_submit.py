@@ -7,7 +7,8 @@ from collections.abc import Callable
 from decimal import Decimal
 
 from application.oms.order_manager import OmsOrderCommand
-from domain import Order, OrderStatus
+from domain.entities import Order
+from domain.enums import OrderStatus
 from domain.entities import OrderResponse
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.order_placement import OrderPlacementPort

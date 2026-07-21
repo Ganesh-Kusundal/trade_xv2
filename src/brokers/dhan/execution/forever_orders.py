@@ -15,7 +15,7 @@ from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
 from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
-from domain import OrderResponse
+from domain.entities import OrderResponse
 from domain.value_objects.price import to_wire_float
 
 logger = logging.getLogger(__name__)

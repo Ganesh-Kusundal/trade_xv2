@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from domain.exceptions import TradeXV2Error
-from domain.types import OrderStatus
+from domain.enums import OrderStatus
 
 
 class UnmappedBrokerStatusError(TradeXV2Error, ValueError):

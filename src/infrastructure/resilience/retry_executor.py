@@ -25,7 +25,7 @@ from typing import Any
 from domain.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
 from infrastructure.resilience.backoff import BackoffStrategy, ExponentialBackoff
 from infrastructure.resilience.circuit_breaker import CircuitBreaker
-from infrastructure.resilience.errors import (
+from domain.exceptions import (
     CircuitBreakerOpenError,
     NonRetryableError,
     RetryableError,

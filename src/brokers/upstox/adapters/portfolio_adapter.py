@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Balance, Holding, Position, Trade
+from domain.entities import (
+    Balance,
+    Holding,
+    Position,
+    Trade,
+)
 
 if TYPE_CHECKING:
     from brokers.upstox.broker import UpstoxBroker

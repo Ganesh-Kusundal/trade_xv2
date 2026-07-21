@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from brokers.common.api import OptionsProvider
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.options_client import UpstoxOptionsClient
-from domain import OptionContract
+from domain.entities import OptionContract
 
 if TYPE_CHECKING:
     from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver

@@ -19,7 +19,7 @@ from domain.portfolio_projection import project_trade
 from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
 from domain.state_machine import IllegalTransitionError, StateMachine
 from domain.symbols import make_position_key
-from domain.types import POSITION_STATE_TRANSITIONS, PositionState
+from domain.entities.position import POSITION_STATE_TRANSITIONS, PositionState
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from decimal import Decimal
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_identity
-from domain import DepthLevel, MarketDepth, Quote
+from domain.entities import DepthLevel, MarketDepth, Quote
 from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
@@ -148,7 +148,7 @@ class MarketDataAdapter:
         return result
 
     def get_batch_quote(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Quote]:
-        from domain import Quote as DhanQuote
+        from domain.entities import Quote as DhanQuote
 
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}

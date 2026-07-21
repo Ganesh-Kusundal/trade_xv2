@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from decimal import Decimal
 
-from domain import DepthLevel, MarketDepth, Quote
+from domain.entities import DepthLevel, MarketDepth, Quote
 from domain.constants import DEFAULT_EXCHANGE
 from domain.ports.time_service import get_current_clock
 

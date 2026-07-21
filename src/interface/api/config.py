@@ -1,69 +1,45 @@
-"""API configuration — CORS, rate limits, and server settings."""
+"""Backward-compat shim — canonical config is config.schema.AppConfig."""
 
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 
 from config.schema import AppConfig
 
 
-@dataclass
-class APIConfig:
-    """Configuration for the TradeXV2 API server.
+class APIConfig(AppConfig):
+    """Thin shim that maps legacy APIConfig field names to AppConfig fields.
 
-    Parameters
-    ----------
-    host:
-        Bind address. Default "127.0.0.1" (loopback only).
-    port:
-        TCP port. Default 8080.
-    cors_origins:
-        Allowed CORS origins. Default includes Vite dev server.
-    cors_allow_credentials:
-        Whether to allow credentials in CORS requests.
-    cors_allow_methods:
-        Allowed HTTP methods for CORS.
-    cors_allow_headers:
-        Allowed HTTP headers for CORS.
-    max_page_size:
-        Maximum number of items per page for paginated responses.
-    default_page_size:
-        Default number of items per page.
-    rate_limit_per_minute:
-        Maximum requests per minute per client (0 = disabled).
-    api_prefix:
-        URL prefix for all API routes (e.g., "/api/v1").
+    Canonical configuration lives in ``config.schema.AppConfig``.  This class
+    exists solely so that existing ``from interface.api.config import APIConfig``
+    imports and constructor call-sites (``APIConfig(host=..., port=...)``) keep
+    working without changes.
     """
 
-    host: str = "127.0.0.1"
-    port: int = 8080
-    cors_origins: list[str] = field(
-        default_factory=lambda: [
-            "http://localhost:5173",  # Vite dev server
-            "http://localhost:3000",  # Alternative dev port
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000",
-        ]
-    )
-    cors_allow_credentials: bool = True
-    cors_allow_methods: list[str] = field(
-        default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    )
-    cors_allow_headers: list[str] = field(
-        default_factory=lambda: [
-            "Authorization",
-            "Content-Type",
-            "X-Correlation-ID",
-            "X-API-Key",
-        ]
-    )
-    max_page_size: int = 1000
-    default_page_size: int = 100
-    rate_limit_per_minute: int = 100  # 100 req/min per IP; 0 = disabled
-    api_prefix: str = "/api/v1"
-    # Default: no API key (local/single-operator). Set auth_mode="api_key" only if exposed.
-    auth_mode: str = "none"  # "none" or "api_key"
-    api_key: str = ""
+    def __init__(self, **data: object) -> None:
+        # Map legacy ``host`` / ``port`` → AppConfig's ``api_host`` / ``api_port``
+        if "host" in data:
+            data.setdefault("api_host", data.pop("host"))
+        if "port" in data:
+            data.setdefault("api_port", data.pop("port"))
+        # Map legacy ``rate_limit_per_minute`` → AppConfig's ``rate_limit_max_requests``
+        if "rate_limit_per_minute" in data:
+            data.setdefault("rate_limit_max_requests", data.pop("rate_limit_per_minute"))
+        super().__init__(**data)
+
+    # ── Legacy attribute aliases (read-side) ────────────────
+
+    @property
+    def host(self) -> str:  # type: ignore[override]
+        return self.api_host
+
+    @property
+    def port(self) -> int:  # type: ignore[override]
+        return self.api_port
+
+    @property
+    def rate_limit_per_minute(self) -> int:  # type: ignore[override]
+        return self.rate_limit_max_requests
+
+    # ── Documentation URL properties ────────────────────────
 
     @property
     def docs_url(self) -> str:
@@ -80,16 +56,19 @@ class APIConfig:
         """URL for OpenAPI JSON schema."""
         return "/openapi.json"
 
+    # ── Conversion ──────────────────────────────────────────
+
     @classmethod
     def from_app_config(cls, app_cfg: AppConfig) -> APIConfig:
-        """Create an APIConfig from the central AppConfig.
-
-        Maps central config fields to API-specific fields. Explicit kwargs
-        passed to the constructor override values derived from AppConfig.
-        """
+        """Create an APIConfig from the central AppConfig."""
         return cls(
-            host=app_cfg.api_host,
-            port=app_cfg.api_port,
+            api_host=app_cfg.api_host,
+            api_port=app_cfg.api_port,
             cors_origins=app_cfg.cors_origins,
-            rate_limit_per_minute=app_cfg.rate_limit_max_requests,
+            rate_limit_max_requests=app_cfg.rate_limit_max_requests,
+            auth_mode=getattr(app_cfg, "auth_mode", "none"),
+            api_key=getattr(app_cfg, "api_key", ""),
         )
+
+
+__all__ = ["APIConfig"]

@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from application.oms.context import TradingContext
-from domain import Order, Side
+from domain.entities import Order
+from domain.enums import Side
 from domain.enums import BrokerId
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from infrastructure.lifecycle.lifecycle import LifecycleManager

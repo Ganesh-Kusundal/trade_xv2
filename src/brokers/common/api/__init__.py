@@ -14,7 +14,7 @@ from typing import Any, Protocol
 import pandas as pd
 
 from brokers.common.api.spi import BrokerSource
-from domain import (
+from domain.entities import (
     FundLimits,
     Holding,
     MarketDepth,

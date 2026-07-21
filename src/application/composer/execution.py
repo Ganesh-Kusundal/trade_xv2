@@ -13,7 +13,7 @@ from typing import Any
 
 from domain.entities import Order, OrderResponse, Position, Trade
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
-from domain.types import OrderStatus
+from domain.enums import OrderStatus
 
 logger = logging.getLogger(__name__)
 

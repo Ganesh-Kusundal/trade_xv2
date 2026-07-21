@@ -6,7 +6,7 @@ Dhan-specific status strings that have no Upstox equivalent.
 
 from __future__ import annotations
 
-from domain import OrderStatus
+from domain.enums import OrderStatus
 from domain.status_mapper import COMMON_STATUS_MAP, StatusMapperRegistry
 
 DHAN_STATUS_MAP: dict[str, OrderStatus] = {

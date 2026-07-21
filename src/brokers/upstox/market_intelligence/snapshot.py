@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
-from domain import MarketIntelligenceSnapshot
+from domain.entities import MarketIntelligenceSnapshot
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,7 @@ from typing import Any, Protocol
 
 from domain.entities._coercion import _as_money, _as_quantity
 from domain.primitives import Money, Quantity
-from domain.types import (
+from domain.enums import (
     OrderStatus,
     OrderType,
     ProductType,

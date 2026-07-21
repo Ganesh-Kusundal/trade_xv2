@@ -24,15 +24,9 @@ from brokers.dhan.execution.order_placement import IdempotencyCache, OrderPlacer
 from brokers.dhan.execution.order_validator import OrderValidator
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.segments import DEFAULT_SEGMENT, segment_to_exchange
-from domain import (
-    Order,
-    OrderResponse,
-    OrderStatus,
-    OrderType,
-    ProductType,
-    Trade,
-)
-from domain import Side as OrderSide
+from domain.entities import Order, OrderResponse, Trade
+from domain.enums import OrderStatus, OrderType, ProductType
+from domain.enums import Side as OrderSide
 from brokers.dhan.execution.field_mapping import DHAN_FIELD_MAPPING
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.risk_manager import RiskManagerPort

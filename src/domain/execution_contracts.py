@@ -14,7 +14,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from domain.enums import OrderType, ProductType
-from domain.types import Side
+from domain.enums import Side
 
 if TYPE_CHECKING:
     from domain.ports.time_service import ClockPort

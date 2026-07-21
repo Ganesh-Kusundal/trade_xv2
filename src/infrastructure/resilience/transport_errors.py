@@ -63,7 +63,7 @@ def order_result_from_response(response: Any):
     Defaults to failure when ``success`` is absent — malformed responses must
     not silently become ``OrderResult.ok``.
     """
-    from domain import OrderResponse
+    from domain.entities import OrderResponse
     from domain.ports.protocols import OrderResult
 
     if response is None:
@@ -104,7 +104,7 @@ def order_result_from_response(response: Any):
 
 def order_response_from_transport_error(exc: BaseException):
     """Return OrderResponse.fail with canonical error type prefix."""
-    from domain import OrderResponse
+    from domain.entities import OrderResponse
 
     mapped = map_transport_exception(exc)
     return OrderResponse.fail(f"{type(mapped).__name__}: {mapped}")

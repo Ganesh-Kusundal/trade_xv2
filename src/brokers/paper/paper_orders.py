@@ -6,14 +6,12 @@ from decimal import Decimal
 from datetime import datetime
 from threading import RLock
 
-from domain import (
-    Order,
+from domain.entities import Order, Position, Trade
+from domain.enums import (
     OrderStatus,
     OrderType,
-    Position,
     ProductType,
     Side,
-    Trade,
     Validity,
 )
 from domain.constants import DEFAULT_EXCHANGE

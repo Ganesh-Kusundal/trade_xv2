@@ -213,7 +213,13 @@ def cover_order(args: list[str], broker_service: BrokerService, console: Console
     if bid != BrokerId.UPSTOX:
         return CommandResult(success=False, error="cover-order is Upstox-only")
     try:
-        from domain import OrderRequest, OrderType, ProductType, Side, Validity
+        from domain.orders.requests import OrderRequest
+        from domain.enums import (
+            OrderType,
+            ProductType,
+            Side,
+            Validity,
+        )
 
         payload = json.loads(" ".join(args)) if args else {}
         gw = _gateway(broker_service)

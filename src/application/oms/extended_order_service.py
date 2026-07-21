@@ -92,7 +92,14 @@ class ExtendedOrderService:
             return None
         from decimal import Decimal
 
-        from domain import Order, OrderStatus, OrderType, ProductType, Side, Validity
+        from domain.entities import Order
+        from domain.enums import (
+            OrderStatus,
+            OrderType,
+            ProductType,
+            Side,
+            Validity,
+        )
 
         try:
             order = Order(

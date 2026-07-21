@@ -5,7 +5,14 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from domain import Order, OrderStatus, OrderType, Position, ProductType, Side, Validity
+from domain.entities import Order, Position
+from domain.enums import (
+    OrderStatus,
+    OrderType,
+    ProductType,
+    Side,
+    Validity,
+)
 
 
 def _parse_status(raw: Any) -> OrderStatus:

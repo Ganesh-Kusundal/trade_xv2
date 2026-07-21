@@ -28,7 +28,7 @@ from datalake.core.symbols import (
     normalize_symbol_for_storage,
     symbol_to_path,
 )
-from domain import MarketDepth, Quote
+from domain.entities import MarketDepth, Quote
 from domain.market_enums import ExchangeId
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
@@ -202,7 +202,7 @@ class DataLakeGateway(MarketDataGateway):
         return df.reset_index(drop=True)
 
     def quote(self, symbol: str, exchange: str = ExchangeId.NSE) -> Quote:
-        from domain import Quote as _Quote
+        from domain.entities import Quote as _Quote
 
         symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, "1m")
@@ -231,7 +231,7 @@ class DataLakeGateway(MarketDataGateway):
         return Decimal(str(df.iloc[-1]["close"]))
 
     def depth(self, symbol: str, exchange: str = ExchangeId.NSE) -> MarketDepth:
-        from domain import MarketDepth as _MarketDepth
+        from domain.entities import MarketDepth as _MarketDepth
 
         return _MarketDepth(symbol=symbol)
 

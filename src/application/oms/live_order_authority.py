@@ -121,7 +121,14 @@ def authorize_live_order(
     # 4. Full pre-trade risk path.
     from decimal import Decimal
 
-    from domain import Order, OrderStatus, OrderType, ProductType, Side, Validity
+    from domain.entities import Order
+    from domain.enums import (
+        OrderStatus,
+        OrderType,
+        ProductType,
+        Side,
+        Validity,
+    )
     from domain.constants import DEFAULT_EXCHANGE
 
     try:

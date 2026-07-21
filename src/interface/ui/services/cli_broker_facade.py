@@ -74,7 +74,7 @@ class CliBrokerFacade:
 
     def get_order_stats(self) -> dict[str, int]:
         """Collect order counts by status (mirrors retired OmsService)."""
-        from domain import OrderStatus
+        from domain.enums import OrderStatus
 
         orders = self.oms_orders()
         stats = {
@@ -100,7 +100,7 @@ class CliBrokerFacade:
 
     def get_orders(self, status_filter: str | None = None) -> list:
         """Fetch orders with optional status filter (mirrors retired OmsService)."""
-        from domain import OrderStatus
+        from domain.enums import OrderStatus
 
         orders = self.oms_orders()
         if not status_filter:
@@ -150,8 +150,8 @@ class CliBrokerFacade:
             )
         if self._svc._trading_context is not None:
             from application.oms.order_command_mapper import cli_place_to_oms_command
-            from domain import OrderType as Ot
-            from domain import Side
+            from domain.enums import OrderType as Ot
+            from domain.enums import Side
             from runtime.execution_target import build_execution_engine
 
             try:

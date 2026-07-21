@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
-from domain import Position, Trade
+from domain.entities import Position, Trade
 
 logger = logging.getLogger(__name__)
 

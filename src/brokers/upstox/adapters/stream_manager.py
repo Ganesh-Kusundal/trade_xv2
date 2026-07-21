@@ -13,7 +13,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
-from domain import Quote
+from domain.entities import Quote
 
 if TYPE_CHECKING:
     from brokers.upstox.broker import UpstoxBroker

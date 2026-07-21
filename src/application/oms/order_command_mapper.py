@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from application.oms.order_manager import OmsOrderCommand
-from domain import OrderType, ProductType, Side
+from domain.enums import OrderType, ProductType, Side
 from domain.models.trading import SignalDTO
 from domain.orders.intent import OrderIntent
 from domain.orders.requests import OrderRequest

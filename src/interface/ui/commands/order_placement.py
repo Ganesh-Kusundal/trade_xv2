@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
-from domain import OrderType, ProductType, Side
+from domain.enums import OrderType, ProductType, Side
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from infrastructure.io.async_compat import run_async_compat
 from interface.ui.commands.argparse_helpers import parse_flag

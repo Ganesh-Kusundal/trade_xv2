@@ -9,11 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.upstox.orders.gtt_client import UpstoxGttClient
-from domain import (
-    ConditionalAlert,
-    ConditionalAlertRequest,
-    Order,
-)
+from domain.entities import ConditionalAlert, ConditionalAlertRequest, Order
 from domain.value_objects.price import to_wire_float
 
 

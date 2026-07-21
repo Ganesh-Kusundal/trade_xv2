@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from brokers.upstox.adapters.stream_manager import StreamManagerAdapter
-from domain import MarketDepth, Quote
+from domain.entities import MarketDepth, Quote
 from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
@@ -233,7 +233,7 @@ class StreamingGateway:
         from datetime import datetime, timezone
         from decimal import Decimal
 
-        from domain import DepthLevel
+        from domain.entities import DepthLevel
 
         raw_bids = payload.get("depth", {}).get("bids", [])
         raw_asks = payload.get("depth", {}).get("asks", [])

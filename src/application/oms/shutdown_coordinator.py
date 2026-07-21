@@ -153,7 +153,7 @@ class ShutdownCoordinator:
         -------
         Tuple of ``(cancelled_count, failed_count, failed_order_ids)``.
         """
-        from domain import OrderStatus
+        from domain.enums import OrderStatus
 
         cancelled = 0
         failed = 0

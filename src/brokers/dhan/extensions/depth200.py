@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from domain import MarketDepth
+from domain.entities import MarketDepth
 from domain.constants.exchanges import NSE
 from domain.constants.segments import nse_eligible_segments
 from domain.extensions.base import Extension

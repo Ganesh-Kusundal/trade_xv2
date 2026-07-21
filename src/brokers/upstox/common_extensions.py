@@ -132,7 +132,8 @@ class UpstoxGttForeverOrderStrategy(ForeverOrderProvider):
     async def place_forever_order(
         self, request: ForeverOrderRequest, *, quota: object
     ) -> ForeverOrderResult:
-        from domain import Order, OrderType, ProductType, Side
+        from domain.entities import Order
+        from domain.enums import OrderType, ProductType, Side
 
         order = Order(
             symbol=request.symbol,
@@ -207,7 +208,13 @@ class UpstoxExtendedOrderExecutor(ExtendedOrderExecutor):
         return self._broker.gtt.place_gtt_single(payload)
 
     def place_cover_order(self, payload: dict[str, Any]) -> Any:
-        from domain import OrderRequest, OrderType, ProductType, Side, Validity
+        from domain.orders.requests import OrderRequest
+        from domain.enums import (
+            OrderType,
+            ProductType,
+            Side,
+            Validity,
+        )
 
         req = OrderRequest(
             symbol=payload.get("symbol", ""),

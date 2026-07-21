@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from domain import ExchangeSegment
+from domain.market_enums import ExchangeSegment
 from domain.constants.exchanges import (
     BFO,
     BSE,

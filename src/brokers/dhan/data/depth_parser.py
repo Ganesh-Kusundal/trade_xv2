@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from domain import DepthLevel, MarketDepth
+from domain.entities import DepthLevel, MarketDepth
 from domain.events import DomainEvent
 from domain.ports.time_service import get_current_clock
 from domain.symbols import normalize_symbol

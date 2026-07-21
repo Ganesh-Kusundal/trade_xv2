@@ -15,7 +15,7 @@ from brokers.common.recon_local import local_orders_as_domain, local_positions_a
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from domain import DriftItem, ReconciliationReport
+from domain.reconciliation import DriftItem, ReconciliationReport
 from domain.reconciliation_engine import ReconciliationEngine
 
 logger = logging.getLogger(__name__)

@@ -17,7 +17,7 @@ from domain.execution_contracts import (
     SubmissionState,
 )
 from domain.ports.execution_ledger import ExecutionLedgerPort
-from domain.types import Side
+from domain.enums import Side
 
 
 def _parse_order_type(raw: str) -> OrderType:

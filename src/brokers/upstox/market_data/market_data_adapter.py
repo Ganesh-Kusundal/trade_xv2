@@ -21,7 +21,7 @@ from brokers.upstox.market_data.client_v3 import (
     UpstoxMarketDataV3Client,
 )
 from brokers.upstox.market_data.historical_v2 import UpstoxHistoricalV2Client
-from domain import MarketDepth, OptionContract, Quote
+from domain.entities import MarketDepth, OptionContract, Quote
 from domain.candles.historical import (
     DateRange,
     HistoricalBar,

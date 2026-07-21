@@ -88,7 +88,7 @@ class SignalDTO:
             silently emitting one.
         """
         from domain.orders.execution_plan import ExecutionPlan, PlanContext
-        from domain.types import OrderType, ProductType
+        from domain.enums import OrderType, ProductType
 
         existing_notional = account.portfolio.symbol_exposure(self.symbol, self.exchange)
         ctx = PlanContext(

@@ -26,9 +26,8 @@ from brokers.upstox.extras import UpstoxExtendedCapabilities
 from brokers.upstox.market_data.market_data_adapter import (
     UpstoxMarketDataAdapter as MarketDataAdapter,
 )
-from domain import (
+from domain.entities import (
     Balance,
-    ExchangeSegment,
     FutureChain,
     Holding,
     MarketDepth,
@@ -39,6 +38,7 @@ from domain import (
     Quote,
     Trade,
 )
+from domain.market_enums import ExchangeSegment
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
 from infrastructure.batch_mixin import BatchFetchMixin
 
@@ -61,7 +61,7 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
         was expired. We now also require a current (non-expired) token so the
         verdict matches reality.
         """
-        from domain import ConnectionStatus
+        from domain.capabilities import ConnectionStatus
 
         if self._broker.status != ConnectionStatus.CONNECTED:
             return False

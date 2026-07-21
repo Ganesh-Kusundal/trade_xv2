@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
-from domain import ConditionalAlert, ConditionalAlertRequest
+from domain.entities import ConditionalAlert, ConditionalAlertRequest
 
 
 class UpstoxAlertAdapter:

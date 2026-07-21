@@ -217,7 +217,7 @@ class UpstoxPortfolioStream:
 
     def _publish_trade_for_order(self, order: Any) -> None:
         """Publish incremental TRADE when cumulative filled_quantity increases."""
-        from domain import Trade
+        from domain.entities import Trade
 
         cumulative = int(order.filled_quantity or 0)
         avg = order.avg_price

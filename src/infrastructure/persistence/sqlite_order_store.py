@@ -27,7 +27,12 @@ except ImportError:  # pragma: no cover — Windows dev environments
 from domain.constants import SQLITE_BUSY_TIMEOUT_MS
 from domain.entities import Order
 from domain.exceptions import TradeXV2Error
-from domain.types import OrderStatus, OrderType, ProductType, Side
+from domain.enums import (
+    OrderStatus,
+    OrderType,
+    ProductType,
+    Side,
+)
 
 logger = logging.getLogger(__name__)
 

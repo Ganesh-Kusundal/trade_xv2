@@ -19,13 +19,12 @@ from brokers.dhan.websocket._helpers import (
     _DhanContext,
     _sdk_order_update_class,
 )
-from domain import (
-    Order,
+from domain.entities import Order, Trade
+from domain.enums import (
     OrderStatus,
     OrderType,
     ProductType,
     Side,
-    Trade,
     Validity,
 )
 from domain.events import DomainEvent

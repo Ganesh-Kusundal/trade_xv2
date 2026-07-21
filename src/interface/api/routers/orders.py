@@ -9,7 +9,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from domain import OrderStatus, OrderType, ProductType, Side
+from domain.enums import (
+    OrderStatus,
+    OrderType,
+    ProductType,
+    Side,
+)
 from infrastructure.observability.tracing import trace_operation
 from interface.api.auth import require_auth
 from interface.api.deps import (

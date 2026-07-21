@@ -12,12 +12,14 @@ from datetime import timezone
 from decimal import Decimal
 from typing import Any
 
-from domain import (
+from domain.entities import (
     DepthLevel,
     MarketDepth,
     Order,
-    OrderRequest,
     OrderResponse,
+)
+from domain.orders.requests import OrderRequest
+from domain.enums import (
     OrderStatus,
     OrderType,
     Side,

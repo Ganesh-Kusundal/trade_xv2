@@ -13,7 +13,7 @@ import threading
 from decimal import Decimal
 from typing import Any
 
-from domain import Quote
+from domain.entities import Quote
 from domain.symbols import make_position_key
 from domain.market_enums import ExchangeId
 

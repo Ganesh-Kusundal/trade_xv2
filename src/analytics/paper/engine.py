@@ -48,12 +48,12 @@ from analytics.paper.models import PaperConfig, PaperResult, PaperSession
 from analytics.paper.position_closer import PaperPositionCloser
 from analytics.paper.signal_processor import PaperSignalProcessor
 from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.replay.models import FillModel
 from analytics.scanner.models import Candidate
+from analytics.simulation import FillModel
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
 from analytics.strategy.registry import StrategyRegistry
-from domain import Side
+from domain.enums import Side
 from domain.candles.historical import HistoricalBar
 from domain.entities import Trade
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
@@ -114,7 +114,7 @@ class PaperTradingEngine:
                 "Pass allow_simulate_without_oms=True for research-only mode without OMS."
             )
 
-        from analytics.replay.cash_ledger import SimulatedCashLedger
+        from analytics.simulation.cash_ledger import SimulatedCashLedger
 
         self._portfolio_tracker = SimulatedCashLedger(self._config.initial_capital)
         # Risk capital is bound to a FIXED account size (not this ledger) inside
@@ -144,7 +144,7 @@ class PaperTradingEngine:
         session.capital = float(self._portfolio_tracker.get_capital())
 
     def _feed_parity_risk_state(self, session: PaperSession, bar: HistoricalBar) -> None:
-        from analytics.replay.parity_risk import feed_parity_risk_state
+        from analytics.simulation.parity_risk import feed_parity_risk_state
 
         open_eq = (
             session.equity_curve[0][1] if session.equity_curve else self._config.initial_capital
@@ -192,7 +192,7 @@ class PaperTradingEngine:
 
         from contextlib import nullcontext
 
-        from analytics.replay.cash_ledger import FixedAccountCapitalProvider
+        from analytics.simulation.cash_ledger import FixedAccountCapitalProvider
 
         if self._trading_context is not None:
             cm = self._trading_context.analytics_parity_scope(

@@ -33,7 +33,7 @@ from threading import RLock
 from typing import TYPE_CHECKING, Dict, Tuple
 
 from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
-from domain import MarketDepth
+from domain.entities import MarketDepth
 from infrastructure.event_bus.event_bus import EventBus
 
 __all__ = ["DhanDepth200Feed", "Depth200ConnectionPool"]
