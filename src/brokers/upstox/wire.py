@@ -180,6 +180,7 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter):
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
+        disclosed_quantity: int = 0,
         is_amo: bool = False,
     ) -> OrderResponse:
         return self._order_gw.place_order(

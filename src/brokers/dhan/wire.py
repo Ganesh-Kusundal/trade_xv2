@@ -24,7 +24,7 @@ from brokers.dhan.config.capabilities import DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_
 from brokers.dhan.streaming.connection import DhanConnection
 from domain import Balance, MarketDepth, OrderResponse, Quote
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
-from domain.entities.options import FutureChain
+from domain.entities.options import FutureChain, OptionChain
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,7 @@ class DhanWireAdapter(BaseWireAdapter):
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
+        disclosed_quantity: int = 0,
     ) -> OrderResponse:
         """Place an order with explicit parameters matching MarketDataGateway ABC.
 
@@ -192,6 +193,7 @@ class DhanWireAdapter(BaseWireAdapter):
             product_type=pt_e,
             validity=val_e,
             correlation_id=correlation_id,
+            disclosed_quantity=disclosed_quantity or None,
         )
         payload = order_request_to_payload(req, "dhan")
         return self._conn.orders.place_order(payload)
@@ -388,11 +390,22 @@ class DhanWireAdapter(BaseWireAdapter):
         underlying: str,
         exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
         expiry: str | None = None,
-    ) -> dict:
+    ) -> OptionChain:
         """Get option chain. Delegates MCX-specific expiry lookup to data sub-facade."""
         from brokers.dhan.extended_data import DhanDataCapabilities
+        from domain.entities.options import OptionChain
 
-        return DhanDataCapabilities(self._conn).get_option_chain(underlying, exchange, expiry)
+        raw = DhanDataCapabilities(self._conn).get_option_chain(underlying, exchange, expiry)
+        if isinstance(raw, OptionChain):
+            return raw
+        if isinstance(raw, dict):
+            data = dict(raw)
+            data.setdefault("underlying", underlying)
+            data.setdefault("exchange", exchange)
+            if expiry and not data.get("expiry"):
+                data["expiry"] = expiry
+            return OptionChain.from_dict(data)
+        return OptionChain(underlying=underlying, exchange=exchange, expiry=expiry or "")
 
     def future_chain(
         self,
