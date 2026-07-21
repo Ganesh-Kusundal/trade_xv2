@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from domain.extensions.base import Extension
 from domain.value_objects.capability import Capability
+from domain.market_enums import ExchangeId
 
 if TYPE_CHECKING:
     from domain.instruments.instrument_id import InstrumentId
@@ -36,7 +37,7 @@ class DhanForeverOrderExtension(Extension):
     def is_available_for(self, instrument_id: InstrumentId) -> bool:
         return True
 
-    def for_instrument(self, symbol: str, exchange: str = "NSE") -> DhanForeverOrderExtension:
+    def for_instrument(self, symbol: str, exchange: str = ExchangeId.NSE) -> DhanForeverOrderExtension:
         ext = DhanForeverOrderExtension(self._gw)
         ext._symbol = symbol
         ext._exchange = exchange

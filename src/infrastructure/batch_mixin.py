@@ -10,6 +10,7 @@ import pandas as pd
 from domain.constants import BATCH_MAX_WORKERS
 from domain.entities import Quote
 from infrastructure.batch_executor import batch_execute
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class BatchFetchMixin:
 
     _batch_max_workers: int = BATCH_MAX_WORKERS
 
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def ltp_batch(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Decimal]:
         results: dict[str, Decimal] = {}
         raw = batch_execute(
             symbols,
@@ -33,7 +34,7 @@ class BatchFetchMixin:
                 results[sym] = Decimal("0")
         return results
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
+    def quote_batch(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Quote]:
         return batch_execute(
             symbols,
             lambda sym: self.quote(sym, exchange),  # type: ignore[attr-defined]
@@ -43,7 +44,7 @@ class BatchFetchMixin:
     def history_batch(
         self,
         symbols: list[str],
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:

@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 # ── Canonical re-exports from domain (reversed import direction) ──────
-from domain.errors import (  # noqa: F401 — re-exports
+from domain.exceptions import (  # noqa: F401 — re-exports
     AuthenticationError,
     BrokerDegradedError,
     BrokerError,

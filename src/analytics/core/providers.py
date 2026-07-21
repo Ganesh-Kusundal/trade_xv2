@@ -20,6 +20,7 @@ import pandas as pd
 
 from domain.entities import FutureChain, OptionChain
 from domain.symbols import normalize_symbol
+from domain.market_enums import ExchangeId
 
 
 @runtime_checkable
@@ -45,7 +46,7 @@ class MarketDataProvider(Protocol):
 
     def future_chain(self, underlying: str) -> FutureChain: ...
 
-    def ltp(self, symbol: str, *, exchange: str = "NSE") -> float: ...
+    def ltp(self, symbol: str, *, exchange: str = ExchangeId.NSE) -> float: ...
 
 
 class DataFrameMarketDataProvider:
@@ -86,7 +87,7 @@ class DataFrameMarketDataProvider:
             return raw
         return FutureChain.from_dict(raw or {"contracts": []})
 
-    def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
+    def ltp(self, symbol: str, *, exchange: str = ExchangeId.NSE) -> float:
         del exchange
         return float(self.prices.get(normalize_symbol(symbol), 0.0))
 
@@ -124,7 +125,7 @@ class CsvMarketDataProvider:
         del underlying
         return FutureChain(underlying="", exchange="")
 
-    def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
+    def ltp(self, symbol: str, *, exchange: str = ExchangeId.NSE) -> float:
         del symbol, exchange
         return 0.0
 
@@ -162,5 +163,5 @@ class GatewayMarketDataProvider:
             return chain
         return FutureChain.from_dict(chain if isinstance(chain, dict) else {})
 
-    def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
+    def ltp(self, symbol: str, *, exchange: str = ExchangeId.NSE) -> float:
         return float(self._gateway.ltp(symbol, exchange=exchange))

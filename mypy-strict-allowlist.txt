@@ -1,0 +1,4 @@
+# REF-15: modules that pass mypy --strict (allowlist only grows).
+# Run: PYTHONPATH=src mypy --strict $(grep -v '^#' mypy-strict-allowlist.txt | grep -v '^$' | sed 's|^|src/|')
+domain/enums.py
+analytics/simulation/models.py

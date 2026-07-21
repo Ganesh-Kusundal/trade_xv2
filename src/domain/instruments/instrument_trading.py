@@ -112,7 +112,7 @@ class InstrumentTradingMixin:
 
     def cancel(self, order_id: str) -> OrderResult:
         """Cancel an open order via OrderServicePort (OMS), never ExecutionProvider."""
-        from domain.errors import NotConfiguredError
+        from domain.exceptions import NotConfiguredError
 
         osvc = self._require_order_service()
         cancel = getattr(osvc, "cancel", None)
@@ -132,7 +132,7 @@ class InstrumentTradingMixin:
         order_type: OrderType | str | None = None,
     ) -> OrderResult:
         """Modify an open order via OrderServicePort (OMS)."""
-        from domain.errors import NotConfiguredError
+        from domain.exceptions import NotConfiguredError
         from domain.orders.requests import ModifyOrderRequest
 
         osvc = self._require_order_service()
@@ -160,7 +160,7 @@ class InstrumentTradingMixin:
 
     def _require_order_service(self) -> OrderServicePort:
         """Resolve OMS or raise ORDERS_DISABLED / NotConfiguredError."""
-        from domain.errors import NotConfiguredError
+        from domain.exceptions import NotConfiguredError
 
         osvc = self._resolve_order_service()
         if osvc is not None:

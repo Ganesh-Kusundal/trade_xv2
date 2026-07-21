@@ -32,7 +32,7 @@ Usage Example:
 
     # Create and execute query
     query = HistoricalQuery(
-        instrument=InstrumentRef(symbol="RELIANCE", exchange="NSE"),
+        instrument=InstrumentRef(symbol="RELIANCE", exchange=ExchangeId.NSE),
         timeframe="1D",
         from_date=date(2024, 1, 1),
         to_date=date(2024, 12, 31),
@@ -68,13 +68,14 @@ from domain.candles.historical import (
     InstrumentRef,
     MergeManifest,
 )
-from domain.errors import MergeConflictError, RoutingError
+from domain.exceptions import MergeConflictError, RoutingError
 from domain.models.routing import OperationKind, RouteDecision, RoutingRequest
 from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
 from domain.ports.audit import emit_historical_chunk
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 

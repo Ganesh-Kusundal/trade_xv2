@@ -7,12 +7,13 @@ from typing import Any
 from brokers.session import BrokerSession
 
 from ._session import _borrow_session
+from domain.market_enums import ExchangeId
 
 
 def lookup_instrument(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,
@@ -35,7 +36,7 @@ def lookup_instrument(
 
 
 def lookup_security(
-    broker: str, symbol: str, exchange: str = "NSE", **kwargs: Any
+    broker: str, symbol: str, exchange: str = ExchangeId.NSE, **kwargs: Any
 ) -> dict[str, Any]:
     """Backward-compatible alias for :func:`lookup_instrument`."""
     return lookup_instrument(broker, symbol, exchange=exchange, **kwargs)
@@ -44,7 +45,7 @@ def lookup_security(
 def lookup_symbol(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,

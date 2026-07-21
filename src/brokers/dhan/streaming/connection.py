@@ -39,6 +39,7 @@ from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import LifecycleManager
 from infrastructure.resilience.circuit_breaker import CircuitState
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -371,7 +372,7 @@ class DhanConnection:
     def subscribe_stream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
@@ -383,7 +384,7 @@ class DhanConnection:
     def subscribe_depth_20(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         on_depth: Any | None = None,
     ) -> Any:
         """Subscribe to 20-level depth. Security mapping stays internal."""
@@ -431,7 +432,7 @@ class DhanConnection:
     def subscribe_depth_200(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         on_depth: Any | None = None,
     ) -> Any:
         """Subscribe to 200-level depth. Security mapping stays internal."""

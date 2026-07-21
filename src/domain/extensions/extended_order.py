@@ -28,7 +28,7 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any
 
-from domain.errors import UnsupportedExtensionError
+from domain.exceptions import UnsupportedExtensionError
 
 
 class ExtendedOrderExecutor(ABC):

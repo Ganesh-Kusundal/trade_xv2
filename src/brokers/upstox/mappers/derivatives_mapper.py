@@ -47,6 +47,7 @@ from ._base import (
     wire_status_to_domain_status,
 )
 from .price_parser import UpstoxPriceParser
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +170,7 @@ def to_historical_candle(
     payload: Any,
     *,
     symbol: str = "",
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     timeframe: str = "1D",
 ) -> HistoricalBar:
     if not isinstance(payload, dict):
@@ -202,7 +203,7 @@ def to_historical_candles(
     payload: Any,
     *,
     symbol: str = "",
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     timeframe: str = "1D",
 ) -> list[HistoricalBar]:
     candles: list[HistoricalBar] = []

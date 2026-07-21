@@ -29,7 +29,7 @@ from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
 from domain.candles.historical import InstrumentRef
 from domain.entities import Quote
-from domain.errors import RoutingError
+from domain.exceptions import RoutingError
 from domain.models.routing import OperationKind, RoutingRequest
 from domain.ports.broker_gateway import QuotaToken
 from domain.ports.time_service import get_current_clock

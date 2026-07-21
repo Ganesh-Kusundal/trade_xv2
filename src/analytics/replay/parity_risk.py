@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 from typing import Any
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def feed_parity_risk_state(
     bar_symbol: str,
     bar_close: float,
     has_position: bool,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
 ) -> None:
     """Advance RiskManager daily_pnl from session equity (PARITY only).
 

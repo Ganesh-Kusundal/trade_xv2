@@ -44,6 +44,7 @@ from interface.ui.services.market_data_bootstrap import MarketDataBootstrap
 
 # ── Extracted focused classes ────────────────────────────────────────────
 from interface.ui.services.oms_bootstrap import OmsBootstrap
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -468,7 +469,7 @@ class BrokerService:
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         side: str | Side = "BUY",
         quantity: int = 0,
         price: Decimal | None = None,

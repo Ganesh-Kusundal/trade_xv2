@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from domain.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 
 
 class BrokerAuthError(TradeXV2Error):

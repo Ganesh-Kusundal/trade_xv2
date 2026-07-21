@@ -11,7 +11,7 @@ Extracts the repeated pattern:
 
 Usage:
     @routed(OperationKind.GET_QUOTE, "quotes")
-    def ltp(self, symbol, exchange="NSE"):
+    def ltp(self, symbol, exchange=ExchangeId.NSE):
         return self._gateway.ltp(symbol, exchange)
 """
 
@@ -21,6 +21,7 @@ import functools
 import logging
 from collections.abc import Callable
 from typing import Any
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 

@@ -349,7 +349,7 @@ def require_gateway(
 
     Production helper for call sites that need a ready gateway or a hard error.
     """
-    from domain.errors import BrokerNotReadyError
+    from domain.exceptions import BrokerNotReadyError
 
     result = bootstrap_gateway(
         broker,

@@ -174,7 +174,7 @@ class InstrumentHistory:
         """Resample cached series; does not overwrite download cache."""
         base = self.series
         if base is None:
-            from domain.errors import NotConfiguredError
+            from domain.exceptions import NotConfiguredError
 
             raise NotConfiguredError("No history loaded; call download() or history(...) first")
         out = base.resample(target_timeframe)

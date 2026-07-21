@@ -1,6 +1,6 @@
 """Canonical connection — readiness probes, bootstrap results, typed errors."""
 
-from domain.errors import BrokerNotReadyError
+from domain.exceptions import BrokerNotReadyError
 from infrastructure.connection.authenticated_readiness import (
     AuthProbeResult,
     authenticated_readiness_probe,

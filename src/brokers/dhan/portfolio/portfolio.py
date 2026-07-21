@@ -11,6 +11,7 @@ from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT, segment_to_exchange
 from domain import Balance, Holding, Position, ProductType
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class PortfolioAdapter:
         self,
         symbol: str,
         *,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         quantity: int,
         from_product_type: str,
         to_product_type: str,

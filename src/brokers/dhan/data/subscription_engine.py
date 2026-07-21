@@ -15,6 +15,7 @@ from typing import Any
 
 from domain import Quote
 from domain.symbols import make_position_key
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class SubscriptionEngine:
     def subscribe_market(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
@@ -102,7 +103,7 @@ class SubscriptionEngine:
     def unsubscribe_market(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         on_tick: Any | None = None,
     ) -> None:
         """Remove a market callback; SDK unsubscribe when last ref released."""

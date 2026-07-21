@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TypeVar
 
-from domain.errors import UnsupportedExtensionError
+from domain.exceptions import UnsupportedExtensionError
 
 T = TypeVar("T")
 

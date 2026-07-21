@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from domain.enums import BrokerId
-from domain.errors import BrokerNotReadyError
+from domain.exceptions import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapStatus
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from interface.ui.services.broker_observability import (

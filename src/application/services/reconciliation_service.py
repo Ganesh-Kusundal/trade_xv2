@@ -1,0 +1,302 @@
+"""Reconciliation orchestration — broker-agnostic drift comparison engine.
+
+Canonical location for reconciliation logic (REF-10). The engine compares
+local OMS state against broker-authoritative state and produces a list of
+``DriftItem`` entries. Each broker adapter only needs to provide a thin
+fetch layer that maps broker-specific responses to canonical Order/Position
+types.
+
+Severity vocabulary: "HIGH", "MEDIUM", "LOW" (canonical, ADR-005).
+
+``domain.reconciliation_engine`` re-exports these names as a backward-compat
+shim; new code should import from here.
+"""
+
+from __future__ import annotations
+
+import logging
+from decimal import Decimal
+
+from domain.entities import Order, Position
+from domain.enums import OrderStatus
+from domain.reconciliation import DriftItem
+
+logger = logging.getLogger(__name__)
+
+_PRICE_TOLERANCE = Decimal("0.01")
+
+
+def _as_decimal(value: object) -> Decimal:
+    """Coerce Money/Quantity/Decimal/str to Decimal."""
+    if value is None:
+        return Decimal("0")
+    to_dec = getattr(value, "to_decimal", None)
+    if callable(to_dec):
+        return to_dec()
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
+
+
+class ReconciliationEngine:
+    """Broker-agnostic reconciliation comparison engine.
+
+    Usage::
+
+        engine = ReconciliationEngine()
+        drift = engine.compare_orders(local_orders, broker_orders)
+        drift += engine.compare_positions(local_positions, broker_positions)
+        drift += engine.compare_funds(local_available, broker_available)
+    """
+
+    def compare_orders(
+        self,
+        local_orders: list[Order],
+        broker_orders: list[Order],
+    ) -> list[DriftItem]:
+        """Compare local OMS orders against broker-authoritative orders.
+
+        Returns a list of DriftItem entries describing any drift found.
+        """
+        drift: list[DriftItem] = []
+
+        broker_by_id = {o.order_id: o for o in broker_orders if o.order_id}
+        local_by_id = {o.order_id: o for o in local_orders if o.order_id}
+
+        # Check for orders on broker that are missing locally
+        for oid, broker_order in broker_by_id.items():
+            if oid not in local_by_id:
+                drift.append(
+                    DriftItem(
+                        kind="missing_local_order",
+                        severity="HIGH",
+                        symbol=broker_order.symbol,
+                        details=f"Broker order {oid} not present in local OMS",
+                        payload={"order_id": oid, "symbol": broker_order.symbol},
+                    )
+                )
+
+        # Check for local orders that are missing on broker
+        for oid, local_order in local_by_id.items():
+            if oid not in broker_by_id:
+                if local_order.status in (
+                    OrderStatus.OPEN,
+                    OrderStatus.PARTIALLY_FILLED,
+                ):
+                    drift.append(
+                        DriftItem(
+                            kind="missing_broker_order",
+                            severity="HIGH",
+                            symbol=local_order.symbol,
+                            details=f"Local order {oid} ({local_order.status.value}) not on broker",
+                            payload={"order_id": oid, "symbol": local_order.symbol},
+                        )
+                    )
+                continue
+
+            # Both exist — compare statuses and economic fields
+            broker_order = broker_by_id[oid]
+            if str(local_order.status) != str(broker_order.status):
+                drift.append(
+                    DriftItem(
+                        kind="order_status_mismatch",
+                        severity="MEDIUM",
+                        symbol=local_order.symbol,
+                        details=(
+                            f"Order {oid}: local={local_order.status.value}, "
+                            f"broker={broker_order.status.value}"
+                        ),
+                        payload={"order_id": oid, "symbol": local_order.symbol},
+                    )
+                )
+
+            local_filled = getattr(local_order, "filled_quantity", None)
+            broker_filled = getattr(broker_order, "filled_quantity", None)
+            if local_filled is not None and broker_filled is not None:
+                if local_filled != broker_filled:
+                    drift.append(
+                        DriftItem(
+                            kind="fill_quantity_mismatch",
+                            severity="HIGH",
+                            symbol=local_order.symbol,
+                            details=(
+                                f"Order {oid}: local_filled={local_filled}, "
+                                f"broker_filled={broker_filled}"
+                            ),
+                            payload={
+                                "order_id": oid,
+                                "symbol": local_order.symbol,
+                                "local_filled": local_filled,
+                                "broker_filled": broker_filled,
+                            },
+                        )
+                    )
+                elif local_filled > 0 and broker_filled > 0:
+                    local_avg = _as_decimal(getattr(local_order, "avg_price", 0))
+                    broker_avg = _as_decimal(getattr(broker_order, "avg_price", 0))
+                    if abs(local_avg - broker_avg) > _PRICE_TOLERANCE:
+                        drift.append(
+                            DriftItem(
+                                kind="avg_price_mismatch",
+                                severity="HIGH",
+                                symbol=local_order.symbol,
+                                details=(
+                                    f"Order {oid}: local_avg={local_avg}, "
+                                    f"broker_avg={broker_avg} "
+                                    f"(tolerance={_PRICE_TOLERANCE})"
+                                ),
+                                payload={
+                                    "order_id": oid,
+                                    "symbol": local_order.symbol,
+                                    "local_avg": str(local_avg),
+                                    "broker_avg": str(broker_avg),
+                                    "tolerance": str(_PRICE_TOLERANCE),
+                                },
+                            )
+                        )
+
+        return drift
+
+    def compare_positions(
+        self,
+        local_positions: list[Position],
+        broker_positions: list[Position],
+    ) -> list[DriftItem]:
+        """Compare local positions against broker-authoritative positions.
+
+        Returns a list of DriftItem entries describing any drift found.
+        """
+        drift: list[DriftItem] = []
+
+        broker_by_key = {(p.exchange, p.symbol): p for p in broker_positions}
+        local_by_key = {(p.exchange, p.symbol): p for p in local_positions}
+
+        # Check for positions on broker that are missing locally
+        for key, broker_pos in broker_by_key.items():
+            local_pos = local_by_key.get(key)
+            if local_pos is None:
+                drift.append(
+                    DriftItem(
+                        kind="missing_local_position",
+                        severity="HIGH",
+                        symbol=broker_pos.symbol,
+                        details=(
+                            f"Broker has position {key} qty={broker_pos.quantity}, local has none"
+                        ),
+                        payload={"symbol": broker_pos.symbol, "exchange": broker_pos.exchange},
+                    )
+                )
+                continue
+
+            # Both exist — compare quantities and economic fields
+            if local_pos.quantity != broker_pos.quantity:
+                drift.append(
+                    DriftItem(
+                        kind="position_quantity_mismatch",
+                        severity="HIGH",
+                        symbol=broker_pos.symbol,
+                        details=(
+                            f"Position {key}: local_qty={local_pos.quantity}, "
+                            f"broker_qty={broker_pos.quantity}"
+                        ),
+                        payload={
+                            "symbol": broker_pos.symbol,
+                            "exchange": broker_pos.exchange,
+                            "local_qty": local_pos.quantity,
+                            "broker_qty": broker_pos.quantity,
+                        },
+                    )
+                )
+            elif local_pos.quantity != 0:
+                local_avg = _as_decimal(getattr(local_pos, "avg_price", 0))
+                broker_avg = _as_decimal(getattr(broker_pos, "avg_price", 0))
+                if abs(local_avg - broker_avg) > _PRICE_TOLERANCE:
+                    drift.append(
+                        DriftItem(
+                            kind="position_avg_price_mismatch",
+                            severity="HIGH",
+                            symbol=broker_pos.symbol,
+                            details=(
+                                f"Position {key}: local_avg={local_avg}, "
+                                f"broker_avg={broker_avg} "
+                                f"(tolerance={_PRICE_TOLERANCE})"
+                            ),
+                            payload={
+                                "symbol": broker_pos.symbol,
+                                "exchange": broker_pos.exchange,
+                                "local_avg": str(local_avg),
+                                "broker_avg": str(broker_avg),
+                                "tolerance": str(_PRICE_TOLERANCE),
+                            },
+                        )
+                    )
+
+        # Check for local positions missing on broker
+        for key, local_pos in local_by_key.items():
+            if key not in broker_by_key and local_pos.quantity != 0:
+                drift.append(
+                    DriftItem(
+                        kind="missing_broker_position",
+                        severity="HIGH",
+                        symbol=local_pos.symbol,
+                        details=(
+                            f"Local has position {key} qty={local_pos.quantity}, broker has none"
+                        ),
+                        payload={"symbol": local_pos.symbol, "exchange": local_pos.exchange},
+                    )
+                )
+
+        return drift
+
+    def compare_funds(
+        self,
+        local_available: Decimal | float | str | None,
+        broker_available: Decimal | float | str | None,
+        *,
+        tolerance: Decimal = Decimal("0.01"),
+    ) -> list[DriftItem]:
+        """Compare available balance (funds) between local cache and broker.
+
+        Returns a single HIGH ``funds_mismatch`` drift when both sides are
+        known and differ by more than *tolerance*. Missing either side yields
+        no drift (caller may add ``fetch_error`` separately).
+        """
+        if local_available is None or broker_available is None:
+            return []
+        try:
+            local_d = Decimal(str(local_available))
+            broker_d = Decimal(str(broker_available))
+        except Exception:
+            return [
+                DriftItem(
+                    kind="funds_mismatch",
+                    severity="MEDIUM",
+                    details=(
+                        f"Could not parse funds local={local_available!r} "
+                        f"broker={broker_available!r}"
+                    ),
+                )
+            ]
+        if abs(local_d - broker_d) <= tolerance:
+            return []
+        return [
+            DriftItem(
+                kind="funds_mismatch",
+                severity="HIGH",
+                details=(
+                    f"Available balance drift: local={local_d}, broker={broker_d} "
+                    f"(tolerance={tolerance})"
+                ),
+                payload={
+                    "local_available": str(local_d),
+                    "broker_available": str(broker_d),
+                    "tolerance": str(tolerance),
+                },
+            )
+        ]
+
+
+__all__ = ["ReconciliationEngine"]

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from domain.errors import BrokerNotReadyError
+from domain.exceptions import BrokerNotReadyError
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from interface.ui.services.broker_registry import bootstrap_gateway
 

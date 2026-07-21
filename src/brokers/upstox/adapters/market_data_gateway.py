@@ -19,6 +19,7 @@ from brokers.upstox.market_data.market_data_adapter import (
     UpstoxMarketDataAdapter as MarketDataAdapter,
 )
 from domain import (
+from domain.market_enums import ExchangeId
     FutureChain,
     MarketDepth,
     OptionChain,
@@ -68,22 +69,22 @@ class MarketDataGateway:
 
     # ── LTP / Quote / Depth ─────────────────────────────────────────────
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = ExchangeId.NSE) -> Decimal:
         """Fetch last traded price for a symbol (V3 LTP with v2 fallback)."""
         key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.ltp(key, exchange)
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = ExchangeId.NSE) -> Quote:
         """Fetch full quote with OHLCV for a symbol."""
         key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.quote(key, exchange)
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = ExchangeId.NSE) -> MarketDepth:
         """Fetch order book depth for a symbol."""
         key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.depth(key, exchange)
 
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def ltp_batch(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Decimal]:
         """Native multi-key LTP (≤500 keys / HTTP). Overrides BatchFetchMixin N×1 path."""
         if not symbols:
             return {}
@@ -91,7 +92,7 @@ class MarketDataGateway:
         raw = self._market_data.ltps_batch(keys)
         return self._map_batch_to_symbols(symbols, key_to_sym, raw, default=Decimal("0"))
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
+    def quote_batch(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Quote]:
         """Native multi-key full quotes (≤500 keys / HTTP). Overrides BatchFetchMixin."""
         if not symbols:
             return {}
@@ -153,7 +154,7 @@ class MarketDataGateway:
     def history(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,

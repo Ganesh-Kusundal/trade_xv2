@@ -17,7 +17,7 @@ import logging
 from collections.abc import Callable
 
 from application.composer.registry import BrokerRegistry
-from domain.errors import RoutingError
+from domain.exceptions import RoutingError
 from domain.models.routing import (
     OperationKind,
     RouteDecision,

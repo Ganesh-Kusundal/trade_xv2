@@ -14,6 +14,7 @@ from typing import Any
 
 from brokers.upstox.adapters.stream_manager import StreamManagerAdapter
 from domain import MarketDepth, Quote
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class StreamingGateway:
     def stream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
@@ -112,7 +113,7 @@ class StreamingGateway:
     def unstream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         on_tick: Any | None = None,
     ) -> None:
         """Unsubscribe from a live tick stream.
@@ -172,7 +173,7 @@ class StreamingGateway:
     def stream_depth(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         depth_type: str | None = None,  # DEPTH_5, DEPTH_30 — back-compat
         on_depth: Callable[[MarketDepth], None] | None = None,
         levels: int | None = None,

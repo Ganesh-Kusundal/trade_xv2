@@ -10,6 +10,7 @@ from brokers.session import BrokerSession
 from ._session import _borrow_session, check_live_actionable
 from .capabilities import _session_gateway
 from .order_port import order_port_from_session
+from domain.market_enums import ExchangeId
 
 
 def get_news(
@@ -80,7 +81,7 @@ def place_order(
     price: Any | None = None,
     order_type: str = "LIMIT",
     product_type: str = "INTRADAY",
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     session: BrokerSession | None = None,
     **kwargs: Any,
 ) -> Any:

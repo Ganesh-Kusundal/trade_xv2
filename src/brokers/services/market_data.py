@@ -8,12 +8,13 @@ from typing import Any
 from brokers.session import BrokerSession
 
 from ._session import _borrow_session
+from domain.market_enums import ExchangeId
 
 
 def get_quote(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,
@@ -32,7 +33,7 @@ def get_history(
     *,
     timeframe: str = "1D",
     days: int = 5,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     session: BrokerSession | None = None,
     **kwargs: Any,
 ) -> Any:
@@ -50,7 +51,7 @@ def get_history_batch(
     *,
     timeframe: str = "1D",
     days: int = 5,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     session: BrokerSession | None = None,
     **kwargs: Any,
 ) -> Any:
@@ -72,7 +73,7 @@ def get_history_batch(
 def run_subscribe_probe(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     wait_seconds: float = 2.0,
@@ -103,7 +104,7 @@ def run_subscribe_probe(
 def get_depth(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,
@@ -119,7 +120,7 @@ def get_depth(
 def get_depth30(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,
@@ -143,7 +144,7 @@ def get_depth30(
 def probe_depth_ws(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     levels: int = 20,
     session: BrokerSession | None = None,
@@ -177,7 +178,7 @@ def probe_depth_ws(
 def get_option_chain(
     broker: str,
     underlying: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,

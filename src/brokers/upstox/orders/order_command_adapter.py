@@ -54,7 +54,7 @@ class UpstoxOrderCommandAdapter:
         self._risk_manager = risk_manager
 
     def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
-        from domain.errors import OrderError
+        from domain.exceptions import OrderError
 
         cid = request.correlation_id
         if cid and self._idempotency_cache is not None:
@@ -91,7 +91,7 @@ class UpstoxOrderCommandAdapter:
         request: BrokerOrderPayload,
         _post_sent: list[bool] | None = None,
     ) -> OrderResponse:
-        from domain.errors import OrderError
+        from domain.exceptions import OrderError
 
         if self._risk_manager is not None:
             preview_order = self._to_domain_order(request)
@@ -260,7 +260,7 @@ class UpstoxOrderCommandAdapter:
         return OrderPreview(valid=not errors, errors=errors)
 
     def _resolve_instrument_key(self, request: BrokerOrderPayload) -> str:
-        from domain.errors import InstrumentNotFoundError
+        from domain.exceptions import InstrumentNotFoundError
 
         seg_wire = UpstoxDomainMapper.segment_to_wire(request.exchange_segment)
         definition = self._instrument_resolver.resolve(

@@ -25,6 +25,7 @@ from domain import (
     Quote,
 )
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.market_enums import ExchangeId
 
 
 class BrokerContractSuite:
@@ -245,7 +246,7 @@ class BrokerContractSuite:
 
         request = OrderRequest(
             symbol="RELIANCE",
-            exchange="NSE",
+            exchange=ExchangeId.NSE,
             transaction_type=Side.BUY,
             quantity=1,
             order_type="LIMIT",
@@ -257,7 +258,7 @@ class BrokerContractSuite:
         else:
             result = gateway.place_order(
                 symbol="RELIANCE",
-                exchange="NSE",
+                exchange=ExchangeId.NSE,
                 side="BUY",
                 quantity=1,
                 price=1,

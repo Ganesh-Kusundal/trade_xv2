@@ -7,7 +7,7 @@ where the domain layer does not already cover the case.
 from __future__ import annotations
 
 from domain.connect_errors import ConnectError
-from domain.errors import BrokerError, CapabilityError, NotConfiguredError
+from domain.exceptions import BrokerError, CapabilityError, NotConfiguredError
 from domain.exceptions import (
     ConfigError,
     DataError,

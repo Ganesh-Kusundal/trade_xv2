@@ -184,7 +184,7 @@ class Instrument(
         default = get_default_provider()
         if default is not None:
             return default
-        from domain.errors import NotConfiguredError
+        from domain.exceptions import NotConfiguredError
 
         raise NotConfiguredError(
             "Instrument has no DataProvider; use tradex.connect() to wire a session "

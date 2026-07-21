@@ -32,7 +32,7 @@ from domain.entities import (
     Trade,
 )
 from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
-from domain.errors import TradeXV2RecoverableError
+from domain.exceptions import TradeXV2RecoverableError
 from domain.executions.execution import Execution
 from domain.executions.result import GatewayResult, ResultMetadata
 from domain.extensions import Extension, ExtensionRegistry

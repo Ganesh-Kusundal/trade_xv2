@@ -9,6 +9,7 @@ from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_identity
 from domain import DepthLevel, MarketDepth, Quote
+from domain.market_enums import ExchangeId
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class MarketDataAdapter:
         ref = self._identity.resolve_ref(symbol, exchange)
         return ref, ref.exchange_segment
 
-    def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def get_ltp(self, symbol: str, exchange: str = ExchangeId.NSE) -> Decimal:
         ref, segment = self._resolve_and_segment(symbol, exchange)
         sid = int(ref.security_id)
         # PR-B: defence-in-depth invariant assertion. The market-feed
@@ -57,7 +58,7 @@ class MarketDataAdapter:
         logger.debug("ltp_fetched", extra={"symbol": symbol, "ltp": str(ltp)})
         return ltp
 
-    def get_quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def get_quote(self, symbol: str, exchange: str = ExchangeId.NSE) -> Quote:
         ref, segment = self._resolve_and_segment(symbol, exchange)
         sid = int(ref.security_id)
         assert_dhan_identity(sid, segment, context="market_data.get_quote")
@@ -82,7 +83,7 @@ class MarketDataAdapter:
         )
         return quote
 
-    def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def get_depth(self, symbol: str, exchange: str = ExchangeId.NSE) -> MarketDepth:
         ref, segment = self._resolve_and_segment(symbol, exchange)
         sid = int(ref.security_id)
         assert_dhan_identity(sid, segment, context="market_data.get_depth")
@@ -113,7 +114,7 @@ class MarketDataAdapter:
         )
         return depth
 
-    def get_ohlc(self, symbol: str, exchange: str = "NSE") -> dict:
+    def get_ohlc(self, symbol: str, exchange: str = ExchangeId.NSE) -> dict:
         ref, segment = self._resolve_and_segment(symbol, exchange)
         sid = int(ref.security_id)
         assert_dhan_identity(sid, segment, context="market_data.get_ohlc")
@@ -122,7 +123,7 @@ class MarketDataAdapter:
         logger.debug("ohlc_fetched", extra={"symbol": symbol})
         return result
 
-    def get_batch_ltp(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def get_batch_ltp(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Decimal]:
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}
         for sym in symbols:
@@ -146,7 +147,7 @@ class MarketDataAdapter:
                     result[symbol_map[sid]] = Decimal(str(info.get("last_price", 0)))
         return result
 
-    def get_batch_quote(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
+    def get_batch_quote(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Quote]:
         from domain import Quote as DhanQuote
 
         segment_map: dict[str, list[int]] = {}

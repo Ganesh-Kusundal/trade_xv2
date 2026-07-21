@@ -15,7 +15,7 @@ import logging
 from typing import Any
 
 from domain.enums import BrokerId
-from domain.errors import BrokerNotReadyError
+from domain.exceptions import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapStatus
 
 logger = logging.getLogger(__name__)

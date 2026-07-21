@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+from domain.market_enums import ExchangeId
 
 #: Legacy number of paise per rupee. Prices on Indian exchanges are often
 #: quoted in paise (1/100 of a rupee) on the binary wire.
@@ -106,7 +107,7 @@ class MarketSurface:
 #: lot 1 / risk-free 0.065). Change these ONLY when the legacy behaviour
 #: itself changes; the test-suite asserts byte-for-byte equality.
 DEFAULT_MARKET_SURFACE: MarketSurface = MarketSurface(
-    exchange="NSE",
+    exchange=ExchangeId.NSE,
     currency="INR",
     price_tick=Decimal("0.05"),
     lot_size=1,
