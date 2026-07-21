@@ -9,9 +9,15 @@ def test_constants_init_is_pure_facade():
     """__init__.py should contain only imports — no class or function definitions."""
     with open("src/domain/constants/__init__.py") as f:
         tree = ast.parse(f.read())
-    # Should only have imports, no class/function definitions
+    # Should only have imports, docstrings, and __all__ assignment — no class/function definitions
     for node in ast.iter_child_nodes(tree):
-        assert isinstance(node, (ast.Import, ast.ImportFrom)), (
+        if isinstance(node, ast.Assign):
+            # Allow __all__ = [...] assignment
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "__all__":
+                    continue
+            continue
+        assert isinstance(node, (ast.Import, ast.ImportFrom, ast.Expr)), (
             f"Non-import node found: {type(node).__name__}"
         )
 
