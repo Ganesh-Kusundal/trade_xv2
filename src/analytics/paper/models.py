@@ -9,27 +9,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from typing import Any
 
-from analytics.replay.models import FillModel
-from domain import Side as DomainSide
+from analytics.simulation.models import FillModel
+from domain.constants import DEFAULT_EXCHANGE
 from domain.entities import Trade
-from domain.enums import OrderStatus, Side
+from domain.enums import OrderStatus, PositionSide, Side
 from domain.portfolio_projection import PortfolioProjector
 from domain.ports.time_service import get_current_clock
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
 from domain.trading_costs import CommissionModel, IndianMarketFees
-
-OrderSide = Side  # backward-compat alias (canonical Side)
-
-
-class PositionSide(str, Enum):
-    LONG = "LONG"
-    SHORT = "SHORT"
-    FLAT = "FLAT"
-
 
 # ---------------------------------------------------------------------------
 # PaperConfig
@@ -100,7 +90,7 @@ class PaperOrder:
 
     order_id: str
     symbol: str
-    side: OrderSide
+    side: Side
     quantity: int
     price: float
     order_time: datetime
@@ -198,7 +188,7 @@ class PaperTrade:
     """A completed trade in paper trading."""
 
     symbol: str
-    side: OrderSide
+    side: Side
     entry_price: float
     exit_price: float
     quantity: int
@@ -254,24 +244,24 @@ class PaperSession:
     def projector(self) -> PortfolioProjector:
         return self.fill_pipeline.projector
 
-    def has_position(self, symbol: str, exchange: str = "NSE") -> bool:
+    def has_position(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> bool:
         pos = self.fill_pipeline.projector.get_position(symbol, exchange)
         return pos is not None and pos.quantity != 0
 
     def open_symbols(self) -> list[str]:
         return [p.symbol for p in self.fill_pipeline.projector.get_positions() if p.quantity != 0]
 
-    def mark_symbol(self, symbol: str, price: float, exchange: str = "NSE") -> None:
+    def mark_symbol(self, symbol: str, price: float, exchange: str = DEFAULT_EXCHANGE) -> None:
         self.fill_pipeline.projector.mark_ltp(symbol, exchange, Decimal(str(price)))
 
     def bootstrap_position(
         self,
         position: PaperPosition,
         *,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
     ) -> None:
         """Seed projector + meta (tests / recovery)."""
-        side = DomainSide.BUY if position.side == PositionSide.LONG else DomainSide.SELL
+        side = Side.BUY if position.side == PositionSide.LONG else Side.SELL
         order_id = f"bootstrap:{position.symbol}"
         trade = Trade(
             trade_id=f"{order_id}:{position.quantity}",
@@ -297,13 +287,13 @@ class PaperSession:
     def clear_position(self, symbol: str) -> None:
         self.position_meta.pop(symbol, None)
 
-    def _domain_position(self, symbol: str, exchange: str = "NSE"):
+    def _domain_position(self, symbol: str, exchange: str = DEFAULT_EXCHANGE):
         pos = self.fill_pipeline.projector.get_position(symbol, exchange)
         if pos is None or pos.quantity == 0:
             return None
         return pos
 
-    def _to_paper_position(self, symbol: str, exchange: str = "NSE") -> PaperPosition | None:
+    def _to_paper_position(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> PaperPosition | None:
         pos = self._domain_position(symbol, exchange)
         if pos is None:
             return None

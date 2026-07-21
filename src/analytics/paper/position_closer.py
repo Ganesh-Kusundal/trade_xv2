@@ -1,8 +1,10 @@
-"""Position closing for paper trading — stop-loss / take-profit exits and EOD closes.
+"""Position closing for paper trading — thin adapter over the shared engine.
 
-Extracted from ``analytics.paper.engine.PaperTradingEngine``. Slippage is applied
-**once** inside ``OmsBacktestAdapter`` — this module passes the un-slipped price
-and records the OMS fill price into the session (F2a/F2d).
+Configures :class:`analytics.simulation.position_closer.PositionCloser` with
+paper-specific hooks (REF-5): ``PaperTrade``/``PaperOrder`` records and the
+cash-ledger callback. Slippage is applied **once** inside
+``OmsBacktestAdapter`` — this module passes the un-slipped price and records
+the OMS fill price into the session (F2a/F2d).
 """
 
 from __future__ import annotations
@@ -11,19 +13,17 @@ import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from decimal import Decimal
 
-from analytics.oms_fill_price import resolve_oms_fill_price
 from analytics.paper.models import (
-    OrderSide,
     OrderStatus,
     PaperOrder,
     PaperSession,
     PaperTrade,
-    PositionSide,
 )
-from domain import Side
+from analytics.simulation.position_closer import PositionCloser, PositionCloserHooks
 from domain.candles.historical import HistoricalBar
+from domain.constants import DEFAULT_EXCHANGE
+from domain.enums import PositionSide, Side
 from domain.trading_costs import compute_commission
 
 logger = logging.getLogger(__name__)
@@ -58,9 +58,9 @@ class PaperPositionCloser:
         on_cash: Callable[[PaperSession, float], None] | None = None,
     ) -> None:
         self._config = config
-        self._oms_adapter = oms_adapter
         self._record_fill = record_fill
         self._on_cash = on_cash
+        self._impl = PositionCloser(self._build_hooks(), oms_adapter=oms_adapter)
 
     def _apply_cash(self, session: PaperSession, delta: float) -> None:
         if self._on_cash is not None:
@@ -78,49 +78,24 @@ class PaperPositionCloser:
             fees=cfg.indian_market_fees,
         )
 
-    def close(
+    def _close_side(self, view) -> Side:
+        return Side.SELL if view.side == PositionSide.LONG else Side.BUY
+
+    def _book_close_fill(
         self,
-        session,
+        session: PaperSession,
         symbol: str,
-        price: float,
+        view,
+        *,
+        exit_price: float,
+        requested_price: float,
         timestamp: datetime,
         reason: str,
+        order_id: str,
     ) -> None:
-        """Close a position through OMS for backtest-live parity."""
-        view = session._to_paper_position(symbol)
-        if view is None:
-            return
-
-        # Un-slipped base — OmsBacktestAdapter applies slippage once (F2a).
-        dec_price = Decimal(str(price))
-        order_id = self._oms_adapter.close_long(
-            symbol=symbol,
-            exchange="NSE",
-            quantity=view.quantity,
-            price=dec_price,
-            timestamp=timestamp,
-            strategy=view.strategy,
-            reasons=[reason],
-        )
-
-        if order_id is None:
-            return
-
         config = self._config
-        if view.side == PositionSide.LONG:
-            slip_side = "SELL"
-            close_side = Side.SELL
-        else:
-            slip_side = "BUY"
-            close_side = Side.BUY
-
-        exit_price = resolve_oms_fill_price(
-            self._oms_adapter,
-            order_id,
-            base_price=dec_price,
-            side=slip_side,
-            slippage_pct=config.slippage_pct,
-        )
+        slip_side = self._close_side(view)
+        close_side = Side.SELL if slip_side == Side.SELL else Side.BUY
 
         if view.side == PositionSide.LONG:
             pnl = (exit_price - view.entry_price) * view.quantity
@@ -132,16 +107,15 @@ class PaperPositionCloser:
             pnl_pct = -pnl_pct
 
         commission = self._commission(exit_price * view.quantity, slip_side)
-        slippage_cost = view.quantity * float(dec_price) * (config.slippage_pct / 100)
+        slippage_cost = view.quantity * float(requested_price) * (config.slippage_pct / 100)
         net_pnl = pnl - commission
         session.daily_pnl += net_pnl
-        # exit*qty - commission == entry*qty + net_pnl for long closes
         self._apply_cash(session, exit_price * view.quantity - commission)
 
         session.trades.append(
             PaperTrade(
                 symbol=symbol,
-                side=OrderSide.BUY if view.side == PositionSide.LONG else OrderSide.SELL,
+                side=Side.BUY if view.side == PositionSide.LONG else Side.SELL,
                 entry_price=view.entry_price,
                 exit_price=exit_price,
                 quantity=view.quantity,
@@ -160,9 +134,9 @@ class PaperPositionCloser:
             PaperOrder(
                 order_id=f"P-{_gen_id()}",
                 symbol=symbol,
-                side=OrderSide.SELL if view.side == PositionSide.LONG else OrderSide.BUY,
+                side=Side.SELL if view.side == PositionSide.LONG else Side.BUY,
                 quantity=view.quantity,
-                price=float(dec_price),
+                price=float(requested_price),
                 order_time=timestamp,
                 status=OrderStatus.FILLED,
                 fill_price=exit_price,
@@ -178,38 +152,33 @@ class PaperPositionCloser:
             session,
             order_id=order_id,
             symbol=symbol,
-            exchange="NSE",
+            exchange=DEFAULT_EXCHANGE,
             side=close_side,
             quantity=view.quantity,
             price=exit_price,
             timestamp=timestamp,
             trade_tag="close",
         )
-        session.clear_position(symbol)
 
-    def check_exits(self, session, bar: HistoricalBar) -> None:
+    def _build_hooks(self) -> PositionCloserHooks:
+        return PositionCloserHooks(
+            position_view=lambda session, symbol: session._to_paper_position(symbol),
+            close_side=self._close_side,
+            oms_slippage_pct=lambda: self._config.slippage_pct,
+            book_close_fill=self._book_close_fill,
+        )
+
+    def close(
+        self,
+        session: PaperSession,
+        symbol: str,
+        price: float,
+        timestamp: datetime,
+        reason: str,
+    ) -> None:
+        """Close a position through OMS for backtest-live parity."""
+        self._impl.close(session, symbol, price, timestamp, reason)
+
+    def check_exits(self, session: PaperSession, bar: HistoricalBar) -> None:
         """Check stop-loss and take-profit exits for the bar's symbol."""
-        if not session.has_position(bar.symbol):
-            return
-
-        view = session._to_paper_position(bar.symbol)
-        meta = session.position_meta.get(bar.symbol)
-        if view is None:
-            return
-
-        stop_loss = meta.stop_loss if meta else view.stop_loss
-        take_profit = meta.take_profit if meta else view.take_profit
-
-        if stop_loss is not None and (
-            (view.side == PositionSide.LONG and bar.low <= stop_loss)
-            or (view.side == PositionSide.SHORT and bar.high >= stop_loss)
-        ):
-            self.close(session, bar.symbol, stop_loss, bar.timestamp, "Stop-loss hit")
-            return
-
-        if take_profit is not None and (
-            (view.side == PositionSide.LONG and bar.high >= take_profit)
-            or (view.side == PositionSide.SHORT and bar.low <= take_profit)
-        ):
-            self.close(session, bar.symbol, take_profit, bar.timestamp, "Take-profit hit")
-            return
+        self._impl.check_exits(session, bar)

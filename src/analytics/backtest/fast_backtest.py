@@ -33,6 +33,7 @@ from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
 from domain.entities.trade import Trade
+from domain.enums import Side
 from domain.trading_costs import apply_slippage as _apply_slippage
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ class FastBacktestEngine:
                     if qty > 0:
                         entry_price = float(
                             _apply_slippage(
-                                Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct
+                                Decimal(str(price)), side=Side.BUY, slippage_pct=config.slippage_pct
                             )
                         )
                         commission = config.commission_flat
@@ -183,7 +184,7 @@ class FastBacktestEngine:
                     price = float(row["close"])
                     exit_price = float(
                         _apply_slippage(
-                            Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct
+                            Decimal(str(price)), side=Side.SELL, slippage_pct=config.slippage_pct
                         )
                     )
                     commission = config.commission_flat
@@ -196,7 +197,7 @@ class FastBacktestEngine:
                         order_id="",
                         symbol=symbol,
                         exchange="NSE",
-                        side="BUY" if position["side"] == "LONG" else "SELL",
+                        side=Side.BUY if position["side"] == "LONG" else Side.SELL,
                         quantity=position["quantity"],
                         price=Decimal(str(position["entry_price"])),
                         trade_value=Decimal(str(pnl - commission - position["cost"])),
@@ -223,7 +224,7 @@ class FastBacktestEngine:
                 order_id="",
                 symbol=symbol,
                 exchange="NSE",
-                side="BUY" if position["side"] == "LONG" else "SELL",
+                side=Side.BUY if position["side"] == "LONG" else Side.SELL,
                 quantity=position["quantity"],
                 price=Decimal(str(position["entry_price"])),
                 trade_value=Decimal(str(pnl - config.commission_flat - position["cost"])),

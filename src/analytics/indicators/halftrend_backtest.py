@@ -28,6 +28,7 @@ from analytics.indicators.halftrend import HalfTrend
 from analytics.scanner.models import Candidate
 from analytics.strategy import Signal, SignalType
 from domain.entities.trade import Trade
+from domain.enums import Side
 from domain.trading_costs import apply_slippage as _apply_slippage
 
 # ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ class HalfTrendStrategy:
         close = float(last.get("close", 0))
         ht_val = float(last.get("halftrend", close))
 
-        if signal_str == "BUY":
+        if signal_str == Side.BUY:
             return Signal(
                 symbol=candidate.symbol,
                 signal_type=SignalType.BUY,
@@ -74,7 +75,7 @@ class HalfTrendStrategy:
                 reasons=["HalfTrend BUY signal", f"direction={direction}"],
                 metadata={"halftrend": ht_val},
             )
-        elif signal_str == "SELL":
+        elif signal_str == Side.SELL:
             return Signal(
                 symbol=candidate.symbol,
                 signal_type=SignalType.SELL,
@@ -128,7 +129,7 @@ def fast_backtest(
             if qty > 0:
                 entry_p = float(
                     _apply_slippage(
-                        Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct
+                        Decimal(str(price)), side=Side.BUY, slippage_pct=config.slippage_pct
                     )
                 )
                 position = {"entry": entry_p, "qty": qty, "time": ts}
@@ -136,7 +137,7 @@ def fast_backtest(
 
         elif signal_str == "SELL" and position is not None:
             exit_p = float(
-                _apply_slippage(Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct)
+                _apply_slippage(Decimal(str(price)), side=Side.SELL, slippage_pct=config.slippage_pct)
             )
             pnl = (exit_p - position["entry"]) * position["qty"]
             trades.append(

@@ -20,6 +20,7 @@ from enum import Enum
 from typing import Any
 
 from analytics.strategy.models import Signal
+from domain.enums import Side
 from domain.events.types import DomainEvent
 from domain.portfolio_projection import PortfolioProjector
 from domain.ports.time_service import get_current_clock
@@ -29,6 +30,19 @@ from domain.simulation_position_meta import PositionMeta
 # ---------------------------------------------------------------------------
 # ReplayItem — single item in the merged replay stream
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BarData:
+    """OHLCV payload carried on bar-kind :class:`ReplayItem` rows (REF-11)."""
+
+    symbol: str
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
 
 
 @dataclass(frozen=True)
@@ -45,7 +59,7 @@ class ReplayItem:
     kind: str  # "bar" or "event"
     symbol: str | None = None
     event: DomainEvent | None = None
-    bar_data: dict[str, Any] | None = None  # OHLCV data
+    bar_data: BarData | None = None  # OHLCV data
 
     def __lt__(self, other: ReplayItem) -> bool:
         if self.timestamp != other.timestamp:
@@ -91,30 +105,14 @@ class ReplayMode(str, Enum):
 
 
 # Re-export canonical models from domain.trading_costs (single source of truth)
+from analytics.simulation.models import FillModel
+from domain.candles.historical import HistoricalBar  # noqa: F401 — re-exported via __init__
+from domain.constants import DEFAULT_EXCHANGE
 from domain.trading_costs import (
     CommissionModel,
     IndianMarketFees,
     SlippageModel,
 )
-
-
-class FillModel(str, Enum):
-    """Fill price model for simulated trades."""
-
-    CURRENT_CLOSE = "current_close"  # Fill at current bar's close (default, legacy)
-    NEXT_OPEN = "next_open"  # Fill at next bar's open (more realistic)
-
-
-# ---------------------------------------------------------------------------
-# Indian Market Fees
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Domain bar SSOT — import HistoricalBar from domain.candles.historical
-# ---------------------------------------------------------------------------
-
-from domain.candles.historical import HistoricalBar  # noqa: F401 — re-exported via __init__
 
 
 @dataclass
@@ -206,7 +204,7 @@ class SimulatedTrade:
     """
 
     symbol: str
-    side: str  # "BUY" or "SELL"
+    side: Side
     entry_price: float
     exit_price: float | None = None
     quantity: int = 0
@@ -250,7 +248,7 @@ class SimulatedPosition:
     """
 
     symbol: str
-    side: str
+    side: Side
     entry_price: float
     quantity: int
     entry_time: datetime
@@ -279,7 +277,7 @@ class SimulatedPosition:
         return Position(
             symbol=self.symbol,
             exchange="NSE",
-            quantity=self.quantity if self.side == "BUY" else -self.quantity,
+            quantity=self.quantity if self.side == Side.BUY else -self.quantity,
             avg_price=Decimal(str(self.entry_price)),
             ltp=Decimal(str(self.entry_price)),
         )
@@ -310,14 +308,14 @@ class ReplaySession:
     def projector(self) -> PortfolioProjector:
         return self.fill_pipeline.projector
 
-    def has_position(self, symbol: str, exchange: str = "NSE") -> bool:
+    def has_position(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> bool:
         pos = self.fill_pipeline.projector.get_position(symbol, exchange)
         return pos is not None and pos.quantity != 0
 
     def open_symbols(self) -> list[str]:
         return [p.symbol for p in self.fill_pipeline.projector.get_positions() if p.quantity != 0]
 
-    def mark_symbol(self, symbol: str, price: float, exchange: str = "NSE") -> None:
+    def mark_symbol(self, symbol: str, price: float, exchange: str = DEFAULT_EXCHANGE) -> None:
         from decimal import Decimal
 
         self.fill_pipeline.projector.mark_ltp(symbol, exchange, Decimal(str(price)))
@@ -326,14 +324,13 @@ class ReplaySession:
         self,
         position: SimulatedPosition,
         *,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
     ) -> None:
         from decimal import Decimal
 
-        from domain import Side as DomainSide
         from domain.entities import Trade
 
-        side = DomainSide.BUY if position.side == "BUY" else DomainSide.SELL
+        side = Side.BUY if position.side == Side.BUY else Side.SELL
         order_id = f"bootstrap:{position.symbol}"
         trade = Trade(
             trade_id=f"{order_id}:{position.quantity}",
@@ -360,7 +357,7 @@ class ReplaySession:
         self.position_meta.pop(symbol, None)
 
     def _to_simulated_position(
-        self, symbol: str, exchange: str = "NSE"
+        self, symbol: str, exchange: str = DEFAULT_EXCHANGE
     ) -> SimulatedPosition | None:
         pos = self.fill_pipeline.projector.get_position(symbol, exchange)
         if pos is None or pos.quantity == 0:
@@ -368,7 +365,7 @@ class ReplaySession:
         meta = self.position_meta.get(symbol)
         return SimulatedPosition(
             symbol=symbol,
-            side="BUY" if pos.quantity > 0 else "SELL",
+            side=Side.BUY if pos.quantity > 0 else Side.SELL,
             entry_price=float(pos.avg_price),
             quantity=abs(pos.quantity),
             entry_time=meta.entry_time if meta else get_current_clock().now(),
