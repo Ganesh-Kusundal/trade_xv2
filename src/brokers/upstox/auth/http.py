@@ -311,9 +311,15 @@ class UpstoxHttpClient:
             if cb is not None:
                 cb.on_success()
             return result
-        except Exception:
+        except Exception as exc:
             if cb is not None:
-                cb.on_failure()
+                code = getattr(exc, "status_code", None)
+                # Only count transport/network errors and 5xx server errors
+                # as circuit-breaker failures.  4xx client errors (bad
+                # requests, auth failures, maintenance locks) are business
+                # rejects and must NOT open the breaker.
+                if code is None or code >= 500:
+                    cb.on_failure()
             raise
 
     def _execute_request(
