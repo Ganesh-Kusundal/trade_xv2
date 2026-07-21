@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from domain import OptionChain
+from domain.market_enums import ExchangeId
 from domain.symbols import normalize_exchange, normalize_symbol
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ class CanonicalInstrumentRegistry:
             except Exception as exc:
                 logger.warning("Failed to load instruments: %s", exc)
 
-    def resolve(self, symbol: str, exchange: str = "NSE") -> CanonicalInstrument | None:
+    def resolve(self, symbol: str, exchange: str = ExchangeId.NSE) -> CanonicalInstrument | None:
         """Resolve a symbol to a canonical instrument.
 
         Parameters
@@ -136,7 +137,7 @@ class CanonicalInstrumentRegistry:
 
         return None
 
-    def resolve_required(self, symbol: str, exchange: str = "NSE") -> CanonicalInstrument:
+    def resolve_required(self, symbol: str, exchange: str = ExchangeId.NSE) -> CanonicalInstrument:
         """Resolve a symbol, raising ValueError if not found."""
         inst = self.resolve(symbol, exchange)
         if inst is None:
@@ -334,7 +335,7 @@ class CanonicalInstrumentRegistry:
             instruments.append(self._to_canonical(r, exchange or r.get("exchange", "NSE")))
         return instruments
 
-    def _to_canonical(self, raw: dict, default_exchange: str = "NSE") -> CanonicalInstrument:
+    def _to_canonical(self, raw: dict, default_exchange: str = ExchangeId.NSE) -> CanonicalInstrument:
         """Convert a raw instrument dict to CanonicalInstrument."""
         return CanonicalInstrument(
             symbol=raw.get("symbol", ""),

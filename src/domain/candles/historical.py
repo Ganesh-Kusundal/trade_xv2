@@ -21,6 +21,7 @@ from domain.candles._helpers import (
     coerce_event_time,
 )
 from domain.candles._indicators import SeriesIndicators
+from domain.market_enums import ExchangeId
 from domain.provenance import DataProvenance, ProvenanceConfidence
 
 
@@ -118,7 +119,7 @@ class HistoricalBar:
         low: Decimal | float | int | str,
         close: Decimal | float | int | str,
         volume: Decimal | float | int = 0,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         timeframe: str = "1D",
         metadata: Mapping[str, Any] | None = None,
     ) -> HistoricalBar:

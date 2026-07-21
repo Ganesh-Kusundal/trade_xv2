@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from domain.market_enums import ExchangeId
+
 
 @dataclass(slots=True, frozen=True)
 class ConditionalAlert:
@@ -27,7 +29,7 @@ class ConditionalAlertRequest:
     """
 
     symbol: str = ""
-    exchange: str = "NSE"
+    exchange: str = ExchangeId.NSE
     condition_type: str = ""
     threshold: Decimal = Decimal("0")
 

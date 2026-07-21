@@ -37,6 +37,21 @@ class Exchange(str, Enum):
     INDEX = "INDEX"
 
 
+class ExchangeId(str, Enum):
+    """Canonical exchange identifiers used as default parameter values.
+
+    Distinct from :class:`Exchange` — this enum is the single source of
+    truth for ``"NSE"`` / ``"NFO"`` / etc. default arguments across the
+    codebase, replacing scattered hardcoded string literals.
+    """
+
+    NSE = "NSE"
+    NFO = "NFO"
+    BSE = "BSE"
+    MCX = "MCX"
+    UNKNOWN = "UNKNOWN"
+
+
 class InstrumentType(str, Enum):
     """Canonical instrument type categories."""
 

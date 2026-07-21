@@ -34,6 +34,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from domain.enums import OrderType, ProductType, Side
+from domain.market_enums import ExchangeId
 from domain.orders.intent import OrderIntent
 from domain.orders.sizing import (
     SizingMethod,
@@ -127,7 +128,7 @@ class PlanContext:
     atr_risk_pct: Decimal = Decimal("1")
     default_order_type: OrderType = OrderType.MARKET
     default_product_type: ProductType = ProductType.INTRADAY
-    default_exchange: str = "NSE"
+    default_exchange: str = ExchangeId.NSE
     min_confidence: Decimal = Decimal("0")
     kill_switch_active: bool = False
     correlation_id: str | None = None

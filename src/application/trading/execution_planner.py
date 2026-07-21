@@ -13,6 +13,7 @@ from decimal import Decimal, InvalidOperation
 
 from application.oms.order_manager import OmsOrderCommand
 from domain import OrderType, ProductType
+from domain.market_enums import ExchangeId
 from domain.models.trading import SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, PlanContext
 from domain.orders.placement import build_execution_plan, plan_to_intents
@@ -70,7 +71,7 @@ class ExecutionPlanner:
         dry_run: bool = False,
         default_order_type: OrderType = OrderType.MARKET,
         default_product_type: ProductType = ProductType.INTRADAY,
-        default_exchange: str = "NSE",
+        default_exchange: str = ExchangeId.NSE,
         max_position_size_pct: float = 0.0,
         resolve_equity: Callable[[], float] | None = None,
         resolve_existing_notional: Callable[[str, str], Decimal] | None = None,

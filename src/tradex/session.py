@@ -35,6 +35,7 @@ from domain.session_status import (
     PHASE_READY_TRADE,
     SessionStatus,
 )
+from domain.market_enums import ExchangeId
 from domain.universe import Session as DomainSession
 from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
 from runtime.broker_discovery import discover_broker_plugins
@@ -381,7 +382,7 @@ def open_session(
             "BANKNIFTY",
             "NIFTYBEES",
         ],
-        default_exchange="NSE",
+        default_exchange=ExchangeId.NSE,
     )
     # Opt-in SessionRecording (TRADEX_SESSION_RECORD=1); never blocks connect.
     _maybe_start_session_recorder(session, event_bus, session_id=trace_id)

@@ -13,6 +13,14 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from domain.market_enums import ExchangeId
+
+# ── Exchange defaults ───────────────────────────────────────────────────────
+
+DEFAULT_EXCHANGE: ExchangeId = ExchangeId.NSE
+"""Canonical default exchange for function parameter defaults across the
+codebase.  Replaces scattered ``exchange: str = "NSE"`` literals (REF-3)."""
+
 # ── Risk / capital ──────────────────────────────────────────────────────────
 
 RISK_FALLBACK_CAPITAL: Decimal = Decimal("100000")

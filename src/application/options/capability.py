@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from domain.market_enums import ExchangeId
+
 
 @dataclass
 class OptionsCapability:
@@ -20,7 +22,7 @@ class OptionsCapability:
         self,
         underlying: str,
         *,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         expiry: str | None = None,
     ) -> dict[str, Any]:
         """Return option chain dict (calls/puts) from the wired gateway."""

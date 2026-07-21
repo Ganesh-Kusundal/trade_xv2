@@ -38,6 +38,7 @@ from typing import Any, ClassVar
 import pandas as pd
 import pyarrow as pa
 
+from domain.market_enums import ExchangeId
 from domain.ports.io import atomic_parquet_write
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ class HistoricalDownloadEngine:
         timeframe: str = "1D",
         from_date: str | None = None,
         to_date: str | None = None,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         parallel: bool = True,
         max_workers: int | None = None,
     ) -> pd.DataFrame:

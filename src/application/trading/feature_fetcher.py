@@ -9,6 +9,7 @@ from typing import Any
 
 import pandas as pd
 
+from domain.market_enums import ExchangeId
 from domain.models.features import FeatureSet
 from domain.ports.protocols import DataProvider
 
@@ -43,7 +44,7 @@ class PipelineFeatureFetcher:
         self._cache: OrderedDict[str, FeatureSet] = OrderedDict()
         self._cache_max = max(1, cache_max_entries)
 
-    def fetch(self, symbol: str, exchange: str = "NSE") -> FeatureSet:
+    def fetch(self, symbol: str, exchange: str = ExchangeId.NSE) -> FeatureSet:
         """Return FeatureSet for *symbol* (latest row used by orchestrator)."""
         cache_key = f"{symbol}:{exchange}"
         if cache_key in self._cache:

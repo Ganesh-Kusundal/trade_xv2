@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from domain.market_enums import ExchangeId
 from domain.universe import Session as DomainSession
 
 if TYPE_CHECKING:
@@ -21,14 +22,14 @@ def _domain_session(session: SessionLike) -> DomainSession:
     return session
 
 
-def refresh_quote(session: SessionLike, symbol: str, exchange: str = "NSE") -> Any:
+def refresh_quote(session: SessionLike, symbol: str, exchange: str = ExchangeId.NSE) -> Any:
     """Refresh and return quote for a cash equity symbol."""
     if hasattr(session, "stock"):
         return session.stock(symbol, exchange).refresh()
     return session.universe.equity(symbol, exchange).refresh()
 
 
-def quote_ltp(session: SessionLike, symbol: str, exchange: str = "NSE") -> Decimal | None:
+def quote_ltp(session: SessionLike, symbol: str, exchange: str = ExchangeId.NSE) -> Decimal | None:
     """Last traded price via domain instrument refresh."""
     q = refresh_quote(session, symbol, exchange)
     ltp = getattr(q, "ltp", None)
@@ -59,7 +60,7 @@ def fetch_history(
     session: SessionLike,
     symbol: str,
     *,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     timeframe: str = "1D",
     days: int = 30,
 ) -> Any:
@@ -72,7 +73,7 @@ def fetch_history(
     return inst.history(timeframe=timeframe, days=days)
 
 
-def fetch_depth(session: SessionLike, symbol: str, exchange: str = "NSE") -> Any:
+def fetch_depth(session: SessionLike, symbol: str, exchange: str = ExchangeId.NSE) -> Any:
     """Market depth via domain instrument (not wire gateway.depth())."""
     if hasattr(session, "stock"):
         return session.stock(symbol, exchange).depth()
@@ -83,7 +84,7 @@ def fetch_history_df(
     session: SessionLike,
     symbol: str,
     *,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
     timeframe: str = "1D",
     days: int = 30,
 ) -> Any:

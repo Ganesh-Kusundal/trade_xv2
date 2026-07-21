@@ -16,6 +16,7 @@ from application.execution.simulated_fill import (
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderResult
 from domain import OrderType, ProductType, Side
+from domain.market_enums import ExchangeId
 from domain.ports.execution_target import ExecutionTargetKind
 from domain.ports.time_service import use_clock
 from domain.ports.time_service_impls import VirtualClock
@@ -258,7 +259,7 @@ class OmsBacktestAdapter:
                 return True
         return False
 
-    def get_position(self, symbol: str, exchange: str = "NSE") -> dict | None:
+    def get_position(self, symbol: str, exchange: str = ExchangeId.NSE) -> dict | None:
         """Return current position for a symbol, or None if flat."""
         pm = self._ctx.position_manager
         positions = pm.get_all_positions() if hasattr(pm, "get_all_positions") else []

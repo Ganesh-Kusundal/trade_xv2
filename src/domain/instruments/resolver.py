@@ -11,6 +11,7 @@ from difflib import get_close_matches
 
 from domain.instruments.display_names import format_display_name, parse_display_name
 from domain.instruments.instrument_id import InstrumentId
+from domain.market_enums import ExchangeId
 
 
 class InstrumentResolver:
@@ -20,7 +21,7 @@ class InstrumentResolver:
         self,
         *,
         known_symbols: Sequence[str] | None = None,
-        default_exchange: str = "NSE",
+        default_exchange: str = ExchangeId.NSE,
     ) -> None:
         self._known = [s.upper() for s in (known_symbols or ())]
         self._default_exchange = default_exchange

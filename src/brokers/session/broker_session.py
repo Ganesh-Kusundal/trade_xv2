@@ -44,6 +44,7 @@ from domain.instruments.instrument import (
     Option,
     Spot,
 )
+from domain.market_enums import ExchangeId
 from domain.options.option_chain import OptionChain
 from domain.universe import Session as DomainSession
 from runtime.session_historical import fetch_historical_sync
@@ -159,23 +160,23 @@ class BrokerSession:
 
     # ── Instrument builders (return rich domain objects) ──────────────
 
-    def stock(self, symbol: str, exchange: str = "NSE") -> Equity:
+    def stock(self, symbol: str, exchange: str = ExchangeId.NSE) -> Equity:
         """Cash equity instrument (e.g. RELIANCE)."""
         return self._session.universe.equity(symbol, exchange)
 
     # Alias for clarity / parity with the spec's ``session.equity``.
     equity = stock
 
-    def etf(self, symbol: str, exchange: str = "NSE") -> ETF:
+    def etf(self, symbol: str, exchange: str = ExchangeId.NSE) -> ETF:
         return self._session.universe.etf(symbol, exchange)
 
-    def index(self, name: str, exchange: str = "NSE") -> Index:
+    def index(self, name: str, exchange: str = ExchangeId.NSE) -> Index:
         return self._session.universe.index(name, exchange)
 
     def spot(self, symbol: str, exchange: str = "CDS") -> Spot:
         return self._session.universe.spot(symbol, exchange)
 
-    def currency(self, symbol: str, exchange: str = "NSE") -> Currency:
+    def currency(self, symbol: str, exchange: str = ExchangeId.NSE) -> Currency:
         return self._session.universe.currency(symbol, exchange)
 
     def future(self, symbol: str, *, expiry: date, exchange: str = "NFO") -> Future:
@@ -203,7 +204,7 @@ class BrokerSession:
         underlying: str,
         *,
         expiry: date | int | str | None = None,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
     ) -> OptionChain:
         """Option chain as a rich aggregate composed of ``Option`` instruments."""
         return self._session.option_chain(underlying, expiry=expiry, exchange=exchange)
@@ -325,7 +326,7 @@ class BrokerSession:
         """Modify an existing order."""
         return self._session.modify(order_id, **changes)
 
-    def instrument_id(self, symbol: str, exchange: str = "NSE") -> str:
+    def instrument_id(self, symbol: str, exchange: str = ExchangeId.NSE) -> str:
         """Resolve symbol to canonical instrument id string."""
         return str(self.stock(symbol, exchange=exchange).id)
 

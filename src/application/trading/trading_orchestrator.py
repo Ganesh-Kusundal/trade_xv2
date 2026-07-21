@@ -44,6 +44,7 @@ from application.trading.models import FeatureFetcher
 from application.trading.order_placer import OrderPlacer
 from domain import OrderType, ProductType
 from domain.events.types import DomainEvent, EventType
+from domain.market_enums import ExchangeId
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.orders.execution_plan import ExecutionPlan, SlicingAlgo
 from domain.orders.requests import OrderRequest
@@ -86,7 +87,7 @@ class OrchestratorConfig:
     default_order_type: OrderType = OrderType.MARKET
     max_position_size_pct: float = 0.0
     feature_timeout_seconds: float | None = None
-    default_exchange: str = "NSE"
+    default_exchange: str = ExchangeId.NSE
 
 
 class TradingOrchestrator:

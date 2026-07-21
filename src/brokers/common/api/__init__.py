@@ -22,7 +22,8 @@ from domain import (
     Position,
     Quote,
 )
-from infrastructure.resilience.errors import TradeXV2Error
+from domain.market_enums import ExchangeId
+from domain.exceptions import TradeXV2Error
 
 
 class MarginProvider(Protocol):
@@ -53,16 +54,16 @@ class MarginResult:
 class MarketDataProvider(Protocol):
     """Protocol for market data operations."""
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote: ...
+    def quote(self, symbol: str, exchange: str = ExchangeId.NSE) -> Quote: ...
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal: ...
+    def ltp(self, symbol: str, exchange: str = ExchangeId.NSE) -> Decimal: ...
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth: ...
+    def depth(self, symbol: str, exchange: str = ExchangeId.NSE) -> MarketDepth: ...
 
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,

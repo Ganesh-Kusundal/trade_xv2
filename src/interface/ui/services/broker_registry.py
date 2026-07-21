@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain.enums import BrokerId
+from domain.market_enums import ExchangeId
 from infrastructure.connection.authenticated_readiness import (
     authenticated_readiness_probe,
 )
@@ -70,7 +71,7 @@ def get_broker_extensions(broker: str, gateway: object) -> list[Extension]:
 def create_instrument(
     broker: str,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str = ExchangeId.NSE,
 ) -> Instrument | None:
     result = bootstrap_gateway(broker, skip_auth_probe=True)
     if not result.ok or result.gateway is None:

@@ -17,6 +17,7 @@ import duckdb
 
 from datalake.core.duckdb_utils import duckdb_connection, get_pool
 from datalake.core.paths import timeframe_partition_dir
+from domain.market_enums import ExchangeId
 from datalake.core.symbols import normalize_symbol_for_storage
 
 logger = logging.getLogger(__name__)
@@ -194,7 +195,7 @@ class DataCatalog:
     def register_symbol(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         first_date: date | None = None,
         last_date: date | None = None,
         total_rows: int = 0,

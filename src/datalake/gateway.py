@@ -29,6 +29,7 @@ from datalake.core.symbols import (
     symbol_to_path,
 )
 from domain import MarketDepth, Quote
+from domain.market_enums import ExchangeId
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     HistoricalWindowConstraint,
@@ -124,7 +125,7 @@ class DataLakeGateway(MarketDataGateway):
 
         resampled = resampled.reset_index()
         resampled["symbol"] = df["symbol"].iloc[0] if "symbol" in df.columns else ""
-        resampled["exchange"] = df["exchange"].iloc[0] if "exchange" in df.columns else "NSE"
+        resampled["exchange"] = df["exchange"].iloc[0] if "exchange" in df.columns else ExchangeId.NSE
         resampled["timeframe"] = timeframe
         return resampled
 
@@ -152,7 +153,7 @@ class DataLakeGateway(MarketDataGateway):
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
@@ -200,7 +201,7 @@ class DataLakeGateway(MarketDataGateway):
             df = df.tail(limit)
         return df.reset_index(drop=True)
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = ExchangeId.NSE) -> Quote:
         from domain import Quote as _Quote
 
         symbol = normalize_symbol_for_storage(symbol)
@@ -222,14 +223,14 @@ class DataLakeGateway(MarketDataGateway):
             ask=Decimal(str(last["high"])),
         )
 
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = ExchangeId.NSE) -> Decimal:
         symbol = normalize_symbol_for_storage(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
             return Decimal("0")
         return Decimal(str(df.iloc[-1]["close"]))
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = ExchangeId.NSE) -> MarketDepth:
         from domain import MarketDepth as _MarketDepth
 
         return _MarketDepth(symbol=symbol)
@@ -237,7 +238,7 @@ class DataLakeGateway(MarketDataGateway):
     def option_chain(
         self,
         underlying: str,
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         expiry: str | None = None,
     ) -> dict:
         """Load option chain from lake parquet when present (TOS-P6-002).
@@ -322,8 +323,8 @@ class DataLakeGateway(MarketDataGateway):
             pass
         return out
 
-    def stream(self, symbols: list[str], exchange: str = "NSE") -> Any:
-        from domain.errors import UnsupportedGatewayOperationError
+    def stream(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> Any:
+        from domain.exceptions import UnsupportedGatewayOperationError
 
         raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
 
@@ -378,16 +379,16 @@ class DataLakeGateway(MarketDataGateway):
                 results[sym] = value
         return results
 
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def ltp_batch(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, Decimal]:
         return self._batch_execute(lambda s: self.ltp(s, exchange), symbols)
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, dict]:
+    def quote_batch(self, symbols: list[str], exchange: str = ExchangeId.NSE) -> dict[str, dict]:
         return self._batch_execute(lambda s: self.quote(s, exchange), symbols)
 
     def history_batch(
         self,
         symbols: list[str],
-        exchange: str = "NSE",
+        exchange: str = ExchangeId.NSE,
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> dict[str, pd.DataFrame]:
@@ -433,7 +434,7 @@ class DataLakeGateway(MarketDataGateway):
     # MarketDataGateway — Instrument
     # -----------------------------------------------------------------------
 
-    def search(self, query: str, exchange: str = "NSE") -> list[dict]:
+    def search(self, query: str, exchange: str = ExchangeId.NSE) -> list[dict]:
         symbols = self.list_symbols()
         matches = [s for s in symbols if query.upper() in s.upper()]
         return [{"symbol": s, "exchange": exchange, "name": s} for s in matches[:20]]
