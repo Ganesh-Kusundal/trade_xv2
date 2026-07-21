@@ -2,7 +2,7 @@
 
 These tests pin behaviours that were fixed on the brokers-consolidation
 branch. They use DIRECT lazy imports inside each test so that a broken
-package ``__init__`` (the mid-refactor ``brokers/dhan/tests`` collection
+package ``__init__`` (the mid-refactor ``brokers/providers/dhan/tests`` collection
 problem) cannot block collection. If a module truly cannot import we
 ``pytest.skip`` so collection always stays clean.
 
@@ -39,7 +39,7 @@ def test_r1_get_feed_evicts_oldest_without_busy_wait():
     The R1 guarantee under test is that get_feed does not busy-wait and returns
     the new feed promptly.
     """
-    from brokers.dhan.data.depth_200 import Depth200ConnectionPool
+    from brokers.providers.dhan.market_data.depth_200 import Depth200ConnectionPool
 
     pool = Depth200ConnectionPool(
         client_id="CID",
@@ -73,7 +73,7 @@ def test_r1_get_feed_source_has_no_spin_wait():
     """
     import ast
 
-    from brokers.dhan.data.depth_200 import Depth200ConnectionPool
+    from brokers.providers.dhan.market_data.depth_200 import Depth200ConnectionPool
 
     tree = ast.parse(textwrap.dedent(inspect.getsource(Depth200ConnectionPool.get_feed)))
 
@@ -112,7 +112,7 @@ def test_r1_get_feed_source_has_no_spin_wait():
 
 def test_r2_order_stream_has_auth_refresh_api():
     """DhanOrderStream exposes the auth-failure helpers and throttle attr."""
-    from brokers.dhan.websocket.order_stream import DhanOrderStream
+    from brokers.providers.dhan.websocket.order_stream import DhanOrderStream
 
     assert callable(getattr(DhanOrderStream, "_is_auth_error", None))
     assert callable(getattr(DhanOrderStream, "_maybe_refresh_token_on_auth_error", None))
@@ -121,7 +121,7 @@ def test_r2_order_stream_has_auth_refresh_api():
 
 def test_r2_auth_error_triggers_refresh_hook():
     """Simulating an auth error invokes the token_refresh_fn and returns True."""
-    from brokers.dhan.websocket.order_stream import DhanOrderStream
+    from brokers.providers.dhan.websocket.order_stream import DhanOrderStream
 
     calls = []
 
@@ -146,7 +146,7 @@ def test_r2_auth_error_triggers_refresh_hook():
 
 def test_r2_auth_refresh_is_throttled():
     """A second auth error within the 30s throttle window does NOT re-refresh."""
-    from brokers.dhan.websocket.order_stream import DhanOrderStream
+    from brokers.providers.dhan.websocket.order_stream import DhanOrderStream
 
     calls = []
 
@@ -170,7 +170,7 @@ def test_r2_auth_refresh_is_throttled():
 def test_r2_create_order_stream_accepts_token_refresh_fn():
     """connection_lifecycle.create_order_stream exposes token_refresh_fn and
     forwards it (plus event_bus) to DhanOrderStream."""
-    from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+    from brokers.providers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 
     sig = inspect.signature(ConnectionLifecycle.create_order_stream)
     assert "token_refresh_fn" in sig.parameters
@@ -185,7 +185,7 @@ def test_r2_create_order_stream_accepts_token_refresh_fn():
 
 
 def _make_binary_depth_feed():
-    from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
+    from brokers.providers.dhan.market_data.depth_feed_base import BinaryDepthFeed
 
     return BinaryDepthFeed(
         client_id="CID",
@@ -228,8 +228,8 @@ def test_m1_off_quote_removes_same_callback_list():
 
 def test_m1_staleness_threshold_default_is_60():
     """_staleness_threshold_seconds honours DHAN_STALENESS_THRESHOLD_SECONDS (default 60)."""
-    from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
-    from brokers.dhan.data import depth_feed_base
+    from brokers.providers.dhan.market_data.depth_feed_base import BinaryDepthFeed
+    from brokers.providers.dhan.market_data import depth_feed_base
 
     assert BinaryDepthFeed._staleness_threshold_seconds() == 60.0
     depth_feed_base.connection.DHAN_STALENESS_THRESHOLD_SECONDS = 45.0
@@ -263,7 +263,7 @@ class _FakeEventBus:
 
 
 def _make_polling_feed(event_bus):
-    from brokers.dhan.websocket.polling_feed import PollingMarketFeed
+    from brokers.providers.dhan.websocket.polling_feed import PollingMarketFeed
 
     return PollingMarketFeed(
         http_client=None,
@@ -333,7 +333,7 @@ def test_m4_polling_carries_ohlc_volume_not_zero():
 def test_m4_create_polling_feed_forwards_event_bus():
     """connection_lifecycle.create_polling_feed passes event_bus to
     PollingMarketFeed (source-level guard)."""
-    from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+    from brokers.providers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 
     src = inspect.getsource(ConnectionLifecycle.create_polling_feed)
     assert "event_bus=self._event_bus" in src

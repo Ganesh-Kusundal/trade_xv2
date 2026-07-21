@@ -88,7 +88,7 @@ def test_option_chain_returns_rich_object():
 def test_subscribe_returns_active_handle_and_fires_callback():
     instr, fp = _new_equity()
     received = []
-    sub = instr.subscribe(lambda iid, q: received.append(q))
+    sub = instr._subscribe_core(lambda iid, q: received.append(q))
     assert sub is not None
     assert sub.is_active is True
     fp.fire_tick("RELIANCE", "NSE", make_quote("RELIANCE", "NSE"))
@@ -98,7 +98,7 @@ def test_subscribe_returns_active_handle_and_fires_callback():
 
 def test_unsubscribe_deactivates_handle():
     instr, fp = _new_equity()
-    sub = instr.subscribe(lambda iid, q: None)
+    sub = instr._subscribe_core(lambda iid, q: None)
     instr.unsubscribe()
     assert sub.is_active is False
 
@@ -106,7 +106,7 @@ def test_unsubscribe_deactivates_handle():
 def test_depth_subscription_updates_state():
     instr, fp = _new_equity()
     received = []
-    sub = instr.subscribe(lambda iid, d: received.append(d), depth=True)
+    sub = instr._subscribe_core(lambda iid, d: received.append(d), depth=True)
     assert sub is not None
     fp.fire_tick("RELIANCE", "NSE", make_depth("RELIANCE"))
     assert received

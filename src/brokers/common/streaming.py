@@ -3,7 +3,7 @@
 Wraps a :class:`~domain.ports.broker_stream_gateway.BrokerStreamGateway` stop
 hook when provided. Matches the ad-hoc handle convention already used by Upstox's
 ``LtpStreamHandle``/``OrderStreamHandle``/``DepthStreamHandle`` in
-``brokers/upstox/adapters/streaming_gateway.py`` (``.stop()`` / ``.disconnect()``),
+``brokers/providers/upstox/adapters/streaming_gateway.py`` (``.stop()`` / ``.disconnect()``),
 so it drops directly into ``_BrokerSubscription.unsubscribe()``
 (``infrastructure/providers/broker/broker_data_provider.py``) with no changes there.
 """

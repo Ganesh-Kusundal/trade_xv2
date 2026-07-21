@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-from brokers.upstox.reconciliation.service import UpstoxReconciliationService
+from brokers.providers.upstox.reconciliation.service import UpstoxReconciliationService
 from domain import Position
 
 
@@ -17,7 +17,7 @@ def test_upstox_uses_shared_engine_for_position_drift() -> None:
 
     broker_pos = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("2500"))
     with patch(
-        "brokers.upstox.reconciliation.service.UpstoxDomainMapper.to_position",
+        "brokers.providers.upstox.reconciliation.service.UpstoxDomainMapper.to_position",
         return_value=broker_pos,
     ):
         svc = UpstoxReconciliationService(order_client, portfolio_client)

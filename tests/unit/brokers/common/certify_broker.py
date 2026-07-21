@@ -140,9 +140,9 @@ def run_certification(broker_id: str, live_mode: bool = False) -> CertificationR
     """
     # Map broker_id to test directory
     broker_test_dirs = {
-        "dhan": "brokers/dhan/tests/contract",
-        "upstox": "brokers/upstox/tests/contract",
-        "paper": "brokers/paper/tests/contract",
+        "dhan": "brokers/providers/dhan/tests/contract",
+        "upstox": "brokers/providers/upstox/tests/contract",
+        "paper": "brokers/providers/paper/tests/contract",
     }
 
     if broker_id not in broker_test_dirs:

@@ -29,8 +29,8 @@ def test_mock_totp_flow():
     print("=" * 70)
 
     try:
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
-        from brokers.upstox.auth.token_manager import UpstoxTokenManager
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
         # Create TOTP settings
         settings = UpstoxConnectionSettings(
@@ -49,7 +49,7 @@ def test_mock_totp_flow():
         print(f"  Has config: {settings.has_totp_config}")
 
         # Mock the TOTP client to simulate successful token generation
-        with patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient") as mock_client_class:
+        with patch("brokers.providers.upstox.auth.token_persistence.UpstoxTotpClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.validate_config.return_value = True
             mock_client.generate_token.return_value = {
@@ -113,8 +113,8 @@ def test_live_totp_flow():
         return None
 
     try:
-        from brokers.upstox.auth.config import UpstoxSettingsLoader
-        from brokers.upstox.auth.token_manager import UpstoxTokenManager
+        from brokers.providers.upstox.auth.config import UpstoxSettingsLoader
+        from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
         print(f"\n✓ Credentials detected")
         print(f"  Client ID: {client_id[:10]}...")
@@ -174,9 +174,9 @@ def test_scheduler_flow():
     print("=" * 70)
 
     try:
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
-        from brokers.upstox.auth.token_manager import UpstoxTokenManager
-        from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
+        from brokers.providers.upstox.auth.totp_scheduler import TotpRefreshScheduler
 
         settings = UpstoxConnectionSettings(
             client_id="test",
@@ -188,7 +188,7 @@ def test_scheduler_flow():
             totp_refresh_minute=0,
         )
 
-        with patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient"):
+        with patch("brokers.providers.upstox.auth.token_persistence.UpstoxTotpClient"):
             token_manager = UpstoxTokenManager(settings)
 
             # Create scheduler

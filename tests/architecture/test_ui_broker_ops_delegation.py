@@ -41,13 +41,11 @@ _DELEGATION_REQUIRED: set[Path] = {
     COMMANDS_ROOT / "quality_report.py",
     COMMANDS_ROOT / "benchmark.py",
     COMMANDS_ROOT / "validate_history.py",
-    COMMANDS_ROOT / "certify.py",
-    COMMANDS_ROOT / "doctor" / "__init__.py",
 }
 
 _BROKER_SESSION_RE = re.compile(r"\bBrokerSession\s*\(")
 _DELEGATION_RE = re.compile(
-    r"from\s+brokers\.(services|platform_ops)\s+import|from\s+interface\.ui\.services\.broker_ops\s+import|from\s+interface\.ui\.commands\._broker\s+import"
+    r"from\s+brokers\.services\s+import|from\s+interface\.ui\.services\.broker_ops\s+import|from\s+interface\.ui\.commands\._broker\s+import"
 )
 
 

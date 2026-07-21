@@ -15,7 +15,7 @@ dropping every existing row for each corrected day and inserting the
 fresh fetch is unambiguous and doesn't depend on that coincidence.
 
 Rate limiting: Dhan's own declared capabilities
-(brokers/dhan/config/capabilities.py) already encode the real limits
+(brokers/providers/dhan/config/capabilities.py) already encode the real limits
 this script needs -- endpoint_class="historical" (sustained_rps=10,
 burst=20) and historical_windows (max_chunk_days=90 for 1m) -- via the
 canonical infrastructure.resilience.rate_limiter.create_rate_limiter().
@@ -44,7 +44,7 @@ import pandas as pd
 import pyarrow as pa
 from _connect import bootstrap_or_exit
 
-from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from datalake.core.io import atomic_parquet_write
 from datalake.core.paths import symbol_partition_path
 from datalake.core.schema import enforce_canonical_schema

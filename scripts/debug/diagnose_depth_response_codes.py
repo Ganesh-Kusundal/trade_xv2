@@ -26,7 +26,7 @@ log = logging.getLogger("diag_depth")
 # Patch the depth feed to log response codes
 import contextlib
 
-from brokers.dhan.depth_feed_base import BinaryDepthFeed
+from brokers.providers.dhan.depth_feed_base import BinaryDepthFeed
 
 _original_process = BinaryDepthFeed._process_binary_message
 

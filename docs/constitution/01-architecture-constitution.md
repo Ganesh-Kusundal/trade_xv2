@@ -31,7 +31,7 @@ Reference style: NautilusTrader runtime contracts (kernel, cache, engines) adapt
 | ID | Principle | Violation symptom |
 |---|---|---|
 | **P1** | Zero-parity: one OMS + one Risk path for all execution targets | Separate place_order impls per mode |
-| **P2** | Single composition root: only `runtime/` imports concrete brokers/plugins | `application` or `interface` importing `brokers.dhan` |
+| **P2** | Single composition root: only `runtime/` imports concrete brokers/plugins | `application` or `interface` importing `brokers.providers.dhan` |
 | **P3** | Domain purity: `domain/` imports stdlib + itself only | Domain importing infrastructure |
 | **P4** | Risk authoritative: deny stops the pipeline; no venue call after deny | Bypass, getattr kill-switch, swallowed lookup errors |
 | **P5** | Execution Target is a capability plug-in, not a fork | Duplicate strategy/risk/portfolio per mode |

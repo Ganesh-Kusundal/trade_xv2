@@ -85,7 +85,7 @@ which is the one real split-brain hazard left. See §3.1.
 |---|---|---|
 | `application/oms/idempotency_guard.py` | **OMS authority** (`IdempotencyGuard`, check/reserve/release under lock) | Keep as single authority |
 | `infrastructure/idempotency/*` | `IdempotencyService` (event dedup, TTL, backend) | Keep for **event** dedup only — NOT order dedup |
-| `brokers/upstox/orders/idempotency.py` | broker-local dedup | see §3.2 (delete if redundant) |
+| `brokers/providers/upstox/orders/idempotency.py` | broker-local dedup | see §3.2 (delete if redundant) |
 | `brokers/common/idempotency.py` | broker-common dedup | see §3.2 |
 
 **Verified:** the canonical `EventBus` already delegates event dedup to a single injected
@@ -114,11 +114,11 @@ broker `reconcile()`, then forwards broker orders/positions to
   timer expects does not happen via this path.
 - **Healing actually happens inside the broker `reconcile()` via `auto_repair`, and it is
   asymmetric:**
-  - **Dhan** (`brokers/dhan/portfolio/reconciliation.py`): `auto_repair=True` by default ->
+  - **Dhan** (`brokers/providers/dhan/portfolio/reconciliation.py`): `auto_repair=True` by default ->
     `_repair_local_oms` -> `upsert_order` / `position_manager.upsert_position`. This writes
     the SAME dicts `RiskManager` reads (`OrderManager._orders`, `PositionManager._positions`).
     **Dhan healing reaches risk.** Good.
-  - **Upstox** (`brokers/upstox/broker.py:146`): `auto_repair=False` -> detects drift but
+  - **Upstox** (`brokers/providers/upstox/broker.py:146`): `auto_repair=False` -> detects drift but
     **never heals**. A dropped WS fill on Upstox leaves a phantom position feeding
     `RiskManager` with no repair. **This is the real I6/G6 gap, Upstox-specific.**
 
@@ -130,7 +130,7 @@ write-back (Dhan-style) and turn on Upstox heal — see §3.3.
 
 `runtime/time_service.py` provides `SystemClock`/`FakeClock`/`TimeService`; domain value
 objects forbid `datetime.now` (`test_value_objects.py::test_no_datetime_now_in_module`).
-Fill builders in `brokers/upstox/*` use `get_current_clock().now()`. The wall-clock-fill
+Fill builders in `brokers/providers/upstox/*` use `get_current_clock().now()`. The wall-clock-fill
 HIGH finding is **closed**.
 
 ---
@@ -216,7 +216,7 @@ class EventBusFacade:
 
 ### 3.2 Broker idempotency — already consolidated (NO ACTION)
 
-Verified 2026-07-13: `brokers/upstox/orders/idempotency.py` is **only a name alias**
+Verified 2026-07-13: `brokers/providers/upstox/orders/idempotency.py` is **only a name alias**
 (`InMemoryIdempotencyCache`) of `brokers/common/idempotency.py::IdempotencyCache`, which
 sits on the already-correct `infrastructure.idempotency.memory_cache`. It is NOT a second
 order-dedup layer racing `IdempotencyGuard` — order dedup stays in `IdempotencyGuard`
@@ -230,7 +230,7 @@ earlier §3.2 draft is withdrawn.)
 drift and returns, but never persists. The `ReconciliationService` timer calls it expecting
 healing — nothing happens. It is dead-end code and a trap (edits there have no effect).
 
-**Problem (D2):** Upstox `reconcile()` runs `auto_repair=False` (`brokers/upstox/broker.py:146`)
+**Problem (D2):** Upstox `reconcile()` runs `auto_repair=False` (`brokers/providers/upstox/broker.py:146`)
 so it detects drift but never heals. Dhan heals (`auto_repair=True`); Upstox does not. The
 result: a dropped WS fill on Upstox leaves a phantom position that feeds `RiskManager` with
 no repair — the exact I6/G6 money risk, broker-asymmetric.
@@ -379,6 +379,6 @@ No library adoption needed. Mirror the contracts, finish the wiring.
 `application/oms/_internal/trading_state.py`, `application/oms/_internal/daily_pnl_tracker.py`,
 `application/oms/reconciliation_service.py`, `src/domain/entities/order.py`,
 `infrastructure/event_bus/event_bus.py`, `brokers/runtime/event_bus.py`,
-`brokers/upstox/orders/order_command_adapter.py`, `brokers/upstox/mappers/derivatives_mapper.py`,
+`brokers/providers/upstox/orders/order_command_adapter.py`, `brokers/providers/upstox/mappers/derivatives_mapper.py`,
 `runtime/time_service.py`. Review docs `PRINCIPAL-ENGINEER-REVIEW-TradeXV2-vs-nautilus.md`
 and `11-asbuilt-gaps-and-migration.md` are superseded where they conflict with the above.*

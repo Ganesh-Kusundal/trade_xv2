@@ -39,14 +39,14 @@ exceptions, removed in Phase 5 (P5-3).
   Application broker isolation, Application->infrastructure separation, Runtime->interface block,
   Interface broker isolation, Tradex broker isolation).
 - New contract added: **"Runtime broker-implementation isolation"** — `source_modules =
-  ["runtime"]`, `forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper",
+  ["runtime"]`, `forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper",
   "brokers.common"]`. This closes the last unenforced direction from the ADR.
 - Tracked exceptions (the current `runtime/` violations, removed in Phase 5 / G1 / P5-3):
-  - `runtime.broker_infrastructure -> brokers.dhan.config.capabilities`
-  - `runtime.broker_infrastructure -> brokers.upstox.capabilities`
-  - `runtime.broker_accessors -> brokers.paper`
-  - `runtime.broker_accessors -> brokers.dhan.**`
-  - `runtime.broker_accessors -> brokers.upstox.**`
+  - `runtime.broker_infrastructure -> brokers.providers.dhan.config.capabilities`
+  - `runtime.broker_infrastructure -> brokers.providers.upstox.capabilities`
+  - `runtime.broker_accessors -> brokers.providers.paper`
+  - `runtime.broker_accessors -> brokers.providers.dhan.**`
+  - `runtime.broker_accessors -> brokers.providers.upstox.**`
 - A `layers`-type "Layered dependency spine" contract was attempted and **rejected**: it
   broke because `application -> domain` and `infrastructure -> domain` edges are correct
   (lower layers depend on `domain` ports). The inward-only spine is therefore enforced via

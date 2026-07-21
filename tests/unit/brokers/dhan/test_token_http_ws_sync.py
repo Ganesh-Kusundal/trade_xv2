@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.dhan.streaming.connection import DhanConnection
+from brokers.providers.dhan.streaming.connection import DhanConnection
 from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
 
 

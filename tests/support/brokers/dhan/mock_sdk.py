@@ -16,13 +16,13 @@ from unittest.mock import MagicMock, patch
 # ``from _helpers import _sdk_market_feed_class`` bind a local
 # reference at import time, so we must also patch those bindings.
 _FEED_PATCH_TARGETS = [
-    "brokers.dhan.websocket._helpers._sdk_market_feed_class",
-    "brokers.dhan.websocket.connection._sdk_market_feed_class",
+    "brokers.providers.dhan.websocket._helpers._sdk_market_feed_class",
+    "brokers.providers.dhan.websocket.connection._sdk_market_feed_class",
 ]
 
 _ORDER_PATCH_TARGETS = [
-    "brokers.dhan.websocket._helpers._sdk_order_update_class",
-    "brokers.dhan.websocket.order_stream._sdk_order_update_class",
+    "brokers.providers.dhan.websocket._helpers._sdk_order_update_class",
+    "brokers.providers.dhan.websocket.order_stream._sdk_order_update_class",
 ]
 
 

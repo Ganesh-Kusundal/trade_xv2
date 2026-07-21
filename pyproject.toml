@@ -33,9 +33,6 @@ dependencies = [
 ]
 
 [project.scripts]
-# DEPRECATED: use ``tradex broker`` instead.  Kept for backward compat;
-# will be removed in v0.2.
-broker = "brokers.cli.broker:broker"
 tradex = "tradex.cli:tradex"
 datalake-mcp = "datalake.mcp.server:run_server"
 
@@ -68,14 +65,14 @@ dev = [
 # package already self-registers via register_broker_plugin() etc. at
 # import time (brokers/{dhan,upstox,paper}/__init__.py), so the entry
 # point's job is just "import this module," not "load this specific
-# class." The originally-drafted values here (brokers.dhan:DhanBroker,
-# brokers.paper:PaperBroker) referenced classes that were never built --
-# only brokers.upstox.broker.UpstoxBroker exists. Corrected to real,
+# class." The originally-drafted values here (brokers.providers.dhan:DhanBroker,
+# brokers.providers.paper:PaperBroker) referenced classes that were never built --
+# only brokers.providers.upstox.broker.UpstoxBroker exists. Corrected to real,
 # existing targets. See runtime/broker_discovery.py for the composition-
 # root code that consumes this group via importlib.metadata.entry_points().
-dhan = "brokers.dhan"
-upstox = "brokers.upstox"
-paper = "brokers.paper"
+dhan = "brokers.providers.dhan"
+upstox = "brokers.providers.upstox"
+paper = "brokers.providers.paper"
 
 [project.entry-points."tradex.exchanges"]
 # Exchange plugins: each module must expose ADAPTER (ExchangeAdapter instance)
@@ -280,8 +277,8 @@ ignore = [
 "scripts/**/*.py" = ["S", "E", "F", "TID251"]
 "src/**/tests/**/*.py" = ["S", "TID251"]
 "src/interface/ui/**/*.py" = ["TID251"]
-"src/brokers/dhan/**/*.py" = ["TID251"]
-"src/brokers/upstox/**/*.py" = ["TID251"]
+"src/brokers/providers/dhan/**/*.py" = ["TID251"]
+"src/brokers/providers/upstox/**/*.py" = ["TID251"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -295,19 +292,19 @@ skip-magic-trailing-comma = false
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Domain types must come from domain, not broker-specific packages
-"brokers.dhan.domain.Quote" = {msg = "Import Quote from domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.Balance" = {msg = "Import Balance from domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.Exchange" = {msg = "Import Exchange from domain.market_enums, not from brokers.dhan.domain"}
-"brokers.dhan.domain.InstrumentType" = {msg = "Import InstrumentType from domain.market_enums, not from brokers.dhan.domain"}
-"brokers.dhan.domain.OptionType" = {msg = "Import OptionType from domain.market_enums, not from brokers.dhan.domain"}
+"brokers.providers.dhan.domain.Quote" = {msg = "Import Quote from domain, not from brokers.providers.dhan.domain"}
+"brokers.providers.dhan.domain.Balance" = {msg = "Import Balance from domain, not from brokers.providers.dhan.domain"}
+"brokers.providers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from domain, not from brokers.providers.dhan.domain"}
+"brokers.providers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from domain, not from brokers.providers.dhan.domain"}
+"brokers.providers.dhan.domain.Exchange" = {msg = "Import Exchange from domain.market_enums, not from brokers.providers.dhan.domain"}
+"brokers.providers.dhan.domain.InstrumentType" = {msg = "Import InstrumentType from domain.market_enums, not from brokers.providers.dhan.domain"}
+"brokers.providers.dhan.domain.OptionType" = {msg = "Import OptionType from domain.market_enums, not from brokers.providers.dhan.domain"}
 # Lower layers cannot import from the UI/CLI presentation package
 "interface.ui" = {msg = "Lower layers (datalake, analytics, brokers) cannot import from interface.ui. Use entry points or events instead."}
 "interface.api" = {msg = "Lower layers cannot import from interface.api. Use application ports or composition roots."}
 # Cross-broker imports are forbidden
-"brokers.dhan" = {msg = "Cannot import from brokers.dhan in brokers.common or other broker packages"}
-"brokers.upstox" = {msg = "Cannot import from brokers.upstox in brokers.common or other broker packages"}
+"brokers.providers.dhan" = {msg = "Cannot import from brokers.providers.dhan in brokers.common or other broker packages"}
+"brokers.providers.upstox" = {msg = "Cannot import from brokers.providers.upstox in brokers.common or other broker packages"}
 "infrastructure.gateway.factory.create_gateway" = {msg = "Use bootstrap_gateway or require_gateway via interface.ui.services.connect"}
 
 # ─── Import Linter Contracts ──────────────────────────────
@@ -363,7 +360,7 @@ ignore_imports = [
 name = "Analytics broker-adapter isolation"
 type = "forbidden"
 source_modules = ["analytics"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper"]
 
 [[tool.importlinter.contracts]]
 # Blueprint Part 1 §5.1 D2: Trading must be usable (and testable) with zero
@@ -395,7 +392,7 @@ ignore_imports = [
 name = "Broker common isolation"
 type = "forbidden"
 source_modules = ["brokers.common"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "analytics"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper", "analytics"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
 ]
@@ -406,7 +403,7 @@ type = "forbidden"
 source_modules = ["application"]
 # brokers.common is a residual facade — application must use domain.capabilities
 # (and domain.ports). Concrete brokers remain forbidden outside tests.
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper", "brokers.common"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
 ]
@@ -436,20 +433,18 @@ type = "forbidden"
 source_modules = ["runtime"]
 # ADR-002: runtime is the ONLY layer permitted to touch concrete broker
 # implementations. This contract makes that rule structurally enforced.
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper", "brokers.common"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
     # broker_infrastructure now routes via BrokerId enum (SM-10) and
     # BrokerPlugin.capabilities_loader (SM-02) — no direct broker imports remain.
-    "runtime.broker_accessors -> brokers.paper",
-    "runtime.broker_accessors -> brokers.dhan.**",
-    "runtime.broker_accessors -> brokers.upstox.**",
-    "runtime.broker_builders -> brokers.paper",
-    "runtime.broker_builders -> brokers.dhan.**",
-    "runtime.broker_builders -> brokers.upstox.**",
+    "runtime.broker_accessors -> brokers.providers.paper",
+    "runtime.broker_accessors -> brokers.providers.dhan.**",
+    "runtime.broker_accessors -> brokers.providers.upstox.**",
+    "runtime.broker_builders -> brokers.providers.paper",
+    "runtime.broker_builders -> brokers.providers.dhan.**",
+    "runtime.broker_builders -> brokers.providers.upstox.**",
     "runtime.broker_builders -> datalake.gateway",
-    "brokers.certification.suite -> brokers.common.historical_gap_check",
-    "brokers.certification.live_probes -> brokers.common.auth.lifecycle",
 ]
 
 [[tool.importlinter.contracts]]
@@ -467,12 +462,12 @@ ignore_imports = [
 name = "CLI broker-implementation isolation"
 type = "forbidden"
 source_modules = ["interface.ui"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper"]
 # Composition-root edges are listed explicitly; unused ignore lines should not
 # abort the whole contract suite after layout moves.
 # Concrete broker types are resolved only via runtime.broker_accessors
 # (composition root). UI modules re-export accessors and must not import
-# brokers.dhan / upstox / paper by name (TOS-P5-002 / DR-B4).
+# brokers.providers.dhan / upstox / paper by name (TOS-P5-002 / DR-B4).
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
 ]
@@ -481,7 +476,7 @@ ignore_imports = [
 name = "API broker-implementation isolation"
 type = "forbidden"
 source_modules = ["interface.api"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper"]
 ignore_imports = [
     # API orders go through tradex.session (composition root).
     "interface.api.routers.orders -> tradex",
@@ -491,7 +486,7 @@ ignore_imports = [
 name = "Tradex public API broker isolation"
 type = "forbidden"
 source_modules = ["tradex"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper"]
 # tradex.session no longer imports any concrete broker by name; it routes
 # registration through the composition root (runtime.broker_discovery) and
 # resolves data/execution providers via infrastructure.adapter_factory — the

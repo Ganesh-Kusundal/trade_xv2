@@ -34,7 +34,7 @@ from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderRe
 from application.oms.position_manager import PositionManager
 from application.oms.recon_heal_policy import HealMode, resolve_heal_mode, should_auto_repair
 from application.oms.session_bridge import OmsOrderService
-from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
+from brokers.providers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.orders.requests import OrderRequest

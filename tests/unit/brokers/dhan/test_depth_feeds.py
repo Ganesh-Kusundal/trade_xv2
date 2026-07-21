@@ -72,13 +72,13 @@ def _make_200_packet(response_code, num_rows, levels):
 
 
 def _make_feed20(instruments=None):
-    from brokers.dhan.data.depth_20 import DhanDepth20Feed
+    from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
 
     return DhanDepth20Feed("test_client", "test_token", instruments=instruments or [])
 
 
 def _make_feed200(instrument=None):
-    from brokers.dhan.data.depth_200 import DhanDepth200Feed
+    from brokers.providers.dhan.market_data.depth_200 import DhanDepth200Feed
 
     return DhanDepth200Feed("test_client", "test_token", instrument=instrument)
 
@@ -99,7 +99,7 @@ class TestDhanDepth20Feed:
         assert len(feed._subscriptions) == 1
 
     def test_max_instruments_exceeded(self):
-        from brokers.dhan.data.depth_20 import DhanDepth20Feed
+        from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
 
         instruments = [("NSE_EQ", str(i)) for i in range(51)]
         with pytest.raises(ValueError, match="Maximum 50"):
@@ -385,8 +385,8 @@ class TestDhanDepth200Feed:
 
 
 def _make_offline_gateway():
-    from brokers.dhan.resolver import SymbolResolver
-    from brokers.dhan.wire import DhanWireAdapter
+    from brokers.providers.dhan.resolver import SymbolResolver
+    from brokers.providers.dhan.wire import DhanWireAdapter
 
     resolver = SymbolResolver()
     resolver.load_from_rows(
@@ -403,8 +403,8 @@ def _make_offline_gateway():
         ]
     )
 
-    from brokers.dhan.instruments.service import DhanInstrumentService
-    from brokers.dhan.streaming.connection import DhanConnection
+    from brokers.providers.dhan.instruments.service import DhanInstrumentService
+    from brokers.providers.dhan.streaming.connection import DhanConnection
 
     conn = mock.MagicMock()
     conn.instruments = DhanInstrumentService(resolver=resolver)
@@ -427,7 +427,7 @@ def _make_offline_gateway():
 
 class TestGatewayDepth20:
     def _mock_feed20(self):
-        from brokers.dhan.data.depth_20 import DhanDepth20Feed
+        from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
 
         f = mock.MagicMock(spec=DhanDepth20Feed)
         f._subscriptions = []
@@ -518,7 +518,7 @@ class TestGatewayDepth20:
 
 class TestGatewayDepth200:
     def _mock_feed200(self):
-        from brokers.dhan.data.depth_200 import DhanDepth200Feed
+        from brokers.providers.dhan.market_data.depth_200 import DhanDepth200Feed
 
         f = mock.MagicMock(spec=DhanDepth200Feed)
         f._subscriptions = []

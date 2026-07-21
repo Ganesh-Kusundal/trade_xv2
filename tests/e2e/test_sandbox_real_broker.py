@@ -29,8 +29,8 @@ class TestDhanSandboxE2E:
         """Create Dhan gateway with sandbox credentials."""
         from dotenv import load_dotenv
 
-        from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.connection import DhanConnection
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         load_dotenv(".env.local")
 
@@ -273,9 +273,9 @@ class TestUpstoxSandboxE2E:
         """Create Upstox gateway with sandbox credentials."""
         from dotenv import load_dotenv
 
-        from brokers.upstox.broker import UpstoxBroker
-        from brokers.upstox.settings import UpstoxSettings
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.broker import UpstoxBroker
+        from brokers.providers.upstox.settings import UpstoxSettings
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         load_dotenv(".env.local")
 
@@ -351,8 +351,8 @@ class TestCrossBrokerParity:
         """Create Dhan sandbox gateway."""
         from dotenv import load_dotenv
 
-        from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.connection import DhanConnection
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         load_dotenv(".env.local")
 
@@ -381,9 +381,9 @@ class TestCrossBrokerParity:
         """Create Upstox sandbox gateway."""
         from dotenv import load_dotenv
 
-        from brokers.upstox.broker import UpstoxBroker
-        from brokers.upstox.settings import UpstoxSettings
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.broker import UpstoxBroker
+        from brokers.providers.upstox.settings import UpstoxSettings
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         load_dotenv(".env.local")
 

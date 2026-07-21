@@ -21,7 +21,7 @@ def fake_client():
 
 @pytest.fixture
 def resolver():
-    from brokers.dhan.resolver import SymbolResolver
+    from brokers.providers.dhan.resolver import SymbolResolver
 
     return SymbolResolver()
 
@@ -31,7 +31,7 @@ class TestPaperGatewayCancelVerification:
 
     @pytest.fixture
     def paper_gateway(self):
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
         from tests.unit.brokers.paper.conftest import MockPaperOrderManager
 
         return PaperGateway(order_manager=MockPaperOrderManager())
@@ -134,7 +134,7 @@ class TestDhanGatewayCancelVerification:
                 }
             },
         )
-        from brokers.dhan.execution.orders import OrdersAdapter
+        from brokers.providers.dhan.execution.orders import OrdersAdapter
 
         adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
         cancel_resp = adapter.cancel_order("DHAN-123")
@@ -157,7 +157,7 @@ class TestDhanGatewayCancelVerification:
                 }
             },
         )
-        from brokers.dhan.execution.orders import OrdersAdapter
+        from brokers.providers.dhan.execution.orders import OrdersAdapter
 
         adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
         cancel_resp = adapter.cancel_order("DHAN-456")
@@ -207,7 +207,7 @@ class TestUpstoxGatewayCancelVerification:
 
     @pytest.fixture
     def mock_upstox_gateway(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = MagicMock()
         mock_settings.analytics_only = False
@@ -265,7 +265,7 @@ class TestCancelVerificationEdgeCases:
 
     @pytest.fixture
     def paper_gateway(self):
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
         from tests.unit.brokers.paper.conftest import MockPaperOrderManager
 
         return PaperGateway(order_manager=MockPaperOrderManager())

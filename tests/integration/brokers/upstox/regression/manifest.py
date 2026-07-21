@@ -6,7 +6,7 @@ import contextlib
 import threading
 import time
 
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from tests.support.brokers.regression_manifest import RegressionCase
 
 
@@ -100,7 +100,7 @@ def _assert_subscribe_normalizes_ticks(_gw) -> None:
     from pathlib import Path
 
     text = (
-        Path(__file__).resolve().parents[5] / "src/brokers/upstox/data_provider.py"
+        Path(__file__).resolve().parents[5] / "src/brokers/providers/upstox/data_provider.py"
     ).read_text()
     assert "_normalize_quote(raw, instrument_id)" in text
     assert "callback(instrument_id, raw)" not in text

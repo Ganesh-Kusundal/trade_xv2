@@ -9,10 +9,10 @@ class TestDhanExchangeResolver:
     """The optional ``exchange_resolver`` lets adapters map segments to Dhan enums."""
 
     def test_exchange_resolver_can_map_to_dhan_exchange_enum(self):
-        from brokers.dhan.domain import Exchange as DhanExchange
+        from brokers.providers.dhan._dhan_types import Exchange as DhanExchange
 
         def dhan_resolver(seg: str) -> DhanExchange:
-            from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+            from brokers.providers.dhan.segments import SEGMENT_TO_EXCHANGE
 
             return DhanExchange(SEGMENT_TO_EXCHANGE.get(str(seg), "NSE"))
 

@@ -34,13 +34,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = REPO_ROOT / "tests" / "unit" / "brokers" / "dhan" / "fixtures"
 
-# Response codes (must match brokers.dhan.depth_20/200 constants)
+# Response codes (must match brokers.providers.dhan.depth_20/200 constants)
 DEPTH_20_BID = 41
 DEPTH_20_ASK = 51
 DEPTH_200_BID = 41
 DEPTH_200_ASK = 51
 
-# Header / level sizes (must match brokers.dhan.depth_20/200 constants)
+# Header / level sizes (must match brokers.providers.dhan.depth_20/200 constants)
 HEADER_SIZE = 12
 LEVEL_SIZE = 16
 

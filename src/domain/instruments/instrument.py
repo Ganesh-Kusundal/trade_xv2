@@ -4,7 +4,7 @@ This is what a trader interacts with:
 
     nifty = Index("NIFTY")
     nifty.ltp
-    nifty.subscribe()
+    # streaming: session.gateway.subscribe([nifty])
     nifty.option_chain().atm.greeks.delta
 
 The broker is never referenced here.

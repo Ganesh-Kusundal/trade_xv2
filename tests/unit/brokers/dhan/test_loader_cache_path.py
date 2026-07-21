@@ -16,7 +16,7 @@ class TestCachePathResolution:
 
     def test_cache_path_uses_env_when_set(self, tmp_path):
         """When DHAN_CACHE_DIR is set, it should be used."""
-        from brokers.dhan.loader import InstrumentLoader
+        from brokers.providers.dhan.loader import InstrumentLoader
 
         custom_cache = tmp_path / "custom-cache"
         with (
@@ -48,7 +48,7 @@ class TestCachePathResolution:
         assert not cache_dir.exists()
 
         with patch.dict(os.environ, {"DHAN_CACHE_DIR": str(cache_dir)}):
-            from brokers.dhan.loader import InstrumentLoader
+            from brokers.providers.dhan.loader import InstrumentLoader
 
             with (
                 patch.object(InstrumentLoader, "_cleanup_old_cache"),

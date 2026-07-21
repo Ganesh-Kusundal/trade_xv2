@@ -82,7 +82,7 @@ class TestUpdateEnvToken:
             observed_tmp.append(Path(src))
             original_replace(src, dst)
 
-        with patch("brokers.dhan.token_manager.os.replace", side_effect=_tracking_replace):
+        with patch("brokers.providers.dhan.token_manager.os.replace", side_effect=_tracking_replace):
             update_env_token(env_file, "new")
 
         assert len(observed_tmp) == 1
@@ -93,7 +93,7 @@ class TestUpdateEnvToken:
         env_file = tmp_path / ".env.local"
         env_file.write_text("DHAN_ACCESS_TOKEN=old\n", encoding="utf-8")
 
-        with patch("brokers.dhan.token_manager.os.replace", side_effect=RuntimeError("disk full")):
+        with patch("brokers.providers.dhan.token_manager.os.replace", side_effect=RuntimeError("disk full")):
             update_env_token(env_file, "new")
 
         assert not (tmp_path / ".env.local.tmp").exists()

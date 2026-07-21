@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.broker import UpstoxBroker
-from brokers.upstox.capabilities import (
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.broker import UpstoxBroker
+from brokers.providers.upstox.capabilities import (
     InstrumentsCapability,
     MarketDataCapability,
     OrdersCapability,

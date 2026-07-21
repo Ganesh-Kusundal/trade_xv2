@@ -483,7 +483,7 @@ class TestGuardrailNoInlineUpstoxUrls:
     ``https://api-hft.upstox.com`` strings in Upstox production code.
 
     All Upstox URLs MUST be constructed via
-    :class:`brokers.upstox.auth.urls.UpstoxApiUrlResolver`. The
+    :class:`brokers.providers.upstox.auth.urls.UpstoxApiUrlResolver`. The
     resolver is the single source of truth — see
     ``docs/UPSTOX_WIRE_FORMAT.md``.
 
@@ -500,7 +500,7 @@ class TestGuardrailNoInlineUpstoxUrls:
         "https://sandbox-api-hft.upstox.com",
     )
 
-    @pytest.mark.parametrize("directory", ["src/brokers/upstox"])
+    @pytest.mark.parametrize("directory", ["src/brokers/providers/upstox"])
     def test_no_inline_upstox_urls(self, directory: str):
         if not (ROOT / directory).exists():
             pytest.skip(f"{directory}/ not present")
@@ -526,7 +526,7 @@ class TestGuardrailNoInlineUpstoxUrls:
                 continue
         assert not violations, (
             "Inline Upstox URL strings detected in production code. "
-            "Use brokers.upstox.auth.urls.UpstoxApiUrlResolver instead. "
+            "Use brokers.providers.upstox.auth.urls.UpstoxApiUrlResolver instead. "
             f"Violations: {violations}"
         )
 

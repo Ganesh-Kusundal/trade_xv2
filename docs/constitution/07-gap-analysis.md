@@ -94,7 +94,7 @@
 
 | | |
 |---|---|
-| **As-built** | `brokers/paper/paper_orders.py` has `_place_via_oms` and direct paths |
+| **As-built** | `brokers/providers/paper/paper_orders.py` has `_place_via_oms` and direct paths |
 | **Fix** | All paper through ExecutionEngine |
 | **Scenario** | QA-resiliency-3 |
 

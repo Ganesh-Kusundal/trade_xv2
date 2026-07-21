@@ -18,8 +18,8 @@ class TestBrokerGatewayContract:
     @pytest.mark.parametrize(
         "adapter_path,adapter_class_name",
         [
-            ("brokers.paper.paper_gateway", "PaperGateway"),
-            ("brokers.paper.mock_broker", "MockBroker"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.paper.mock_broker", "MockBroker"),
         ],
     )
     def test_adapter_implements_protocol(self, adapter_path: str, adapter_class_name: str):
@@ -37,8 +37,8 @@ class TestBrokerGatewayContract:
     @pytest.mark.parametrize(
         "adapter_path,adapter_class_name",
         [
-            ("brokers.paper.paper_gateway", "PaperGateway"),
-            ("brokers.paper.mock_broker", "MockBroker"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.paper.mock_broker", "MockBroker"),
         ],
     )
     def test_adapter_has_place_order(self, adapter_path: str, adapter_class_name: str):

@@ -7,6 +7,14 @@ TR-024: paper modify/cancel already in test_trading_object_model; here we pin
 
 from __future__ import annotations
 
+from brokers import BrokerSession
+from tests.support.gateway_orders import (
+    cancel_via_gateway,
+    modify_via_gateway,
+    place_via_gateway,
+    subscribe_via_gateway,
+)
+
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -15,8 +23,8 @@ import pytest
 import tradex
 from application.oms.process_context import register_oms_context, reset_oms_context
 from application.oms.session_bridge import build_oms_service
-from brokers.paper.execution_provider import PaperExecutionProvider
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.execution_provider import PaperExecutionProvider
+from brokers.providers.paper.paper_gateway import PaperGateway
 from domain.connect_errors import ConnectError
 from domain.enums import OrderStatus
 
@@ -32,7 +40,7 @@ def test_tr022_trade_mode_without_oms_raises() -> None:
     reset_oms_context()
     mock_gw = MagicMock(name="DhanGateway")
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         with pytest.raises(ConnectError) as ei:
             tradex.connect("dhan", mode="trade", load_instruments=False)
@@ -55,7 +63,7 @@ def test_tr022_trade_mode_with_process_oms_enables_orders() -> None:
         with patch(
             "infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw
         ):
-            import brokers.dhan  # noqa: F401
+            import brokers.providers.dhan  # noqa: F401
 
             session = tradex.connect("dhan", mode="trade", load_instruments=False)
             try:
@@ -71,10 +79,10 @@ def test_tr022_trade_mode_with_process_oms_enables_orders() -> None:
 
 def test_tr024_paper_modify_and_cancel_via_order_service() -> None:
     """TR-024 paper contract: modify then cancel through session OMS API."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
-        placed = stock.buy(
+        placed = place_via_gateway(session, stock, 
             1,
             price=Decimal("1"),
             correlation_id="e2e:tr024:mod-cancel",
@@ -83,10 +91,10 @@ def test_tr024_paper_modify_and_cancel_via_order_service() -> None:
         oid = placed.order.order_id
         assert _status_value(placed.order) == OrderStatus.OPEN.value
 
-        mod = session.modify(oid, price=Decimal("2"))
+        mod = modify_via_gateway(session, oid, price=Decimal("2"))
         assert mod.success is True
 
-        can = session.cancel(oid)
+        can = cancel_via_gateway(session, oid)
         assert can.success is True
         if can.order is not None:
             assert _status_value(can.order) in {
@@ -100,7 +108,7 @@ def test_tr024_paper_modify_and_cancel_via_order_service() -> None:
 
 def test_tr024_order_service_has_modify_cancel() -> None:
     """Port surface both live brokers must satisfy when OMS is wired."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         osvc = session.order_service
         assert osvc is not None

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from infrastructure.gateway.factory import bootstrap_gateway
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]

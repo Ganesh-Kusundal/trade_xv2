@@ -9,7 +9,7 @@
 ## Task 1: Paper success=False on REJECTED
 
 **Files:**
-- Modify: `src/brokers/paper/paper_gateway.py:107-112`
+- Modify: `src/brokers/providers/paper/paper_gateway.py:107-112`
 - Test: `tests/unit/brokers/paper/test_paper_reject_success.py`
 
 - [ ] Write test asserting `PaperGateway.place_order` returns `success=False` when order status is REJECTED
@@ -20,8 +20,8 @@
 ## Task 2: disclosed_quantity TypeError
 
 **Files:**
-- Modify: `src/brokers/dhan/wire.py:117-129`
-- Modify: `src/brokers/paper/paper_gateway.py:82-94`
+- Modify: `src/brokers/providers/dhan/wire.py:117-129`
+- Modify: `src/brokers/providers/paper/paper_gateway.py:82-94`
 - Modify: `src/domain/ports/order_placement.py:23-37` (signature inspection)
 - Test: `tests/unit/brokers/test_disclosed_quantity.py`
 
@@ -47,8 +47,8 @@
 ## Task 4: Idempotency reservation after ambiguous POST
 
 **Files:**
-- Modify: `src/brokers/dhan/execution/order_placement.py:97-115`
-- Modify: `src/brokers/upstox/orders/order_command_adapter.py:65-82`
+- Modify: `src/brokers/providers/dhan/execution/order_placement.py:97-115`
+- Modify: `src/brokers/providers/upstox/orders/order_command_adapter.py:65-82`
 - Test: `tests/unit/brokers/test_idempotency_ambiguous.py`
 
 - [ ] Write test: transport exception after POST preserves reservation
@@ -60,7 +60,7 @@
 ## Task 5: Upstox CB on 4xx
 
 **Files:**
-- Modify: `src/brokers/upstox/auth/http.py:303-317`
+- Modify: `src/brokers/providers/upstox/auth/http.py:303-317`
 - Test: `tests/unit/brokers/upstox/test_cb_4xx.py`
 
 - [ ] Write test: 4xx does not call cb.on_failure
@@ -71,7 +71,7 @@
 ## Task 6: Dhan cancel_all_orders error masking
 
 **Files:**
-- Modify: `src/brokers/dhan/execution/order_cancellation.py:171-181`
+- Modify: `src/brokers/providers/dhan/execution/order_cancellation.py:171-181`
 - Test: `tests/unit/brokers/dhan/test_cancel_all_errors.py`
 
 - [ ] Write test: failed cancellation in batch returns False for that item

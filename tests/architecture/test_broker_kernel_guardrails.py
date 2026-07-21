@@ -8,11 +8,11 @@ ROOT = Path(__file__).resolve().parents[2] / "src" / "brokers"
 
 # Modules that must import domain.constants.exchanges (REF-3b / REF-11).
 _REQUIRED = (
-    "dhan/segments.py",
-    "dhan/extensions/depth20.py",
-    "dhan/extensions/depth200.py",
-    "upstox/instruments/segment_mapper.py",
-    "upstox/extensions/depth.py",
+    "providers/dhan/segments.py",
+    "providers/dhan/extensions/depth20.py",
+    "providers/dhan/extensions/depth200.py",
+    "providers/upstox/instruments/segment_mapper.py",
+    "providers/upstox/extensions/depth.py",
 )
 
 

@@ -94,7 +94,7 @@ def _make_order(price: Decimal = Decimal("2500")) -> Order:
 def test_token_expiry_triggers_401_handler_refresh() -> None:
     """A 401 from Dhan must invoke the token refresh function and
     retry the request with the new token."""
-    from brokers.dhan.api.http_client import DhanHttpClient
+    from brokers.providers.dhan.api.http_client import DhanHttpClient
 
     new_token_holder = {"v": "TOK-V1"}
 
@@ -132,7 +132,7 @@ def test_concurrent_place_order_with_same_correlation_id_posts_once() -> None:
     network calls. 50 concurrent attempts with the same correlation_id
     must result in at most one underlying call (the rest see the
     cached response)."""
-    from brokers.dhan.execution.orders import IdempotencyCache
+    from brokers.providers.dhan.execution.orders import IdempotencyCache
 
     cache = IdempotencyCache(max_size=1000, ttl=3600.0)
     post_call_count = 0
@@ -172,7 +172,7 @@ def test_concurrent_place_order_with_same_correlation_id_posts_once() -> None:
 def test_read_circuit_breaker_opens_under_load_does_not_block_writes() -> None:
     """From A1/B1: a 5xx storm on a read endpoint opens the read CB
     but does not block order placement (write CB is independent)."""
-    from brokers.dhan.api.http_client import DhanHttpClient
+    from brokers.providers.dhan.api.http_client import DhanHttpClient
     from infrastructure.resilience.circuit_breaker import (
         CircuitBreaker,
         CircuitBreakerConfig,
@@ -198,7 +198,7 @@ def test_read_circuit_breaker_opens_under_load_does_not_block_writes() -> None:
         resp.status_code = 503
         resp.text = "boom"
         client._session.request = MagicMock(return_value=resp)
-        from brokers.dhan.exceptions import DhanError
+        from brokers.providers.dhan.exceptions import DhanError
 
         with pytest.raises(DhanError):
             client.get("/marketfeed/quote")

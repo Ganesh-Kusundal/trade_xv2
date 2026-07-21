@@ -12,10 +12,10 @@ from brokers.common.instruments import (
     generate_alternate_keys,
 )
 from brokers.common.instruments.keys import _generate_alternate_keys
-from brokers.dhan.instruments import DhanInstrumentService
-from brokers.dhan.resolver import _generate_alternate_keys as dhan_keys
-from brokers.upstox.instruments.resolver import _generate_alternate_keys as upstox_keys
-from brokers.upstox.instruments.service import UpstoxInstrumentService
+from brokers.providers.dhan.instruments import DhanInstrumentService
+from brokers.providers.dhan.resolver import _generate_alternate_keys as dhan_keys
+from brokers.providers.upstox.instruments.resolver import _generate_alternate_keys as upstox_keys
+from brokers.providers.upstox.instruments.service import UpstoxInstrumentService
 
 
 def test_alternate_keys_shared_across_brokers():

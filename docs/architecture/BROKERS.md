@@ -440,7 +440,7 @@ graph TB
         IDEMP["idempotency.py"]
     end
 
-    subgraph Dhan["brokers/dhan"]
+    subgraph Dhan["brokers/providers/dhan"]
         DFAC["identity/factory.py\nBrokerFactory"]
         DWIRE["wire.py\nDhanWireAdapter"]
         DCONN["streaming/connection.py\nDhanConnection"]
@@ -452,7 +452,7 @@ graph TB
         DWS["websocket/*, streaming/*\nMarketFeedConnection, OrderStream"]
     end
 
-    subgraph Upstox["brokers/upstox"]
+    subgraph Upstox["brokers/providers/upstox"]
         UFAC["factory.py\nUpstoxBrokerFactory"]
         UWIRE["wire.py\nUpstoxWireAdapter"]
         UBROK["broker.py\nUpstoxBroker"]
@@ -462,7 +462,7 @@ graph TB
         UINSTR["instruments/*\nLoader, Resolver, Service"]
     end
 
-    subgraph Paper["brokers/paper — simulated broker"]
+    subgraph Paper["brokers/providers/paper — simulated broker"]
         PGW["paper_gateway.py\nPaperGateway"]
         PORD["paper_orders.py\nPaperOrders"]
         PMD["paper_market_data.py\nPaperMarketData"]

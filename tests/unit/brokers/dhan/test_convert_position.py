@@ -2,7 +2,7 @@
 
 import pytest
 
-from brokers.dhan.portfolio.portfolio import PortfolioAdapter
+from brokers.providers.dhan.portfolio.portfolio import PortfolioAdapter
 
 
 def test_convert_position_payload(fake_client, resolver):

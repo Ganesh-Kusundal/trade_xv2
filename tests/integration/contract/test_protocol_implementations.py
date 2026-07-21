@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 
 from application.oms.protocols import IReconciliationService
-from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
+from brokers.providers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain.reconciliation import ReconciliationReport
 
 

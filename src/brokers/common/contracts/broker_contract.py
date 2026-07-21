@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from brokers.common.broker_capabilities import BrokerCapabilities
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain.entities import (
     Balance,
     DepthLevel,
@@ -244,26 +244,23 @@ class BrokerContractSuite:
         from domain.orders.requests import OrderRequest
         from domain.enums import Side
 
+        from decimal import Decimal
+
+        from domain.enums import OrderType
+
         request = OrderRequest(
             symbol="RELIANCE",
             exchange=ExchangeId.NSE,
             transaction_type=Side.BUY,
             quantity=1,
-            order_type="LIMIT",
-            price=1,
+            order_type=OrderType.LIMIT,
+            price=Decimal("1"),
         )
         quota = getattr(gateway, "quota_token", None)
         if quota is not None:
             result = gateway.place_order(request, quota=quota)
         else:
-            result = gateway.place_order(
-                symbol="RELIANCE",
-                exchange=ExchangeId.NSE,
-                side="BUY",
-                quantity=1,
-                price=1,
-                order_type="LIMIT",
-            )
+            result = gateway.place_order(request)
         assert result is not None
 
     def test_cancel_order_when_supported(self, gateway: Any) -> None:

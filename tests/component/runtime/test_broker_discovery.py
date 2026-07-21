@@ -20,7 +20,7 @@ def test_a_single_broken_plugin_does_not_abort_discovery_of_others():
     real_import_module = importlib.import_module
 
     def _boom_on_dhan(name, *args, **kwargs):
-        if name == "brokers.dhan":
+        if name == "brokers.providers.dhan":
             raise ImportError("simulated broken third-party plugin")
         return real_import_module(name, *args, **kwargs)
 

@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.domain import MarginRequest, MarginResponse
-from brokers.dhan.portfolio.margin import MarginAdapter
+from brokers.providers.dhan._dhan_types import MarginRequest, MarginResponse
+from brokers.providers.dhan.portfolio.margin import MarginAdapter
 
 
 class TestMarginDomain:

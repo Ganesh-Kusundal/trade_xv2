@@ -14,7 +14,7 @@ sys.path.insert(0, str(_REPO / "src"))
 sys.path.insert(0, str(_REPO / "scripts"))
 from _connect import bootstrap_or_exit
 
-from brokers.dhan.config.settings import DhanSettingsLoader
+from brokers.providers.dhan.config.settings import DhanSettingsLoader
 
 
 def main():

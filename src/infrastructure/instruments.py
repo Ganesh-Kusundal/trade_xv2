@@ -195,6 +195,6 @@ class InstrumentRegistry:
         return Decimal(str(value))
 
     def _register_seed_instruments(self) -> None:
-        # No-op: instrument resolution is now handled by brokers.dhan.resolver.SymbolResolver
+        # No-op: instrument resolution is now handled by brokers.providers.dhan.resolver.SymbolResolver
         # which loads from the Dhan instrument master CSV at runtime.
         pass

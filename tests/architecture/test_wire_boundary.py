@@ -11,10 +11,10 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 LAYERS = ("application", "domain")
 # Heuristic: forbidden direct wire-style calls from app/domain into broker wire modules.
 FORBIDDEN_IMPORT_PREFIXES = (
-    "brokers.dhan.wire",
-    "brokers.upstox.wire",
-    "brokers.dhan.api",
-    "brokers.upstox.api",
+    "brokers.providers.dhan.wire",
+    "brokers.providers.upstox.wire",
+    "brokers.providers.dhan.api",
+    "brokers.providers.upstox.api",
 )
 
 

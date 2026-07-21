@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
+from brokers.providers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
 
 
 class _RecordingKillSwitch:

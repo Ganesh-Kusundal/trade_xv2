@@ -109,7 +109,7 @@ def test_factory_accepts_risk_manager_and_threads_to_connection() -> None:
     """
     import inspect
 
-    from brokers.dhan.identity.factory import BrokerFactory
+    from brokers.providers.dhan.identity.factory import BrokerFactory
 
     sig = inspect.signature(BrokerFactory.create)
     assert "risk_manager" in sig.parameters, (
@@ -124,8 +124,8 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     """A complete chain: BrokerService builds the OMS, sets the
     kill_switch, the OrdersAdapter's risk_manager (the same OMS
     instance) is consulted, and a place_order is blocked."""
-    from brokers.dhan.api.http_client import DhanHttpClient
-    from brokers.dhan.execution.orders import OrdersAdapter
+    from brokers.providers.dhan.api.http_client import DhanHttpClient
+    from brokers.providers.dhan.execution.orders import OrdersAdapter
     from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService()
@@ -136,7 +136,7 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     # a raw SymbolResolver and wraps it in a DhanIdentityProvider.
     # The resolved instrument must have a valid digit-string security_id
     # so DhanInstrumentRef.__post_init__ validation passes.
-    from brokers.dhan.resolver import SymbolResolver
+    from brokers.providers.dhan.resolver import SymbolResolver
 
     identity = MagicMock(spec=SymbolResolver)
     identity.resolve.return_value = MagicMock(

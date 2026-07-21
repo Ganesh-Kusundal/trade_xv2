@@ -92,8 +92,8 @@ def test_workflow_referenced_paths_exist() -> None:
 def test_known_layout_migrations_not_referenced() -> None:
     """Forbidden legacy paths must not reappear in workflows."""
     legacy = [
-        "brokers/dhan/tests/",
-        "brokers/upstox/tests/",
+        "brokers/providers/dhan/tests/",
+        "brokers/providers/upstox/tests/",
         "scripts/check_constants_placement.py",
         "scripts/capability_report.py",
         "scripts/detect_flaky_tests.py",

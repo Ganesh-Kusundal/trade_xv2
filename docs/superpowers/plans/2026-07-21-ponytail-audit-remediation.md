@@ -36,7 +36,7 @@ Stream E: Health & Misc Cleanup (#3, #8-14)       ─┘
 **Files:**
 - Modify: `src/domain/ports/lifecycle.py` (keep as canonical)
 - Modify: `src/infrastructure/lifecycle/lifecycle.py` (import from domain, delete local definition)
-- Modify: `src/brokers/dhan/data/depth_feed_base/__init__.py` (update import)
+- Modify: `src/brokers/providers/dhan/data/depth_feed_base/__init__.py` (update import)
 
 **Interfaces:**
 - Consumes: None
@@ -53,7 +53,7 @@ from domain.ports.lifecycle import ManagedServicePort as ManagedService
 - [ ] **Step 2: Update depth_feed_base import**
 
 ```python
-# src/brokers/dhan/data/depth_feed_base/__init__.py
+# src/brokers/providers/dhan/data/depth_feed_base/__init__.py
 # Change: from infrastructure.lifecycle.lifecycle import ManagedService
 # To:     from domain.ports.lifecycle import ManagedServicePort as ManagedService
 ```
@@ -71,7 +71,7 @@ pytest tests/ -x -q --tb=short
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/domain/ports/lifecycle.py src/infrastructure/lifecycle/lifecycle.py src/brokers/dhan/data/depth_feed_base/__init__.py
+git add src/domain/ports/lifecycle.py src/infrastructure/lifecycle/lifecycle.py src/brokers/providers/dhan/data/depth_feed_base/__init__.py
 git commit -m "refactor: consolidate ManagedService protocol to domain.ports.lifecycle"
 ```
 

@@ -31,12 +31,12 @@ from infrastructure.resilience import (
 from infrastructure.resilience.backoff import ExponentialBackoff
 
 _ZERO_BACKOFF = ExponentialBackoff(base_delay_ms=0.0, jitter_factor=0.0)
-from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.resilience import (
+from brokers.providers.dhan.api.http_client import DhanHttpClient
+from brokers.providers.dhan.resilience import (
     create_circuit_breakers,
     create_rate_limiter,
 )
-from brokers.dhan.resilience.retry_policies import (
+from brokers.providers.dhan.resilience.retry_policies import (
     MARKET_DATA_POLICY,
     ORDERS_POLICY,
 )
@@ -166,7 +166,7 @@ class TestHttpClientResilienceComposition:
         assert result == {"data": "ok"}
 
         # Read should fail fast (CB is OPEN)
-        from brokers.dhan.exceptions import DhanError
+        from brokers.providers.dhan.exceptions import DhanError
 
         with pytest.raises(DhanError):
             client.get("/marketfeed/quote")

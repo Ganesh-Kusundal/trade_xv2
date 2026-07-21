@@ -9,8 +9,8 @@ Usage::
     session = tradex.connect("dhan", mode="trade")         # requires process OMS
     session = tradex.connect("upstox", env_path=".env.upstox")
     reliance = session.universe.equity("RELIANCE")
-    result = session.buy(reliance, 10, price=2500)        # sim/trade only
-    # OrderIntent → Risk → OMS → ExecutionProvider
+    # Orders: use brokers.BrokerSession.gateway.place_order(OrderRequest(...))
+    # Domain Session.buy remains the OMS spine for composition-root internals.
 """
 
 from __future__ import annotations

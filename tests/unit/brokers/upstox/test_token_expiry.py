@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from brokers.upstox.auth.token_expiry import IST, UpstoxTokenExpiry
+from brokers.providers.upstox.auth.token_expiry import IST, UpstoxTokenExpiry
 
 
 def test_next_expiry_pre_market_is_today_at_330am_ist():

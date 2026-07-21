@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.adapters.order_gateway import OrderGateway
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.adapters.order_gateway import OrderGateway
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from domain import OrderStatus
 from tests.fixtures.domain_helpers import make_order
 

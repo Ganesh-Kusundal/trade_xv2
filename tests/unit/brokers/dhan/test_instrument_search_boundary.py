@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from brokers.dhan.instruments.service import DhanInstrumentService
-from brokers.dhan.resolver import SymbolResolver
+from brokers.providers.dhan.instruments.service import DhanInstrumentService
+from brokers.providers.dhan.resolver import SymbolResolver
 from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS
 
 

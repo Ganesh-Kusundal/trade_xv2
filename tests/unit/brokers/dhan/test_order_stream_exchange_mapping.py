@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.dhan.websocket.order_stream import DhanOrderStream
+from brokers.providers.dhan.websocket.order_stream import DhanOrderStream
 
 
 def test_transform_order_maps_exchange_segment_to_canonical_code() -> None:

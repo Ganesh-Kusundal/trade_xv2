@@ -108,13 +108,14 @@ def test_history_resample_does_not_clobber_download():
         session.close()
 
 
-def test_instrument_buy_oms_only():
+def test_session_buy_via_oms_only():
     oms = _FakeOMS()
     ep = MagicMock()
     session = Session(_HistProv(), execution_provider=ep, order_service=oms)
     try:
         eq = session.universe.equity("RELIANCE")
-        result = eq.buy(2, price=Decimal("100"), correlation_id="buy:1")
+        intent = session.intent(eq, "BUY", 2, price=Decimal("100"), correlation_id="buy:1")
+        result = session.place(intent)
         assert result.success
         assert len(oms.places) == 1
         assert oms.places[0].quantity == 2
@@ -124,24 +125,24 @@ def test_instrument_buy_oms_only():
         session.close()
 
 
-def test_instrument_buy_raises_without_oms():
+def test_session_buy_via_raises_without_oms():
     session = Session(_HistProv())  # no order_service
     try:
         eq = session.universe.equity("RELIANCE")
-        with pytest.raises(NotConfiguredError, match="OrderServicePort"):
-            eq.buy(1, correlation_id="x")
+        with pytest.raises(RuntimeError, match="OrderServicePort|order.service|OMS"):
+            session.buy(eq, 1)
     finally:
         session.close()
 
 
-def test_instrument_buy_never_uses_ep_alone():
+def test_session_buy_via_never_uses_ep_alone():
     """EP present but no OMS → still raise (KD-9)."""
     ep = MagicMock()
     session = Session(_HistProv(), execution_provider=ep)
     try:
         eq = session.universe.equity("RELIANCE")
-        with pytest.raises(NotConfiguredError):
-            eq.buy(1, correlation_id="no-oms")
+        with pytest.raises(RuntimeError):
+            session.buy(eq, 1)
         ep.place_order.assert_not_called()
     finally:
         session.close()
@@ -154,7 +155,7 @@ def test_future_and_option_factories_stamp_oms():
     session = Session(_HistProv(), order_service=oms)
     try:
         fut = session.universe.future("NIFTY", expiry=date(2026, 12, 31))
-        result = fut.buy(1, correlation_id="fut:1")
+        result = session.buy(fut, 1)
         assert result.success
         assert oms.places[-1].symbol == "NIFTY"
     finally:

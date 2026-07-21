@@ -29,13 +29,13 @@ def _wait_until(pred: Callable[[], bool], *, timeout: float = 2.0, interval: flo
 @pytest.fixture
 def zero_ws_failure_backoff(monkeypatch):
     """Collapse reconnect failure backoff; leave cooldown so max-attempt parks."""
-    monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_INITIAL_BACKOFF_SECONDS", 0.0)
-    monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_BACKOFF_BASE_DELAY_MS", 0.0)
+    monkeypatch.setattr("brokers.providers.dhan.websocket.connection.DHAN_INITIAL_BACKOFF_SECONDS", 0.0)
+    monkeypatch.setattr("brokers.providers.dhan.websocket.connection.DHAN_BACKOFF_BASE_DELAY_MS", 0.0)
 
 
 def _make_feed(mock_sdk, *, monkeypatch_admission: bool = True):
     """Build DhanMarketFeed under an active SDK patch with sticky fake rebuild."""
-    from brokers.dhan.websocket import DhanMarketFeed
+    from brokers.providers.dhan.websocket import DhanMarketFeed
 
     mock_sdk_instance = MagicMock()
     mock_sdk.return_value = mock_sdk_instance
@@ -66,7 +66,7 @@ class TestDhanMarketFeedMaxReconnectAttempts:
 
     def test_max_reconnect_attempts_stops_feed(self, monkeypatch, zero_ws_failure_backoff):
         """Feed should park after MAX_RECONNECT_ATTEMPTS failures (cooldown)."""
-        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 5)
+        monkeypatch.setattr("brokers.providers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 5)
 
         with mock_market_feed_class() as mock_sdk:
             feed, mock_sdk_instance = _make_feed(mock_sdk)
@@ -92,7 +92,7 @@ class TestDhanMarketFeedMaxReconnectAttempts:
 
     def test_reconnect_count_resets_on_success(self, monkeypatch, zero_ws_failure_backoff):
         """Reconnect count should reset after successful connection."""
-        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 50)
+        monkeypatch.setattr("brokers.providers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 50)
 
         with mock_market_feed_class() as mock_sdk:
             feed, mock_sdk_instance = _make_feed(mock_sdk)
@@ -126,7 +126,7 @@ class TestDhanMarketFeedStalenessDetection:
 
     @pytest.fixture
     def feed_with_old_message(self):
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
         from datetime import timedelta
 
         feed = DhanMarketFeed(
@@ -148,7 +148,7 @@ class TestDhanMarketFeedStalenessDetection:
         assert health.metrics["staleness_threshold_seconds"] == 60.0
 
     def test_no_staleness_when_recent_message(self, monkeypatch):
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         feed = DhanMarketFeed(
             client_id="test_client",
@@ -169,7 +169,7 @@ class TestDhanMarketFeedHealthMetrics:
     """Test health endpoint exposes all reconnect metrics."""
 
     def test_health_exposes_reconnect_metrics(self):
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         feed = DhanMarketFeed(
             client_id="test_client",
@@ -193,7 +193,7 @@ class TestDhanMarketFeedHealthMetrics:
         assert health.metrics["is_stale"] is False
 
     def test_health_max_reconnect_attempts_configurable(self, monkeypatch):
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         monkeypatch.setattr("config.ws_settings.DHAN_MAX_RECONNECT_ATTEMPTS", 100)
 
@@ -211,7 +211,7 @@ class TestDhanMarketFeedChaosScenarios:
     """Chaos tests for extreme failure scenarios."""
 
     def test_rapid_reconnect_does_not_exhaust_resources(self, monkeypatch, zero_ws_failure_backoff):
-        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 3)
+        monkeypatch.setattr("brokers.providers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 3)
 
         with mock_market_feed_class() as mock_sdk:
             feed, mock_sdk_instance = _make_feed(mock_sdk)
@@ -228,7 +228,7 @@ class TestDhanMarketFeedChaosScenarios:
             assert feed._is_connected is False
 
     def test_intermittent_failures_handled_gracefully(self, monkeypatch, zero_ws_failure_backoff):
-        monkeypatch.setattr("brokers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 20)
+        monkeypatch.setattr("brokers.providers.dhan.websocket.connection.DHAN_MAX_RECONNECT_ATTEMPTS", 20)
 
         with mock_market_feed_class() as mock_sdk:
             feed, mock_sdk_instance = _make_feed(mock_sdk)

@@ -2,12 +2,20 @@
 
 L0 unit  — pure domain
 L1 integration — OMS + fakes
-L2 e2e paper — tradex.connect("paper")
+L2 e2e paper — BrokerSession.connect("paper")
 
 Live L3 lives under @pytest.mark.live (optional secrets).
 """
 
 from __future__ import annotations
+
+from brokers import BrokerSession
+from tests.support.gateway_orders import (
+    cancel_via_gateway,
+    modify_via_gateway,
+    place_via_gateway,
+    subscribe_via_gateway,
+)
 
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -43,9 +51,9 @@ def test_U_PORTFOLIO_PNL():
             realized_pnl=Decimal("5"),
         )
     )
-    assert p.unrealized_pnl == Decimal("100")
-    assert p.realized_pnl == Decimal("5")
-    assert p.total_pnl == Decimal("105")
+    assert p.unrealized_pnl.to_decimal() == Decimal("100")
+    assert p.realized_pnl.to_decimal() == Decimal("5")
+    assert p.total_pnl.to_decimal() == Decimal("105")
     assert p.position_count == 1
 
 
@@ -120,43 +128,61 @@ from typing import Any  # noqa: E402
 
 
 def test_I_OMS_PLACE_CANCEL():
-    ep = _FakeEP()
-    oms = build_oms_service(ep, broker_id="paper")
-    intent = OrderIntent(
-        symbol="RELIANCE",
-        exchange="NSE",
-        side=__import__("domain.enums", fromlist=["Side"]).Side.BUY,
-        quantity=1,
-        price=Decimal("100"),
-        correlation_id="test:place-cancel",
-    )
-    r = oms.place(intent)
-    assert r.success
-    oid = r.order.order_id
-    c = oms.cancel(oid)
-    assert c.success
-    assert oid in ep.cancelled
+    from application.oms import register_oms_context, reset_oms_context
+    from tests.conftest import build_test_trading_context
+
+    reset_oms_context()
+    register_oms_context(build_test_trading_context())
+    try:
+        ep = _FakeEP()
+        oms = build_oms_service(ep, broker_id="paper")
+        intent = OrderIntent(
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=__import__("domain.enums", fromlist=["Side"]).Side.BUY,
+            quantity=1,
+            price=Decimal("100"),
+            correlation_id="test:place-cancel",
+        )
+        r = oms.place(intent)
+        assert r.success
+        oid = r.order.order_id
+        c = oms.cancel(oid)
+        assert c.success
+        assert oid in ep.cancelled
+    finally:
+        reset_oms_context()
 
 
 def test_I_OMS_MODIFY():
-    ep = _FakeEP()
-    oms = build_oms_service(ep, broker_id="paper")
+    from application.oms import register_oms_context, reset_oms_context
     from domain.enums import Side
+    from tests.conftest import build_test_trading_context
 
-    r = oms.place(
-        OrderIntent(
-            symbol="TCS",
-            exchange="NSE",
-            side=Side.BUY,
-            quantity=2,
-            price=Decimal("200"),
-            correlation_id="test:mod",
+    reset_oms_context()
+    register_oms_context(build_test_trading_context())
+    try:
+        ep = _FakeEP()
+        oms = build_oms_service(ep, broker_id="paper")
+
+        r = oms.place(
+            OrderIntent(
+                symbol="TCS",
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=2,
+                price=Decimal("200"),
+                correlation_id="test:mod",
+            )
         )
-    )
-    assert r.success
-    m = oms.modify(ModifyOrderRequest(order_id=r.order.order_id, price=Decimal("199"), quantity=3))
-    assert m.success
-    assert ep.modified and ep.modified[0].price == Decimal("199")
+        assert r.success
+        m = oms.modify(
+            ModifyOrderRequest(order_id=r.order.order_id, price=Decimal("199"), quantity=3)
+        )
+        assert m.success
+        assert ep.modified and ep.modified[0].price == Decimal("199")
+    finally:
+        reset_oms_context()
 
 
 def test_I_ACCOUNT_REFRESH():
@@ -172,22 +198,34 @@ def test_I_ACCOUNT_REFRESH():
 def test_I_MODE_MARKET_BLOCK_CANCEL():
     mock_gw = MagicMock()
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)
         with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
-            session.cancel("OID-1")
+            cancel_via_gateway(session, "OID-1")
         with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
-            session.modify("OID-1", price=Decimal("1"))
+            modify_via_gateway(session, "OID-1", price=Decimal("1"))
         session.close()
 
 
 def test_I_UPSTOX_ADAPTER():
-    import brokers.upstox  # noqa: F401
+    import brokers.providers.upstox  # noqa: F401
+    from types import SimpleNamespace
+
     from infrastructure.adapter_factory import create_data_adapter
 
     gw = MagicMock()
-    gw.quote.return_value = MagicMock(ltp=Decimal("10"), bid=0, ask=0, volume=0)
+    gw.quote.return_value = SimpleNamespace(
+        ltp=Decimal("10"),
+        bid=0,
+        ask=0,
+        volume=0,
+        high=0,
+        low=0,
+        open=0,
+        close=0,
+        oi=0,
+    )
     adapter = create_data_adapter(gw, broker_id="upstox")
     assert adapter is not None
     assert getattr(adapter, "name", None) == "upstox"
@@ -202,7 +240,7 @@ def test_I_UPSTOX_ADAPTER():
 
 
 def test_E_PAPER_CONNECT():
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     assert session.status is not None
     assert session.status.mode == "sim"
     assert session.status.orders_enabled is True
@@ -210,7 +248,7 @@ def test_E_PAPER_CONNECT():
 
 
 def test_E_PAPER_QUOTE_HIST():
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     eq = session.universe.equity("RELIANCE")
     eq.refresh()
     assert True  # paper may seed quote
@@ -223,19 +261,19 @@ def test_E_PAPER_ORDER_CYCLE():
     """Paper LIMIT rests OPEN → modify + cancel; MARKET fills."""
     from domain.enums import OrderStatus
 
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     eq = session.universe.equity("RELIANCE")
-    r = eq.buy(1, price=Decimal("100"), correlation_id="e2e:cycle")
+    r = place_via_gateway(session, eq, 1, price=Decimal("100"), correlation_id="e2e:cycle")
     assert r.success
     assert r.order is not None
     assert r.order.status == OrderStatus.OPEN
     oid = r.order.order_id
-    m = eq.modify(oid, price=Decimal("99"))
+    m = modify_via_gateway(session, oid, price=Decimal("99"))
     assert m.success
-    c = eq.cancel(oid)
+    c = cancel_via_gateway(session, oid)
     assert c.success
-    # market fills
-    r2 = eq.market(1, correlation_id="e2e:mkt")
+    # market fills via gateway (Instrument.market has no LTP injection for risk)
+    r2 = place_via_gateway(session, eq, 1, order_type="MARKET", correlation_id="e2e:mkt")
     assert r2.success
     assert r2.order.status == OrderStatus.FILLED
     session.close()
@@ -243,10 +281,18 @@ def test_E_PAPER_ORDER_CYCLE():
 
 def test_I_INSTR_CANCEL_VIA_SESSION_STACK():
     """L1: OPEN order cancel through Session + OmsOrderService + FakeEP."""
+    from application.oms import register_oms_context, reset_oms_context
     from domain.session_status import MODE_SIM, PHASE_READY_TRADE, SessionStatus
+    from tests.conftest import build_test_trading_context
 
-    ep = _FakeEP()
-    oms = build_oms_service(ep, broker_id="paper")
+    reset_oms_context()
+    register_oms_context(build_test_trading_context())
+    try:
+        ep = _FakeEP()
+        oms = build_oms_service(ep, broker_id="paper")
+    except Exception:
+        reset_oms_context()
+        raise
 
     class _Prov:
         name = "paper"
@@ -286,28 +332,31 @@ def test_I_INSTR_CANCEL_VIA_SESSION_STACK():
         def unsubscribe(self, *a, **k):
             return None
 
-    session = Session(
-        _Prov(),
-        execution_provider=ep,
-        order_service=oms,
-        status=SessionStatus(
-            phase=PHASE_READY_TRADE,
-            broker_id="paper",
-            mode=MODE_SIM,
-            orders_enabled=True,
-        ),
-    )
-    eq = session.universe.equity("RELIANCE")
-    r = eq.buy(1, price=Decimal("50"), correlation_id="l1:instr-cancel")
-    assert r.success
-    c = eq.cancel(r.order.order_id)
-    assert c.success
-    assert r.order.order_id in ep.cancelled
-    session.close()
+    try:
+        session = Session(
+            _Prov(),
+            execution_provider=ep,
+            order_service=oms,
+            status=SessionStatus(
+                phase=PHASE_READY_TRADE,
+                broker_id="paper",
+                mode=MODE_SIM,
+                orders_enabled=True,
+            ),
+        )
+        eq = session.universe.equity("RELIANCE")
+        r = place_via_gateway(session, eq, 1, price=Decimal("50"), correlation_id="l1:instr-cancel")
+        assert r.success
+        c = cancel_via_gateway(session, r.order.order_id)
+        assert c.success
+        assert r.order.order_id in ep.cancelled
+        session.close()
+    finally:
+        reset_oms_context()
 
 
 def test_E_PAPER_ACCOUNT():
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     acc = session.account
     acc.refresh()
     assert acc.is_refreshed
@@ -319,7 +368,7 @@ def test_E_PAPER_ACCOUNT():
 
 
 def test_E_PAPER_INSTRUMENT_CAPS_EMPTY():
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     eq = session.universe.equity("INFY")
     assert eq.broker is not None
     # paper has no depth extensions
@@ -328,16 +377,15 @@ def test_E_PAPER_INSTRUMENT_CAPS_EMPTY():
 
 
 def test_E_PAPER_ASSET_TYPES_AND_ORDERS_LIST():
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     etf = session.universe.etf("NIFTYBEES")
     assert etf.id.is_etf
     com = session.universe.commodity("CRUDEOIL", expiry=__import__("datetime").date(2026, 11, 19))
     assert com.id.is_commodity
-    r = session.universe.equity("RELIANCE").buy(
-        1, price=Decimal("100"), correlation_id="e2e:orders-list"
-    )
+    eq = session.universe.equity("RELIANCE")
+    r = place_via_gateway(session, eq, 1, price=Decimal("100"), correlation_id="e2e:orders-list")
     assert r.success
-    book = session.orders()
+    book = session.gateway.orders()
     assert isinstance(book, list)
     session.close()
 
@@ -345,7 +393,7 @@ def test_E_PAPER_ASSET_TYPES_AND_ORDERS_LIST():
 def test_I_DHAN_EXTENSION_CAPS_INCLUDE_SUPER():
     mock_gw = MagicMock()
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)
         eq = session.universe.equity("RELIANCE")

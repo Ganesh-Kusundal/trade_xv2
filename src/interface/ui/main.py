@@ -153,6 +153,27 @@ for _name, _fn in COMMAND_HANDLERS.items():
     register_handler(_name, _fn)
 
 
+# Read-only market-data commands: must NOT touch trading_context (OMS replay).
+MARKET_ONLY_CMDS = frozenset(
+    {
+        "feed",
+        "quote",
+        "depth",
+        "option-chain",
+        "futures",
+        "historical",
+        "history",
+        "stream",
+        "websocket",
+        "search",
+        "instrument",
+        "instruments",
+        "asset",
+        "news",
+    }
+)
+
+
 def _try_create_gateway(
     broker: str = "dhan",
     load_instruments: bool = True,
@@ -181,6 +202,14 @@ def _try_create_gateway(
 
 def main() -> None:
     """Parse CLI arguments and route to commands or TUI."""
+    from infrastructure.correlation import with_correlation
+
+    with with_correlation():
+        _run_cli()
+
+
+def _run_cli() -> None:
+    """CLI body (runs inside a correlation context)."""
     exit_code = 0
     args = sys.argv[1:]
 
@@ -256,12 +285,9 @@ def main() -> None:
     # Commands that don't need a broker gateway
     _NO_GATEWAY_CMDS = {"help", "journal", "views", "validate"}
 
-    # Read-only market-data commands: build their own session via
-    # get_active_session(mode="market") -> BrokerService.market_gateway(),
-    # which deliberately skips OMS/reconciliation/ProductionReadinessChecker.
-    # Accessing trading_context here would force that full bootstrap anyway
-    # (its property always calls _ensure_initialized()), defeating the point.
-    _MARKET_ONLY_CMDS = {"feed"}
+    # Read-only market-data: skip trading_context (OMS event-log replay).
+    # Handlers use market_gateway / platform_bridge instead.
+    _MARKET_ONLY_CMDS = MARKET_ONLY_CMDS
 
     # Commands that need instruments (historical, search, instruments)
     _NEEDS_INSTRUMENTS = {

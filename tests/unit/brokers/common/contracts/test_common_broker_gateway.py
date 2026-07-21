@@ -6,11 +6,12 @@ satisfies :class:`~domain.ports.broker_adapter.BrokerAdapter`.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
-from brokers.common.broker_capabilities import CapabilityDescriptor
+from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
 from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
@@ -171,9 +172,8 @@ class BrokerAdapterContractSuite:
 class _MockBrokerAdapter(BrokerAdapter):
     """Minimal stand-in for protocol conformance testing.
 
-    Subclasses the runtime-checkable ``BrokerAdapter`` (alias of
-    ``BrokerAdapter``) and implements every protocol member so
-    ``isinstance(..., BrokerAdapter)`` holds.
+    Subclasses the runtime-checkable ``BrokerAdapter`` and implements every
+    ``@abstractmethod`` so ``isinstance(..., BrokerAdapter)`` holds.
     """
 
     broker_id = "mock"
@@ -183,166 +183,199 @@ class _MockBrokerAdapter(BrokerAdapter):
     def authenticate(self) -> bool:
         return True
 
-    def list_capabilities(self) -> CapabilityDescriptor:
-        from brokers.common.broker_capabilities import BrokerCapabilities
+    def close(self) -> None:
+        pass
 
+    # ── Market data ──────────────────────────────────────────────────────
+
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        return Quote(symbol=symbol, ltp=0, open=0, high=0, low=0, close=0,
+                     volume=0, change=0, bid=0, ask=0, timestamp=None)
+
+    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+        return Decimal("0")
+
+    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+        return MarketDepth(symbol=symbol, bids=[], asks=[])
+
+    def history(
+        self,
+        symbol: str | list[str],
+        exchange: str = "NSE",
+        timeframe: str = "1D",
+        lookback_days: int = 90,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> Any:
+        return []
+
+    def option_chain(self, underlying: str, exchange: str = "NFO",
+                     expiry: str | None = None) -> Any:
+        return None
+
+    def future_chain(self, underlying: str, exchange: str = "NFO") -> Any:
+        return None
+
+    def search(self, query: str) -> list[dict]:
+        return []
+
+    # ── Order operations ─────────────────────────────────────────────────
+
+    def place_order(self, *args: Any, **kwargs: Any) -> OrderResponse:
+        return OrderResponse.ok(order_id="MOCK-1", message="ok")
+
+    def cancel_order(self, *args: Any, **kwargs: Any) -> OrderResponse:
+        return OrderResponse.ok(order_id="MOCK-1", message="cancelled")
+
+    def modify_order(self, *args: Any, **kwargs: Any) -> OrderResponse:
+        return OrderResponse.ok(order_id="MOCK-1", message="modified")
+
+    def get_order(self, order_id: str) -> Order | None:
+        return None
+
+    def get_orderbook(self) -> list[Order]:
+        return []
+
+    def get_trade_book(self) -> list[Trade]:
+        return []
+
+    # ── Portfolio ─────────────────────────────────────────────────────────
+
+    def positions(self) -> list[Position]:
+        return []
+
+    def holdings(self) -> list[Holding]:
+        return []
+
+    def funds(self) -> Balance:
+        return Balance(
+            available_balance=Decimal("0"),
+            used_margin=Decimal("0"),
+            total_margin=Decimal("0"),
+            sod_limit=Decimal("0"),
+            collateral_amount=Decimal("0"),
+            utilized_amount=Decimal("0"),
+            withdrawable_balance=Decimal("0"),
+        )
+
+    # ── Streaming ─────────────────────────────────────────────────────────
+
+    def stream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        mode: str = "LTP",
+        on_tick: Any | None = None,
+    ) -> Any:
+        return None
+
+    def unstream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        on_tick: Any | None = None,
+    ) -> None:
+        pass
+
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        *,
+        levels: int = 5,
+        on_depth: Any | None = None,
+    ) -> Any:
+        return None
+
+    def stream_order(self, on_order: Any | None = None) -> Any:
+        return None
+
+    # ── Capability discovery ─────────────────────────────────────────────
+
+    def capabilities(self) -> Any:
+        return None
+
+    def list_capabilities(self) -> CapabilityDescriptor:
         return CapabilityDescriptor(
             broker_id="mock",
             capabilities=BrokerCapabilities(broker_id="mock"),
             extensions=frozenset(),
-            observed_at=__import__("datetime").datetime.now(tz=__import__("datetime").timezone.utc),
+            observed_at=__import__("datetime").datetime.now(
+                tz=__import__("datetime").timezone.utc
+            ),
         )
 
     def supports(self, feature: str) -> bool:
         return True
 
-    def place_order(self, request: Any, *, quota: QuotaToken) -> OrderResponse:
-        return OrderResponse.ok(order_id="MOCK-1", message="ok")
+    def describe(self) -> dict:
+        return {"broker_id": "mock"}
 
-    def cancel_order(self, order_id: str, *, quota: QuotaToken) -> OrderResponse:
-        return OrderResponse.ok(order_id=order_id, message="cancelled")
+    # ── Instrument management ─────────────────────────────────────────────
 
-    def modify_order(self, request: Any, *, quota: QuotaToken) -> OrderResponse:
-        return OrderResponse.ok(order_id="MOCK-1", message="modified")
+    def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
+        pass
 
-    def get_positions(self, *, quota: QuotaToken) -> list[Position]:
+    # ── BrokerGateway protocol methods (for contract suite tests) ────────
+
+    def get_positions(self, *, quota: QuotaToken | None = None) -> list[Position]:
         return []
 
-    def get_margins(self, *, quota: QuotaToken) -> Balance:
+    def get_margins(self, *, quota: QuotaToken | None = None) -> Balance:
         return Balance(
-            available_balance=0,
-            used_margin=0,
-            total_margin=0,
-            sod_limit=0,
-            collateral_amount=0,
-            utilized_amount=0,
-            withdrawable_balance=0,
+            available_balance=Decimal("0"),
+            used_margin=Decimal("0"),
+            total_margin=Decimal("0"),
+            sod_limit=Decimal("0"),
+            collateral_amount=Decimal("0"),
+            utilized_amount=Decimal("0"),
+            withdrawable_balance=Decimal("0"),
         )
 
-    def get_orders(self, *, quota: QuotaToken) -> list[Order]:
+    def get_orders(self, *, quota: QuotaToken | None = None) -> list[Order]:
         return []
 
-    def get_trades(self, *, quota: QuotaToken) -> list[Trade]:
+    def get_trades(self, *, quota: QuotaToken | None = None) -> list[Trade]:
         return []
 
-    def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
-        return Quote(
-            symbol=instrument.symbol,
-            ltp=0,
-            open=0,
-            high=0,
-            low=0,
-            close=0,
-            volume=0,
-            change=0,
-            bid=0,
-            ask=0,
-            timestamp=None,
-        )
+    def get_quote_snapshot(
+        self, instrument: InstrumentRef, *, quota: QuotaToken | None = None
+    ) -> Quote:
+        return Quote(symbol=instrument.symbol, ltp=0, open=0, high=0, low=0, close=0,
+                     volume=0, change=0, bid=0, ask=0, timestamp=None)
 
-    def get_depth_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> MarketDepth:
+    def get_depth_snapshot(
+        self, instrument: InstrumentRef, *, quota: QuotaToken | None = None
+    ) -> MarketDepth:
         return MarketDepth(symbol=instrument.symbol, bids=[], asks=[])
 
     def get_historical_bars(
-        self, request: HistoricalBarRequest, *, quota: QuotaToken
+        self, request: HistoricalBarRequest, *, quota: QuotaToken | None = None
     ) -> list[HistoricalBar]:
         return []
 
     def open_market_stream(self, plan: BrokerStreamPlan) -> BrokerStreamHandle:
-        class _Handle(BrokerStreamHandle):
-            session_id = "mock"
-            broker_id = "mock"
-
-            def disconnect(self) -> None:
-                pass
-
-            def is_connected(self) -> bool:
-                return False
-
-        return _Handle()
+        return self._make_stream_handle()
 
     def open_order_stream(self, plan: BrokerStreamPlan) -> BrokerStreamHandle:
-        class _Handle(BrokerStreamHandle):
-            session_id = "mock"
-            broker_id = "mock"
-
-            def disconnect(self) -> None:
-                pass
-
-            def is_connected(self) -> bool:
-                return False
-
-        return _Handle()
+        return self._make_stream_handle()
 
     def health(self) -> BrokerHealthSnapshot:
         return BrokerHealthSnapshot(broker_id="mock", alive=True)
 
-    # ── DataProvider members (BrokerAdapter contract) ────────────────────
+    @staticmethod
+    def _make_stream_handle() -> BrokerStreamHandle:
+        class _Handle(BrokerStreamHandle):
+            session_id = "mock"
+            broker_id = "mock"
 
-    def get_quote(self, instrument_id: Any) -> None:
-        return None
+            def disconnect(self) -> None:
+                pass
 
-    def get_history(
-        self,
-        instrument_id: Any,
-        *,
-        timeframe: str = "1D",
-        lookback_days: int = 120,
-        from_date: str | None = None,
-        to_date: str | None = None,
-    ) -> list:
-        return []
+            def is_connected(self) -> bool:
+                return False
 
-    def get_history_series(self, instrument_id: Any, **kwargs: Any) -> None:
-        return None
-
-    def get_depth(self, instrument_id: Any) -> None:
-        return None
-
-    def get_option_chain(self, underlying: Any, *, expiry: Any = None) -> None:
-        return None
-
-    def get_future_chain(self, underlying: Any) -> None:
-        return None
-
-    def subscribe(self, instrument_id: Any, callback: Any, *, depth: bool = False) -> None:
-        return None
-
-    def unsubscribe(self, subscription: Any) -> None:
-        return None
-
-    def history_batch(
-        self, instrument_ids: list, *, timeframe: str = "1D", lookback_days: int = 120
-    ) -> None:
-        return None
-
-    def list_instruments(self, exchange: str | None = None) -> list:
-        return []
-
-    def get_quotes_batch(self, instrument_ids: list) -> list:
-        return []
-
-    # ── ExecutionProvider members (BrokerAdapter contract) ───────────────
-
-    def get_order_book(self) -> list[Order]:
-        return []
-
-    def get_holdings(self) -> list:
-        return []
-
-    def get_funds(self) -> Balance:
-        return Balance(
-            available_balance=0,
-            used_margin=0,
-            total_margin=0,
-            sod_limit=0,
-            collateral_amount=0,
-            utilized_amount=0,
-            withdrawable_balance=0,
-        )
-
-    def close(self) -> None:
-        pass
+        return _Handle()
 
 
 class TestBrokerAdapterContract(BrokerAdapterContractSuite):

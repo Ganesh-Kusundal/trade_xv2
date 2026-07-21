@@ -50,12 +50,12 @@ def ensure_core_plugins() -> None:
     ``tradex/session.py`` calls this before any concrete broker package is
     guaranteed to have been imported (a fresh process calling
     ``tradex.connect("dhan")`` for the first time may reach here before
-    anything else has imported ``brokers.dhan``), so this cannot simply
+    anything else has imported ``brokers.providers.dhan``), so this cannot simply
     defer to each broker's real self-registration
     (``brokers/{dhan,upstox,paper}/__init__.py`` all call
     ``register_broker_plugin`` themselves at import time) — that was tried
     and reverted: importing the broker packages from here transitively
-    pulls in ``application.oms.*`` (historically ``brokers.dhan.portfolio
+    pulls in ``application.oms.*`` (historically ``brokers.providers.dhan.portfolio
     .reconciliation``; engine now lives in ``domain.reconciliation_engine``)
     and breaks
     two real import-linter contracts (``Infrastructure independence``,

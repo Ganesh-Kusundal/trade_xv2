@@ -508,7 +508,7 @@ class OptionChain:
             InstrumentId.index(self._chain.exchange, self._chain.underlying),
             data_provider=self._provider,
         )
-        return underlying.subscribe(callback or (lambda *a, **k: None), depth=depth)
+        return underlying._subscribe_core(callback or (lambda *a, **k: None), depth=depth)
 
     @classmethod
     def empty(cls) -> OptionChain:

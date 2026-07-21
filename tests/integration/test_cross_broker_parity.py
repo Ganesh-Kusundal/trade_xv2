@@ -22,7 +22,7 @@ class TestQuoteSchemaParity:
 
     def test_quote_has_required_fields(self):
         """Quote from all brokers must have same required fields."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         quote = gw.quote("RELIANCE", "NSE")
@@ -34,7 +34,7 @@ class TestQuoteSchemaParity:
 
     def test_quote_field_types_consistent(self):
         """Quote field types must be consistent across brokers."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         quote = gw.quote("TATASTEEL", "NSE")
@@ -51,7 +51,7 @@ class TestOrderResponseSchemaParity:
 
     def test_order_response_has_required_fields(self):
         """OrderResponse from all brokers must have same fields."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         response = gw.place_order(
@@ -68,7 +68,7 @@ class TestOrderResponseSchemaParity:
 
     def test_order_response_success_is_bool(self):
         """success field must be boolean across all brokers."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         response = gw.place_order(
@@ -83,7 +83,7 @@ class TestOrderResponseSchemaParity:
 
     def test_order_response_status_is_enum(self):
         """status field must be OrderStatus enum across all brokers."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         response = gw.place_order(
@@ -102,7 +102,7 @@ class TestOrderLifecycleParity:
 
     def test_place_returns_order_id(self):
         """All brokers must return order_id on successful place."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         response = gw.place_order(
@@ -119,7 +119,7 @@ class TestOrderLifecycleParity:
 
     def test_cancel_filled_order_returns_failure(self):
         """All brokers should fail to cancel already-filled order."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         place_resp = gw.place_order(
@@ -137,7 +137,7 @@ class TestOrderLifecycleParity:
 
     def test_get_order_returns_order_object(self):
         """get_order should return Order object with consistent structure."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         place_resp = gw.place_order(
@@ -159,7 +159,7 @@ class TestErrorHandlingParity:
 
     def test_cancel_nonexistent_order_returns_failure(self):
         """Cancel non-existent order should fail gracefully."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         response = gw.cancel_order("NONEXISTENT-999")
@@ -168,7 +168,7 @@ class TestErrorHandlingParity:
 
     def test_get_nonexistent_order_returns_none(self):
         """get_order for non-existent order should return None."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         order = gw.get_order("NONEXISTENT-888")
@@ -180,7 +180,7 @@ class TestMarketDepthSchemaParity:
 
     def test_depth_returns_market_depth_object(self):
         """depth() should return MarketDepth with required structure."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         depth = gw.depth("RELIANCE", "NSE")
@@ -193,7 +193,7 @@ class TestMarketDepthSchemaParity:
 
     def test_depth_levels_have_required_fields(self):
         """Each depth level must have price, quantity, orders."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         depth = gw.depth("TATASTEEL", "NSE")
@@ -209,7 +209,7 @@ class TestPortfolioSchemaParity:
 
     def test_positions_returns_list(self):
         """positions() should return list[Position]."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         positions = gw.positions()
@@ -218,7 +218,7 @@ class TestPortfolioSchemaParity:
 
     def test_funds_returns_balance(self):
         """funds() should return Balance object."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         gw = PaperGateway()
         balance = gw.funds()
@@ -233,7 +233,7 @@ class TestSandboxBrokerParity:
 
     @pytest.fixture
     def paper_gw(self):
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         return PaperGateway()
 

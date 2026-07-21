@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus, classify_exception
+from domain.ports.bootstrap_options import BootstrapOptions
 
 logger = logging.getLogger(__name__)
 
@@ -178,8 +179,13 @@ def bootstrap_gateway(
     require_authenticated: bool | None = None,
     analytics_only: bool = False,
     skip_credential_check: bool = False,
+    options: BootstrapOptions | None = None,
 ) -> BootstrapResult:
     """Create gateway and automatically run authenticated readiness.
+
+    Accepts either individual parameters (backward-compatible) or a
+    :class:`BootstrapOptions` config object. When ``options`` is provided,
+    it takes precedence over individual parameters.
 
     Flow (live brokers)::
 
@@ -191,19 +197,19 @@ def bootstrap_gateway(
           → BootstrapResult(READY | REAUTH_REQUIRED | FAILED)
 
     Paper/datalake skip the network probe and return READY.
-
-    Parameters
-    ----------
-    skip_auth_probe:
-        Skip the network probe (transport only). Prefer this over the legacy
-        ``analytics_only`` / ``skip_credential_check`` flags.
-    require_authenticated:
-        When ``False``, skip the network probe. When ``True`` or ``None``
-        (default), run it for live brokers. Integration tests pass
-        ``require_authenticated=True`` explicitly.
-    analytics_only / skip_credential_check:
-        Legacy CLI facade flags; both imply skip probe (transport for reads).
     """
+    # Apply structured config if provided
+    if options is not None:
+        broker = options.broker or broker
+        env_path = options.env_path if options.env_path is not None else env_path
+        load_instruments = options.load_instruments
+        event_bus = options.event_bus or event_bus
+        lifecycle = options.lifecycle or lifecycle
+        risk_manager = options.risk_manager or risk_manager
+        skip_auth_probe = options.skip_auth_probe
+        require_authenticated = options.require_authenticated
+        analytics_only = options.analytics_only
+        skip_credential_check = options.skip_credential_check
     broker = (broker or "paper").lower().strip()
     resolved = resolve_env_path(broker, env_path)
 

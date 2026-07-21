@@ -133,9 +133,9 @@ def _probe_upstox(env: dict[str, str]) -> bool:
         # known stable format; the assertion below tolerates a miss by SKIP.
         fno_key = "NSE_FO|NIFTY25JULFUT"
         try:
-            from brokers.upstox.auth.config import UpstoxSettingsLoader
-            from brokers.upstox.auth.token_manager import UpstoxTokenManager
-            from brokers.upstox.instruments.service import get_instrument_service
+            from brokers.providers.upstox.auth.config import UpstoxSettingsLoader
+            from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
+            from brokers.providers.upstox.instruments.service import get_instrument_service
 
             settings = UpstoxSettingsLoader.from_env()
             tok = UpstoxTokenManager(settings).bearer_token()
@@ -175,7 +175,7 @@ def _probe_upstox(env: dict[str, str]) -> bool:
         raw_oi = data.get("oi", 0)
         print(f"  raw last_price={data.get('last_price')} raw oi={raw_oi}")
 
-        from brokers.upstox.mappers.equity_mapper import UpstoxDomainMapper
+        from brokers.providers.upstox.mappers.equity_mapper import UpstoxDomainMapper
 
         key = fno_key.replace("|", ":")
         q = UpstoxDomainMapper.to_quote({"data": {key: data}})

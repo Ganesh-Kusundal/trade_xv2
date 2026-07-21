@@ -33,19 +33,19 @@ def _load_credentials():
 @pytest.mark.skipif(not LIVE_DHAN, reason=".env.local required")
 class TestLiveWebSocket:
     def test_market_feed_is_connected_default_false(self):
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         feed = DhanMarketFeed(client_id="test", access_token="test", instruments=[])
         assert feed.is_connected is False
 
     def test_order_stream_is_connected_default_false(self):
-        from brokers.dhan.websocket import DhanOrderStream
+        from brokers.providers.dhan.websocket import DhanOrderStream
 
         stream = DhanOrderStream(client_id="test", access_token="test")
         assert stream.is_connected is False
 
     def test_market_feed_callback_registration(self):
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         feed = DhanMarketFeed(client_id="test", access_token="test", instruments=[])
         ticks = []
@@ -53,7 +53,7 @@ class TestLiveWebSocket:
         assert len(feed._quote_callbacks) == 1
 
     def test_order_stream_callback_registration(self):
-        from brokers.dhan.websocket import DhanOrderStream
+        from brokers.providers.dhan.websocket import DhanOrderStream
 
         stream = DhanOrderStream(client_id="test", access_token="test")
         updates = []
@@ -67,7 +67,7 @@ class TestLiveWebSocket:
         if not client_id or not access_token:
             pytest.skip("Credentials not available")
 
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         received = threading.Event()
         ticks = []
@@ -102,7 +102,7 @@ class TestLiveWebSocket:
         if not client_id or not access_token:
             pytest.skip("Credentials not available")
 
-        from brokers.dhan.websocket import DhanOrderStream
+        from brokers.providers.dhan.websocket import DhanOrderStream
 
         stream = DhanOrderStream(client_id=client_id, access_token=access_token)
         try:

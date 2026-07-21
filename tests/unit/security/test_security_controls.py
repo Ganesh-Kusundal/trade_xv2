@@ -97,7 +97,7 @@ class TestAllowLiveOrdersGuards:
         """place_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -115,7 +115,7 @@ class TestAllowLiveOrdersGuards:
         """cancel_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -133,7 +133,7 @@ class TestAllowLiveOrdersGuards:
         """modify_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -151,7 +151,7 @@ class TestAllowLiveOrdersGuards:
         """initiate_payout must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.extended import UpstoxExtendedCapabilities
+        from brokers.providers.upstox.extended import UpstoxExtendedCapabilities
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -171,7 +171,7 @@ class TestAllowLiveOrdersGuards:
         """place_mutual_fund_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.upstox.extended import UpstoxExtendedCapabilities
+        from brokers.providers.upstox.extended import UpstoxExtendedCapabilities
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
@@ -194,7 +194,7 @@ class TestDhanWriteOperationGuards:
     def _adapter(self, **kwargs):
         from unittest.mock import Mock
 
-        from brokers.dhan.execution.orders import OrdersAdapter
+        from brokers.providers.dhan.execution.orders import OrdersAdapter
 
         return OrdersAdapter(
             client=Mock(),
@@ -236,7 +236,7 @@ class TestDhanWriteOperationGuards:
 
     def test_dhan_kill_switch_has_guard(self):
         """Dhan kill_switch must check allow_live_orders."""
-        from brokers.dhan.exceptions import OrderError
+        from brokers.providers.dhan.exceptions import OrderError
 
         try:
             self._adapter().kill_switch(True)

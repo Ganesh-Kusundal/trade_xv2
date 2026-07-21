@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.urls import UpstoxApiUrlResolver
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.urls import UpstoxApiUrlResolver
 
 
 def _settings(env: str = "LIVE", rest_base_url: str = "") -> UpstoxConnectionSettings:

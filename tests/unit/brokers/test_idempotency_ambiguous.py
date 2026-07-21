@@ -13,7 +13,7 @@ import unittest.mock as mock
 import pytest
 
 from brokers.common.idempotency import IdempotencyCache
-from brokers.dhan.execution.order_placement import OrderPlacer
+from brokers.providers.dhan.execution.order_placement import OrderPlacer
 from domain import OrderResponse, OrderStatus
 from domain.models.dtos import BrokerOrderPayload
 from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
@@ -30,8 +30,8 @@ def _make_request(cid: str = "ambiguous-cid") -> BrokerOrderPayload:
 
 
 def _make_dhan_placer(fake_client, cache=None):
-    from brokers.dhan.identity import coerce_identity_provider
-    from brokers.dhan.resolver import SymbolResolver
+    from brokers.providers.dhan.identity import coerce_identity_provider
+    from brokers.providers.dhan.resolver import SymbolResolver
 
     r = SymbolResolver()
     r.load_from_rows(list(SAMPLE_ROWS))
@@ -102,8 +102,8 @@ class TestDhanAmbiguousPostSuccessParseFailure:
     def test_pre_post_failure_still_clears_reservation(self):
         """A failure BEFORE the POST (e.g. validation) must still clear
         the reservation so the next caller can retry."""
-        from brokers.dhan.identity import coerce_identity_provider
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.identity import coerce_identity_provider
+        from brokers.providers.dhan.resolver import SymbolResolver
 
         fake_client = FakeHttpClient()
         r = SymbolResolver()
@@ -155,8 +155,8 @@ class TestUpstoxAmbiguousPostSuccessParseFailure:
     def test_reservation_not_cleared_on_parse_error(self):
         """After a successful POST that raises during response mapping,
         the idempotency reservation must remain."""
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        from brokers.upstox.orders.order_command_adapter import (
+        from brokers.providers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+        from brokers.providers.upstox.orders.order_command_adapter import (
             UpstoxOrderCommandAdapter,
         )
 
@@ -195,7 +195,7 @@ class TestUpstoxAmbiguousPostSuccessParseFailure:
     def test_pre_post_failure_clears_reservation(self):
         """Upstox: failure before POST (instrument resolution) must clear
         the reservation."""
-        from brokers.upstox.orders.order_command_adapter import (
+        from brokers.providers.upstox.orders.order_command_adapter import (
             UpstoxOrderCommandAdapter,
         )
 

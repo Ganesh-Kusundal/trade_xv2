@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from brokers.common.contracts.market_coverage_contract import MarketCoverageContract
-from brokers.upstox.capabilities.snapshot import upstox_capabilities
+from brokers.providers.upstox.capabilities.snapshot import upstox_capabilities
 
 
 @pytest.fixture()

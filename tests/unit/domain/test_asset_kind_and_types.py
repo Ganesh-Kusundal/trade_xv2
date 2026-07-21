@@ -116,5 +116,6 @@ def test_equity_and_etf_share_cash_methods():
     eq = s.universe.equity("RELIANCE")
     etf = s.universe.etf("NIFTYBEES")
     assert hasattr(eq, "refresh") and hasattr(etf, "history")
-    assert hasattr(etf, "buy")
+    assert hasattr(etf, "market") and hasattr(etf, "limit")
+    assert not hasattr(etf, "buy")
     s.close()

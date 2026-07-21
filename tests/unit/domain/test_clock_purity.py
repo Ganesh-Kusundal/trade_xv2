@@ -12,11 +12,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 FORBIDDEN_DIRS = [
-    ROOT / "src/brokers/paper",
-    ROOT / "src/brokers/upstox/mappers",
-    ROOT / "src/brokers/upstox/orders",
-    ROOT / "src/brokers/dhan/websocket",
-    ROOT / "src/brokers/dhan/data",
+    ROOT / "src/brokers/providers/paper",
+    ROOT / "src/brokers/providers/upstox/mappers",
+    ROOT / "src/brokers/providers/upstox/orders",
+    ROOT / "src/brokers/providers/dhan/websocket",
+    ROOT / "src/brokers/providers/dhan/data",
     ROOT / "src/domain/events",
     ROOT / "src/application/execution",
     ROOT / "src/application/oms/_internal",

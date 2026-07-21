@@ -86,6 +86,7 @@ from application.oms._internal.trading_state import TradingState
 from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from application.oms.position_manager import PositionManager
 from domain.entities import Order
+from domain.enums import OrderType
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.exchange_segments import is_derivative_segment
@@ -241,6 +242,10 @@ class RiskManager:
             )
 
         def _tick_align(order, _ctx):
+            # MARKET / SL-M carry no limit price — skip tick (ref price may be LTP).
+            ot = getattr(order, "order_type", None)
+            if ot in (OrderType.MARKET, OrderType.STOP_LOSS_MARKET):
+                return None
             if order.price <= 0:
                 return None
             # Fall back to DEFAULT_TICK_SIZE when no instrument master is wired

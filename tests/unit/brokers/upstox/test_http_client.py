@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.exceptions import UpstoxApiError, UpstoxFundsMaintenanceError
-from brokers.upstox.auth.http import UpstoxHttpClient
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.exceptions import UpstoxApiError, UpstoxFundsMaintenanceError
+from brokers.providers.upstox.auth.http import UpstoxHttpClient
 
 
 def test_http_client_injects_bearer_and_algo_name():
@@ -136,7 +136,7 @@ def test_default_rate_limiter_is_multi_bucket():
 
 
 def test_rate_limit_bucket_mapping():
-    from brokers.upstox.auth.http import _rate_limit_bucket
+    from brokers.providers.upstox.auth.http import _rate_limit_bucket
 
     assert _rate_limit_bucket("https://api.upstox.com/v2/market-quote/ltp") == "quotes"
     assert _rate_limit_bucket("https://api.upstox.com/v2/market-quote/ohlc") == "quotes"

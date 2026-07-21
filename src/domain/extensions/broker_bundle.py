@@ -32,7 +32,7 @@ def register_extension_factory(
 ) -> None:
     """Register a broker's extension bundle factory.
 
-    Called by broker modules (e.g. brokers/dhan/common_extensions.py)
+    Called by broker modules (e.g. brokers/providers/dhan/common_extensions.py)
     at module level so the factory is available when bootstrap runs.
     """
     _extension_factories[broker_id] = factory

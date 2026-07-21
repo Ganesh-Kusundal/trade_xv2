@@ -20,7 +20,7 @@ from io import StringIO
 from unittest import mock
 from unittest.mock import MagicMock
 
-from brokers.dhan.websocket.connection import MarketFeedConnection
+from brokers.providers.dhan.websocket.connection import MarketFeedConnection
 from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class
 
 

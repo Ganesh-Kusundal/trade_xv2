@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
 
 class _Frame:

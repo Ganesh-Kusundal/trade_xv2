@@ -93,9 +93,9 @@ def main() -> int:
     import tradex
     from application.oms.process_context import register_oms_context, reset_oms_context
     from application.oms.session_bridge import build_oms_service
-    from brokers.dhan.identity.account_registry import AccountConnectionRegistry
-    from brokers.paper.execution_provider import PaperExecutionProvider
-    from brokers.paper.paper_gateway import PaperGateway
+    from brokers.providers.dhan.identity.account_registry import AccountConnectionRegistry
+    from brokers.providers.paper.execution_provider import PaperExecutionProvider
+    from brokers.providers.paper.paper_gateway import PaperGateway
 
     reset_oms_context()
     AccountConnectionRegistry.release_all()
@@ -120,7 +120,7 @@ def main() -> int:
         stock = session.universe.equity("RELIANCE")
         price = Decimal("1000")
         corr = uuid.uuid4().hex[:16]
-        result = stock.buy(1, price=price, correlation_id=corr)
+        result = session.buy(stock, 1, price=price, correlation_id=corr)
         print("place success=", result.success, "error=", result.error)
         if not result.success:
             err = (result.error or "").lower()

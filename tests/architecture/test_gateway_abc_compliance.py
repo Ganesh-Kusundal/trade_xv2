@@ -22,7 +22,7 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 2.1 is complete (extract non-ABC methods).
         """
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
         from domain.ports.protocols import DataProvider, ExecutionProvider
 
         # Get all protocol-defined methods (Protocols don't use @abstractmethod)
@@ -111,7 +111,7 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 1.2 is complete.
         """
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         place_order_sig = inspect.signature(DhanWireAdapter.place_order)
         params = list(place_order_sig.parameters.keys())
@@ -139,7 +139,7 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 2.3 is complete.
         """
-        from brokers.upstox.factory import UpstoxBrokerFactory
+        from brokers.providers.upstox.factory import UpstoxBrokerFactory
         from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         assert issubclass(UpstoxBrokerFactory, BrokerProviderFactory), (
@@ -151,7 +151,7 @@ class TestGatewayABCCompliance:
 
     def test_dhan_factory_implements_broker_provider_factory(self):
         """BrokerFactory must implement BrokerProviderFactory ABC."""
-        from brokers.dhan.identity.factory import BrokerFactory
+        from brokers.providers.dhan.identity.factory import BrokerFactory
         from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         assert issubclass(BrokerFactory, BrokerProviderFactory), (
@@ -162,8 +162,8 @@ class TestGatewayABCCompliance:
 
     def test_both_factories_share_same_create_signature(self):
         """Both factories must accept the same core keyword-only parameters."""
-        from brokers.dhan.identity.factory import BrokerFactory
-        from brokers.upstox.factory import UpstoxBrokerFactory
+        from brokers.providers.dhan.identity.factory import BrokerFactory
+        from brokers.providers.upstox.factory import UpstoxBrokerFactory
 
         dhan_params = set(inspect.signature(BrokerFactory.create).parameters.keys())
         upstox_params = set(inspect.signature(UpstoxBrokerFactory.create).parameters.keys())
@@ -193,7 +193,7 @@ class TestExceptionHierarchy:
 
         This test will FAIL until Phase 3.5 is complete.
         """
-        from brokers.upstox.auth.exceptions import UpstoxApiError
+        from brokers.providers.upstox.auth.exceptions import UpstoxApiError
         from infrastructure.resilience.errors import BrokerError
 
         if not issubclass(UpstoxApiError, BrokerError):
@@ -203,7 +203,7 @@ class TestExceptionHierarchy:
 
     def test_dhan_exceptions_extend_broker_error(self):
         """Dhan exceptions must extend BrokerError."""
-        from brokers.dhan.exceptions import DhanError
+        from brokers.providers.dhan.exceptions import DhanError
         from infrastructure.resilience.errors import BrokerError
 
         assert issubclass(DhanError, BrokerError)
@@ -223,7 +223,7 @@ class TestInstrumentLoaderSecurity:
         pytest.skip("Covered by test_security_findings.py::TestNoPickleLoad")
         from pathlib import Path
 
-        loader_path = Path("brokers/upstox/instruments/loader.py")
+        loader_path = Path("brokers/providers/upstox/instruments/loader.py")
         if not loader_path.exists():
             pytest.skip("Loader file not found")
 
@@ -305,7 +305,7 @@ class TestUpstoxStreamAsyncBoundary:
         """stream() must not use asyncio.get_event_loop()."""
         from pathlib import Path
 
-        gateway_path = Path("brokers/upstox/gateway.py")
+        gateway_path = Path("brokers/providers/upstox/gateway.py")
         if not gateway_path.exists():
             pytest.skip("Gateway file not found")
 

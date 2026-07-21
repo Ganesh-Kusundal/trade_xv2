@@ -121,7 +121,7 @@ class TestLiveTickParity:
         _skip_if_off_market()
         cid, tok = _credentials_or_skip()
 
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         received = threading.Event()
         ticks: list[dict] = []
@@ -152,7 +152,7 @@ class TestLiveTickParity:
         _skip_if_off_market()
         cid, tok = _credentials_or_skip()
 
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         received = threading.Event()
         ticks: list[dict] = []
@@ -195,7 +195,7 @@ class TestLiveDepth20Parity:
         _skip_if_off_market()
         cid, tok = _credentials_or_skip()
 
-        from brokers.dhan.data.depth_20 import DhanDepth20Feed
+        from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
 
         received = threading.Event()
         depth_holder: list[object] = []
@@ -249,7 +249,7 @@ class TestLiveDepth200Parity:
         _skip_if_off_market()
         cid, tok = _credentials_or_skip()
 
-        from brokers.dhan.data.depth_200 import DhanDepth200Feed
+        from brokers.providers.dhan.market_data.depth_200 import DhanDepth200Feed
 
         received = threading.Event()
         depth_holder: list[object] = []

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.paper.paper_gateway import PaperGateway as MockBroker
+from brokers.providers.paper.paper_gateway import PaperGateway as MockBroker
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.cli_broker_facade import CliBrokerFacade
 from tests.conftest import build_test_trading_context

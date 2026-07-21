@@ -6,17 +6,17 @@ runtime rather than a hard import error.  Network/token boundaries are faked;
 no live Upstox calls are made.
 
 Fixes pinned:
-  * G2  brokers/upstox/broker.py  `_build_order_path` wires ``portfolio_stream``
+  * G2  brokers/providers/upstox/broker.py  `_build_order_path` wires ``portfolio_stream``
        and defines ``_ensure_extended`` / ``_extended_ready``; gateway
        ``stream_order`` and ``extended`` no longer raise ``AttributeError``.
-  * R4  brokers/upstox/auth/http.py  finite rate-limiter timeout + 429/5xx/
+  * R4  brokers/providers/upstox/auth/http.py  finite rate-limiter timeout + 429/5xx/
        network retry with backoff (honours ``Retry-After``).
-  * R5  brokers/upstox/orders/order_command_adapter.py  ``modify_order`` raises
+  * R5  brokers/providers/upstox/orders/order_command_adapter.py  ``modify_order`` raises
        ``ValueError`` (clear message) when instrument_key cannot be resolved
        instead of sending a bad request.
-  * R6  brokers/upstox/websocket/market_data_v3.py  ``_tick_quote_is_valid``
+  * R6  brokers/providers/upstox/websocket/market_data_v3.py  ``_tick_quote_is_valid``
        drops invalid quotes via ``is_valid_quote``; translator in
-       brokers/upstox/adapters/tick_translator.py.
+       brokers/providers/upstox/adapters/tick_translator.py.
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ def _needs_module(module: str) -> None:
 
 def _make_broker_and_gateway():
     """Construct a real (offline) UpstoxBroker + gateway, or skip."""
-    from brokers.upstox.auth.config import UpstoxConnectionSettings
-    from brokers.upstox.broker import UpstoxBroker
-    from brokers.upstox.wire import UpstoxWireAdapter
+    from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+    from brokers.providers.upstox.broker import UpstoxBroker
+    from brokers.providers.upstox.wire import UpstoxWireAdapter
 
     settings = UpstoxConnectionSettings(client_id="regression-test", access_token="dummy-token")
     broker = UpstoxBroker(settings)
@@ -51,7 +51,7 @@ def _make_broker_and_gateway():
 
 def test_g2_portfolio_stream_and_stream_order() -> None:
     """portfolio_stream is wired and gateway.stream_order does not raise."""
-    _needs_module("brokers.upstox.broker")
+    _needs_module("brokers.providers.upstox.broker")
 
     broker, gateway = _make_broker_and_gateway()
 
@@ -71,9 +71,9 @@ def test_g2_portfolio_stream_and_stream_order() -> None:
 
 def test_g2_extended_capabilities() -> None:
     """gateway.extended returns a working UpstoxExtendedCapabilities (G2b)."""
-    _needs_module("brokers.upstox.extended")
+    _needs_module("brokers.providers.upstox.extended")
 
-    from brokers.upstox.extended import UpstoxExtendedCapabilities
+    from brokers.providers.upstox.extended import UpstoxExtendedCapabilities
 
     broker, gateway = _make_broker_and_gateway()
 
@@ -92,7 +92,7 @@ def test_g2_extended_capabilities() -> None:
 
 def _make_http_client(rate_limiter):
     """Build a UpstoxHttpClient with a controllable rate limiter (no network)."""
-    from brokers.upstox.auth.http import UpstoxHttpClient
+    from brokers.providers.upstox.auth.http import UpstoxHttpClient
 
     return UpstoxHttpClient(
         lambda: "dummy-bearer-token",
@@ -130,7 +130,7 @@ class _FakeSession:
 
 def test_r4_retries_429_then_succeeds() -> None:
     """429 then 200 must eventually succeed after backoff (R4)."""
-    _needs_module("brokers.upstox.auth.http")
+    _needs_module("brokers.providers.upstox.auth.http")
 
     class _AcquireTrue:
         def acquire(self, bucket, tokens=1, timeout=None):
@@ -148,8 +148,8 @@ def test_r4_retries_429_then_succeeds() -> None:
 
 def test_r4_finite_rate_limit_timeout_raises_not_hangs() -> None:
     """A finite acquire timeout must raise (not block forever) (R4)."""
-    _needs_module("brokers.upstox.auth.http")
-    from brokers.upstox.auth.exceptions import UpstoxApiError
+    _needs_module("brokers.providers.upstox.auth.http")
+    from brokers.providers.upstox.auth.exceptions import UpstoxApiError
 
     class _AcquireFalse:
         def acquire(self, bucket, tokens=1, timeout=None):
@@ -172,9 +172,9 @@ def test_r4_finite_rate_limit_timeout_raises_not_hangs() -> None:
 
 def test_r5_modify_order_raises_value_error_when_key_unresolved() -> None:
     """modify_order raises ValueError (no bad request) when key can't resolve."""
-    _needs_module("brokers.upstox.orders.order_command_adapter")
-    from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
-    from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
+    _needs_module("brokers.providers.upstox.orders.order_command_adapter")
+    from brokers.providers.upstox.instruments.resolver import UpstoxInstrumentResolver
+    from brokers.providers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 
     class _FailingOrderClient:
         def get_order(self, order_id):
@@ -212,8 +212,8 @@ def test_r6_is_valid_quote_drop_rules() -> None:
 
 def test_r6_tick_quote_is_valid_drops_invalid_forwards_valid() -> None:
     """Multiplexer drops invalid quotes, forwards valid ones (R6)."""
-    _needs_module("brokers.upstox.websocket.market_data_v3")
-    from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+    _needs_module("brokers.providers.upstox.websocket.market_data_v3")
+    from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
     # The translator layer receives the {payload: ...} wrapper (same shape the
     # downstream tick listener gets); this exercises the is_valid_quote drop
@@ -239,8 +239,8 @@ def test_r6_raw_dict_tick_dropped_when_invalid() -> None:
     Previously frames the translator could not parse were forwarded as-is,
     letting a zero/negative LTP raw dict slip through validation.
     """
-    _needs_module("brokers.upstox.websocket.market_data_v3")
-    from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+    _needs_module("brokers.providers.upstox.websocket.market_data_v3")
+    from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
     class _Frame:
         def __init__(self, payload):

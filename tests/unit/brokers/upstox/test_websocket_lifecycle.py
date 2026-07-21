@@ -17,7 +17,7 @@ class TestUpstoxWebSocketLifecycle:
 
     def test_factory_registers_websocket_with_lifecycle(self):
         """WebSocket service registered with lifecycle should appear in service_names."""
-        from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+        from brokers.providers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
 
         mock_mux = MagicMock()
         mock_mux.is_connected = False
@@ -30,7 +30,7 @@ class TestUpstoxWebSocketLifecycle:
 
     def test_websocket_service_health_stopped_by_default(self):
         """WebSocket service should report STOPPED before start()."""
-        from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+        from brokers.providers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
 
         mock_mux = MagicMock()
         mock_mux.is_connected = False
@@ -41,7 +41,7 @@ class TestUpstoxWebSocketLifecycle:
 
     def test_websocket_service_health_degraded_when_started_not_connected(self):
         """WebSocket service should report DEGRADED when started but not connected."""
-        from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+        from brokers.providers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
 
         mock_mux = MagicMock()
         mock_mux.is_connected = False
@@ -53,7 +53,7 @@ class TestUpstoxWebSocketLifecycle:
 
     def test_websocket_service_health_healthy_when_connected(self):
         """WebSocket service should report HEALTHY when started and connected."""
-        from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+        from brokers.providers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
 
         mock_mux = MagicMock()
         mock_mux.is_connected = True
@@ -65,7 +65,7 @@ class TestUpstoxWebSocketLifecycle:
 
     def test_stop_is_noop_when_not_started(self):
         """stop() should be a no-op when start() was never called."""
-        from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+        from brokers.providers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
 
         mock_mux = MagicMock()
         mock_mux.is_connected = False
@@ -76,7 +76,7 @@ class TestUpstoxWebSocketLifecycle:
 
     def test_start_registers_with_lifecycle(self):
         """WebSocket service registered with lifecycle should appear in service_names."""
-        from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+        from brokers.providers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
 
         mock_mux = MagicMock()
         mock_mux.is_connected = False

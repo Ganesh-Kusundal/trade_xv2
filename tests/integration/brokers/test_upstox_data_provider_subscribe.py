@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.upstox.data_provider import UpstoxDataProvider
+from brokers.providers.upstox.data_provider import UpstoxDataProvider
 from domain.entities.market import QuoteSnapshot
 from domain.instruments.instrument_id import InstrumentId
 

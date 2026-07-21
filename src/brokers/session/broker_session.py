@@ -1,28 +1,22 @@
 """BrokerSession — the public entry point of the Trading OS broker layer.
 
-A ``BrokerSession`` is a thin, broker-agnostic facade over the composition-root
-``Session`` (``tradex.connect``). It exposes the flat, object-first API the
-platform is designed around::
+Domain-centric public API::
 
-    from brokers.session import BrokerSession
+    from brokers import BrokerSession
 
-    session = BrokerSession("paper")                 # or "dhan" / "upstox"
-    stock = session.stock("RELIANCE")                # -> Equity (rich domain object)
-    stock.refresh()
-    chain = session.option_chain("NIFTY")            # -> OptionChain (composed Options)
-    ce = chain.atm                                   # -> Option
+    session = BrokerSession.connect("paper")  # or "dhan" / "upstox"
+    stock = session.stock("RELIANCE")
+    stock.refresh()                          # market data on Instrument
+    session.gateway.place_order(...)         # broker ops on Gateway
+    session.gateway.subscribe([stock])
+    session.extension(SomeExtension)         # broker-specific only
 
-No gateway, adapter, or client type is exposed here. Market behavior lives on
-the returned ``Instrument`` objects; broker-specific superpowers live behind
-``instrument.broker.*``. Infrastructure (auth, websocket, symbol master) is
-hidden inside the broker plugin selected by ``BrokerSession``.
+Infrastructure (auth, websocket, symbol master) stays inside the selected plugin.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import date
-from decimal import Decimal
 from typing import Any
 
 from brokers.runtime import RuntimeBundle
@@ -51,6 +45,17 @@ from runtime.session_historical import fetch_historical_sync
 from runtime.session_opener import get_session_opener
 
 
+def _ensure_session_opener() -> None:
+    """Wire tradex.open_session if composition root has not registered an opener."""
+    try:
+        get_session_opener()
+    except RuntimeError:
+        from runtime.session_opener import set_session_opener
+        from tradex.session import open_session
+
+        set_session_opener(open_session)
+
+
 class BrokerSession:
     """Public, broker-agnostic market-access session (Trading OS).
 
@@ -70,6 +75,7 @@ class BrokerSession:
         run_selftest: bool = False,
         **kwargs: Any,
     ) -> None:
+        _ensure_session_opener()
         self._broker_id = (broker or "paper").lower().strip()
         self._session_state = BrokerSessionState.CREATED
         self._session_state = transition_state(self._session_state, BrokerSessionState.INITIALIZING)
@@ -89,6 +95,7 @@ class BrokerSession:
         self._session_state = transition_state(self._session_state, BrokerSessionState.HEALTHY)
         self._runtime = RuntimeBundle(session=self._session)
         self._runtime.record_startup()
+        self._gateway: Any | None = None
         self._publish_lifecycle_event("BROKER_CONNECTED")
 
     @classmethod
@@ -106,6 +113,41 @@ class BrokerSession:
     def runtime(self) -> RuntimeBundle:
         """Session-scoped runtime coordinators (subscribe/history/quote/execute)."""
         return self._runtime
+
+    @property
+    def gateway(self):
+        """Broker operations facade (orders, portfolio, subscribe)."""
+        if self._gateway is None:
+            from brokers.gateway import BrokerGateway
+
+            self._gateway = BrokerGateway(self._runtime, self._session)
+        return self._gateway
+
+    def extension(self, ext_type: type) -> Any:
+        """Return a registered broker-specific extension matching ``ext_type``.
+
+        Raises
+        ------
+        LookupError
+            If no matching extension is stamped on this session.
+        """
+        facade = getattr(self._session.universe, "_broker_facade", None)
+        extensions = list(getattr(facade, "extensions", None) or [])
+        for ext in extensions:
+            if isinstance(ext, ext_type):
+                return ext
+            if type(ext) is ext_type:
+                return ext
+        wanted = getattr(ext_type, "name", None) or getattr(ext_type, "__name__", str(ext_type))
+        for ext in extensions:
+            if getattr(ext, "name", None) == wanted:
+                return ext
+            if type(ext).__name__ == wanted:
+                return ext
+        raise LookupError(
+            f"Extension {ext_type!r} is not registered for broker {self._broker_id!r}. "
+            f"Available: {[type(e).__name__ for e in extensions] or 'none'}"
+        )
 
     @property
     def broker_id(self) -> str:
@@ -211,10 +253,6 @@ class BrokerSession:
 
     # ── Convenience data actions (delegate to the instrument's behavior) ─
 
-    def quote(self, instrument: Instrument):
-        """Refresh and return the instrument's latest quote."""
-        return self._runtime.quotes.quote(instrument)
-
     def history(
         self,
         instrument: Instrument,
@@ -270,61 +308,10 @@ class BrokerSession:
 
         return build_historical_coordinator(self._session)
 
-    def subscribe(
-        self,
-        instrument: Instrument,
-        callback: Callable | None = None,
-        *,
-        depth: bool = False,
-    ):
-        """Subscribe an instrument to live data; returns a subscription handle."""
-        return self._runtime.subscriptions.subscribe(instrument, callback, depth=depth)
-
-    def unsubscribe(self, instrument: Instrument) -> None:
-        self._runtime.subscriptions.unsubscribe(instrument)
-
-    # ── Trading (delegates to the institutional OMS spine) ────────────
-
-    def buy(
-        self,
-        instrument: Instrument,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: str = "LIMIT",
-        product_type: str = "INTRADAY",
-    ):
-        return self._runtime.execution.buy(
-            instrument, quantity, price, order_type=order_type, product_type=product_type
-        )
-
-    def sell(
-        self,
-        instrument: Instrument,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: str = "LIMIT",
-        product_type: str = "INTRADAY",
-    ):
-        return self._runtime.execution.sell(
-            instrument, quantity, price, order_type=order_type, product_type=product_type
-        )
-
     @property
     def account(self) -> Any:
-        """Portfolio account (positions, holdings, funds)."""
+        """Portfolio account (positions, holdings, funds). Prefer ``session.gateway``."""
         return self._session.account
-
-    def orders(self) -> list[Any]:
-        """Open and recent orders from the session OMS spine."""
-        return self._runtime.execution.orders()
-
-    def cancel(self, order_id: str) -> Any:
-        """Cancel an order by id."""
-        return self._session.cancel(order_id)
-
-    def modify(self, order_id: str, **changes: Any) -> Any:
-        """Modify an existing order."""
-        return self._session.modify(order_id, **changes)
 
     def instrument_id(self, symbol: str, exchange: str = ExchangeId.NSE) -> str:
         """Resolve symbol to canonical instrument id string."""
@@ -332,7 +319,7 @@ class BrokerSession:
 
     def broker_capabilities(self, symbol: str = "RELIANCE") -> dict[str, Any]:
         """Full broker capability matrix + extension names."""
-        from brokers.services.core import format_session_capabilities
+        from brokers.services.capabilities import format_session_capabilities
 
         return format_session_capabilities(self, symbol)
 

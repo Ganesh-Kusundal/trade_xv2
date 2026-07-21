@@ -1,3 +1,6 @@
+# Broker live/paper smoke — former `broker verify/certify` CLI removed (brokers purity).
+# Paper path: unit/integration broker tests. Live: operator-run session probes.
+
 name: Broker Live Certification (nightly)
 
 on:
@@ -6,15 +9,15 @@ on:
   workflow_dispatch:
     inputs:
       broker:
-        description: "Broker id (dhan|upstox|paper)"
+        description: "Broker id (dhan|upstox|paper) — reserved for future live probes"
         required: true
         default: "paper"
 
 jobs:
-  certify-paper:
-    name: Paper verify (always)
+  paper-smoke:
+    name: Paper broker unit smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,60 +28,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: broker verify paper
-        run: PYTHONPATH="${{ github.workspace }}/src" broker --broker paper verify
-      - name: broker certify paper
-        run: PYTHONPATH="${{ github.workspace }}/src" broker --broker paper certify --json
-
-  certify-live:
-    name: Live certify (skip without secrets)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        broker: [dhan, upstox]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install
+      - name: Paper broker unit suite
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-      - name: Check credentials
-        id: creds
-        env:
-          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
-          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
-        run: |
-          B="${{ matrix.broker }}"
-          if [ "$B" = "dhan" ] && [ -z "$DHAN_ACCESS_TOKEN" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No DHAN_ACCESS_TOKEN — skipping live certify"
-          elif [ "$B" = "upstox" ] && [ -z "$UPSTOX_ACCESS_TOKEN" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No UPSTOX_ACCESS_TOKEN — skipping live certify"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: broker doctor (live)
-        if: steps.creds.outputs.skip != 'true'
-        env:
-          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
-          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
-        run: PYTHONPATH="${{ github.workspace }}/src" broker --broker ${{ matrix.broker }} doctor || true
-      - name: broker verify (live)
-        if: steps.creds.outputs.skip != 'true'
-        env:
-          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
-          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
-        run: PYTHONPATH="${{ github.workspace }}/src" broker --broker ${{ matrix.broker }} verify
-      - name: broker certify (live)
-        if: steps.creds.outputs.skip != 'true'
-        env:
-          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
-          UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
-        run: PYTHONPATH="${{ github.workspace }}/src" broker --broker ${{ matrix.broker }} certify --live --json
+          PYTHONPATH="${{ github.workspace }}/src" pytest \
+            tests/unit/brokers/paper \
+            tests/unit/domain/test_nse_market_hours.py \
+            -q --tb=short

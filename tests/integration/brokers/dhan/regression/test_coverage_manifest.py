@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from tests.integration.brokers.dhan.regression.manifest import (
     MARKET_HOURS_CASES,
     OFF_MARKET_CASES,

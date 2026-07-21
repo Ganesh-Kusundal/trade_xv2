@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -9,22 +10,66 @@ from rich.console import Console
 from rich.table import Table
 
 from domain.entities import DepthLevel, MarketDepth, Position
+from domain.entities.market import QuoteSnapshot
 from domain.symbols import normalize_symbol
+from interface.ui.utils.time_formatter import format_ist_time
 
 
-def render_quote(console: Console, symbol: str, quote: Any) -> None:
-    """Render a quote table."""
-    table = Table(title=f"Quote: {normalize_symbol(symbol)}", header_style="bold green")
+def render_quote(
+    console: Console,
+    symbol: str,
+    quote: QuoteSnapshot,
+    *,
+    exchange: str | None = None,
+) -> None:
+    """Render a product ``QuoteSnapshot`` table (event_time / change_pct)."""
+    title = f"Quote: {normalize_symbol(symbol)}"
+    if exchange:
+        title = f"{title} ({exchange})"
+    table = Table(title=title, header_style="bold green")
     table.add_column("Metric", style="bold white")
     table.add_column("Value", justify="right")
     table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
     table.add_row("Open", f"\u20b9{quote.open:,.2f}")
     table.add_row("High", f"\u20b9{quote.high:,.2f}")
     table.add_row("Low", f"\u20b9{quote.low:,.2f}")
-    table.add_row("Close", f"\u20b9{quote.close:,.2f}")
+    table.add_row("Prev Close", f"\u20b9{quote.close:,.2f}")
+    table.add_row("Change %", f"{quote.change_pct:,.2f}")
     table.add_row("Volume", f"{quote.volume:,}")
-    table.add_row("Change", f"\u20b9{quote.change:,.2f}")
+    et = quote.event_time
+    ts_str = format_ist_time(et) if isinstance(et, datetime) else str(et)
+    table.add_row("Last Updated", ts_str)
     console.print(table)
+
+
+def quote_table(
+    symbol: str,
+    quote: QuoteSnapshot | None,
+    *,
+    exchange: str = "",
+    title_prefix: str = "Quote Terminal",
+) -> Table:
+    """Build a quote ``Table`` for Live refresh (product ``QuoteSnapshot`` only)."""
+    title = f"{title_prefix}: {symbol.upper()}"
+    if exchange:
+        title = f"{title} ({exchange})"
+    table = Table(title=title, header_style="bold green")
+    table.add_column("Metric", style="bold white")
+    table.add_column("Value", justify="right")
+    if quote is None:
+        table.add_row("Status", "[red]No quote data received[/red]")
+        return table
+    et = quote.event_time
+    ts_str = format_ist_time(et) if isinstance(et, datetime) else str(et)
+    table.add_row("Last Traded Price (LTP)", f"Rs. {quote.ltp:,.2f}")
+    table.add_row("Open", f"Rs. {quote.open:,.2f}")
+    table.add_row("High", f"Rs. {quote.high:,.2f}")
+    table.add_row("Low", f"Rs. {quote.low:,.2f}")
+    table.add_row("Prev Close", f"Rs. {quote.close:,.2f}")
+    table.add_row("Change %", f"{quote.change_pct:,.2f}")
+    table.add_row("Volume", f"{quote.volume:,}")
+    table.add_row("Last Updated", ts_str)
+    return table
 
 
 def render_depth(console: Console, symbol: str, depth_obj: Any) -> None:

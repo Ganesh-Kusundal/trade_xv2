@@ -4,8 +4,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.exceptions import PnlExitError
-from brokers.dhan.execution.pnl_exit import PnlExitAdapter
+from brokers.providers.dhan.exceptions import PnlExitError
+from brokers.providers.dhan.execution.pnl_exit import PnlExitAdapter
 
 
 def test_configure_pnl_exit_success(fake_client):

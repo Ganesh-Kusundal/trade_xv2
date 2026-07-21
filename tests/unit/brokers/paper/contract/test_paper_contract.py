@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.paper_gateway import PaperGateway
 from domain import OrderStatus
 from tests.fixtures.domain_helpers import make_order
 from tests.unit.brokers.paper.conftest import MockPaperOrderManager

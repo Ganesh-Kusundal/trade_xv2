@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
-from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
+from brokers.providers.upstox.instruments.loader import UpstoxInstrumentLoader
+from brokers.providers.upstox.instruments.resolver import UpstoxInstrumentResolver
 
 
 def _write_fixture(tmp_path: Path) -> Path:
@@ -91,7 +91,7 @@ def test_load_gz_file(tmp_path):
 
 def test_resolver_register_and_resolve():
     resolver = UpstoxInstrumentResolver()
-    from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
+    from brokers.providers.upstox.instruments.definition import UpstoxInstrumentDefinition
 
     d = UpstoxInstrumentDefinition(
         instrument_key="NSE_EQ|INE001A01023",
@@ -116,7 +116,7 @@ def test_resolver_require_raises_when_missing():
 
 def test_resolver_search_prefix():
     resolver = UpstoxInstrumentResolver()
-    from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
+    from brokers.providers.upstox.instruments.definition import UpstoxInstrumentDefinition
 
     for sym in ["RELIANCE", "RELAXO", "TCS", "INFY"]:
         resolver.register(
@@ -135,7 +135,7 @@ def test_resolver_search_prefix():
 
 def test_resolver_search_filters_by_segment():
     resolver = UpstoxInstrumentResolver()
-    from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
+    from brokers.providers.upstox.instruments.definition import UpstoxInstrumentDefinition
 
     resolver.register(
         UpstoxInstrumentDefinition(
@@ -164,7 +164,7 @@ def test_resolver_search_filters_by_segment():
 
 def test_resolver_reset():
     resolver = UpstoxInstrumentResolver()
-    from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
+    from brokers.providers.upstox.instruments.definition import UpstoxInstrumentDefinition
 
     resolver.register(
         UpstoxInstrumentDefinition(instrument_key="K", symbol="X", exchange_segment="NSE_EQ")

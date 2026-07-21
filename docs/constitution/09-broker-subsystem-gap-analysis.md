@@ -91,7 +91,7 @@ This repository instead uses a **hexagonal / layered architecture** enforced by 
 | | |
 |---|---|
 | **Constitution** | "No raw SDK exceptions leave subsystem"; canonical error types only |
-| **As-built** | Canonical hierarchy in `domain/errors.py`; `convert_network_errors` in `infrastructure/resilience/errors.py`. Counter-example: `brokers/dhan/api/transport.py` catches generic `Exception` into `OrderResult.fail(str(exc))` rather than mapping to typed errors |
+| **As-built** | Canonical hierarchy in `domain/errors.py`; `convert_network_errors` in `infrastructure/resilience/errors.py`. Counter-example: `brokers/providers/dhan/api/transport.py` catches generic `Exception` into `OrderResult.fail(str(exc))` rather than mapping to typed errors |
 | **Violation** | Silent misclassification; upstream cannot distinguish retryable vs permanent failures |
 | **Fix** | Enforce error mapping at every transport boundary (HTTP + WS); architecture ratchet on bare `except Exception` in `brokers/` |
 | **Acceptance** | `tests/unit/brokers/common/test_gateway_error_surface_contracts.py` green; grep ratchet: no unmapped transport exceptions |
@@ -144,7 +144,7 @@ This repository instead uses a **hexagonal / layered architecture** enforced by 
 | | |
 |---|---|
 | **Constitution** | REST Gateway + WebSocket Gateway + Streaming Engine as shared abstractions |
-| **As-built** | Shared: `DepthStreamHandle` (`brokers/common/streaming.py`), `StreamHealth` models (`domain/stream_health.py`), reconnect policy (`brokers/common/transport_policy.py`). Implementations per-broker: `brokers/dhan/streaming/`, `brokers/upstox/adapters/streaming_gateway.py` |
+| **As-built** | Shared: `DepthStreamHandle` (`brokers/common/streaming.py`), `StreamHealth` models (`domain/stream_health.py`), reconnect policy (`brokers/common/transport_policy.py`). Implementations per-broker: `brokers/providers/dhan/streaming/`, `brokers/providers/upstox/adapters/streaming_gateway.py` |
 | **Violation** | Duplicated reconnect/subscribe logic; harder to certify streaming uniformly |
 | **Fix** | Extract minimal shared streaming port (connect, subscribe, publish-to-bus) without forcing identical wire protocols |
 | **Acceptance** | New broker plugin implements one streaming adapter interface |
@@ -230,7 +230,7 @@ This repository instead uses a **hexagonal / layered architecture** enforced by 
 | | |
 |---|---|
 | **Constitution** | All API calls: Scheduler → Priority Queue → Rate Limiter → Retry → Transport |
-| **As-built** | Per-broker HTTP clients acquire tokens directly (`brokers/dhan/api/http_client.py`, `brokers/upstox/auth/http.py`) via `MultiBucketRateLimiter`. Global `QuotaScheduler` in application layer uses priority classes with max-wait deadlines, not a heap queue (`application/scheduling/quota_scheduler.py:192–199`) |
+| **As-built** | Per-broker HTTP clients acquire tokens directly (`brokers/providers/dhan/api/http_client.py`, `brokers/providers/upstox/auth/http.py`) via `MultiBucketRateLimiter`. Global `QuotaScheduler` in application layer uses priority classes with max-wait deadlines, not a heap queue (`application/scheduling/quota_scheduler.py:192–199`) |
 | **Violation** | Spec diagram oversimplifies; two scheduling layers may double-throttle or bypass each other |
 | **Fix** | Document call path per operation class; ensure single choke point per endpoint |
 | **Acceptance** | Architecture diagram in `docs/architecture/FLOWS.md` updated |

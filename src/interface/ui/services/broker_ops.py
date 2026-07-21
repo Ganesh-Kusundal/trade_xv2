@@ -12,7 +12,6 @@ from runtime.platform_bridge import (
     get_positions,
     get_quote,
     lookup_security,
-    run_certify,
 )
 
 __all__ = [
@@ -25,5 +24,4 @@ __all__ = [
     "get_positions",
     "get_quote",
     "lookup_security",
-    "run_certify",
 ]

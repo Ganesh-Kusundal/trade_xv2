@@ -63,7 +63,7 @@ def test_live_feed_and_depth():
     # NFO Options — nearest NIFTY CE option (near ATM)
     try:
         # Get nearest expiry option
-        from brokers.dhan.extended import DhanExtendedCapabilities
+        from brokers.providers.dhan.extended import DhanExtendedCapabilities
 
         ext = DhanExtendedCapabilities(conn)
         expiries = ext.get_option_expiries("NIFTY", "NFO")

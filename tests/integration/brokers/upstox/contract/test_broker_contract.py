@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from domain import MarketDepth, Quote
 from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live, skip_live_market_hours
 

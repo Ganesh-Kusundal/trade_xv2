@@ -27,7 +27,7 @@ def test_no_module_level_getattr_reexports():
 
     # Allow known exceptions:
     # - brokers/__init__.py: circular-import guard (documented)
-    # - brokers/dhan/domain.py: circular-import guard (documented)
+    # - brokers/providers/dhan/domain.py: circular-import guard (documented)
     # - domain/instruments/instrument.py: circular-import guard (documented)
     # - domain/universe.py: circular-import guard (documented)
     # - domain/extensions/facade.py: class-level facade pattern
@@ -35,7 +35,7 @@ def test_no_module_level_getattr_reexports():
     # - application/research/__init__.py: class-level proxy
     allowed = {
         "brokers/__init__.py",
-        "brokers/dhan/domain.py",
+        "brokers/providers/dhan/domain.py",
         "domain/instruments/instrument.py",
         "domain/universe.py",
         "domain/extensions/facade.py",

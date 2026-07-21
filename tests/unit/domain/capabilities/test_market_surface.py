@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.upstox.capabilities.snapshot import upstox_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.upstox.capabilities.snapshot import upstox_capabilities
 from domain.capabilities.market_surface import (
     LTP,
     OPTION_CHAIN,

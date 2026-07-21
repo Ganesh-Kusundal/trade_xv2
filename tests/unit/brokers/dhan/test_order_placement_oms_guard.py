@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.dhan.execution.orders import OrdersAdapter
+from brokers.providers.dhan.execution.orders import OrdersAdapter
 from domain.models.dtos import BrokerOrderPayload
 from domain.ports.execution_context import oms_managed
 from infrastructure.event_bus import EventBus

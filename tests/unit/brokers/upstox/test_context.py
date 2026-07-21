@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.context import UpstoxAdapterContext
-from brokers.upstox.auth.http import UpstoxHttpClient
-from brokers.upstox.auth.oauth_client import UpstoxOAuthClient
-from brokers.upstox.auth.token_manager import UpstoxTokenManager
-from brokers.upstox.auth.urls import UpstoxApiUrlResolver
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.context import UpstoxAdapterContext
+from brokers.providers.upstox.auth.http import UpstoxHttpClient
+from brokers.providers.upstox.auth.oauth_client import UpstoxOAuthClient
+from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.providers.upstox.auth.urls import UpstoxApiUrlResolver
 from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 
 

@@ -1,6 +1,8 @@
-"""InstrumentStreamingMixin — subscription / callback registration.
+"""InstrumentStreamingMixin — subscription core + callback registration.
 
-Extracted from the Instrument god class (KD-202).
+Public streaming entry: ``session.gateway.subscribe([instrument])``.
+``Instrument.subscribe`` was removed; ``_subscribe_core`` remains for the
+gateway ``SubscriptionManager`` and typed helpers.
 """
 
 from __future__ import annotations
@@ -24,15 +26,13 @@ logger = logging.getLogger(__name__)
 
 
 class InstrumentStreamingMixin:
-    """Mixin providing live data subscription / callback methods for Instrument.
+    """Mixin providing live data subscription core + callback methods.
 
     Expects these attributes on ``self`` (provided by ``Instrument.__init__``):
 
         _provider, _lock, _state, _callbacks, _subscription, _id,
         symbol, exchange, _resolve_provider()
     """
-
-    # ── Attribute declarations (provided by concrete class) ────────────
 
     _lock: threading.RLock
     _state: InstrumentState
@@ -45,19 +45,16 @@ class InstrumentStreamingMixin:
     def _resolve_provider(self) -> DataProvider:  # pragma: no cover
         ...
 
-    # ── Subscription ──────────────────────────────────────────────────
-
-    def subscribe(
+    def _subscribe_core(
         self,
         callback: Callable[[InstrumentId, Any], None] | None = None,
         *,
         depth: bool = False,
     ) -> SubscriptionHandle | None:
-        """Subscribe to live data."""
+        """Activate live subscription and update instrument state."""
         provider = self._resolve_provider()
 
         def _wrapped(iid: InstrumentId, payload: Any) -> None:
-            # Update state atomically
             with self._lock:
                 if isinstance(payload, MarketDepth):
                     self._state = self._state.with_depth(payload)
@@ -73,7 +70,6 @@ class InstrumentStreamingMixin:
                             started_at=sub.started_at or datetime.now(timezone.utc),
                         )
                     )
-            # Invoke registered callbacks (outside lock to avoid deadlock)
             with self._lock:
                 tick_callbacks = list(self._callbacks.get("tick", []))
             for cb in tick_callbacks:
@@ -81,7 +77,6 @@ class InstrumentStreamingMixin:
                     cb(payload)
                 except Exception:
                     logger.exception("tick callback %r failed for %s", cb, self._id)
-            # Invoke user callback
             if callback is not None:
                 callback(iid, payload)
 
@@ -106,29 +101,22 @@ class InstrumentStreamingMixin:
         with self._lock:
             self._state = self._state.with_unsubscribed()
 
-    # ── Callback Registration ─────────────────────────────────────────
-
     def on_tick(self, callback: Callable) -> None:
-        """Register tick callback."""
         with self._lock:
             self._callbacks["tick"] = self._callbacks["tick"] + [callback]
 
     def on_quote(self, callback: Callable) -> None:
-        """Register quote callback."""
         with self._lock:
             self._callbacks["quote"] = self._callbacks["quote"] + [callback]
 
     def on_depth(self, callback: Callable) -> None:
-        """Register depth callback."""
         with self._lock:
             self._callbacks["depth"] = self._callbacks["depth"] + [callback]
 
     def on_disconnect(self, callback: Callable) -> None:
-        """Register disconnect callback."""
         with self._lock:
             self._callbacks["disconnect"] = self._callbacks["disconnect"] + [callback]
 
     def on_reconnect(self, callback: Callable) -> None:
-        """Register reconnect callback."""
         with self._lock:
             self._callbacks["reconnect"] = self._callbacks["reconnect"] + [callback]

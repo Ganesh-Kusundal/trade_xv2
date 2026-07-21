@@ -9,6 +9,8 @@ Uses mocked HTTP clients so tests run without live broker credentials.
 
 from __future__ import annotations
 
+from tests.support.order_request_factory import make_order_request as _order_request
+
 import inspect
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -74,9 +76,9 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
-            ("brokers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
         ],
     )
     def test_history_signature(self, gw_module, gw_class):
@@ -89,9 +91,9 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
-            ("brokers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
         ],
     )
     def test_quote_signature(self, gw_module, gw_class):
@@ -104,9 +106,9 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
-            ("brokers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
         ],
     )
     def test_ltp_signature(self, gw_module, gw_class):
@@ -119,8 +121,8 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
         ],
     )
     def test_place_order_signature(self, gw_module, gw_class):
@@ -145,9 +147,9 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
-            ("brokers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
         ],
     )
     def test_stream_signature(self, gw_module, gw_class):
@@ -160,9 +162,9 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
-            ("brokers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
         ],
     )
     def test_ltp_batch_signature(self, gw_module, gw_class):
@@ -175,9 +177,9 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.wire", "DhanWireAdapter"),
-            ("brokers.upstox.wire", "UpstoxWireAdapter"),
-            ("brokers.paper.paper_gateway", "PaperGateway"),
+            ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+            ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
+            ("brokers.providers.paper.paper_gateway", "PaperGateway"),
         ],
     )
     def test_cancel_order_signature(self, gw_module, gw_class):
@@ -214,7 +216,7 @@ class TestDhanGatewayReturnTypes:
         inst.canonical_symbol = "RELIANCE"
         conn.instruments.resolve.return_value = inst
 
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         gw = DhanWireAdapter(conn)
         return gw
@@ -361,7 +363,7 @@ class TestUpstoxGatewayReturnTypes:
         broker.instrument_resolver = MagicMock()
         broker.instrument_resolver.is_loaded.return_value = True
 
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         gw = UpstoxWireAdapter(broker)
         return gw
@@ -450,7 +452,7 @@ class TestPaperGatewayContract:
 
     @pytest.fixture()
     def paper_gw(self):
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
         from tests.unit.brokers.paper.test_paper import _MockOrderManager
 
         return PaperGateway(order_manager=_MockOrderManager())
@@ -505,7 +507,7 @@ class TestPaperGatewayContract:
         assert "name" in result
 
     def test_place_order_returns_order_response(self, paper_gw):
-        result = paper_gw.place_order("RELIANCE", quantity=1)
+        result = paper_gw.place_order(_order_request(symbol="RELIANCE", quantity=1))
         assert isinstance(result, OrderResponse)
 
     def test_cancel_order_returns_value(self, paper_gw):
@@ -537,7 +539,7 @@ class TestObservabilityProvider:
     )
 
     def test_dhan_get_connection_status(self):
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -551,7 +553,7 @@ class TestObservabilityProvider:
         assert isinstance(result, dict)
 
     def test_dhan_get_circuit_breaker_states(self):
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -566,7 +568,7 @@ class TestObservabilityProvider:
         assert isinstance(result, dict)
 
     def test_dhan_get_token_refresh_metrics(self):
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -589,7 +591,7 @@ class TestUpstoxObservabilityProvider:
     """Upstox gateway must implement ObservabilityProvider methods."""
 
     def test_upstox_get_connection_status(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.market_data_websocket = MagicMock()
@@ -602,7 +604,7 @@ class TestUpstoxObservabilityProvider:
         assert isinstance(result, dict)
 
     def test_upstox_get_circuit_breaker_states(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.context.http_client.circuit_breaker_states.return_value = {
@@ -619,7 +621,7 @@ class TestUpstoxObservabilityProvider:
         assert "admin" in result
 
     def test_upstox_get_token_refresh_metrics(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.context.token_manager.refresh_count = 0
@@ -631,7 +633,7 @@ class TestUpstoxObservabilityProvider:
         assert "refresh_count" in result
 
     def test_upstox_get_rate_limiter_metrics(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
         from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
 
         rl = MultiBucketRateLimiter(

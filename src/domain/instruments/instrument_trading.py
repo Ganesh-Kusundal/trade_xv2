@@ -1,6 +1,8 @@
-"""InstrumentTradingMixin — order placement & management methods.
+"""InstrumentTradingMixin — typed order helpers via OMS (market/limit/stop).
 
-Extracted from the Instrument god class (KD-202).
+``buy`` / ``sell`` / ``cancel`` / ``modify`` were removed — use
+``session.gateway.place_order`` / ``cancel_order`` / ``modify_order``
+(or domain ``Session.buy`` / ``.sell`` at the composition root).
 """
 
 from __future__ import annotations
@@ -21,46 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 class InstrumentTradingMixin:
-    """Mixin providing order placement & management methods for Instrument.
+    """Mixin providing typed OMS helpers for Instrument.
 
     Expects these attributes on ``self`` (provided by ``Instrument.__init__``):
 
         _order_service_ref, symbol, _resolve_order_service()
     """
 
-    # ── Attribute declarations (provided by concrete class) ────────────
-
     _order_service_ref: weakref.ref | None
     symbol: str
 
     def _resolve_order_service(self) -> OrderServicePort | None:  # pragma: no cover
         ...
-
-    # ── Order Entry ───────────────────────────────────────────────────
-
-    def buy(
-        self,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: OrderType | str = OrderType.LIMIT,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        *,
-        correlation_id: str | None = None,
-    ) -> OrderResult:
-        """Place a buy via OrderServicePort only (never ExecutionProvider)."""
-        return self._place(Side.BUY, quantity, price, order_type, product_type, correlation_id)
-
-    def sell(
-        self,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: OrderType | str = OrderType.LIMIT,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        *,
-        correlation_id: str | None = None,
-    ) -> OrderResult:
-        """Place a sell via OrderServicePort only (never ExecutionProvider)."""
-        return self._place(Side.SELL, quantity, price, order_type, product_type, correlation_id)
 
     def market(
         self,
@@ -108,63 +82,12 @@ class InstrumentTradingMixin:
             trigger_price=trigger_price,
         )
 
-    # ── Order Management ──────────────────────────────────────────────
-
-    def cancel(self, order_id: str) -> OrderResult:
-        """Cancel an open order via OrderServicePort (OMS), never ExecutionProvider."""
-        from domain.exceptions import NotConfiguredError
-
-        osvc = self._require_order_service()
-        cancel = getattr(osvc, "cancel", None)
-        if not callable(cancel):
-            raise NotConfiguredError(
-                "OrderServicePort does not implement cancel(); upgrade OMS wiring."
-            )
-        return cancel(order_id)
-
-    def modify(
-        self,
-        order_id: str,
-        *,
-        quantity: int | None = None,
-        price: Decimal | None = None,
-        trigger_price: Decimal | None = None,
-        order_type: OrderType | str | None = None,
-    ) -> OrderResult:
-        """Modify an open order via OrderServicePort (OMS)."""
-        from domain.exceptions import NotConfiguredError
-        from domain.orders.requests import ModifyOrderRequest
-
-        osvc = self._require_order_service()
-        modify = getattr(osvc, "modify", None)
-        if not callable(modify):
-            raise NotConfiguredError(
-                "OrderServicePort does not implement modify(); upgrade OMS wiring."
-            )
-        ot = None
-        if order_type is not None:
-            ot = (
-                order_type
-                if isinstance(order_type, OrderType)
-                else OrderType(str(order_type).upper())
-            )
-        return modify(
-            ModifyOrderRequest(
-                order_id=order_id,
-                quantity=quantity,
-                price=price,
-                trigger_price=trigger_price,
-                order_type=ot,
-            )
-        )
-
     def _require_order_service(self) -> OrderServicePort:
         """Resolve OMS or raise ORDERS_DISABLED / NotConfiguredError."""
         from domain.exceptions import NotConfiguredError
 
         osvc = self._resolve_order_service()
         if osvc is not None:
-            # Market-mode ambient: even if something stamped OMS, still refuse
             try:
                 from domain.ports.session_context import get_ambient_session
 

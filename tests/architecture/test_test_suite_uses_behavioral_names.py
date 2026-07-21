@@ -33,6 +33,10 @@ _FORBIDDEN_SUBSTRINGS = (
     "websocket_regression",
     "event_bus_legacy",
     "architecture_fitness",
+    # Process / implementation vocabulary
+    "recent_fixes",
+    "wireup",
+    "migration",
 )
 
 _ROOT = Path(__file__).resolve().parents[2]

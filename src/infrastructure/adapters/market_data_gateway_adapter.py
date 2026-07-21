@@ -144,19 +144,7 @@ class MarketDataGatewayAdapter:
         return await asyncio.to_thread(self._place_order_sync, request)
 
     def _place_order_sync(self, request: OrderRequest) -> OrderResponse:
-        kwargs = {
-            "symbol": request.symbol,
-            "exchange": request.exchange,
-            "side": request.transaction_type.value,
-            "quantity": request.quantity,
-            "price": request.price,
-            "order_type": request.order_type.value,
-            "product_type": request.product_type.value,
-            "validity": request.validity.value,
-            "trigger_price": request.trigger_price or request.price,
-            "correlation_id": request.correlation_id,
-        }
-        return self._gateway.place_order(**kwargs)
+        return self._gateway.place_order(request)
 
     async def cancel_order(self, order_id: str, *, quota: QuotaToken) -> OrderResponse:
         return await asyncio.to_thread(self._gateway.cancel_order, order_id)

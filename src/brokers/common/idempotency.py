@@ -3,13 +3,13 @@
 Previously Dhan and Upstox each had their own broker-level "cache an order
 result by correlation_id so a retried placement call is safe" component:
 
-- brokers.dhan.execution.order_placement.IdempotencyCache had a confirmed
+- brokers.providers.dhan.execution.order_placement.IdempotencyCache had a confirmed
   race condition: get() read self._cache without holding _lock, then
   deleted an expired entry under _lock — two threads racing an expired
   read could both pass the check and the second del raised KeyError.
   Its lock() method also acquired _pending_lock with no matching release.
-- brokers.upstox.orders.idempotency.InMemoryIdempotencyCache's own
-  docstring said "Mirrors brokers.dhan.orders.idempotency.InMemoryIdempotencyCache"
+- brokers.providers.upstox.orders.idempotency.InMemoryIdempotencyCache's own
+  docstring said "Mirrors brokers.providers.dhan.orders.idempotency.InMemoryIdempotencyCache"
   — an explicit, self-documented duplicate.
 
 This module replaces both with one component, built on top of the

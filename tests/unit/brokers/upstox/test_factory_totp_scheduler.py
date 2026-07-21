@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.exceptions import UpstoxAuthError
-from brokers.upstox.factory import UpstoxBrokerFactory
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.exceptions import UpstoxAuthError
+from brokers.providers.upstox.factory import UpstoxBrokerFactory
 from infrastructure.lifecycle import LifecycleManager
 
 
@@ -43,15 +43,15 @@ def _run_factory(*, settings: UpstoxConnectionSettings, lifecycle: LifecycleMana
 
     with (
         patch(
-            "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
+            "brokers.providers.upstox.factory.UpstoxSettingsLoader.from_env",
             return_value=settings,
         ),
         patch(
-            "brokers.upstox.factory.UpstoxBroker",
+            "brokers.providers.upstox.factory.UpstoxBroker",
             return_value=mock_broker,
         ),
         patch(
-            "brokers.upstox.factory.UpstoxWireAdapter",
+            "brokers.providers.upstox.factory.UpstoxWireAdapter",
         ) as gateway_cls,
     ):
         gateway_cls.return_value = MagicMock()
@@ -95,11 +95,11 @@ class TestUpstoxFactoryTotpScheduler:
 
         with (
             patch(
-                "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
+                "brokers.providers.upstox.factory.UpstoxSettingsLoader.from_env",
                 return_value=_totp_settings(),
             ),
             patch(
-                "brokers.upstox.factory.UpstoxBroker",
+                "brokers.providers.upstox.factory.UpstoxBroker",
                 return_value=mock_broker,
             ),
             pytest.raises(UpstoxAuthError, match="TOTP bootstrap failed"),
@@ -125,19 +125,19 @@ class TestUpstoxFactoryTotpScheduler:
 
         with (
             patch(
-                "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
+                "brokers.providers.upstox.factory.UpstoxSettingsLoader.from_env",
                 return_value=_totp_settings(),
             ),
             patch(
-                "brokers.upstox.factory.UpstoxBroker",
+                "brokers.providers.upstox.factory.UpstoxBroker",
                 return_value=mock_broker,
             ),
             patch(
-                "brokers.upstox.factory.UpstoxWireAdapter",
+                "brokers.providers.upstox.factory.UpstoxWireAdapter",
                 return_value=MagicMock(),
             ),
             patch(
-                "brokers.upstox.auth.totp_scheduler.TotpRefreshScheduler",
+                "brokers.providers.upstox.auth.totp_scheduler.TotpRefreshScheduler",
                 return_value=scheduler,
             ),
             patch("atexit.register") as register_atexit,

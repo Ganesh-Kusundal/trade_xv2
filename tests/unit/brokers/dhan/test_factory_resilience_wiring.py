@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from brokers.dhan.identity.factory import BrokerFactory
+from brokers.providers.dhan.identity.factory import BrokerFactory
 from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 
 
@@ -19,7 +19,7 @@ def test_factory_http_client_has_rate_limiter() -> None:
 
     auth = MagicMock()
     with patch(
-        "brokers.dhan.identity.factory._refresh_via_auth",
+        "brokers.providers.dhan.identity.factory._refresh_via_auth",
         return_value="token",
     ):
         client = factory._create_http_client(

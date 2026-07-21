@@ -47,7 +47,7 @@ directly (everything else must go through a domain port). Defined in `pyproject.
 | `application.streaming.orchestrator` | `infrastructure.observability.audit` | Emits stream-lifecycle audit events |
 | `application.scheduling.quota_scheduler` | `infrastructure.observability.audit` | Emits quota-event audit records |
 
-Test-only edges (`application.oms.tests.* -> infrastructure.**` / `brokers.dhan.**` /
+Test-only edges (`application.oms.tests.* -> infrastructure.**` / `brokers.providers.dhan.**` /
 `brokers.common.**`) are integration-harness imports, not production debt — listed in
 `pyproject.toml` but not tracked in the table above.
 
@@ -60,7 +60,7 @@ them shares a write-boundary with another (based on the current import-linter co
 | Wave | Scope | Why it's parallel-safe |
 |---|---|---|
 | **Wave A — Domain** | `src/domain/` entities/ports/events | Nothing imports inward into domain; domain changes only ripple outward, never sideways into another wave's files (protected — requires an ADR per `context/ai-workflow-rules.md` §6) |
-| **Wave B — Broker plugins** | `src/brokers/dhan/`, `src/brokers/upstox/`, `src/brokers/paper/` | Isolated from each other by the "Broker common isolation" / "Analytics broker-adapter isolation" contracts; one broker's wire/gateway work cannot break another's |
+| **Wave B — Broker plugins** | `src/brokers/providers/dhan/`, `src/brokers/providers/upstox/`, `src/brokers/providers/paper/` | Isolated from each other by the "Broker common isolation" / "Analytics broker-adapter isolation" contracts; one broker's wire/gateway work cannot break another's |
 | **Wave C — Application use-cases** | `src/application/oms/`, `execution/`, `trading/`, `portfolio/`, `strategy_engine/` | Guarded by "Application broker isolation" + "Application infrastructure separation" (§2 above) — use-case work cannot silently reach into a broker or infra concrete |
 | **Wave D — Infrastructure adapters** | `src/infrastructure/` (event_bus, idempotency, config, resilience, observability) | "Infrastructure independence" contract keeps these from reaching into runtime/interface; safe to refactor without touching application call sites as long as the port contract holds |
 | **Wave E — Interface surfaces** | `src/interface/api/`, `ui/`, CLI, MCP | "CLI broker-implementation isolation", "API broker-implementation isolation", "Runtime does not import interface" keep presentation work from leaking into runtime/brokers |

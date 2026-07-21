@@ -6,6 +6,37 @@
 
 ## Current Phase
 
+- **Quote/QuoteSnapshot contract unification (2026-07-21):** Product path is `QuoteSnapshot` (`event_time` / `change_pct`); wire `Quote` converts only via `Quote.to_snapshot()`. `BrokerDataProvider.get_quote`, `brokers.services.get_quote`, UI `render_quote`/`show_quote` aligned. Ratchet: `tests/unit/interface/ui/test_quote_product_contract.py` + `tests/unit/domain/entities/test_quote_snapshot_contract.py`.
+- **CLI quote hang fix (2026-07-21):** `tradex ui quote` (and other market-data cmds) no longer touch `trading_context` → OMS event-log replay. `MARKET_ONLY_CMDS` expanded; CLI entry wraps `with_correlation()` so logs stop showing `[no-correlation]`.
+- **CLI passthrough fix (2026-07-21):** `tradex ui` (and analytics wrappers) use Click `ignore_unknown_options` so flags like `--broker dhan` reach `interface.ui.main` instead of failing as unknown options on the wrapper. Unit: `tests/unit/tradex/test_cli.py::test_ui_forwards_broker_flag`.
+
+- **Broker Hybrid Facade COMPLETE + object-model migration DONE (2026-07-21):** Hybrid facade + domain-centric API shipped end-to-end.
+  - Phase 1: `BrokerSession.connect` → `Instrument` (market data) + `session.gateway` (orders/portfolio/subscribe) + `session.extension()`.
+  - Phase 2: Shared `brokers.common.rate_limit_config` tables; deleted `services/core.py`; removed soft-deprecated `session.quote`.
+  - Phase 3: Providers at `src/brokers/providers/{dhan,upstox,paper}/`; entry points + imports updated (no old-path shims).
+  - Phase 4: Removed `BrokerSession.buy/subscribe/...`; deleted `Instrument.buy/sell/cancel/modify/subscribe` (use `session.gateway`); architecture ratchet `tests/architecture/test_broker_gateway_public_path.py`.
+  - Phase 4 follow-through: `brokers/services` gateway-only; `SubscriptionManager` → `Instrument._subscribe_core`; nested OMS→PaperGateway re-entry fills MARKET (no idempotent OPEN stub); gateway MARKET injects tick-aligned LTP for risk sizing; risk skips tick check for MARKET/SL-M.
+  - Phase 5: **ADR-0014** — keep broker contracts in `domain/ports/` (no `domain/brokers/`).
+  - Domain `Session.buy` / `.sell` / `.place` remain the OMS composition-root spine (used by `BrokerGateway.place_order` and `tradex.connect`).
+  - **Verified:** `tests/e2e/test_trading_object_model.py` + `test_object_model_pyramid.py` + public gateway API + architecture public-path ratchet **39 passed**; paper unit + public-path **11 passed**.
+  - Spec/plan: `docs/superpowers/specs/2026-07-21-broker-hybrid-facade-design.md`, `docs/superpowers/plans/2026-07-21-broker-hybrid-facade.md`.
+  - Optional leftover: `Instrument.market/limit/stop_loss` typed helpers (OMS `_place`); docs still mention legacy `session.buy` in places.
+
+- **Brokers purity delete (2026-07-21):** Removed `src/brokers/{cli,certification,diagnostics}` plus `platform_ops` / `services/operations` facades. Market-hours helper lives in `domain.market.hours.is_nse_market_open` (paper fill gate). Preferences moved to `tradex.preferences`. Dropped `broker` console script and `tradex broker` subgroup. Spec/plan: `docs/superpowers/specs/2026-07-21-brokers-purity-delete-design.md`, `docs/superpowers/plans/2026-07-21-brokers-purity-delete.md`.
+
+- **Architectural Audit Phases 1–5 COMPLETE (2026-07-21):** Multi-phase broker infrastructure standardization and complexity reduction across Dhan, Upstox, and Paper adapters.
+
+  | Phase | Scope | Key Deliverables |
+  |-------|-------|-----------------|
+  | **1 — Naming Consolidation** | Eliminated `extended_*.py` duplicates → canonical `*capabilities.py`; deleted 2 orphaned Upstox service files (0 imports) | 4 duplicate files eliminated, backward-compat shims with DeprecationWarning |
+  | **2 — Interface Standardization** | Unified `stream_depth(levels=5)`, `history(symbol: str)`, `load_instruments(use_cache=True)` across all 3 brokers | Fixed backward-compat bug (`depth_type` overridden when `levels=5` default); all 3 brokers share canonical signatures |
+  | **3 — Complexity Reduction** | Extracted `equity_mapper._quote_from_instrument_dict` (CC=34→~12) and `auth/http._execute_request` (CC=28→~8) | 6 named helper functions; fixed retry logic bug (permanent 4xx errors fell through to `_parse_success_body`); adapter layering assessed as justified (kept 3 levels) |
+  | **4 — services/core.py Deprecation** | Extracted `safe_serialize()` to `serialization.py`; updated `__init__.py` to import from submodules directly; added `DeprecationWarning` to core.py | 5 importers migrated to canonical submodule paths; 57 tests pass |
+  | **5 — Capabilities Consolidation** | Extracted Paper inline capabilities to standalone `paper_capabilities()` module; switched all import paths from backward-compat `brokers.common.broker_capabilities` to canonical `domain.capabilities.broker_capabilities` | All 3 brokers now follow identical pattern; 12 import sites across 9 files updated; 38 broker capability tests pass |
+
+  **Next: Choose from open workstreams below.**
+
+- **Behavioral test hierarchy cleanup Pass A–D (2026-07-21):** Removed temporary duplicate UI/regression copies; moved MOVE_LAYER CLI/doctor tests to `tests/unit/interface/ui/`; deleted pytest wrappers superseded by `scripts/ci/check_*.py` and wired those scripts into CI (`check_no_mock` baseline-aware, `check_cli_gateway`, broker_name, canonical_domain, analytics_cross_imports, rest_data_source). `check_file_size_limit.py` kept but not wired yet (pre-existing `http_client.py` LOC overage). Renamed process-vocabulary files (`recent_fixes`→`depth_merge_and_rate_limit_invariants`, `wireup`/`migration` banned). Preserve-list money-safety tests untouched. Remaining uncovered MOVE_STATIC architecture files stay for a follow-up extract-to-CI PR.
 - **REF-13+REF-5: Flatten domain constants + remove shared trade_types (2026-07-21):** Flattened `domain/constants/__init__.py` into pure re-export facade — moved OMS/reconciliation constants to `oms.py` and `reconciliation.py`, instrumentation to `instrumentation.py`, history defaults to `history.py`. Deleted `analytics/shared/trade_types.py` (absorbed into `analytics/simulation/trade_mapping.py`). Updated 3 consumers (`paper/models.py`, `simulation/models.py`, `replay/models.py`). 7 facade tests pass.
 - **REF-9: Canonical domain imports COMPLETE (2026-07-21):** Stripped `domain/__init__.py` facade to `__version__` only (145→2 lines). Converted `domain/types.py` to minimal re-export shim. Rewrote 119 files: all `from domain import X` → canonical submodule paths (e.g. `from domain.enums import Side`). All `from domain.types import X` → canonical paths. CI script `scripts/ci/check_canonical_domain_imports.py` simplified to strict check (no baseline ledger). Architecture test `test_canonical_domain_imports.py` rewritten with AST-based enforcement. All 5 canonical import tests pass.
 - **Broker Reliability Phase 0 — Money Safety COMPLETE (2026-07-21):** 7 P0 fixes shipped + 39 gate tests + 1820 broker suite green, 0 regressions. Design spec: `docs/superpowers/specs/2026-07-21-broker-reliability-design.md`, plan: `docs/superpowers/plans/2026-07-21-phase-0-money-safety.md`.
@@ -16,7 +47,6 @@
   - P0.5: Upstox CB only counts transport/5xx failures, not 4xx (upstox/auth/http.py)
   - P0.6: Dhan `cancel_all_orders` parses per-order status (order_cancellation.py)
   - P0.7: Token JSON untracked from git; `~/.tradex/tokens/` gitignored (.gitignore)
-- **Next: Phase 1** — Session lifecycle (connect/close/reconnect) + Phase 2 — Behavioral LSP contract parity.
 - **Broker + market-data remediation (2026-07-21):** Combined P0/P1 pass — Dhan subscription ownership + typed read-path errors + live-order guard parity; Upstox modify_order/idempotency/lifecycle/capability fixes; market-data async parquet sink + IST bucketing + gap bar injection + single-broker StreamOrchestrator + shutdown flush. Regression manifests + unit/integration tests added; gap analysis addendum in `docs/constitution/09-broker-subsystem-gap-analysis.md`.
 - **Gateway legacy contract gaps closed (2026-07-21):** Removed pre-existing xfails — Dhan `option_chain` returns `OptionChain`; Dhan placement uses `StatusMapperRegistry.normalize_strict` (unknown → `UNMAPPED_STATUS` fail-closed); Paper `ltp_batch`; DataLake `stream` raises `UnsupportedGatewayOperationError`; Dhan/Upstox `unstream` contract tests green.
 - **Doc cleanup (2026-07-21):** Removed old/dated docs under `docs/` (reviews, stubs, gap notes, runbooks, superpowers specs) and local `.trae/repowiki/`. **Kept:** `docs/constitution/`, `docs/architecture/adr/`, test-bound `FLOWS.md` / `STATE_MACHINES.md` / `ERROR_TAXONOMY.md` / `DEPENDENCY_*.md` / `e2e-spec/`.
@@ -241,7 +271,7 @@ Closed the still-open foundational/correctness findings from the architectural a
 `REF-1` (`attach_reconciliation_service`) and `REF-3` (`order_mapper` delegation) were
 already landed by a concurrent process; verified, not re-done.
 
-- **REF-4 (wire-price correctness)**: `brokers/dhan/execution/order_placement.py`
+- **REF-4 (wire-price correctness)**: `brokers/providers/dhan/execution/order_placement.py`
   `_build_order_payload` now emits **numeric float** `price`/`triggerPrice` via
   `domain.value_objects.price.to_wire_float` instead of `str(request.price)`. This matches
   Dhan's own super/forever/margin path AND the official dhanhq SDK (`_order.py`:
@@ -466,7 +496,7 @@ pre-existing timezone bugs that had been silently corrupting every
 incremental sync since.
 
 **Root causes fixed**:
-- `brokers/dhan/data/historical.py`: `pd.to_datetime(ts, unit="s")` with
+- `brokers/providers/dhan/data/historical.py`: `pd.to_datetime(ts, unit="s")` with
   no `utc=True` — Dhan's epoch field is genuine UTC but this produced a
   naive column.
 - `domain/candles/historical.py` (`HistoricalSeries.to_dataframe()`) +
@@ -504,7 +534,7 @@ duplicates, 0 OHLC/volume violations across live queries)**:
   new `scripts/correct_tz_window.py` — fetch-then-replace per day
   (not delete-then-hope-dedupe-fixes-it) via the Dhan gateway directly,
   pre-emptively rate-limited against Dhan's declared `historical`
-  capability profile (`brokers/dhan/config/capabilities.py`,
+  capability profile (`brokers/providers/dhan/config/capabilities.py`,
   `infrastructure.resilience.rate_limiter.create_rate_limiter`).
 - Track B (20 index symbols — NIFTY family, SENSEX/BSE family,
   INDIAVIX — Aug 2021–14 Jul 2026, same bug via the same shared
@@ -540,7 +570,7 @@ duplicates, 0 OHLC/volume violations across live queries)**:
 was editing this same working directory and reverted every one of the
 above source-code changes partway through (git-tracked files only —
 new/untracked files and all Parquet data were unaffected). Also
-independently broke `brokers.dhan` (missing `DhanRateLimiterMetrics`
+independently broke `brokers.providers.dhan` (missing `DhanRateLimiterMetrics`
 re-export in `infrastructure/resilience/rate_limiter.py`, fixed with an
 additive one-line re-export) and reverted an unrelated prior fix —
 sector mapping (`analytics/sector/mapping.py::SectorMapper.default()`
@@ -664,9 +694,9 @@ day, earlier — now marked superseded) and today's own
 - **Real bug found + fixed**: Dhan instrument resolver picked a corporate bond's
   `security_id` instead of the equity share whenever both share a trading symbol
   (`CHOLAFIN`, `MOTHERSON`) — `SEM_EXCH_INSTRUMENT_TYPE` was silently dropped by
-  `brokers/dhan/loader.py::_compact_to_rows()` before reaching the resolver.
-  Fixed in `brokers/dhan/resolver.py` (prefer `ES`/equity-share on symbol collision) +
-  `brokers/dhan/domain.py` (`DhanInstrument.is_equity_share`) + `loader.py` (carry the
+  `brokers/providers/dhan/loader.py::_compact_to_rows()` before reaching the resolver.
+  Fixed in `brokers/providers/dhan/resolver.py` (prefer `ES`/equity-share on symbol collision) +
+  `brokers/providers/dhan/domain.py` (`DhanInstrument.is_equity_share`) + `loader.py` (carry the
   column through). Both symbols backfilled. Test:
   `tests/unit/brokers/dhan/test_resolver.py::test_resolve_prefers_equity_share_over_bond_on_symbol_collision`.
 - **Real bug found, fix deferred to follow-up task**: `HistoricalDataLoader.download_symbol()`
@@ -860,7 +890,7 @@ day, earlier — now marked superseded) and today's own
 - Tests: `tests/unit/application/oms/test_risk_gate_adapter.py`
 
 **M3: drift-aware repair in _repair_local_oms** ✅
-- `src/brokers/dhan/portfolio/reconciliation.py` — heals only drift_items, not full snapshot
+- `src/brokers/providers/dhan/portfolio/reconciliation.py` — heals only drift_items, not full snapshot
 - Tests: `tests/unit/brokers/dhan/test_drift_repair.py`
 
 **M4: cross-broker OMS guard** ✅
@@ -903,7 +933,7 @@ day, earlier — now marked superseded) and today's own
 
 ## Completed (G1–G8 gap remediation — 2026-07-13)
 
-- **G2: Delete orphaned shadow brokers/dhan/*** ✅
+- **G2: Delete orphaned shadow brokers/providers/dhan/*** ✅
   Root `brokers/` directory removed. Guard test prevents recurrence.
   ADR: `docs/architecture/adr/0001-delete-shadow-brokers.md`
 
@@ -938,8 +968,8 @@ day, earlier — now marked superseded) and today's own
   - `src/infrastructure/idempotency/file_cache.py` (497 lines) — zero production imports
   - `src/infrastructure/idempotency/redis_cache.py` (453 lines) — zero production imports
   - `src/infrastructure/idempotency/codec.py` (113 lines) — zero production imports
-  - `src/brokers/upstox/orders/idempotency.py` (32 lines) — empty alias subclass
-  - Updated `brokers/upstox/broker.py` and `brokers/upstox/orders/order_command_adapter.py` to import `IdempotencyCache` from `brokers.common.idempotency` directly
+  - `src/brokers/providers/upstox/orders/idempotency.py` (32 lines) — empty alias subclass
+  - Updated `brokers/providers/upstox/broker.py` and `brokers/providers/upstox/orders/order_command_adapter.py` to import `IdempotencyCache` from `brokers.common.idempotency` directly
   - Cleaned up `infrastructure/idempotency/__init__.py` to only re-export `MemoryIdempotencyCache` and `IdempotencyService`
 
 ## Completed (docs — 2026-07-13)
@@ -981,12 +1011,12 @@ day, earlier — now marked superseded) and today's own
 - Fixed provenance mislabeling: `HistoricalSeries.from_dataframe()` (a replay/backtest-only
   constructor hardcoding `broker_id="replay"`) was being reused for live Dhan and paper
   historical data, and for two generic legacy fallback paths. Switched all four call sites
-  (`brokers/dhan/data/data_provider.py`, `brokers/paper/data_provider.py`,
+  (`brokers/providers/dhan/data/data_provider.py`, `brokers/providers/paper/data_provider.py`,
   `domain/candles/instrument_history.py`, `domain/services/history.py`) to
   `HistoricalSeries.from_broker_df(..., broker_id=...)` — now stamps the correct broker id
   and `AUTHORITATIVE` confidence instead of `DERIVED`.
 - Fixed a ~100%-reproducible race condition in Dhan's live tick market-feed WebSocket:
-  `MarketFeedConnection.stop()` (`brokers/dhan/websocket/connection.py`) could call the
+  `MarketFeedConnection.stop()` (`brokers/providers/dhan/websocket/connection.py`) could call the
   dhanhq SDK's `close_connection()` before the background thread had taken ownership of the
   SDK feed's private event loop via `feed.run()` → `loop.run_until_complete()`, racing two
   threads on the same loop object and raising `RuntimeError: This event loop is already
@@ -1101,7 +1131,7 @@ multi-agent parallel execution across 4 workstreams.
   `analytics/shared/trade_types.py`, `docs/architecture/adr/0010-*.md`,
   `docs/architecture/adr/0011-*.md`, `scripts/check_file_loc.py`,
   `tests/architecture/test_file_size_limit.py`, `docs/architecture/baseline.md`,
-  `src/application/oms/context/`, `src/brokers/dhan/data/depth_feed_base/`,
+  `src/application/oms/context/`, `src/brokers/providers/dhan/data/depth_feed_base/`,
   `src/analytics/replay/engine/`
 
 ### GOV-3: Branch Cleanup (2026-07-17)
@@ -1180,7 +1210,7 @@ YAGNI / pass-through collapse (no second composition root):
 - `tests/unit/analytics/test_shared_trade_types.py` (new)
 - `docs/architecture/baseline.md` (updated)
 - `src/application/oms/context/` (decomposed)
-- `src/brokers/dhan/data/depth_feed_base/` (decomposed)
+- `src/brokers/providers/dhan/data/depth_feed_base/` (decomposed)
 - `src/analytics/replay/engine/` (decomposed)
 - 17 datalake/runtime/interface files (market_data → DataPaths)
 
@@ -1213,7 +1243,7 @@ Full-suite run surfaced 3 modules that fail at *collection* (block the suite). N
 
 Environment contract: `opentelemetry` is declared in `pyproject.toml` and present in `.venv` — tests must run in `.venv`. `importorskip` makes collection graceful elsewhere.
 
-**CORRECTION:** the earlier "verified-safe delete `error_codes.py` (~56 LOC)" claim is **WRONG** — it is live (`tests/architecture/test_cross_cutting_concerns.py` imports its constants; `src/brokers/dhan/execution/order_cancellation.py` references `BRO_ERR_CONNECTION_FAILED`). Do NOT delete. Only `ICapitalAllocationFn` was a genuine deletion.
+**CORRECTION:** the earlier "verified-safe delete `error_codes.py` (~56 LOC)" claim is **WRONG** — it is live (`tests/architecture/test_cross_cutting_concerns.py` imports its constants; `src/brokers/providers/dhan/execution/order_cancellation.py` references `BRO_ERR_CONNECTION_FAILED`). Do NOT delete. Only `ICapitalAllocationFn` was a genuine deletion.
 
 Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19).
 
@@ -1321,7 +1351,7 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
 
 **Phase 3 — src markdown relocation:**
 - `src/brokers/README.md` → `docs/brokers/README.md`
-- `src/brokers/dhan/CONFIGURATION.md` → `docs/brokers/dhan/CONFIGURATION.md`
+- `src/brokers/providers/dhan/CONFIGURATION.md` → `docs/brokers/dhan/CONFIGURATION.md`
 - `src/config/README.md` → `docs/config/README.md`
 - `src/application/oms/RECOVERY.md` → `docs/ops/oms-recovery.md`
 - `src/analytics/scanner/README.md` → `docs/analytics/scanner.md`
@@ -1370,7 +1400,7 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
 - EventBus split: `EventIdempotencyGuard`, `EventPersistenceHook` collaborators; alerting removed from ctor (LifecycleManager only).
 - `runtime/platform_bridge.py` — interface→brokers indirection; broker_ops delegates here.
 - `brokers/common/http/resilient_transport.py` — shared HTTP shell.
-- `brokers/dhan/adapters/order_gateway.py` — Dhan order gateway extract (mirrors Upstox pattern).
+- `brokers/providers/dhan/adapters/order_gateway.py` — Dhan order gateway extract (mirrors Upstox pattern).
 - CLI `main.py` — registry-only dispatch (validate nested subcommands retained).
 
 **Phase D — Data quality:**

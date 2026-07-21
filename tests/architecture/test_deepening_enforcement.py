@@ -9,8 +9,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ALLOWED_ALIAS_MODULES = {
     "src/brokers/common/core/exchange_segments.py",
-    "src/brokers/dhan/segments.py",
-    "src/brokers/upstox/instruments/segment_mapper.py",
+    "src/brokers/providers/dhan/segments.py",
+    "src/brokers/providers/upstox/instruments/segment_mapper.py",
 }
 
 
@@ -37,7 +37,7 @@ def test_no_inline_exchange_alias_dicts_outside_adapters():
 
 
 def test_dhan_domain_has_no_static_canonical_reexports():
-    domain_path = REPO_ROOT / "src/brokers/dhan/domain.py"
+    domain_path = REPO_ROOT / "src/brokers/providers/dhan/domain.py"
     tree = ast.parse(domain_path.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.ImportFrom) and node.module == "brokers.common.core.domain":

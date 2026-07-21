@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.broker import UpstoxBroker
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.broker import UpstoxBroker
 
 
 @pytest.fixture

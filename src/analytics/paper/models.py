@@ -21,6 +21,9 @@ from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
 from domain.trading_costs import CommissionModel, IndianMarketFees
 
+# Back-compat alias: older call sites and tests refer to Side as OrderSide.
+OrderSide = Side
+
 # ---------------------------------------------------------------------------
 # PaperConfig
 # ---------------------------------------------------------------------------

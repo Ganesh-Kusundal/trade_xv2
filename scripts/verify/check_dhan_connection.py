@@ -34,7 +34,7 @@ def main():
     # ── 1. Load settings ──────────────────────────────────────────
     print("\n[1/6] Loading settings from .env.local ...")
     try:
-        from brokers.dhan.config.settings import DhanSettingsLoader
+        from brokers.providers.dhan.config.settings import DhanSettingsLoader
 
         settings = DhanSettingsLoader.from_env(env_path=env_path)
         print(f"  client_id     : {settings.client_id[:4]}****")

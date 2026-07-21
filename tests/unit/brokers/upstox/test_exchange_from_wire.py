@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.upstox.mappers._base import exchange_from_wire
+from brokers.providers.upstox.mappers._base import exchange_from_wire
 from domain.constants.exchanges import NFO, NSE
 
 
@@ -15,7 +15,7 @@ def test_exchange_from_wire_maps_nse_fo() -> None:
 
 
 def test_to_order_uses_canonical_exchange() -> None:
-    from brokers.upstox.mappers.derivatives_mapper import to_order
+    from brokers.providers.upstox.mappers.derivatives_mapper import to_order
 
     order = to_order(
         {

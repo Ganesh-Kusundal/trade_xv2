@@ -9,8 +9,8 @@ import pytest
 aiohttp = pytest.importorskip("aiohttp")
 from aiohttp import ClientSession
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.redirect_server import UpstoxRedirectServer
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.redirect_server import UpstoxRedirectServer
 
 
 def _settings(port: int = 0) -> UpstoxConnectionSettings:

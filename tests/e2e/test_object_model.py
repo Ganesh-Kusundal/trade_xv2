@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import tradex
-from brokers.paper import PaperGateway
+from brokers.providers.paper import PaperGateway
 
 
 def test_tradex_session_paper_equity_ltp() -> None:
@@ -44,7 +44,7 @@ def test_tradex_connect_paper_buy() -> None:
 def test_tradex_connect_paper_oms_idempotent() -> None:
     session = tradex.connect("paper")
     reliance = session.universe.equity("RELIANCE")
-    intent = session.intent(reliance, "BUY", 1, price=Decimal("100"), correlation_id="e2e:idem-1")
+    intent = getattr(session, "session", session).intent(reliance, "BUY", 1, price=Decimal("100"), correlation_id="e2e:idem-1")
     r1 = session.place(intent)
     r2 = session.place(intent)
     assert r1.success and r2.success

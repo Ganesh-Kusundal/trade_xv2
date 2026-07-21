@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tests.support.order_request_factory import make_order_request as _order_request
+
 import os
 import sys
 from decimal import Decimal
@@ -9,9 +11,9 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.domain import Position
-from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanWireAdapter
+from domain.entities import Position
+from brokers.providers.dhan.streaming.connection import DhanConnection
+from brokers.providers.dhan.wire import DhanWireAdapter
 from domain import Balance, OrderRequest, Quote
 from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
@@ -88,12 +90,12 @@ class TestBrokerGateway:
         )
         conn._orders.place_order.return_value = expected
 
-        result = gateway.place_order(
+        result = gateway.place_order(_order_request(
             symbol="RELIANCE",
             exchange="NSE",
             side="BUY",
             quantity=10,
-        )
+        ))
 
         call_args = conn._orders.place_order.call_args[0]
         assert len(call_args) == 1
@@ -122,7 +124,7 @@ class TestBrokerGateway:
             order_id="ORD-MCX", message="Order placed"
         )
 
-        gateway.place_order(symbol="GOLD", exchange="MCX", side="BUY", quantity=1)
+        gateway.place_order(_order_request(symbol="GOLD", exchange="MCX", side="BUY", quantity=1))
 
         request = conn._orders.place_order.call_args[0][0]
         assert request.exchange_segment is ExchangeSegment.MCX
@@ -132,7 +134,7 @@ class TestBrokerGateway:
         import pytest
 
         with pytest.raises(ValueError, match="Unknown exchange"):
-            gateway.place_order(symbol="X", exchange="BOGUS", quantity=1)
+            gateway.place_order(_order_request(symbol="X", exchange="BOGUS", quantity=1))
 
     # -- lifecycle -------------------------------------------------------
 
@@ -199,7 +201,7 @@ class TestBrokerGateway:
     # -- depth-200 constraint discoverability (#5) ----------------------
 
     def test_describe_exposes_depth_200_limit(self):
-        from brokers.dhan.config.capabilities import (
+        from brokers.providers.dhan.config.capabilities import (
             DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION,
         )
 
@@ -211,3 +213,5 @@ class TestBrokerGateway:
             == DHAN_DEPTH_200_MAX_INSTRUMENTS_PER_CONNECTION
             == 1
         )
+
+

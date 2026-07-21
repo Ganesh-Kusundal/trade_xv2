@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.paper_gateway import PaperGateway
 from brokers.session.broker_session import BrokerSession
 from domain.events.types import EventType
 from domain.ports.broker_session_state import BrokerSessionState

@@ -89,7 +89,7 @@ def _make_mock_intraday_response(n: int = 75) -> dict:
 
 def _make_historical_resolver():
     """Real SymbolResolver with RELIANCE loaded (no MagicMock identity)."""
-    from brokers.dhan.resolver import SymbolResolver
+    from brokers.providers.dhan.resolver import SymbolResolver
 
     resolver = SymbolResolver()
     resolver.load_from_rows(
@@ -109,7 +109,7 @@ def _make_historical_resolver():
 
 def _make_historical_adapter(client: MagicMock, response: dict):
     """HistoricalAdapter backed by a real SymbolResolver identity."""
-    from brokers.dhan.data.historical import HistoricalAdapter
+    from brokers.providers.dhan.market_data.historical import HistoricalAdapter
 
     client.post.return_value = response
     return HistoricalAdapter(client, _make_historical_resolver())
@@ -230,7 +230,7 @@ class TestBatchOperationPerformance:
     """Benchmark batch operations with increasing symbol counts."""
 
     def _make_dhan_gw_with_mock(self):
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -316,7 +316,7 @@ class TestRESTEndpointLatency:
     """Regression tests for REST endpoint processing latency (client-side)."""
 
     def _make_dhan_gw(self):
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -416,7 +416,7 @@ class TestInstrumentLoadPerformance:
 
     def test_load_50k_instruments_under_10s(self):
         """Loading 50K instruments must complete in < 10s."""
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.resolver import SymbolResolver
 
         rows = [
             {
@@ -440,7 +440,7 @@ class TestInstrumentLoadPerformance:
 
     def test_load_200k_instruments_under_60s(self):
         """Loading 200K instruments (production scale) must complete in < 60s."""
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.resolver import SymbolResolver
 
         rows = [
             {
@@ -464,7 +464,7 @@ class TestInstrumentLoadPerformance:
 
     def test_resolve_after_200k_load(self):
         """After loading 200K instruments, resolution must remain O(1)."""
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.resolver import SymbolResolver
 
         rows = [
             {
@@ -501,7 +501,7 @@ class TestWebSocketThroughput:
 
     def test_tick_dispatch_throughput(self):
         """Dispatching 10K ticks to listeners must complete in < 500ms."""
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+        from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
 
@@ -529,7 +529,7 @@ class TestWebSocketThroughput:
 
     def test_multiple_listeners_throughput(self):
         """Dispatching ticks to 10 listeners must scale linearly."""
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+        from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
 
@@ -565,7 +565,7 @@ class TestCrossBrokerComparison:
 
     def test_paper_ltp_vs_batch_latency(self):
         """Paper ltp_batch() must complete for 20 symbols (regression guard)."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         pg = PaperGateway()
 
@@ -581,7 +581,7 @@ class TestCrossBrokerComparison:
 
     def test_paper_quote_returns_consistent_schema(self):
         """Paper quotes must have the same schema across multiple calls."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         pg = PaperGateway()
 
@@ -595,7 +595,7 @@ class TestCrossBrokerComparison:
 
     def test_paper_history_returns_valid_dataframe(self):
         """Paper history must return a valid OHLCV DataFrame."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         pg = PaperGateway()
 
@@ -606,7 +606,7 @@ class TestCrossBrokerComparison:
 
     def test_paper_place_order_latency(self):
         """Paper order placement must complete in < 5ms."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         pg = PaperGateway()
 

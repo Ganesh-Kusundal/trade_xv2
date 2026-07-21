@@ -6,10 +6,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from brokers.upstox.auth.config import UpstoxSettingsLoader
-from brokers.upstox.auth.exceptions import UpstoxAuthError
-from brokers.upstox.auth.oauth_client import UpstoxOAuthClient
-from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.providers.upstox.auth.config import UpstoxSettingsLoader
+from brokers.providers.upstox.auth.exceptions import UpstoxAuthError
+from brokers.providers.upstox.auth.oauth_client import UpstoxOAuthClient
+from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
 
 def main():

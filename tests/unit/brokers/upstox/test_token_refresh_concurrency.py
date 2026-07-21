@@ -7,8 +7,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import MagicMock, patch
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
 
 def _totp_settings() -> UpstoxConnectionSettings:
@@ -27,7 +27,7 @@ def test_concurrent_bearer_token_single_totp_call():
     """Near-expiry concurrent bearer_token() calls must trigger one TOTP refresh."""
     settings = _totp_settings()
     mgr = UpstoxTokenManager(settings=settings, oauth_client=MagicMock())
-    from brokers.upstox.auth.holders import TokenSnapshot
+    from brokers.providers.upstox.auth.holders import TokenSnapshot
 
     future_exp = int(time.time() * 1000) + 60_000
     mgr._state = TokenSnapshot(
@@ -44,7 +44,7 @@ def test_concurrent_bearer_token_single_totp_call():
         with lock:
             call_count["n"] += 1
         time.sleep(0.05)
-        from brokers.upstox.auth.holders import TokenSnapshot as TS
+        from brokers.providers.upstox.auth.holders import TokenSnapshot as TS
 
         state = TS(
             access_token="new-token",
@@ -78,7 +78,7 @@ def test_concurrent_401_single_refresh():
         with lock:
             refresh_count["n"] += 1
         time.sleep(0.05)
-        from brokers.upstox.auth.holders import TokenSnapshot
+        from brokers.providers.upstox.auth.holders import TokenSnapshot
 
         state = TokenSnapshot(
             access_token="refreshed",
@@ -109,7 +109,7 @@ def test_concurrent_401_single_refresh():
 
 def test_http_client_retries_once_after_refresh():
     """UpstoxHttpClient should retry once when on_auth_failure succeeds."""
-    from brokers.upstox.auth.http import UpstoxHttpClient
+    from brokers.providers.upstox.auth.http import UpstoxHttpClient
 
     calls = {"refresh": 0, "request": 0}
 

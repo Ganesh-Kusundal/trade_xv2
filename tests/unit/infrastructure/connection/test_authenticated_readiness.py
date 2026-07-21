@@ -116,7 +116,7 @@ class TestUpstoxAuthenticatedProbe:
         assert result.token_rejected is True
 
     def test_funds_423_with_valid_market_status_succeeds(self):
-        from brokers.upstox.auth.exceptions import UpstoxFundsMaintenanceError
+        from brokers.providers.upstox.auth.exceptions import UpstoxFundsMaintenanceError
 
         gw = MagicMock()
         broker = MagicMock()

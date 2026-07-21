@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper, _to_wire
+from brokers.providers.upstox.instruments.segment_mapper import UpstoxSegmentMapper, _to_wire
 from domain import ExchangeSegment
 
 

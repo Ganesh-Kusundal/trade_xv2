@@ -39,7 +39,7 @@ jobs:
           import asyncio
           from interface.ui.load_testing.runner import LoadTestRunner
           from interface.ui.services.broker_service import BrokerService
-          from brokers.paper.paper_gateway import PaperGateway
+          from brokers.providers.paper.paper_gateway import PaperGateway
           
           async def main():
               # Create paper broker service

@@ -1,7 +1,7 @@
 """Regression tests for gateway issues found in the in-depth review.
 
 Validates:
-- Local imports hoisted (no `from brokers.dhan.segments import` inside methods)
+- Local imports hoisted (no `from brokers.providers.dhan.segments import` inside methods)
 - Hardcoded `"NSE_EQ"` replaced with `DEFAULT_SEGMENT` constant
 - Upstox `option_chain` / `future_chain` raise NotImplementedError (genuinely unsupported)
 - Upstox `get_trade_book` returns [] (no endpoint, but ABC contract returns list)
@@ -22,7 +22,15 @@ GATEWAY_DIR = Path(__file__).resolve().parents[4] / "src" / "brokers"
 
 def _gw_source(broker: str) -> Path:
     """Path to a broker's wire adapter source module (refactored from gateway.py)."""
-    return GATEWAY_DIR / broker / "wire.py"
+    return GATEWAY_DIR / "providers" / broker / "wire.py"
+
+
+def _broker_id_from_module(module: str) -> str:
+    """Extract broker id from ``brokers.providers.<id>.*`` (or legacy ``brokers.<id>.*``)."""
+    parts = module.split(".")
+    if "providers" in parts:
+        return parts[parts.index("providers") + 1]
+    return parts[1] if len(parts) > 1 else module
 
 
 class TestGatewayImportHygiene:
@@ -49,12 +57,12 @@ class TestGatewayImportHygiene:
         The gateway (``wire.py``) delegates WebSocket creation to the websocket
         connection layer, so we check ``websocket/connection.py``. The feed
         class is accessed via the module-level ``_sdk_market_feed_class`` helper
-        (a deliberate lazy SDK-boundary import so ``import brokers.dhan.wire``
+        (a deliberate lazy SDK-boundary import so ``import brokers.providers.dhan.wire``
         does not require the ``dhanhq`` SDK at import time). ``connection.py``
         holds a ``feed_ref`` backreference to its parent ``DhanMarketFeed`` and
         must not import it directly (that would be circular).
         """
-        with open(GATEWAY_DIR / "dhan" / "websocket" / "connection.py") as f:
+        with open(GATEWAY_DIR / "providers" / "dhan" /  "websocket" / "connection.py") as f:
             tree = ast.parse(f.read())
 
         top_imports = set()
@@ -91,7 +99,7 @@ class TestGatewaySegmentConstants:
         )
 
     def test_default_segment_constant_exists(self):
-        from brokers.dhan.segments import DEFAULT_SEGMENT
+        from brokers.providers.dhan.segments import DEFAULT_SEGMENT
 
         assert DEFAULT_SEGMENT == "NSE_EQ"
 
@@ -103,7 +111,7 @@ class TestUpstoxNotImplementedErrors:
     def upstox_gateway(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         # Skip __init__ (heavy adapter construction) but set the init-set
         # attributes the delegation methods rely on, so each test can override
@@ -167,14 +175,14 @@ class TestMarketDataGatewayContract:
         return set(MarketDataGateway.__abstractmethods__)
 
     def test_dhan_gateway_implements_all_abstract(self, abstract_methods):
-        from brokers.dhan.wire import DhanWireAdapter as DhanGateway
+        from brokers.providers.dhan.wire import DhanWireAdapter as DhanGateway
 
         dhan_methods = set(dir(DhanGateway))
         missing = abstract_methods - dhan_methods
         assert not missing, f"Dhan gateway missing abstract methods: {missing}"
 
     def test_upstox_gateway_implements_all_abstract(self, abstract_methods):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         upstox_methods = set(dir(UpstoxWireAdapter))
         missing = abstract_methods - upstox_methods
@@ -188,11 +196,11 @@ class TestDhanGatewaySegmentMapping:
     def dhan_gateway(self):
         from unittest.mock import MagicMock
 
-        from brokers.dhan.resolver import SymbolResolver
-        from brokers.dhan.wire import DhanWireAdapter as DhanGateway
+        from brokers.providers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.wire import DhanWireAdapter as DhanGateway
 
         resolver = SymbolResolver()
-        from brokers.dhan.domain import DhanInstrument, Exchange, InstrumentType
+        from brokers.providers.dhan._dhan_types import DhanInstrument, Exchange, InstrumentType
         from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
         resolver._by_security_id = {
@@ -217,7 +225,7 @@ class TestDhanGatewaySegmentMapping:
 
     def test_default_segment_used_when_exchange_not_mapped(self, dhan_gateway):
         """Fallback segment should use DEFAULT_SEGMENT constant, not hardcoded string."""
-        from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+        from brokers.providers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
         assert EXCHANGE_TO_SEGMENT.get("UNKNOWN", DEFAULT_SEGMENT) == "NSE_EQ"
 
@@ -228,7 +236,7 @@ class TestGatewayTypeSafety:
     def _get_method_return_annotation(self, gateway_class, method_name: str) -> str | None:
         import ast
 
-        with open(_gw_source(gateway_class.__module__.split(".")[1])) as f:
+        with open(_gw_source(_broker_id_from_module(gateway_class.__module__))) as f:
             tree = ast.parse(f.read())
 
         for node in ast.walk(tree):
@@ -239,61 +247,61 @@ class TestGatewayTypeSafety:
         return None
 
     def test_dhan_quote_returns_quote_type(self):
-        from brokers.dhan.wire import DhanWireAdapter as DhanGateway
+        from brokers.providers.dhan.wire import DhanWireAdapter as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "quote")
         assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
 
     def test_dhan_positions_returns_list_position(self):
-        from brokers.dhan.wire import DhanWireAdapter as DhanGateway
+        from brokers.providers.dhan.wire import DhanWireAdapter as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "positions")
         assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
 
     def test_dhan_funds_returns_balance(self):
-        from brokers.dhan.wire import DhanWireAdapter as DhanGateway
+        from brokers.providers.dhan.wire import DhanWireAdapter as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "funds")
         assert ret == "Balance", f"Expected 'Balance', got {ret!r}"
 
     def test_upstox_quote_returns_quote_type(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "quote")
         assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
 
     def test_upstox_depth_returns_market_depth_type(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "depth")
         assert ret == "MarketDepth", f"Expected 'MarketDepth', got {ret!r}"
 
     def test_upstox_funds_returns_balance(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "funds")
         assert ret == "Balance", f"Expected 'Balance', got {ret!r}"
 
     def test_upstox_positions_returns_list_position(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "positions")
         assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
 
     def test_upstox_holdings_returns_list_holding(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "holdings")
         assert ret == "list[Holding]", f"Expected 'list[Holding]', got {ret!r}"
 
     def test_upstox_trades_returns_list_trade(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "trades")
         assert ret == "list[Trade]", f"Expected 'list[Trade]', got {ret!r}"
 
     def test_upstox_get_orderbook_returns_list_order(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         ret = self._get_method_return_annotation(UpstoxWireAdapter, "get_orderbook")
         assert ret == "list[Order]", f"Expected 'list[Order]', got {ret!r}"
@@ -337,7 +345,7 @@ class TestGatewayLogging:
 class TestUpstoxQuoteLogging:
     """P-2.2: Test removed - was testing deleted adapter.
 
-    The correct adapter (brokers.upstox.market_data.market_data_adapter)   # noqa: W291
+    The correct adapter (brokers.providers.upstox.market_data.market_data_adapter)   # noqa: W291
     does not log warnings for empty quotes - it returns empty Quote objects.
     """
 
@@ -348,7 +356,7 @@ class TestReadPathTypedErrors:
     """get_quote/get_order must not swallow transport failures as empty results."""
 
     def test_dhan_get_order_raises_broker_error_on_transport_failure(self) -> None:
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
         from domain.errors import BrokerError
 
         gw = DhanWireAdapter.__new__(DhanWireAdapter)
@@ -365,7 +373,7 @@ class TestReadPathTypedErrors:
             gw.get_order("123")
 
     def test_dhan_data_provider_get_quote_raises_quote_unavailable(self) -> None:
-        from brokers.dhan.data.data_provider import DhanDataProvider
+        from brokers.providers.dhan.market_data.data_provider import DhanDataProvider
         from domain.exceptions import QuoteUnavailableError
         from domain.instruments.instrument_id import InstrumentId
 
@@ -382,7 +390,7 @@ class TestReadPathTypedErrors:
             provider.get_quote(iid)
 
     def test_upstox_data_provider_get_depth_raises_quote_unavailable(self) -> None:
-        from brokers.upstox.data_provider import UpstoxDataProvider
+        from brokers.providers.upstox.data_provider import UpstoxDataProvider
         from domain.exceptions import QuoteUnavailableError
         from domain.instruments.instrument_id import InstrumentId
 
@@ -414,7 +422,7 @@ class TestTransportErrorMapping:
         assert isinstance(mapped, NetworkError)
 
     def test_dhan_order_transport_uses_mapper(self) -> None:
-        content = (GATEWAY_DIR / "dhan" / "api" / "transport.py").read_text()
+        content = (GATEWAY_DIR / "providers" / "dhan" /  "api" / "transport.py").read_text()
         assert "order_result_from_transport_error" in content
         assert "OrderResult.fail(str(exc))" not in content
 
@@ -423,14 +431,14 @@ class TestTransportBareExceptRatchet:
     """Bare ``except Exception: OrderResult.fail(str(exc))`` is forbidden in transport."""
 
     def test_no_unmapped_order_result_fail_in_dhan_transport(self) -> None:
-        path = GATEWAY_DIR / "dhan" / "api" / "transport.py"
+        path = GATEWAY_DIR / "providers" / "dhan" /  "api" / "transport.py"
         content = path.read_text()
         assert "OrderResult.fail(str(exc))" not in content
 
     def test_no_unmapped_order_response_fail_in_dhan_execution(self) -> None:
         import re
 
-        execution_dir = GATEWAY_DIR / "dhan" / "execution"
+        execution_dir = GATEWAY_DIR / "providers" / "dhan" /  "execution"
         pattern = re.compile(
             r"except Exception[^\n]*:\n(?:[^\n]*\n){0,8}[^\n]*"
             r"(OrderResponse\.fail\([^)]*\bexc\b|raise \w+Error\(f?[\"'][^\"']*\{?\s*exc)",
@@ -442,13 +450,13 @@ class TestTransportBareExceptRatchet:
             assert not matches, f"{path.name} stringifies raw exceptions: {matches}"
 
     def test_upstox_order_command_adapter_uses_mapper(self) -> None:
-        content = (GATEWAY_DIR / "upstox" / "orders" / "order_command_adapter.py").read_text()
+        content = (GATEWAY_DIR / "providers" / "upstox" /  "orders" / "order_command_adapter.py").read_text()
         assert "order_response_from_transport_error" in content
         assert "OrderResponse.fail(str(exc))" not in content
         assert 'OrderResponse.fail(f"network error:' not in content
 
     def test_upstox_order_gateway_uses_mapper(self) -> None:
-        content = (GATEWAY_DIR / "upstox" / "adapters" / "order_gateway.py").read_text()
+        content = (GATEWAY_DIR / "providers" / "upstox" /  "adapters" / "order_gateway.py").read_text()
         assert "order_response_from_transport_error" in content
         assert "OrderResponse.fail(str(e))" not in content
         assert "OrderResponse.fail(str(exc))" not in content

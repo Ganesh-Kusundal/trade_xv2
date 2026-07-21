@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from application.oms.protocols import IReconciliationService
-from brokers.upstox.reconciliation.service import UpstoxReconciliationService
+from brokers.providers.upstox.reconciliation.service import UpstoxReconciliationService
 
 
 def test_upstox_reconcile_accepts_local_orders_and_positions():

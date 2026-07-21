@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.paper.data_provider import PaperDataProvider
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.data_provider import PaperDataProvider
+from brokers.providers.paper.paper_gateway import PaperGateway
 from domain.candles.historical import HistoricalSeries
 from domain.instruments.instrument_id import InstrumentId
 

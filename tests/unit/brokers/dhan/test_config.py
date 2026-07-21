@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.config import (
+from brokers.providers.dhan.config import (
     DEFAULT_BASE_DELAY_MS,
     DEFAULT_CONFIG,
     DEFAULT_MAX_DELAY_MS,
@@ -287,7 +287,7 @@ class TestConfigIntegration:
 
     def test_http_client_accepts_config(self):
         """Test that DhanHttpClient accepts config parameter."""
-        from brokers.dhan.api.http_client import DhanHttpClient
+        from brokers.providers.dhan.api.http_client import DhanHttpClient
 
         config = DhanResilienceConfig(
             retry=DhanRetryConfig(max_retries=5),
@@ -301,7 +301,7 @@ class TestConfigIntegration:
 
     def test_http_client_uses_default_config(self):
         """Test that DhanHttpClient uses default config when none provided."""
-        from brokers.dhan.api.http_client import DhanHttpClient
+        from brokers.providers.dhan.api.http_client import DhanHttpClient
 
         client = DhanHttpClient(
             client_id="test",

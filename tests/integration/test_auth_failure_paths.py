@@ -25,7 +25,7 @@ class TestTokenExpiryMidOrder:
 
     def test_token_expiry_triggers_refresh_and_retry(self):
         """401 during order submission should trigger token refresh and retry."""
-        from brokers.dhan.api.http_client import DhanHttpClient
+        from brokers.providers.dhan.api.http_client import DhanHttpClient
 
         call_count = 0
 
@@ -78,7 +78,7 @@ class TestTokenExpiryMidOrder:
 
     def test_concurrent_requests_share_refresh_future(self):
         """Multiple 401s should trigger single refresh, not cascading refreshes."""
-        from brokers.dhan.api.http_client import DhanHttpClient
+        from brokers.providers.dhan.api.http_client import DhanHttpClient
 
         refresh_count = 0
         refresh_lock = threading.Lock()
@@ -143,7 +143,7 @@ class TestTOTPFailure:
 
     def test_totp_generation_failure_blocks_bootstrap(self):
         """TOTP generation failure should block bootstrap with clear error."""
-        from brokers.upstox.auth.totp_client import UpstoxTotpClient
+        from brokers.providers.upstox.auth.totp_client import UpstoxTotpClient
 
         # Create client with invalid settings (missing required fields)
         from unittest.mock import MagicMock
@@ -221,7 +221,7 @@ class TestWebSocketReconnectWithStaleToken:
         """WS reconnect with expired token should trigger re-auth, not crash."""
         from unittest.mock import MagicMock
 
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.providers.dhan.websocket import DhanMarketFeed
 
         # Create mock feed
         mock_feed = MagicMock()
@@ -253,7 +253,7 @@ class TestInvalidCredentials:
 
     def test_empty_client_id_raises_error(self):
         """Empty client ID should fail immediately on initialization."""
-        from brokers.dhan.connection import DhanConnection
+        from brokers.providers.dhan.connection import DhanConnection
 
         with pytest.raises((ValueError, Exception)):
             DhanConnection(
@@ -265,7 +265,7 @@ class TestInvalidCredentials:
 
     def test_empty_access_token_raises_error(self):
         """Empty access token should fail immediately on initialization."""
-        from brokers.dhan.connection import DhanConnection
+        from brokers.providers.dhan.connection import DhanConnection
 
         with pytest.raises((ValueError, Exception)):
             DhanConnection(
@@ -310,8 +310,8 @@ class TestTokenRefreshRaceCondition:
     def test_concurrent_refresh_does_not_cascade(self):
         from unittest.mock import MagicMock, patch
 
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
-        from brokers.upstox.auth.token_manager import UpstoxTokenManager
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
         settings = UpstoxConnectionSettings(
             client_id="CID",
@@ -329,7 +329,7 @@ class TestTokenRefreshRaceCondition:
             time.sleep(0.05)
             with lock:
                 refresh_count["n"] += 1
-            from brokers.upstox.auth.holders import TokenSnapshot
+            from brokers.providers.upstox.auth.holders import TokenSnapshot
 
             state = TokenSnapshot(
                 access_token="new-token",
@@ -371,8 +371,8 @@ class TestAuthIntegrationWithGateway:
         """Create Dhan gateway with mocked HTTP client."""
         from unittest.mock import MagicMock, patch
 
-        from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.connection import DhanConnection
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         # Create connection
         conn = DhanConnection(

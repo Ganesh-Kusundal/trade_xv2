@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.upstox.mappers.price_parser import UpstoxPriceParser
+from brokers.providers.upstox.mappers.price_parser import UpstoxPriceParser
 
 
 def test_parse_rupee_default():

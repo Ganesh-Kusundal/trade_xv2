@@ -51,7 +51,8 @@ def handle_quote(
             "low": str(quote.low),
             "close": str(quote.close),
             "volume": quote.volume,
-            "change": str(quote.change),
+            "change_pct": str(quote.change_pct),
+            "event_time": quote.event_time.isoformat() if quote.event_time else None,
         },
     )
 

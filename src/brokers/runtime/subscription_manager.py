@@ -1,12 +1,12 @@
 """SubscriptionManager — coordinates live-data subscriptions for instruments.
 
-Thin coordinator over ``Instrument.subscribe`` / ``DataProvider.subscribe``.
-Owns the set of active handles so callers can manage them centrally.
+Routes through ``Instrument``'s subscription core so instrument state/callbacks
+stay consistent with ``session.gateway.subscribe``.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from domain.instruments.instrument import Instrument
@@ -26,27 +26,29 @@ class SubscriptionManager:
         *,
         depth: bool = False,
     ) -> SubscriptionHandle | None:
-        provider = instrument._resolve_provider()
-        handle = provider.subscribe(instrument.id, callback, depth=depth)
+        # Prefer instrument core (updates Instrument state); fall back to provider.
+        core = getattr(instrument, "_subscribe_core", None)
+        if callable(core):
+            handle = core(callback, depth=depth)
+        else:
+            provider = instrument._resolve_provider()
+            handle = provider.subscribe(instrument.id, callback, depth=depth)
         if handle is not None:
             self._handles[str(instrument.id)] = handle
         return handle
 
     def unsubscribe(self, instrument: Instrument) -> None:
         key = str(instrument.id)
-        handle = self._handles.pop(key, None)
-        if handle is not None:
-            try:
-                provider = instrument._resolve_provider()
-                provider.unsubscribe(handle)
-            except Exception:
-                pass
+        self._handles.pop(key, None)
+        unsub = getattr(instrument, "unsubscribe", None)
+        if callable(unsub):
+            unsub()
 
     def active(self) -> list[str]:
         return list(self._handles.keys())
 
     def clear(self) -> None:
-        for handle in self._handles.values():
+        for handle in list(self._handles.values()):
             try:
                 handle.unsubscribe()
             except Exception:

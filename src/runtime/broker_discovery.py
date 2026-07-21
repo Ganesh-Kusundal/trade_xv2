@@ -17,8 +17,8 @@ This module is different: it lives in ``runtime/``, which import-linter
 already permits to import brokers, precisely because a composition root
 is the one place structurally allowed to do so.
 
-Entry points are module-only targets (``dhan = "brokers.dhan"``, not
-``dhan = "brokers.dhan:DhanBroker"``) because each broker package already
+Entry points are module-only targets (``dhan = "brokers.providers.dhan"``, not
+``dhan = "brokers.providers.dhan:DhanBroker"``) because each broker package already
 self-registers via ``register_broker_plugin()`` etc. at import time —
 discovery's job is just "import this module," not "instantiate this
 class."

@@ -26,8 +26,8 @@ class TestNoDuplicateBrokerError:
     """Ensure only one BrokerError class definition exists in the codebase."""
 
     def test_only_one_broker_error_definition(self) -> None:
-        """Only domain.errors should define class BrokerError."""
-        canonical_file = ROOT / "src/domain/errors.py"
+        """Only domain.exceptions should define class BrokerError."""
+        canonical_file = ROOT / "src/domain/exceptions.py"
         assert canonical_file.exists(), f"Canonical file missing: {canonical_file}"
 
         dirs_to_check = [
@@ -44,9 +44,9 @@ class TestNoDuplicateBrokerError:
         ]
         files = _find_python_files(dirs_to_check)
 
-        # Canonical ClassDef lives in domain.errors; re-export modules must not redefine.
+        # Canonical ClassDef lives in domain.exceptions; domain.errors re-exports.
         allow_classdef = {
-            "src/domain/errors.py",
+            "src/domain/exceptions.py",
         }
         violations: list[str] = []
         for f in files:
@@ -63,7 +63,7 @@ class TestNoDuplicateBrokerError:
 
         assert not violations, (
             f"Duplicate BrokerError definitions found in: {violations}. "
-            f"Only domain.errors should define it."
+            f"Only domain.exceptions should define it."
         )
 
     def test_resilience_errors_is_canonical_root(self) -> None:

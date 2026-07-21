@@ -15,7 +15,7 @@ class TestHistoricalIntervalMapping:
     session-hours validator then correctly (but silently) dropped."""
 
     def test_1m_resolves_to_minutes_not_days_default(self):
-        from brokers.upstox.adapters.historical_adapter import HistoricalAdapter
+        from brokers.providers.upstox.adapters.historical_adapter import HistoricalAdapter
 
         assert HistoricalAdapter.resolve_timeframe("1m") == ("minutes", "1")
         assert HistoricalAdapter.resolve_timeframe("5m") == ("minutes", "5")
@@ -24,13 +24,13 @@ class TestHistoricalIntervalMapping:
         assert HistoricalAdapter.resolve_timeframe("60m") == ("hours", "1")
 
     def test_month_maps_to_months(self):
-        from brokers.upstox.adapters.historical_adapter import _INTERVAL_MAP
+        from brokers.providers.upstox.adapters.historical_adapter import _INTERVAL_MAP
 
         assert _INTERVAL_MAP["MON"] == ("months", "1")
         assert _INTERVAL_MAP["MONTH"] == ("months", "1")
 
     def test_no_duplicate_keys(self):
-        from brokers.upstox.adapters.historical_adapter import _INTERVAL_MAP
+        from brokers.providers.upstox.adapters.historical_adapter import _INTERVAL_MAP
 
         keys = list(_INTERVAL_MAP.keys())
         assert len(keys) == len(set(keys)), "Duplicate keys found in _INTERVAL_MAP"
@@ -40,7 +40,7 @@ class TestGetOrderbook:
     """Verify get_orderbook uses get_order_list() not _parse_order."""
 
     def test_get_orderbook_calls_get_order_list(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.order_query.get_order_list.return_value = []
@@ -54,7 +54,7 @@ class TestDepthResponseParsing:
     """Verify get_depth parses the nested quotes response format."""
 
     def test_depth_parses_nested_format(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
         from domain import MarketDepth
 
         broker = MagicMock()
@@ -80,7 +80,7 @@ class TestDepthResponseParsing:
         assert depth.asks[0].price == Decimal("101.0")
 
     def test_depth_handles_empty_data(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         broker.instrument_resolver.resolve.return_value = MagicMock(
@@ -97,14 +97,14 @@ class TestHistoricalProperty:
     """Verify historical access works via extended or direct history() method."""
 
     def test_history_method_exists(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         gw = UpstoxWireAdapter(broker)
         assert hasattr(gw, "history")
 
     def test_history_callable(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         gw = UpstoxWireAdapter(broker)
@@ -115,8 +115,8 @@ class TestNewsAdapterFilters:
     """Verify news adapter forwards category and instrument_keys."""
 
     def test_adapter_forwards_category(self):
-        from brokers.upstox.news.adapter import UpstoxNewsAdapter
-        from brokers.upstox.news.client import UpstoxNewsClient
+        from brokers.providers.upstox.news.adapter import UpstoxNewsAdapter
+        from brokers.providers.upstox.news.client import UpstoxNewsClient
 
         client = MagicMock(spec=UpstoxNewsClient)
         client.get_news.return_value = []
@@ -131,8 +131,8 @@ class TestNewsAdapterFilters:
         )
 
     def test_adapter_defaults_category_to_holdings(self):
-        from brokers.upstox.news.adapter import UpstoxNewsAdapter
-        from brokers.upstox.news.client import UpstoxNewsClient
+        from brokers.providers.upstox.news.adapter import UpstoxNewsAdapter
+        from brokers.providers.upstox.news.client import UpstoxNewsClient
 
         client = MagicMock(spec=UpstoxNewsClient)
         client.get_news.return_value = []
@@ -151,7 +151,7 @@ class TestGatewayClose:
     """Verify gateway has a close method."""
 
     def test_gateway_close_exists(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         broker = MagicMock()
         gw = UpstoxWireAdapter(broker)

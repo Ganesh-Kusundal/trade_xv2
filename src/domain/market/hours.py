@@ -12,8 +12,29 @@ timezone-aware instant must combine them with :data:`domain.constants.IST`.
 
 from __future__ import annotations
 
-from datetime import time
+import os
+from datetime import datetime, time, timedelta, timezone
 
 # NSE/BSE equity + F&O regular continuous trading session (IST, naive).
 NSE_EQUITY_OPEN: time = time(9, 15)
 NSE_EQUITY_CLOSE: time = time(15, 30)
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def is_nse_market_open(now: datetime | None = None) -> bool:
+    """True during NSE cash session (09:15–15:30 IST, Mon–Fri).
+
+    ``FORCE_MARKET_OPEN=1`` overrides for CI / paper fill tests.
+    """
+    if os.environ.get("FORCE_MARKET_OPEN") == "1":
+        return True
+    now = now or datetime.now(tz=_IST)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_IST)
+    else:
+        now = now.astimezone(_IST)
+    if now.weekday() >= 5:
+        return False
+    t = now.time()
+    return NSE_EQUITY_OPEN <= t < NSE_EQUITY_CLOSE

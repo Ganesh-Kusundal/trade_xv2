@@ -2,7 +2,7 @@
 
 Resolves the correct data/execution provider adapter for a ``broker_id``
 without any ``if broker == "..."`` branching. Brokers register their adapter
-classes here **on package import** (see ``brokers.dhan`` / ``brokers.upstox``
+classes here **on package import** (see ``brokers.providers.dhan`` / ``brokers.providers.upstox``
 ``__init__.py``), keeping broker-specific construction logic out of the runtime
 path, out of domain objects, AND out of ``brokers.common`` entirely (ADR-007).
 

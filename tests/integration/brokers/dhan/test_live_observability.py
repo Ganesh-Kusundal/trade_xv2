@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
 
 ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.local"
 _live_env_loaded = False

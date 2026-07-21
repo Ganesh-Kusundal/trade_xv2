@@ -1,8 +1,8 @@
 """Shared order validation logic for all broker adapters.
 
 Centralizes lot-size and tick-alignment checks that were previously
-duplicated across brokers/dhan/execution/order_validator.py and
-brokers/upstox/orders/order_command_adapter.py.
+duplicated across brokers/providers/dhan/execution/order_validator.py and
+brokers/providers/upstox/orders/order_command_adapter.py.
 """
 
 from __future__ import annotations

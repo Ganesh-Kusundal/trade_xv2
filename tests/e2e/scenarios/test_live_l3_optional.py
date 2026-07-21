@@ -7,6 +7,9 @@ Run explicitly::
 
 from __future__ import annotations
 
+from brokers import BrokerSession
+from tests.support.gateway_orders import place_via_gateway, subscribe_via_gateway
+
 from pathlib import Path
 
 import pytest
@@ -151,7 +154,7 @@ def test_L_MA024_SUBSCRIBE_HANDLE_WITHOUT_TICK_WAIT():
     s = tradex.connect("dhan", mode="market", env_path=str(DHAN_ENV))
     try:
         stock = s.universe.equity("RELIANCE")
-        handle = stock.subscribe()
+        handle = subscribe_via_gateway(session, stock)
         assert handle is not None
         # May be inactive if stream fails offline; prefer active when feed starts
         if handle.is_active:

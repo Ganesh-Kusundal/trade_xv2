@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 
 from brokers.common.streaming import DepthStreamHandle
-from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.streaming.connection import DhanConnection
+from brokers.providers.dhan.wire import DhanWireAdapter
 from domain import MarketDepth
 from tests.support.brokers.dhan.fixtures import FakeHttpClient
 

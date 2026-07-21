@@ -7,9 +7,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.json_token_state_store import JsonTokenStateStore
-from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.json_token_state_store import JsonTokenStateStore
+from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
 
 def _settings(tmp_path: Path, **overrides) -> UpstoxConnectionSettings:

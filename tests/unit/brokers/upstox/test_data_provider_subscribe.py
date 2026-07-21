@@ -11,7 +11,7 @@ from domain.instruments.instrument_id import InstrumentId
 
 @pytest.mark.unit
 def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
-    from brokers.upstox.data_provider import UpstoxDataProvider
+    from brokers.providers.upstox.data_provider import UpstoxDataProvider
 
     gw = MagicMock()
     handle = MagicMock()
@@ -38,7 +38,7 @@ def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
 
 @pytest.mark.unit
 def test_subscribe_does_not_pass_callback_as_mode() -> None:
-    from brokers.upstox.data_provider import UpstoxDataProvider
+    from brokers.providers.upstox.data_provider import UpstoxDataProvider
 
     gw = MagicMock()
     gw.stream = MagicMock(return_value=MagicMock())
@@ -55,7 +55,7 @@ def test_subscribe_does_not_pass_callback_as_mode() -> None:
 
 @pytest.mark.unit
 def test_subscribe_raises_on_stream_failure() -> None:
-    from brokers.upstox.data_provider import UpstoxDataProvider
+    from brokers.providers.upstox.data_provider import UpstoxDataProvider
 
     gw = MagicMock()
     gw.stream = MagicMock(side_effect=RuntimeError("ws down"))

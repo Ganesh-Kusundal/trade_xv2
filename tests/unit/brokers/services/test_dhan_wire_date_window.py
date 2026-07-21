@@ -26,7 +26,7 @@ from application.data.historical_coordinator import (
     HistoricalQuery,
 )
 from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
-from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from domain.policies.source_selection import auto_dual_broker_policy
 from tests.unit.brokers.common.fixtures.in_memory_gateway import (
     InMemoryBrokerGateway,

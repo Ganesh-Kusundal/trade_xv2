@@ -22,6 +22,7 @@ from typing import Protocol, runtime_checkable
 
 from domain.candles.historical import InstrumentRef
 from domain.entities import OrderResponse
+from domain.orders.requests import OrderRequest
 
 # ---------------------------------------------------------------------------
 # OrderTransportPort — narrow order-execution protocol
@@ -39,14 +40,7 @@ class OrderTransportPort(Protocol):
     All broker adapters and fake gateways implement this protocol.
     """
 
-    def place_order(
-        self,
-        symbol: str,
-        exchange: str,
-        side: str,
-        quantity: int,
-        **kwargs: str,
-    ) -> OrderResponse:
+    def place_order(self, request: OrderRequest) -> OrderResponse:
         """Place a single order and return the gateway response."""
         ...
 

@@ -2,7 +2,7 @@ import sys
 from types import ModuleType
 from unittest.mock import MagicMock
 
-from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
+from brokers.providers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 
 
 def test_parse_logs_error_when_both_v3_and_fallback_decode_fail(monkeypatch):
@@ -14,17 +14,17 @@ def test_parse_logs_error_when_both_v3_and_fallback_decode_fail(monkeypatch):
         def ParseFromString(self, raw: bytes) -> None:
             raise ValueError("fallback decode failed")
 
-    fake_proto = ModuleType("brokers.upstox.websocket.proto.market_feed_pb2")
+    fake_proto = ModuleType("brokers.providers.upstox.websocket.proto.market_feed_pb2")
     fake_proto.FeedResponse = BrokenFeedResponse
     fake_proto.Feed = BrokenFeed
     monkeypatch.setitem(
         sys.modules,
-        "brokers.upstox.websocket.proto.market_feed_pb2",
+        "brokers.providers.upstox.websocket.proto.market_feed_pb2",
         fake_proto,
     )
 
     logger = MagicMock()
-    monkeypatch.setattr("brokers.upstox.websocket.v3_decoder.logger", logger)
+    monkeypatch.setattr("brokers.providers.upstox.websocket.v3_decoder.logger", logger)
 
     result = UpstoxV3Decoder().parse(b"\x02\x00\x01\xff")
 

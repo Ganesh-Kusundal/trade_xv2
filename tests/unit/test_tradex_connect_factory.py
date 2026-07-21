@@ -51,7 +51,7 @@ def test_connect_dhan_market_default_no_oms():
     )
 
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", load_instruments=False)
         assert session.status is not None
@@ -76,7 +76,7 @@ def test_connect_dhan_trade_requires_oms():
     mock_gw = MagicMock(name="DhanGateway")
 
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         with pytest.raises(ConnectError) as ei:
             tradex.connect("dhan", mode="trade", load_instruments=False)
@@ -95,7 +95,7 @@ def test_connect_dhan_trade_with_process_oms():
     mock_ep.name = "dhan"
 
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
         from application.oms import has_oms_context
 
         oms_svc = build_oms_service(mock_ep, broker_id="paper")
@@ -132,7 +132,7 @@ def test_connect_dhan_sim_rejected():
 
 
 def test_paper_execution_provider_registered():
-    import brokers.paper  # noqa: F401
+    import brokers.providers.paper  # noqa: F401
 
     gw = MagicMock()
     ep = create_execution_provider(gw, broker_id="paper")

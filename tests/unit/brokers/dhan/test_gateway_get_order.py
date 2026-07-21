@@ -2,7 +2,7 @@
 
 Contract test for R9 (P0): the gateway must expose ``get_order(order_id)``
 and delegate to the existing execution helper (``OrdersAdapter.get_order``
-in ``brokers/dhan/execution/orders.py``), which in turn calls the underlying
+in ``brokers/providers/dhan/execution/orders.py``), which in turn calls the underlying
 Dhan client at ``GET /orders/{order_id}``.
 
 The gateway method itself is a thin facade (see ``gateway.py::get_order``);
@@ -19,8 +19,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.execution.orders import OrdersAdapter
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.execution.orders import OrdersAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
 from domain import Order, OrderStatus
 
 

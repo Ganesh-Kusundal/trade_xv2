@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
+from brokers.providers.upstox.auth.totp_scheduler import TotpRefreshScheduler
 from infrastructure.lifecycle import HealthState
 
 

@@ -166,7 +166,7 @@ class FailingProvider:
 
 def test_dhan_http_client_single_rate_limit_path() -> None:
     """Legacy _throttle removed — only token-bucket acquire remains."""
-    from brokers.dhan.api.http_client import DhanHttpClient
+    from brokers.providers.dhan.api.http_client import DhanHttpClient
 
     assert not hasattr(DhanHttpClient, "_throttle")
 

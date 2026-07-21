@@ -33,7 +33,7 @@ def test_no_upstox_idempotency_alias():
     import importlib
 
     with pytest.raises(ModuleNotFoundError):
-        importlib.import_module("brokers.upstox.orders.idempotency")
+        importlib.import_module("brokers.providers.upstox.orders.idempotency")
 
 
 @pytest.mark.architecture

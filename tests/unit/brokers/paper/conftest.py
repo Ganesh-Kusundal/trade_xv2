@@ -1,4 +1,4 @@
-"""Shared test fixtures for brokers.paper tests.
+"""Shared test fixtures for brokers.providers.paper tests.
 
 Provides PaperGateway fixtures, seeded mock brokers, and trading contexts
 for deterministic testing without external dependencies.
@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from brokers.paper.paper_gateway import PaperGateway
-from domain import Order, Trade
+from brokers.providers.paper.paper_gateway import PaperGateway
+from domain.entities import Order, Trade
 from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
 
 

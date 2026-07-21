@@ -79,8 +79,8 @@ class TestUpstoxTotpLive:
         assert os.environ.get("UPSTOX_CLIENT_ID") or os.environ.get("UPSTOX_API_KEY")
 
     def test_token_manager_bootstrap_via_real_totp(self):
-        from brokers.upstox.auth.config import UpstoxSettingsLoader
-        from brokers.upstox.auth.token_manager import UpstoxTokenManager
+        from brokers.providers.upstox.auth.config import UpstoxSettingsLoader
+        from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
         settings = UpstoxSettingsLoader.from_env(env_path=_UPSTOX_TOTP.env_path)
         assert settings.is_totp

@@ -295,7 +295,7 @@ def test_scenario_4_crash_during_reconciliation_drift_persists(tmp_path):
     events_dir = tmp_path / "events"
     _ctx, _, _ = _build_context(events_dir)
     # Stub a DhanReconciliationService-style adapter that always reports drift.
-    from brokers.dhan.portfolio.reconciliation import (
+    from brokers.providers.dhan.portfolio.reconciliation import (
         DriftItem,
         ReconciliationReport,
     )
@@ -358,7 +358,7 @@ def test_scenario_5_crash_during_ws_reconnect_reconnect_count_recovered():
     """DhanMarketFeed must reset its backoff after a successful connect
     (B-4). The reconnect counter is observable via health().
     """
-    from brokers.dhan.websocket import DhanMarketFeed
+    from brokers.providers.dhan.websocket import DhanMarketFeed
 
     feed = DhanMarketFeed(
         client_id="test",
@@ -387,7 +387,7 @@ def test_scenario_6_crash_during_token_refresh_atomic_env(tmp_path):
     mid-write leaves either the old or new token, never a partial.
     """
 
-    from brokers.dhan.identity.factory import _update_env_token
+    from brokers.providers.dhan.identity.factory import _update_env_token
 
     env_path = tmp_path / ".env.local"
     env_path.write_text(

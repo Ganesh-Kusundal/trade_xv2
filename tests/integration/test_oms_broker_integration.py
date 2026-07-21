@@ -14,7 +14,7 @@ import pytest
 
 from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from application.oms.order_manager import OmsOrderCommand, OrderManager
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.paper_gateway import PaperGateway
 from domain import (
     Order,
     OrderStatus,

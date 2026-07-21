@@ -1,6 +1,6 @@
 """Unit tests for ExitAllAdapter."""
 
-from brokers.dhan.execution.exit_all import ExitAllAdapter
+from brokers.providers.dhan.execution.exit_all import ExitAllAdapter
 
 
 def test_exit_all_success(fake_client):

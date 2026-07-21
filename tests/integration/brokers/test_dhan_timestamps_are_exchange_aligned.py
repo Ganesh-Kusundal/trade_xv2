@@ -48,9 +48,9 @@ class _FakeBus:
 
 def test_dhan_feed_stamps_timestamp_and_sequence():
     """_transform_quote stamps arrival time; publisher assigns sequence on publish."""
-    from brokers.dhan.websocket._helpers import _to_decimal
-    from brokers.dhan.websocket.market_feed import DhanMarketFeed
-    from brokers.dhan.websocket.publish import MarketFeedPublisher
+    from brokers.providers.dhan.websocket._helpers import _to_decimal
+    from brokers.providers.dhan.websocket.market_feed import DhanMarketFeed
+    from brokers.providers.dhan.websocket.publish import MarketFeedPublisher
 
     feed = DhanMarketFeed(client_id="CID", access_token="TOK", instruments=None)
 

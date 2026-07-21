@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from brokers.upstox.orders.order_query_adapter import UpstoxOrderQueryAdapter
+from brokers.providers.upstox.orders.order_client import UpstoxRestOrderClient
+from brokers.providers.upstox.orders.order_query_adapter import UpstoxOrderQueryAdapter
 
 
 def _make_adapter(client: UpstoxRestOrderClient | None = None):

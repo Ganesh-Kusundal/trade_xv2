@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
+from brokers.providers.upstox.adapters.tick_translator import TickTranslatorAdapter
 from domain import Quote
 
 

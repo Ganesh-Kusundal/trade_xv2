@@ -25,8 +25,8 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock
 
-from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from brokers.providers.dhan.streaming.connection import DhanConnection
+from brokers.providers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from infrastructure.lifecycle.lifecycle import (
     HealthState,
     LifecycleManager,

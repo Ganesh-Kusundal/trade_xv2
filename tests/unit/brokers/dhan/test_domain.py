@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.domain import (
+from brokers.providers.dhan._dhan_types import (
     DhanInstrument,
     Exchange,
     InstrumentType,

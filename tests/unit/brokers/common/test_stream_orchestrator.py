@@ -15,8 +15,8 @@ from application.streaming.orchestrator import (
     SubscriptionRequest,
 )
 from application.streaming.tick_router import TickRouter
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.upstox.capabilities import upstox_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.upstox.capabilities import upstox_capabilities
 from domain.policies.source_selection import auto_dual_broker_policy
 from domain.ports.broker_gateway import BrokerStreamPlan
 from domain.stream_health import FreshnessState, SubscriptionState, TransportState

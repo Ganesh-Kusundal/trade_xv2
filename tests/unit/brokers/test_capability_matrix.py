@@ -4,9 +4,42 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.paper.paper_gateway import PaperGateway
-from brokers.services import core as services_core
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.paper.paper_gateway import PaperGateway
+from brokers.services import (
+    cancel_order,
+    format_session_capabilities,
+    get_depth,
+    get_history,
+    get_news,
+    get_option_chain,
+    get_quote,
+    list_forever_orders,
+    list_super_orders,
+    modify_order,
+    place_order,
+    probe_depth_ws,
+    run_subscribe_probe,
+)
+
+# Namespace stand-in for the deleted services.core facade
+class _Services:
+    place_order = staticmethod(place_order)
+    cancel_order = staticmethod(cancel_order)
+    modify_order = staticmethod(modify_order)
+    get_history = staticmethod(get_history)
+    get_quote = staticmethod(get_quote)
+    get_depth = staticmethod(get_depth)
+    probe_depth_ws = staticmethod(probe_depth_ws)
+    get_option_chain = staticmethod(get_option_chain)
+    run_subscribe_probe = staticmethod(run_subscribe_probe)
+    get_news = staticmethod(get_news)
+    list_super_orders = staticmethod(list_super_orders)
+    list_forever_orders = staticmethod(list_forever_orders)
+    format_session_capabilities = staticmethod(format_session_capabilities)
+
+
+services_core = _Services()
 
 # supports_* → services.core function name (when True on broker matrix)
 _SERVICE_FOR_FEATURE: dict[str, str] = {
@@ -89,8 +122,8 @@ def test_get_capabilities_matrix_keys_match_dhan() -> None:
 
 @pytest.mark.unit
 def test_session_gateway_uses_public_provider_gateway_property() -> None:
-    from brokers.paper.data_provider import PaperDataProvider
-    from brokers.paper.paper_gateway import PaperGateway
+    from brokers.providers.paper.data_provider import PaperDataProvider
+    from brokers.providers.paper.paper_gateway import PaperGateway
     from brokers.services.capabilities import _session_gateway
 
     class _FakeSession:

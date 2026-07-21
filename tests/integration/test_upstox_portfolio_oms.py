@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
+from brokers.providers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from tests.conftest import build_test_trading_context
 from tests.unit.brokers.upstox.test_websocket_safety import _fake_authorizer, _FakeSocket

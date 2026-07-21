@@ -3,9 +3,9 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 
-from brokers.paper.paper_market_data import PaperMarketData
-from brokers.paper.paper_orders import PaperOrders
-from domain import OrderStatus, Side
+from brokers.providers.paper.paper_market_data import PaperMarketData
+from brokers.providers.paper.paper_orders import PaperOrders
+from domain.enums import OrderStatus, Side
 from tests.unit.brokers.paper.conftest import MockPaperOrderManager
 
 

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.auth.token_scheduler import TokenRefreshScheduler
+from brokers.providers.dhan.auth.token_scheduler import TokenRefreshScheduler
 from infrastructure.auth import AuthManager, TokenSource, TokenState
 
 

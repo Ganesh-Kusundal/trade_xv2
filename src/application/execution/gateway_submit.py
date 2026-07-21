@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from decimal import Decimal
 
 from application.oms.order_manager import OmsOrderCommand
 from domain.entities import Order
 from domain.enums import OrderStatus
 from domain.entities import OrderResponse
+from domain.orders.requests import OrderRequest
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.order_placement import OrderPlacementPort
 from domain.ports.execution_context import oms_managed
@@ -54,16 +54,17 @@ def make_gateway_submit_fn(
 
     def submit(command: OmsOrderCommand) -> Order:
         with oms_managed():
-            response = gateway.place_order(
+            request = OrderRequest(
                 symbol=command.symbol,
                 exchange=command.exchange,
-                side=command.side.value,
+                transaction_type=command.side,
                 quantity=command.quantity,
-                price=command.price if command.price else Decimal("0"),
-                order_type=command.order_type.value,
-                product_type=command.product_type.value,
+                price=command.price,
+                order_type=command.order_type,
+                product_type=command.product_type,
                 correlation_id=command.correlation_id,
             )
+            response = gateway.place_order(request)
         return order_from_response(command, response, clock=_clock)
 
     return submit

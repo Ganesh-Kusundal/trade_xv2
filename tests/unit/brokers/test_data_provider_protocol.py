@@ -7,10 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.data.data_provider import DhanDataProvider
-from brokers.paper.data_provider import PaperDataProvider
-from brokers.paper.paper_gateway import PaperGateway
-from brokers.upstox.data_provider import UpstoxDataProvider
+from brokers.providers.dhan.market_data.data_provider import DhanDataProvider
+from brokers.providers.paper.data_provider import PaperDataProvider
+from brokers.providers.paper.paper_gateway import PaperGateway
+from brokers.providers.upstox.data_provider import UpstoxDataProvider
 from domain.candles.historical import HistoricalBar
 from domain.instruments.instrument_id import InstrumentId
 

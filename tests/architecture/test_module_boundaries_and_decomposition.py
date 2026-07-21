@@ -301,10 +301,10 @@ class TestPhase5GodObjectDecomposition:
 
         Regression scenario: Phase 5 split the monolithic Dhan WebSocket module
         (1,295 lines) into focused modules:
-        - brokers/dhan/websocket/market_feed.py — Market data streaming
-        - brokers/dhan/websocket/order_stream.py — Order update streaming
-        - brokers/dhan/websocket/polling_feed.py — Polling-based fallback
-        - brokers/dhan/websocket/_helpers.py — Shared utilities
+        - brokers/providers/dhan/websocket/market_feed.py — Market data streaming
+        - brokers/providers/dhan/websocket/order_stream.py — Order update streaming
+        - brokers/providers/dhan/websocket/polling_feed.py — Polling-based fallback
+        - brokers/providers/dhan/websocket/_helpers.py — Shared utilities
 
         If the split broke module coordination, WebSocket connections would fail
         silently, causing the trading system to operate on stale market data.
@@ -315,7 +315,7 @@ class TestPhase5GodObjectDecomposition:
         3. Helper utilities are accessible from main modules
         """
         # Test 1: All modules import successfully
-        from brokers.dhan.websocket import _helpers, market_feed, order_stream, polling_feed
+        from brokers.providers.dhan.websocket import _helpers, market_feed, order_stream, polling_feed
 
         # Test 2: Verify main classes exist
         assert hasattr(market_feed, "DhanMarketFeed"), (
@@ -334,15 +334,15 @@ class TestPhase5GodObjectDecomposition:
         )
 
         # Test 4: Verify modules can be instantiated (class-level checks)
-        from brokers.dhan.websocket.market_feed import DhanMarketFeed
-        from brokers.dhan.websocket.polling_feed import PollingMarketFeed
+        from brokers.providers.dhan.websocket.market_feed import DhanMarketFeed
+        from brokers.providers.dhan.websocket.polling_feed import PollingMarketFeed
 
         # Verify classes are properly defined (not None, not broken)
         assert DhanMarketFeed is not None, "DhanMarketFeed class should be defined"
         assert PollingMarketFeed is not None, "PollingMarketFeed class should be defined"
 
         # Test 5: Verify module __init__.py exports correctly
-        from brokers.dhan.websocket import __all__ as websocket_exports
+        from brokers.providers.dhan.websocket import __all__ as websocket_exports
 
         assert "DhanMarketFeed" in websocket_exports or "market_feed" in websocket_exports, (
             "websocket __init__.py should export main classes or submodules"
@@ -353,7 +353,7 @@ class TestPhase5GodObjectDecomposition:
 
         Regression scenario: Phase 5-6 decomposition may have introduced circular
         imports between:
-        - brokers/common/factory.py ↔ brokers/dhan/factory.py
+        - brokers/common/factory.py ↔ brokers/providers/dhan/factory.py
         - application/oms/ modules (risk_manager ↔ order_manager ↔ position_manager)
 
         Circular imports cause ImportError at module load time, breaking the
@@ -363,12 +363,12 @@ class TestPhase5GodObjectDecomposition:
         # Force reimport by clearing cache
         modules_to_test = [
             "infrastructure.gateway.provider_factory",
-            "brokers.dhan.identity.factory",
+            "brokers.providers.dhan.identity.factory",
             "application.oms._internal.risk_manager",
             "application.oms.order_manager",
             "application.oms.position_manager",
-            "brokers.dhan.websocket.market_feed",
-            "brokers.dhan.websocket.order_stream",
+            "brokers.providers.dhan.websocket.market_feed",
+            "brokers.providers.dhan.websocket.order_stream",
             "infrastructure.resilience.circuit_breaker",
             "infrastructure.resilience.rate_limiter",
         ]
@@ -500,7 +500,7 @@ class TestPhase6TypeSafetyAndResilience:
         2. Config validation accepts valid configurations
         3. Factory.create() method signature is compatible with existing callers
         """
-        from brokers.dhan.identity.factory import BrokerFactory
+        from brokers.providers.dhan.identity.factory import BrokerFactory
         from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         # Test 1: BrokerFactory is instantiable

@@ -4,7 +4,7 @@ Ownership
 ---------
 * **This package** — strategy/feature pipeline backtest over historical frames.
   Fees/slippage come from :mod:`domain.trading_costs`.
-* **``brokers.paper``** — live-shaped exchange simulator implementing domain
+* **``brokers.providers.paper``** — live-shaped exchange simulator implementing domain
   ports (``PaperGateway`` / execution provider). Do not mix the two.
 
 Usage:

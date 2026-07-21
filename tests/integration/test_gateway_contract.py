@@ -36,7 +36,7 @@ from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 @pytest.fixture
 def paper_gateway():
     """Return a PaperGateway instance for contract testing."""
-    from brokers.paper.paper_gateway import PaperGateway
+    from brokers.providers.paper.paper_gateway import PaperGateway
 
     return PaperGateway()
 
@@ -57,19 +57,19 @@ class TestGatewayContract:
 
     def test_paper_gateway_is_subclass(self):
         """PaperGateway must extend MarketDataGateway."""
-        from brokers.paper.paper_gateway import PaperGateway
+        from brokers.providers.paper.paper_gateway import PaperGateway
 
         assert issubclass(PaperGateway, MarketDataGateway)
 
     def test_dhan_gateway_is_subclass(self):
         """Dhan DhanWireAdapter must extend MarketDataGateway."""
-        from brokers.dhan.wire import DhanWireAdapter
+        from brokers.providers.dhan.wire import DhanWireAdapter
 
         assert issubclass(DhanWireAdapter, MarketDataGateway)
 
     def test_upstox_gateway_is_subclass(self):
         """Upstox UpstoxWireAdapter must satisfy BrokerAdapter structurally."""
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
         from tests.integration.fixtures.upstox import make_mock_broker
 
         # UpstoxWireAdapter implements BrokerAdapter structurally (Protocol),

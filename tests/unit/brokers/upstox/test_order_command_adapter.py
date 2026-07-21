@@ -5,8 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
+from brokers.providers.upstox.orders.order_client import UpstoxRestOrderClient
+from brokers.providers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from domain import (
     ExchangeSegment,
     Side,

@@ -1,15 +1,15 @@
 # Test Disposition Ledger (Phase 0)
 
-Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
+Generated from `scripts/ci/classify_test_suite.py`. Total files: **887**.
 
 ## Summary
 
 | Disposition | Count |
 |---|---:|
-| KEEP | 562 |
-| REWRITE | 236 |
-| MOVE_STATIC | 11 |
-| MOVE_LAYER | 29 |
+| KEEP | 568 |
+| REWRITE | 259 |
+| MOVE_STATIC | 51 |
+| MOVE_LAYER | 9 |
 
 ## Full ledger
 
@@ -19,51 +19,93 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/acceptance/oms/test_paper_fill_acceptance.py` | acceptance | KEEP | — | Behavioral / no smell detected |
 | `tests/architecture/regression_invariants/test_golden_dataset.py` | architecture | KEEP | — | Architecture runtime contract |
 | `tests/architecture/regression_invariants/test_memory_leaks.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_api_no_ui_imports.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_application_no_infra_imports.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_broker_data_access_compliance.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_broker_kernel_guardrails.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_broker_routing.py` | architecture | REWRITE | signature | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_broker_session_state_single_source.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_cert_path_unity.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_broker_session_state_single_source.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_capability_manifest_contract.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_cert_path_unity.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
 | `tests/architecture/test_cert_schema_v2.py` | architecture | REWRITE | mock | Architecture runtime contract |
-| `tests/architecture/test_composition_root.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_concurrency_boundary.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_connect_flow_compliance.py` | architecture | REWRITE | mock | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_clock_purity.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_composer_bootstrap_compliance.py` | architecture | MOVE_STATIC | ast | Architecture runtime contract |
+| `tests/architecture/test_composition_root.py` | architecture | REWRITE | ast | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_concurrency_boundary.py` | architecture | REWRITE | source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_connect_flow_compliance.py` | architecture | REWRITE | source_read, mock | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_cross_cutting_concerns.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_deepening_enforcement.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_dependency_graph_sync.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_deploy_profile_auth_unbypassable.py` | architecture | KEEP | — | Architecture runtime contract |
-| `tests/architecture/test_domain_ports_forbid_tradex_imports.py` | architecture | REWRITE | caplog | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_domain_value_object_purity.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_domain_bar_types.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_isolation.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_market_types.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_no_broker_imports.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_no_orchestration_imports.py` | architecture | MOVE_STATIC | ast, source_read | Architecture runtime contract |
+| `tests/architecture/test_domain_no_pandas_import.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_no_tradex_imports.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_ports_forbid_tradex_imports.py` | architecture | REWRITE | ast, source_read, caplog | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_domain_purity.py` | architecture | MOVE_STATIC | ast, source_read | Architecture runtime contract |
+| `tests/architecture/test_domain_single_source.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_domain_value_object_purity.py` | architecture | REWRITE | source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_duckdb_single_connection_source.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_eng004_auth_default.py` | architecture | KEEP | — | Architecture runtime contract |
-| `tests/architecture/test_execution_target_resolver.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_fail_closed_capital_paths.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_flow_contracts.py` | architecture | REWRITE | source_read, mock | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_exception_hierarchy_unified.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_execution_target_resolver.py` | architecture | REWRITE | source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_factory_uses_canonical_paths.py` | architecture | MOVE_STATIC | ast | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_fail_closed_capital_paths.py` | architecture | REWRITE | source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_flow_contracts.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
 | `tests/architecture/test_gateway_abc_compliance.py` | architecture | REWRITE | ast, source_read, signature | Real contract; replace source substring with behavioral assertion |
 | `tests/architecture/test_gateway_signatures.py` | architecture | REWRITE | signature | Architecture runtime contract |
 | `tests/architecture/test_gateway_surface_freeze.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_import_direction_and_layering.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_imports.py` | architecture | KEEP | — | Architecture runtime contract |
 | `tests/architecture/test_metrics_auth_profile_scoped.py` | architecture | KEEP | — | Architecture runtime contract |
-| `tests/architecture/test_module_boundaries_and_decomposition.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_no_duplicate_error_hierarchies.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_module_boundaries_and_decomposition.py` | architecture | REWRITE | source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_mypy_strict_allowlist.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_no_broker_string_branching.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_no_duplicate_error_hierarchies.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_no_getattr_reexport.py` | architecture | MOVE_STATIC | source_read | Architecture runtime contract |
+| `tests/architecture/test_no_interface_broker_imports.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_no_legacy_broker_aliases.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_no_market_data_gateway_alias.py` | architecture | MOVE_STATIC | source_read | Architecture runtime contract |
+| `tests/architecture/test_no_private_reachthrough.py` | architecture | MOVE_STATIC | private | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_no_scattered_dotenv.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_no_security_id_leak.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_no_shadow_broker_modules.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_no_tradex_in_application.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_oms_no_broker_name_branching.py` | architecture | MOVE_STATIC | ast | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_order_placement_port.py` | architecture | KEEP | — | Architecture runtime contract |
-| `tests/architecture/test_order_placement_spine.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_order_placement_spine.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
 | `tests/architecture/test_order_port_services.py` | architecture | REWRITE | mock | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_paper_oms_boundary.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_parity_gate_unbypassable.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_place_order_path_inventory.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_platform_ops_unity.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_production_code_fitness_rules.py` | architecture | MOVE_STATIC | ast | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_production_fail_open_unbypassable.py` | architecture | KEEP | — | Architecture runtime contract |
 | `tests/architecture/test_public_sdk_surface_invariants.py` | architecture | MOVE_STATIC | source_read | Architecture runtime contract |
 | `tests/architecture/test_research_mode_gating.py` | architecture | REWRITE | signature | Architecture runtime contract |
 | `tests/architecture/test_service_registry.py` | architecture | KEEP | — | Architecture runtime contract |
 | `tests/architecture/test_shadow_parity_gate.py` | architecture | MOVE_STATIC | source_read, mock | Architecture runtime contract |
 | `tests/architecture/test_single_bus.py` | architecture | KEEP | — | Architecture runtime contract |
-| `tests/architecture/test_single_config.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_single_idempotency.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
-| `tests/architecture/test_stream_oms_lock_discipline.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_single_config.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_single_idempotency.py` | architecture | REWRITE | ast, source_read | Real contract; replace source substring with behavioral assertion |
+| `tests/architecture/test_stream_oms_lock_discipline.py` | architecture | REWRITE | source_read | Real contract; replace source substring with behavioral assertion |
 | `tests/architecture/test_streaming_gateway_port_conformance.py` | architecture | REWRITE | — | Real contract; replace source substring with behavioral assertion |
 | `tests/architecture/test_system_invariants.py` | architecture | KEEP | — | Architecture runtime contract |
+| `tests/architecture/test_test_suite_uses_behavioral_names.py` | architecture | MOVE_STATIC | — | AST/grep/import ratchet → import-linter / CI script |
 | `tests/architecture/test_tick_authority.py` | architecture | REWRITE | mock | Architecture runtime contract |
+| `tests/architecture/test_ui_broker_ops_delegation.py` | architecture | MOVE_STATIC | source_read, private | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_ui_no_concrete_broker_imports.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_wire_boundary.py` | architecture | MOVE_STATIC | ast, source_read | AST/grep/import ratchet → import-linter / CI script |
+| `tests/architecture/test_workflow_paths.py` | architecture | MOVE_STATIC | source_read | AST/grep/import ratchet → import-linter / CI script |
 | `tests/chaos/test_broker_disconnect.py` | chaos | REWRITE | mock | Smells: mock |
 | `tests/chaos/test_cleanup_phantom_dirs.py` | chaos | KEEP | — | Behavioral / no smell detected |
 | `tests/chaos/test_concurrent_failures.py` | chaos | KEEP | — | Behavioral / no smell detected |
 | `tests/chaos/test_data_corruption.py` | chaos | REWRITE | mock | Smells: mock |
 | `tests/chaos/test_dlq_scenarios.py` | chaos | KEEP | — | Behavioral / no smell detected |
-| `tests/chaos/test_event_bus_replay_api.py` | chaos | KEEP | — | Behavioral / no smell detected |
+| `tests/chaos/test_event_bus_replay_api.py` | chaos | REWRITE | ast, private | Smells: ast, private |
 | `tests/chaos/test_failover.py` | chaos | REWRITE | mock | Smells: mock |
 | `tests/chaos/test_failure_modes.py` | chaos | REWRITE | mock | Smells: mock |
 | `tests/chaos/test_network_partitions.py` | chaos | REWRITE | mock | Smells: mock |
@@ -82,15 +124,15 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/component/execution/test_execution_mode_adapter.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/execution/test_execution_mode_oms_parity.py` | component | REWRITE | mock | Smells: mock |
 | `tests/component/execution/test_execution_target_resolver.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/execution/test_gateway_submit.py` | component | KEEP | — | Behavioral / no smell detected |
+| `tests/component/execution/test_gateway_submit.py` | component | REWRITE | mock | Smells: mock |
 | `tests/component/execution/test_parity_characterization.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/oms/test_capital_provider_fail_closed.py` | component | KEEP | mock | Money-safety / contract / regression preserve list |
 | `tests/component/oms/test_composition.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/oms/test_concurrent_rapid_fills.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/oms/test_correlation_id_warning.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/oms/test_crash_replay_positions.py` | component | REWRITE | mock | Smells: mock |
-| `tests/component/oms/test_daily_pnl_feed_wiring.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/oms/test_extended_order_risk.py` | component | REWRITE | mock | Smells: mock |
+| `tests/component/oms/test_daily_pnl_feed_wiring.py` | component | REWRITE | mock | Smells: mock |
+| `tests/component/oms/test_extended_order_risk.py` | component | REWRITE | private, mock | Smells: private, mock |
 | `tests/component/oms/test_extended_order_service_registry.py` | component | REWRITE | mock | Smells: mock |
 | `tests/component/oms/test_graceful_shutdown.py` | component | REWRITE | mock | Smells: mock |
 | `tests/component/oms/test_live_path_risk_gate_and_capital.py` | component | KEEP | mock, signature | Money-safety / contract / regression preserve list |
@@ -142,30 +184,13 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/component/trading/test_orchestrator_kill_switch_port.py` | component | REWRITE | mock | Smells: mock |
 | `tests/component/trading/test_trading_orchestrator_lifecycle.py` | component | REWRITE | mock | Smells: mock |
 | `tests/component/trading/test_trading_orchestrator_sizing.py` | component | REWRITE | mock | Smells: mock |
-| `tests/component/ui/doctor/test_auth_doctor.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_analytics_commands.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_argparse_helpers.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_auth_live_probe_doctor.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
 | `tests/component/ui/test_broker_infrastructure.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/ui/test_broker_not_ready.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_broker_registry.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_broker_service_auth_readiness.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
 | `tests/component/ui/test_broker_service_concurrency.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/ui/test_broker_service_lifecycle.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
 | `tests/component/ui/test_cli_endpoint_matrix.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/ui/test_command_registry.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/ui/test_commands.py` | component | MOVE_LAYER | source_read | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_extended_commands.py` | component | MOVE_LAYER | source_read | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_http_observability_wireup.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/ui/test_market_commands.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_oms_modify.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
+| `tests/component/ui/test_http_observability_headers.py` | component | KEEP | — | Behavioral / no smell detected |
 | `tests/component/ui/test_oms_service.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/ui/test_oms_setup_persistence.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_order_composition.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_timeout_retry_error.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
 | `tests/component/ui/test_ui_services_parity.py` | component | KEEP | — | Behavioral / no smell detected |
-| `tests/component/ui/test_validate_commands.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
-| `tests/component/ui/test_views_journal_commands.py` | component | MOVE_LAYER | mock | UI mock tests → unit/interface/ui |
 | `tests/e2e/scenarios/test_live_l3_optional.py` | e2e | KEEP | — | Behavioral / no smell detected |
 | `tests/e2e/scenarios/test_object_model_pyramid.py` | e2e | REWRITE | mock | Smells: mock |
 | `tests/e2e/stability/test_event_bus_idempotency.py` | e2e | REWRITE | mock | Smells: mock |
@@ -201,7 +226,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/e2e/test_websocket_to_pnl_flow.py` | e2e | REWRITE | mock | Smells: mock |
 | `tests/fixtures/test_fake_broker_gateway.py` | fixtures | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/analytics/test_oms_slippage_once.py` | integration | REWRITE | mock | De-mock money path; use paper/recording fakes |
-| `tests/integration/analytics/test_replay_pending_signal_f2e.py` | integration | MOVE_LAYER | source_read | No source AST in integration |
+| `tests/integration/analytics/test_replay_pending_signal_f2e.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/api/routers/test_orders.py` | integration | REWRITE | mock | De-mock money path; use paper/recording fakes |
 | `tests/integration/api/test_analytics_endpoints.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/api/test_api_bootstrap_wiring.py` | integration | KEEP | — | Behavioral / no smell detected |
@@ -217,6 +242,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/integration/api/test_composer_di_registration.py` | integration | REWRITE | mock | De-mock money path; use paper/recording fakes |
 | `tests/integration/api/test_contract.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/api/test_extended_order_routes.py` | integration | REWRITE | mock | De-mock money path; use paper/recording fakes |
+| `tests/integration/api/test_feed_wiring.py` | integration | REWRITE | mock | De-mock money path; use paper/recording fakes |
 | `tests/integration/api/test_freshness.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/api/test_health.py` | integration | REWRITE | caplog | Smells: caplog |
 | `tests/integration/api/test_health_symbols.py` | integration | KEEP | — | Behavioral / no smell detected |
@@ -309,10 +335,9 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/integration/capability/test_api_route_manifest.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/capability/test_audit_broker_methods.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/capability/test_capability_certification.py` | integration | KEEP | — | Money-safety / contract / regression preserve list |
-| `tests/integration/capability/test_capability_manifest_contract.py` | integration | MOVE_LAYER | — | Wrong pyramid layer (static or unit) |
 | `tests/integration/capability/test_cli_rest_parity.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/capability/test_extended_capabilities_registered.py` | integration | KEEP | — | Behavioral / no smell detected |
-| `tests/integration/capability/test_gateway_abc_compliance.py` | integration | MOVE_LAYER | — | Wrong pyramid layer (static or unit) |
+| `tests/integration/capability/test_upstox_future_chain.py` | integration | KEEP | — | Behavioral / no smell detected |
 | `tests/integration/contract/test_broker_gateway_contract.py` | integration | REWRITE | signature | Smells: signature |
 | `tests/integration/contract/test_protocol_implementations.py` | integration | REWRITE | signature | Smells: signature |
 | `tests/integration/datalake/test_live_bar_sink.py` | integration | KEEP | — | Behavioral / no smell detected |
@@ -454,16 +479,18 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/brokers/common/test_acl.py` | unit | KEEP | — | Money-safety / contract / regression preserve list |
 | `tests/unit/brokers/common/test_async_compat.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_audit.py` | unit | KEEP | caplog | Broker contract / golden / ACL behavioral |
+| `tests/unit/brokers/common/test_audit_trail_completeness.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_batch_quote_coordinator.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_capabilities.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_capabilities_validator_enforce.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_capabilities_validator_fields.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_e2e_order_lifecycle.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
+| `tests/unit/brokers/common/test_event_bus.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_event_bus_compatibility_shims.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_event_log.py` | unit | MOVE_STATIC | source_read, mock, caplog | Broker source hygiene → CI |
 | `tests/unit/brokers/common/test_extensions_registry.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_gateway_contract_integration.py` | unit | REWRITE | mock, signature | Assert wire→domain observables via public gateway/bus |
-| `tests/unit/brokers/common/test_gateway_error_surface_contracts.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
+| `tests/unit/brokers/common/test_gateway_error_surface_contracts.py` | unit | MOVE_STATIC | ast, source_read, mock | Broker source hygiene → CI |
 | `tests/unit/brokers/common/test_gateway_errors.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_historical_coordinator.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_historical_gap_check.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
@@ -486,7 +513,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/brokers/common/test_transport_policy.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_untested_event_types.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/common/test_wire_base.py` | unit | KEEP | — | Money-safety / contract / regression preserve list |
-| `tests/unit/brokers/dhan/regression/test_recent_fixes.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
+| `tests/unit/brokers/dhan/regression/test_depth_merge_and_rate_limit_invariants.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/dhan/test_alerts_adapter.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_cache_refresh.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/dhan/test_cancel_all_errors.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
@@ -499,7 +526,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/brokers/dhan/test_depth_200_websocket.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_depth_20_websocket.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_depth_feeds.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
-| `tests/unit/brokers/dhan/test_dhan_bus_golden.py` | unit | MOVE_STATIC | source_read | Broker source hygiene → CI |
+| `tests/unit/brokers/dhan/test_dhan_bus_golden.py` | unit | MOVE_STATIC | source_read, mock | Broker source hygiene → CI |
 | `tests/unit/brokers/dhan/test_domain.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_drift_repair.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/dhan/test_edge_cases.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
@@ -536,8 +563,8 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/brokers/dhan/test_orders_idempotency.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_pnl_exit.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_portfolio.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
-| `tests/unit/brokers/dhan/test_publish_depth_strict.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
-| `tests/unit/brokers/dhan/test_publish_tick_strict.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
+| `tests/unit/brokers/dhan/test_publish_depth_strict.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
+| `tests/unit/brokers/dhan/test_publish_tick_strict.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/dhan/test_real_websocket_payloads.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/dhan/test_reconciliation.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/dhan/test_reconnecting_service.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
@@ -633,7 +660,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/brokers/upstox/test_totp_client.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/upstox/test_totp_scheduler.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
 | `tests/unit/brokers/upstox/test_trade_pnl.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
-| `tests/unit/brokers/upstox/test_upstox_bus_golden.py` | unit | MOVE_STATIC | source_read | Broker source hygiene → CI |
+| `tests/unit/brokers/upstox/test_upstox_bus_golden.py` | unit | MOVE_STATIC | source_read, mock | Broker source hygiene → CI |
 | `tests/unit/brokers/upstox/test_upstox_resolver.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/upstox/test_url_resolver.py` | unit | KEEP | — | Broker contract / golden / ACL behavioral |
 | `tests/unit/brokers/upstox/test_v3_decoder.py` | unit | REWRITE | mock | Assert wire→domain observables via public gateway/bus |
@@ -651,6 +678,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/datalake/test_broker_selection.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_canonical_schema_unit.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_catalog.py` | unit | KEEP | — | Behavioral / no smell detected |
+| `tests/unit/datalake/test_catalog_schema_version_applied.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_converter.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_corporate_actions.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_data_equivalence.py` | unit | KEEP | — | Behavioral / no smell detected |
@@ -666,7 +694,6 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/datalake/test_integration.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_journal.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_loader_merge.py` | unit | KEEP | — | Behavioral / no smell detected |
-| `tests/unit/datalake/test_migrations.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_monitor.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_normalize.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/datalake/test_normalize_symbol_canonical.py` | unit | KEEP | — | Behavioral / no smell detected |
@@ -685,7 +712,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/datalake/test_retry.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_scan_store.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_schema.py` | unit | KEEP | — | Behavioral / no smell detected |
-| `tests/unit/datalake/test_schema_migration.py` | unit | KEEP | — | Behavioral / no smell detected |
+| `tests/unit/datalake/test_schema_evolves_idempotently.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_support_resistance.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_symbols.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/datalake/test_update_env_token.py` | unit | REWRITE | source_read, mock | Smells: source_read, mock |
@@ -727,6 +754,7 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/domain/test_broker_transport_contract.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_chain_stamp_and_derivatives.py` | unit | REWRITE | mock | Use public domain API + real objects |
 | `tests/unit/domain/test_clock_purity.py` | unit | MOVE_STATIC | source_read | Source scan belongs in CI/architecture |
+| `tests/unit/domain/test_constants_facade.py` | unit | MOVE_STATIC | ast | Source scan belongs in CI/architecture |
 | `tests/unit/domain/test_display_names.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_domain_events_are_immutable.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_domain_immutable.py` | unit | KEEP | — | Domain behavioral / invariant test |
@@ -735,7 +763,9 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/domain/test_enums.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_event_hooks.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_event_types.py` | unit | REWRITE | mock | Use public domain API + real objects |
+| `tests/unit/domain/test_exception_hierarchy.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_exchange_adapter.py` | unit | KEEP | — | Domain behavioral / invariant test |
+| `tests/unit/domain/test_exchange_id_enum.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_exchange_segments.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_execution.py` | unit | KEEP | — | Domain behavioral / invariant test |
 | `tests/unit/domain/test_future_chain_aggregate.py` | unit | KEEP | — | Domain behavioral / invariant test |
@@ -819,18 +849,36 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/infrastructure/test_resource_manager.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/infrastructure/test_session_recorder.py` | unit | REWRITE | source_read | Smells: source_read |
 | `tests/unit/infrastructure/test_time_service.py` | unit | KEEP | — | Behavioral / no smell detected |
+| `tests/unit/infrastructure/test_time_service_unified.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/interface/api/test_feed_wiring.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/interface/api/test_order_cancel_modify.py` | unit | REWRITE | source_read, mock | Smells: source_read, mock |
 | `tests/unit/interface/api/test_require_live_broker.py` | unit | KEEP | — | Behavioral / no smell detected |
+| `tests/unit/interface/ui/doctor/test_auth_doctor.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_analytics_commands.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_argparse_helpers.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_auth_live_probe_doctor.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_broker_not_ready.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/interface/ui/test_broker_ops.py` | unit | KEEP | — | Behavioral / no smell detected |
+| `tests/unit/interface/ui/test_broker_registry.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_broker_service_auth_readiness.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_broker_service_lifecycle.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_commands.py` | unit | REWRITE | source_read | Smells: source_read |
 | `tests/unit/interface/ui/test_doctor_commands.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/interface/ui/test_doctor_orchestrator.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/interface/ui/test_doctor_renderer.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/interface/ui/test_doctor_strategies.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_extended_commands.py` | unit | REWRITE | source_read | Smells: source_read |
 | `tests/unit/interface/ui/test_ist_time_display.py` | unit | KEEP | — | Behavioral / no smell detected |
+| `tests/unit/interface/ui/test_market_commands.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_oms_modify.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_oms_setup_persistence.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_order_composition.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/interface/ui/test_order_placement.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/interface/ui/test_renderers.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/interface/ui/test_risk_controls.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_timeout_retry_error.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_validate_commands.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/interface/ui/test_views_journal_commands.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/market_data/test_market_surface.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/property/test_domain_properties.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/property/test_market_data_properties.py` | unit | KEEP | — | Behavioral / no smell detected |
@@ -841,13 +889,14 @@ Generated from `scripts/ci/classify_test_suite.py`. Total files: **838**.
 | `tests/unit/runtime/test_parity_gate.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/runtime/test_quote_fail_closed.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/runtime/test_resilience_config.py` | unit | KEEP | — | Behavioral / no smell detected |
-| `tests/unit/security/test_security_controls.py` | unit | REWRITE | mock | Smells: mock |
+| `tests/unit/security/test_security_controls.py` | unit | REWRITE | ast, source_read, mock | Smells: ast, source_read, mock |
 | `tests/unit/security/test_sql_injection_is_rejected.py` | unit | REWRITE | ast | Smells: ast |
 | `tests/unit/security/test_ssl_session_is_hardened.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/security/test_token_expiry_is_enforced.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/security/test_webhook_auth.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/test_config_schema.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/test_domain_port_contracts.py` | unit | REWRITE | signature | Smells: signature |
+| `tests/unit/test_no_module_getattr_reexports.py` | unit | REWRITE | ast, source_read | Smells: ast, source_read |
 | `tests/unit/test_oms_structure.py` | unit | KEEP | — | Behavioral / no smell detected |
 | `tests/unit/test_tradex_connect_factory.py` | unit | REWRITE | mock | Smells: mock |
 | `tests/unit/tradex/test_cli.py` | unit | KEEP | — | Behavioral / no smell detected |

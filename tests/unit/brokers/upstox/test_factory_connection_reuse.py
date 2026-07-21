@@ -15,8 +15,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from brokers.common.identity.account_registry import AccountConnectionRegistry
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.factory import UpstoxBrokerFactory
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.factory import UpstoxBrokerFactory
 
 
 def _settings(client_id: str = "up-client") -> UpstoxConnectionSettings:
@@ -31,9 +31,9 @@ def _create(settings: UpstoxConnectionSettings):
     mock_broker.connect.return_value = True
 
     with (
-        patch("brokers.upstox.factory.UpstoxSettingsLoader.from_env", return_value=settings),
-        patch("brokers.upstox.factory.UpstoxBroker", return_value=mock_broker) as broker_cls,
-        patch("brokers.upstox.factory.UpstoxWireAdapter") as gateway_cls,
+        patch("brokers.providers.upstox.factory.UpstoxSettingsLoader.from_env", return_value=settings),
+        patch("brokers.providers.upstox.factory.UpstoxBroker", return_value=mock_broker) as broker_cls,
+        patch("brokers.providers.upstox.factory.UpstoxWireAdapter") as gateway_cls,
     ):
         gateway_cls.return_value = MagicMock()
         gateway = UpstoxBrokerFactory().create(load_instruments=False)

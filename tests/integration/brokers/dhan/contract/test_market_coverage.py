@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from brokers.common.contracts.market_coverage_contract import MarketCoverageContract
-from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
 
 
 @pytest.fixture()

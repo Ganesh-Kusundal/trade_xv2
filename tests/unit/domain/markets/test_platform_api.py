@@ -221,7 +221,7 @@ def test_subscription_lifecycle():
     set_default_provider(FakeDataProvider())
     seen = []
     nifty = Equity("NIFTY")
-    nifty.subscribe(lambda iid, q: seen.append(q))
+    nifty._subscribe_core(lambda iid, q: seen.append(q))
     assert nifty.is_live
     assert len(seen) == 1
     nifty.unsubscribe()
@@ -249,7 +249,7 @@ def test_broker_extension_depth20():
             )
 
     # Wire via the extension class (no broker imports in the test's assertion code)
-    from brokers.dhan.extensions.depth20 import DhanDepth20Extension
+    from brokers.providers.dhan.extensions.depth20 import DhanDepth20Extension
 
     gw = StubDepthGateway()
     ext = DhanDepth20Extension(gw).for_instrument("RELIANCE", "NSE")
@@ -300,7 +300,7 @@ def test_instrument_publishes_events():
     assert events[0][0] == "QUOTE_UPDATED"
     assert events[0][1]["ltp"] == "25000"
 
-    nifty.subscribe(lambda *a: None)
+    nifty._subscribe_core(lambda *a: None)
     assert any(e[0] == "SUBSCRIPTION_STARTED" for e in events)
 
     nifty.unsubscribe()

@@ -22,7 +22,7 @@ from decimal import Decimal
 import pytest
 
 from application.oms.order_manager import OmsOrderCommand, OrderManager
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from domain import (
     Order,
     OrderResponse,

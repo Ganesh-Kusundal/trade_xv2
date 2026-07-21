@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.exceptions import DhanIdentityError
-from brokers.dhan.identity import DhanInstrumentRef
-from brokers.dhan.resilience.invariants import (
+from brokers.providers.dhan.exceptions import DhanIdentityError
+from brokers.providers.dhan.identity import DhanInstrumentRef
+from brokers.providers.dhan.resilience.invariants import (
     VALID_SEGMENTS,
     assert_dhan_identity,
     assert_valid_security_id,

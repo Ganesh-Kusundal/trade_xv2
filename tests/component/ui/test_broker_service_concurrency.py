@@ -1,4 +1,4 @@
-"""Concurrency tests for the shared MockBroker (brokers.paper.PaperGateway).
+"""Concurrency tests for the shared MockBroker (brokers.providers.paper.PaperGateway).
 
 ``MockBroker`` is the product's paper gateway (see
 ``runtime.broker_accessors.get_mock_broker_class``), which requires an
@@ -11,7 +11,7 @@ positions in sync.
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.paper_gateway import PaperGateway
 from domain import Order, Trade
 
 

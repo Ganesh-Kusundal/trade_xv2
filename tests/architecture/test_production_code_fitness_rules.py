@@ -236,7 +236,7 @@ class TestImportRules:
     def test_broker_not_importing_other_brokers(self):
         """Broker implementations must not import from other brokers."""
         violations = []
-        broker_dirs = ["src/brokers/dhan", "src/brokers/upstox", "src/brokers/paper"]
+        broker_dirs = ["src/brokers/providers/dhan", "src/brokers/providers/upstox", "src/brokers/providers/paper"]
         for i, b1 in enumerate(broker_dirs):
             for filepath in _get_python_files(b1):
                 for imp, _src in _get_imports(filepath):
@@ -338,27 +338,27 @@ class TestRetryUsage:
         known_exceptions = [
             "tests/unit/brokers/common",  # Tests
             "tests/",  # Tests
-            "src/brokers/dhan/api/reconnecting_service.py",  # Reconnection logic
-            "src/brokers/dhan/data/depth_feed_base.py",  # Depth feed uses poll intervals
-            "src/brokers/dhan/api/http_client.py",  # Rate limiting + retry backoff
-            "src/brokers/upstox/orders/slice_adapter.py",  # Slice adapter uses poll intervals
+            "src/brokers/providers/dhan/api/reconnecting_service.py",  # Reconnection logic
+            "src/brokers/providers/dhan/data/depth_feed_base.py",  # Depth feed uses poll intervals
+            "src/brokers/providers/dhan/api/http_client.py",  # Rate limiting + retry backoff
+            "src/brokers/providers/upstox/orders/slice_adapter.py",  # Slice adapter uses poll intervals
             "src/interface/ui/load_testing/",  # Load testing
             "src/interface/ui/commands/market.py",  # CLI polling loop
             "src/interface/ui/commands/events.py",  # CLI event polling
             "src/interface/ui/commands/websocket.py",  # CLI WebSocket keepalive
-            "src/brokers/dhan/depth_200.py",  # Depth feed poll interval
+            "src/brokers/providers/dhan/depth_200.py",  # Depth feed poll interval
             "src/application/scheduling/quota_scheduler.py",  # Scheduler uses sleep
             "src/application/services/download_engine.py",  # Download engine
-            "src/brokers/upstox/auth/http.py",  # HTTP retry backoff
-            "src/brokers/dhan/websocket/order_stream.py",  # WebSocket reconnect
-            "src/brokers/dhan/execution/order_placement.py",  # Idempotency poll-wait
-            "src/brokers/dhan/execution/super_orders.py",  # Idempotency poll-wait
-            "src/brokers/dhan/execution/forever_orders.py",  # Idempotency poll-wait
+            "src/brokers/providers/upstox/auth/http.py",  # HTTP retry backoff
+            "src/brokers/providers/dhan/websocket/order_stream.py",  # WebSocket reconnect
+            "src/brokers/providers/dhan/execution/order_placement.py",  # Idempotency poll-wait
+            "src/brokers/providers/dhan/execution/super_orders.py",  # Idempotency poll-wait
+            "src/brokers/providers/dhan/execution/forever_orders.py",  # Idempotency poll-wait
             "src/interface/ui/services/feed_probe.py",  # Live-feed probe window (not HTTP retry)
             "src/interface/ui/utils/retry_handler.py",  # Shared UI retry helper
             "src/brokers/services/market_data.py",  # Subscribe probe window (not HTTP retry)
-            "src/brokers/upstox/orders/order_command_adapter.py",  # Broker poll between slice legs
-            "src/brokers/dhan/data/depth_feed_base/connection.py",  # Depth WS reconnect poll
+            "src/brokers/providers/upstox/orders/order_command_adapter.py",  # Broker poll between slice legs
+            "src/brokers/providers/dhan/data/depth_feed_base/connection.py",  # Depth WS reconnect poll
         ]
         violations = [v for v in violations if not any(exc in v for exc in known_exceptions)]
 

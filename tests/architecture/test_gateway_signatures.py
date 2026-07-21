@@ -29,9 +29,9 @@ def test_all_gateways_implement_abc_methods() -> None:
         if getattr(obj, "__isabstractmethod__", False):
             abc_methods.add(name)
 
-    from brokers.dhan.wire import DhanWireAdapter
-    from brokers.paper.paper_gateway import PaperGateway
-    from brokers.upstox.wire import UpstoxWireAdapter
+    from brokers.providers.dhan.wire import DhanWireAdapter
+    from brokers.providers.paper.paper_gateway import PaperGateway
+    from brokers.providers.upstox.wire import UpstoxWireAdapter
 
     for gw_cls in (DhanWireAdapter, UpstoxWireAdapter, PaperGateway):
         for method_name in abc_methods:

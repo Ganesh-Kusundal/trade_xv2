@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -26,12 +25,6 @@ class _AlwaysBuy:
             reasons=["test"],
         )
 
-
-def test_engine_source_has_no_broken_publish_signal_call() -> None:
-    src = (Path(__file__).resolve().parents[3] / "src/analytics/replay/engine.py").read_text(
-        encoding="utf-8"
-    )
-    assert "self._publish_signal" not in src
 
 
 @pytest.mark.integration

@@ -129,7 +129,8 @@ def test_chain_atm_buy_stamped_with_oms():
         chain = idx.option_chain()
         atm = chain.atm
         assert atm is not None
-        result = atm.buy(1, price=Decimal("100"), correlation_id="chain:atm:1")
+        result = session.intent(atm, "BUY", 1, price=Decimal("100"), correlation_id="chain:atm:1")
+        result = session.place(result)
         assert result.success
         assert oms.places[-1].correlation_id == "chain:atm:1"
         # chain legs should resolve order service without ambient
@@ -144,7 +145,7 @@ def test_chain_calls_stamp_oms():
     try:
         chain = session.universe.index("NIFTY").option_chain()
         call0 = chain.calls[0]
-        call0.buy(1, correlation_id="call:0")
+        session.place(session.intent(call0, "BUY", 1, correlation_id="call:0"))
         assert len(oms.places) == 1
     finally:
         session.close()

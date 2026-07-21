@@ -239,7 +239,7 @@ def test_depth_20_feed(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
 
 def _make_context(client_id: str, access_token: str):
     """Create a minimal DhanContext for SDK."""
-    from brokers.dhan.websocket._helpers import _DhanContext
+    from brokers.providers.dhan.websocket._helpers import _DhanContext
 
     return _DhanContext(client_id, access_token=access_token)
 

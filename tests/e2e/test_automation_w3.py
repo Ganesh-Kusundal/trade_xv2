@@ -9,6 +9,9 @@ No live money. No orchestrator rewrite — proves product Session spine.
 
 from __future__ import annotations
 
+from brokers import BrokerSession
+from tests.support.gateway_orders import place_via_gateway, subscribe_via_gateway
+
 from decimal import Decimal
 
 import pytest
@@ -27,12 +30,12 @@ def _execute_signal(session, signal: SignalDTO, *, correlation_id: str):
     side = (signal.side or signal.signal_type or "").upper()
     if side in {"BUY", "STRONG_BUY", "ENTRY"}:
         if price is not None:
-            return inst.buy(qty, price=price, correlation_id=correlation_id)
-        return session.market(inst, qty, side="BUY")
+            return place_via_gateway(session, inst, qty, price=price, correlation_id=correlation_id)
+        return place_via_gateway(session, inst, qty, side="BUY", order_type="MARKET")
     if side in {"SELL", "STRONG_SELL", "EXIT"}:
         if price is not None:
-            return inst.sell(qty, price=price, correlation_id=correlation_id)
-        return session.market(inst, qty, side="SELL")
+            return place_via_gateway(session, inst, qty, price=price, correlation_id=correlation_id, side="SELL")
+        return place_via_gateway(session, inst, qty, side="SELL", order_type="MARKET")
     raise ValueError(f"unsupported signal side {side!r}")
 
 
@@ -40,7 +43,7 @@ def _execute_signal(session, signal: SignalDTO, *, correlation_id: str):
 
 
 def test_au012_signal_to_oms_via_session() -> None:
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         signal = SignalDTO(
             symbol="RELIANCE",
@@ -63,7 +66,7 @@ def test_au012_signal_to_oms_via_session() -> None:
 
 
 def test_au012_non_actionable_signal_rejected() -> None:
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         signal = SignalDTO(
             symbol="INFY",
@@ -85,7 +88,7 @@ def test_au012_non_actionable_signal_rejected() -> None:
 
 def test_au010_strategy_loop_on_session_history() -> None:
     """Bar-derived signals from Instrument.history → place via Session."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         placed = 0
         for symbol in ("RELIANCE", "INFY", "TCS"):
@@ -138,7 +141,7 @@ def test_au010_strategy_loop_on_session_history() -> None:
 
 
 def test_au011_kill_switch_blocks_and_clears() -> None:
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         om = session.order_service.order_manager
         rm = om._risk_manager  # intentional: paper OMS exposes risk manager
@@ -148,13 +151,13 @@ def test_au011_kill_switch_blocks_and_clears() -> None:
 
         rm.set_kill_switch(True)
         assert rm.is_kill_switch_active() is True
-        blocked = stock.buy(1, price=Decimal("1"), correlation_id="w3:au011:blocked")
+        blocked = place_via_gateway(session, stock, 1, price=Decimal("1"), correlation_id="w3:au011:blocked")
         assert blocked.success is False
         assert "kill" in (blocked.error or "").lower()
 
         rm.set_kill_switch(False)
         assert rm.is_kill_switch_active() is False
-        allowed = stock.buy(1, price=Decimal("1"), correlation_id="w3:au011:ok")
+        allowed = place_via_gateway(session, stock, 1, price=Decimal("1"), correlation_id="w3:au011:ok")
         assert allowed.success is True
         assert allowed.order is not None
     finally:

@@ -27,24 +27,24 @@ DEFAULT_OPEN_DURATION_MS = 100
 DEFAULT_RATE_PER_SECOND = 25.0
 DEFAULT_CAPACITY = 50
 
-from brokers.dhan.resilience import (
+from brokers.providers.dhan.resilience import (
     DhanRateLimiterFactory,
     DhanRateLimiterMetrics,
     create_rate_limiter,
 )
-from brokers.dhan.resilience.circuit_breaker import (
+from brokers.providers.dhan.resilience.circuit_breaker import (
     DhanCircuitBreakerFactory,
     create_circuit_breakers,
 )
-from brokers.dhan.resilience.retry_policies import (
+from brokers.providers.dhan.resilience.retry_policies import (
     ADMIN_POLICY,
     MARKET_DATA_POLICY,
     ORDERS_POLICY,
     PORTFOLIO_POLICY,
     create_retry_executor,
 )
-from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.streaming.connection import DhanConnection
+from brokers.providers.dhan.wire import DhanWireAdapter
 from infrastructure.resilience.backoff import ExponentialBackoff
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
@@ -543,14 +543,14 @@ class TestGracefulDegradation:
 
     def test_rate_limiter_fallback_when_not_configured(self):
         """Requests should succeed when no rate limiter is configured."""
-        from brokers.dhan.api.http_client import DhanHttpClient
+        from brokers.providers.dhan.api.http_client import DhanHttpClient
 
         client = DhanHttpClient(client_id="test", access_token="test")
         assert client._acquire_rate_limit_token("/orders") is True
 
     def test_circuit_breaker_fallback_to_legacy(self):
         """HTTP client should fall back to legacy circuit breaker if specific one not provided."""
-        from brokers.dhan.api.http_client import DhanHttpClient
+        from brokers.providers.dhan.api.http_client import DhanHttpClient
 
         legacy_cb = CircuitBreaker("legacy", CircuitBreakerConfig(failure_threshold=5))
         client = DhanHttpClient(
@@ -821,7 +821,7 @@ class TestRateLimiting:
     """Verify rate limiting prevents rapid requests."""
 
     def test_rate_limit_exists(self):
-        from brokers.dhan.api.http_client import _RATE_LIMITS
+        from brokers.providers.dhan.api.http_client import _RATE_LIMITS
 
         assert "/marketfeed/quote" in _RATE_LIMITS
         assert "/optionchain" in _RATE_LIMITS

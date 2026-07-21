@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from tests.support.order_request_factory import make_order_request as _order_request
+
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 import pytest
 
-from brokers.paper import PaperGateway
+from brokers.providers.paper import PaperGateway
 from domain import (
     Balance,
     Order,
@@ -89,7 +91,7 @@ class TestPaperGateway:
 
     def test_place_order_returns_order_response(self):
         gw = _make_paper_gw()
-        o = gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        o = gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10))
         assert isinstance(o, OrderResponse)
         assert o.success is True
         assert o.order_id.startswith("PPR-")
@@ -97,40 +99,33 @@ class TestPaperGateway:
 
     def test_place_order_with_side_enum(self):
         gw = _make_paper_gw()
-        o = gw.place_order("RELIANCE", "NSE", Side.BUY, 5)
+        o = gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side=Side.BUY, quantity=5))
         assert o.success is True
         assert o.order_id.startswith("PPR-")
 
     def test_place_order_with_limit_price(self):
         gw = _make_paper_gw()
-        o = gw.place_order(
-            "RELIANCE",
-            "NSE",
-            "BUY",
-            10,
-            price=Decimal("2500"),
-            order_type="LIMIT",
-        )
+        o = gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10, price=Decimal("2500"), order_type="LIMIT"))
         assert o.success is True
         assert o.order_id.startswith("PPR-")
 
     def test_cancel_filled_order_returns_false(self):
         gw = _make_paper_gw()
-        o = gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        o = gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10))
         # Filled orders cannot be cancelled; REF-002: cancel_order returns OrderResponse
         resp = gw.cancel_order(o.order_id)
         assert resp.success is False
 
     def test_get_orderbook(self):
         gw = _make_paper_gw()
-        gw.place_order("RELIANCE", "NSE", "BUY", 10)
-        gw.place_order("SBIN", "NSE", "SELL", 5)
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10))
+        gw.place_order(_order_request(symbol="SBIN", exchange="NSE", side="SELL", quantity=5))
         book = gw.get_orderbook()
         assert len(book) == 2
 
     def test_get_trade_book(self):
         gw = _make_paper_gw()
-        gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10))
         trades = gw.get_trade_book()
         assert len(trades) == 1
         assert trades[0].symbol == "RELIANCE"
@@ -139,7 +134,7 @@ class TestPaperGateway:
     def test_positions_update_on_fill(self):
         gw = _make_paper_gw()
         # MARKET fills immediately in the paper simulator.
-        gw.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"), order_type="MARKET")
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10, price=Decimal("2500"), order_type="MARKET"))
         positions = gw.positions()
         assert len(positions) == 1
         assert positions[0].symbol == "RELIANCE"
@@ -147,8 +142,8 @@ class TestPaperGateway:
 
     def test_position_close_realizes_pnl(self):
         gw = _make_paper_gw()
-        gw.place_order("RELIANCE", "NSE", "BUY", 10, order_type="MARKET")
-        gw.place_order("RELIANCE", "NSE", "SELL", 10, order_type="MARKET")
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10, order_type="MARKET"))
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="SELL", quantity=10, order_type="MARKET"))
         positions = gw.positions()
         assert positions, "closed position remains as zero-qty book entry"
         assert positions[0].quantity == 0
@@ -174,7 +169,7 @@ class TestPaperGateway:
 
     def test_funds_decreases_with_positions(self):
         gw = _make_paper_gw()
-        gw.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("100"), order_type="MARKET")
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10, price=Decimal("100"), order_type="MARKET"))
         b = gw.funds()
         assert b.available_balance < Decimal("1000000")
         # Used margin / reserved capital must reflect the open long.
@@ -205,7 +200,7 @@ class TestMockBroker:
     def test_trading_context_populates_oms(self):
         ctx = build_test_trading_context()
         broker = MockBroker(trading_context=ctx)
-        broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
+        broker.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=10, price=Decimal("2500")))
         orders = ctx.order_manager.get_orders()
         positions = ctx.position_manager.get_positions()
         assert len(orders) == 1
@@ -216,7 +211,7 @@ class TestMockBroker:
     def test_paper_gateway_shares_context(self):
         ctx = build_test_trading_context()
         gw = PaperGateway(trading_context=ctx)
-        gw.place_order("RELIANCE", "NSE", "BUY", 5)
+        gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=5))
         assert len(ctx.order_manager.get_orders()) == 1
 
     def test_paper_gateway_risk_gate_rejects_excessive_order(self):
@@ -225,13 +220,12 @@ class TestMockBroker:
         from application.oms._internal.risk_manager import RiskConfig
 
         ctx = build_test_trading_context(
-            risk_config=RiskConfig(max_position_pct=Decimal("1")),
-            capital_fn=lambda: Decimal("100000"),
+            risk_config=RiskConfig(max_position_pct=Decimal("1"), capital_fn=lambda: Decimal("100000")),
         )
         gw = PaperGateway(trading_context=ctx)
-        resp = gw.place_order(
-            "RELIANCE", "NSE", "BUY", 1000, price=Decimal("100"), order_type="LIMIT"
-        )
+        resp = gw.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=1000, price=Decimal("100"), order_type="LIMIT"))
         assert resp.status == OrderStatus.REJECTED
         assert len(ctx.order_manager.get_orders()) == 1
         assert ctx.order_manager.get_orders()[0].status == OrderStatus.REJECTED
+
+

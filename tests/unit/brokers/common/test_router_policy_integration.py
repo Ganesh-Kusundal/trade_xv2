@@ -16,8 +16,8 @@ import pytest
 
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.upstox.capabilities import upstox_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.upstox.capabilities import upstox_capabilities
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,

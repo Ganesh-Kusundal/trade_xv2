@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from unittest import mock
 
-from brokers.dhan.websocket import DhanMarketFeed
-from brokers.dhan.websocket._helpers import _to_decimal
-from brokers.dhan.websocket.publish import MarketFeedPublisher
+from brokers.providers.dhan.websocket import DhanMarketFeed
+from brokers.providers.dhan.websocket._helpers import _to_decimal
+from brokers.providers.dhan.websocket.publish import MarketFeedPublisher
 
 
 def _make_feed(event_bus=None) -> DhanMarketFeed:

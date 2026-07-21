@@ -19,7 +19,6 @@ LIVE_BROKER_NAMES = {
 
 SCAN_DIRS = (
     SRC / "application" / "oms",
-    SRC / "brokers" / "certification",
     SRC / "infrastructure" / "resilience",
 )
 
@@ -47,7 +46,7 @@ def main() -> int:
     if violations:
         print("Broker name branching violations:\n" + "\n".join(violations[:30]), file=sys.stderr)
         return 1
-    print("OK: no live broker name branching in OMS/cert/resilience")
+    print("OK: no live broker name branching in OMS/resilience")
     return 0
 
 

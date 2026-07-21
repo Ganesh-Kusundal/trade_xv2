@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from domain import (
     Balance,
     DepthLevel,

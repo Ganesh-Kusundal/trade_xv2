@@ -88,7 +88,7 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
    never a reflection `getattr` kill-switch.
 7. **Reconciliation on hot path** — local state heals against broker truth via
    `ReconciliationPolicy`, not a detached service.
-8. **No orphaned shadow copies** — the repo-root `brokers/dhan/*` duplicates are
+8. **No orphaned shadow copies** — the repo-root `brokers/providers/dhan/*` duplicates are
    deleted (ADR-001/G2); `src/brokers/_bootstrap.py` path hack is a stopgap, not a pattern.
 9. **No real-money mocks** — tests are integration tests against real components;
    no mock data, stubs, or placeholders in production code.
@@ -99,7 +99,7 @@ domain/          ──▶  (NOTHING inward — depends only on stdlib + itself)
 | # | Gap | Severity | Status |
 |---|---|---|---|
 | G1 | `runtime/` concrete-broker + string branching | 🔴 | ✅ DONE — infrastructure layer uses plugin registry; ~30 string comparisons remain in interface layer (lower-priority broker ID display; BrokerId enum used where possible) |
-| G2 | Orphaned shadow `brokers/dhan/*` | 🔴 | ✅ DONE — root `brokers/` deleted (ADR-001) |
+| G2 | Orphaned shadow `brokers/providers/dhan/*` | 🔴 | ✅ DONE — root `brokers/` deleted (ADR-001) |
 | G3 | Datalake bakes NSE/IST | 🔴 | ✅ DONE — NSE/IST extracted from datalake core; TradingCalendar plugin is single source of truth |
 | G4 | Two parallel config systems | ⚠️ | ✅ DONE — dead DhanConfig/UpstoxConfig removed from `config/schema.py`; broker config lives in `brokers/*/config/settings.py`; full merge deferred (different purposes confirmed) |
 | G5 | Duplicated infra (dual event bus, triple idempotency, two MCP) | ⚠️ | ✅ DONE — event bus unified to `EventBusPort` Protocol (3→1); dead idempotency backends deleted (~1095 lines); Upstox alias removed |
@@ -124,9 +124,9 @@ Domain indicators (`domain/indicators/`) are canonical; pipeline wraps domain; v
 | Gap | What Changed | Lines Removed | Key Files |
 |---|---|---|---|
 | G1 | Runtime string branching eliminated; ~30 remaining in interface layer only | — | `infrastructure/gateway/factory.py`, `infrastructure/connection/authenticated_readiness.py`, `infrastructure/auth/credential_validator.py`, `infrastructure/io/environment_bootstrap.py` |
-| G2 | Shadow `brokers/dhan/*` deleted | — | `docs/architecture/adr/0001-delete-shadow-brokers.md` |
+| G2 | Shadow `brokers/providers/dhan/*` deleted | — | `docs/architecture/adr/0001-delete-shadow-brokers.md` |
 | G3 | NSE/IST extracted to `TradingCalendar` plugin | — | `datalake/exchange_registry.py`, `datalake/core/constants.py`, `datalake/core/option_format.py`, `datalake/quality/validation.py`, `datalake/quality/health_check.py` |
 | G4 | Dead `DhanConfig`/`UpstoxConfig` removed from `config/schema.py` | ~93 | `config/schema.py` |
-| G5 | Event bus unified to `EventBusPort` Protocol; dead idempotency backends deleted | ~1095 | `infrastructure/event_bus/`, `infrastructure/idempotency/`, `brokers/upstox/orders/idempotency.py` |
+| G5 | Event bus unified to `EventBusPort` Protocol; dead idempotency backends deleted | ~1095 | `infrastructure/event_bus/`, `infrastructure/idempotency/`, `brokers/providers/upstox/orders/idempotency.py` |
 | G6 | Reconciliation moved to hot path via event-driven `request_reconciliation()` | — | `application/oms/reconciliation_service.py`, `application/oms/context.py` |
 | G7 | `getattr` kill-switch replaced with `RiskManagerPort` injection | — | `trading_orchestrator.py` |

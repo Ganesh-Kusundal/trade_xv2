@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.execution.super_orders import SuperOrdersAdapter
+from brokers.providers.dhan.execution.super_orders import SuperOrdersAdapter
 
 
 def test_place_super_order_payload(fake_client, resolver):

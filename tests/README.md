@@ -34,10 +34,18 @@ tests/
 | `src/analytics/**` | `tests/unit/analytics/**` |
 | `src/datalake/**` | `tests/unit/datalake/**` |
 | `src/infrastructure/**` | `tests/unit/infrastructure/**` |
-| `src/interface/ui/**` | `tests/component/ui/**` |
+| `src/interface/ui/**` | `tests/unit/interface/ui/**` (CLI/unit doubles); keep only true collaboration under `tests/component/ui/` |
 | `src/interface/api/**` | `tests/integration/api/**` |
 
 Do **not** add new tests under `src/**/tests`.
+
+**Hierarchy rules (behavioral cleanup):**
+
+- Name guarantees, not process history (`phase*`, `recent_fixes`, `wireup`, `migration`, ticket ids).
+- Do not leave duplicate copies after a move — delete the temporary path.
+- Mock-heavy CLI/doctor/order UI tests belong in `tests/unit/interface/ui/`, not `tests/component/ui/`.
+- AST/import/LOC ratchets belong in `scripts/ci/` or import-linter, not pytest integration.
+- Structural layering may remain under `tests/architecture/` until extracted; money-safety and domain behavior stay in unit/component/integration.
 
 ## Naming rules
 
@@ -53,6 +61,8 @@ Do **not** add new tests under `src/**/tests`.
 - `test_phase3.py`
 - `test_after_refactor.py`
 - `test_issue_127.py`
+- `test_recent_fixes.py`
+- `test_http_observability_wireup.py`
 
 Heuristic: *If I rewrite the implementation tomorrow but keep the same external
 behavior, would I keep this test?* If no, rewrite the test or delete it.

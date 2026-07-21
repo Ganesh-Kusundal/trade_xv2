@@ -6,7 +6,7 @@ import threading
 import time
 from unittest.mock import MagicMock
 
-from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
+from brokers.providers.dhan.websocket import DhanMarketFeed, DhanOrderStream
 
 # ---------------------------------------------------------------------------
 # DhanMarketFeed

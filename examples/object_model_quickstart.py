@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Object-model quickstart — product API only (no gateway imports).
+"""Object-model quickstart — BrokerSession + gateway public API.
 
 Run from repo root::
 
@@ -12,46 +12,53 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import tradex
+from brokers import BrokerSession
+from domain.enums import OrderType, ProductType, Side
+from domain.orders.requests import OrderRequest
 
 
 def main() -> None:
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
-        # ── Epic 1: Market Access (data path) ─────────────────────────
-        stock = session.universe.equity("RELIANCE")
+        stock = session.stock("RELIANCE")
         q = stock.refresh()
         print("quote:", None if q is None else f"ltp={q.ltp} bid={q.bid} ask={q.ask}")
 
         series = stock.history(timeframe="1D", days=5)
         print("history bars:", series.bar_count)
 
-        handle = stock.subscribe()
+        handles = session.gateway.subscribe([stock])
+        handle = handles[0] if handles else None
         print(
             "subscribe: live=",
             stock.is_live,
             "handle_active=",
             handle.is_active if handle else None,
         )
-        if handle is not None:
-            handle.unsubscribe()
+        session.gateway.unsubscribe([stock])
 
-        # ── Epic 2 preview: OMS orders (sim only) ─────────────────────
-        result = stock.buy(
-            1,
-            price=Decimal("2500"),
-            correlation_id="quickstart:buy:1",
+        result = session.gateway.place_order(
+            OrderRequest(
+                symbol="RELIANCE",
+                exchange="NSE",
+                transaction_type=Side.BUY,
+                quantity=1,
+                price=Decimal("2500"),
+                order_type=OrderType.LIMIT,
+                product_type=ProductType.INTRADAY,
+                correlation_id="quickstart:buy:1",
+            )
         )
         print(
-            "buy:",
-            result.success,
-            getattr(result.order, "order_id", None) if result.order else result.error,
+            "place_order:",
+            getattr(result, "success", None),
+            getattr(result, "order_id", None)
+            or getattr(getattr(result, "order", None), "order_id", None),
         )
 
-        result2 = session.sell(stock, 1, price=Decimal("2501"))
+        result2 = session.session.sell(stock, 1, price=Decimal("2501"))
         print("session.sell:", result2.success)
 
-        # Bare instrument after connect resolves default provider
         from domain.instruments.instrument import Equity
 
         bare = Equity("INFY")
@@ -61,9 +68,8 @@ def main() -> None:
         except Exception as exc:
             print("bare Equity:", type(exc).__name__, exc)
 
-        # Option chain (paper may return empty — still exercises the API)
         try:
-            idx = session.universe.index("NIFTY")
+            idx = session.index("NIFTY")
             chain = idx.option_chain()
             print(
                 "option_chain:",

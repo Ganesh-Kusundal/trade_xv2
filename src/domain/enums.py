@@ -71,6 +71,13 @@ class OrderType(str, Enum):
     STOP_LOSS_MARKET = "STOP_LOSS_MARKET"
 
 
+class PositionSide(str, Enum):
+    """Position side — LONG (buy) or SHORT (sell)."""
+
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+
 class Validity(str, Enum):
     """Order validity."""
 

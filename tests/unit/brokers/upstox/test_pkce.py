@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 
-from brokers.upstox.auth.pkce import UpstoxPkceUtil
+from brokers.providers.upstox.auth.pkce import UpstoxPkceUtil
 
 
 def test_pkce_pair_has_verifier_and_challenge():

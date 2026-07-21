@@ -90,11 +90,18 @@ def main() -> None:
                 print(f"Tick update: {quote_snapshot.ltp}")
 
         try:
-            handle = stock.subscribe(callback=on_tick)
+            # Prefer BrokerSession when available; tradex DomainSession has no gateway.
+            if hasattr(session, "gateway"):
+                handles = session.gateway.subscribe([stock], on_tick)
+                handle = handles[0] if handles else None
+            else:
+                handle = stock._subscribe_core(on_tick)
             if handle:
                 print(f"Subscribed: handle_active={handle.is_active}")
-                # Cleanup
-                handle.unsubscribe()
+                if hasattr(session, "gateway"):
+                    session.gateway.unsubscribe([stock])
+                else:
+                    handle.unsubscribe()
         except Exception as exc:
             print(f"Streaming error (expected for paper): {type(exc).__name__}")
 

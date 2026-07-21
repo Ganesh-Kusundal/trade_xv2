@@ -16,9 +16,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.data.depth_20 import DhanDepth20Feed
-from brokers.dhan.websocket import DhanMarketFeed
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
+from brokers.providers.dhan.websocket import DhanMarketFeed
+from brokers.providers.dhan.wire import DhanWireAdapter
 
 # ── Fix 1: Dual feed path prevention ────────────────────────────────────────
 
@@ -40,8 +40,8 @@ class TestDualFeedPrevention:
 
     def test_create_market_feed_returns_existing_feed(self):
         """create_market_feed() must return the existing feed if one exists."""
-        from brokers.dhan.streaming.connection import DhanConnection
-        from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+        from brokers.providers.dhan.streaming.connection import DhanConnection
+        from brokers.providers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 
         conn = MagicMock(spec=DhanConnection)
         lifecycle_helper = MagicMock(spec=ConnectionLifecycle)
@@ -56,8 +56,8 @@ class TestDualFeedPrevention:
 
     def test_create_market_feed_noop_when_no_existing(self):
         """create_market_feed() should not fail when no existing feed."""
-        from brokers.dhan.streaming.connection import DhanConnection
-        from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+        from brokers.providers.dhan.streaming.connection import DhanConnection
+        from brokers.providers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
 
         conn = MagicMock(spec=DhanConnection)
         lifecycle_helper = MagicMock(spec=ConnectionLifecycle)
@@ -74,7 +74,7 @@ class TestDualFeedPrevention:
 
 class TestStreamCallbackDedup:
     def _make_gateway(self):
-        from brokers.dhan.data.subscription_engine import SubscriptionEngine
+        from brokers.providers.dhan.market_data.subscription_engine import SubscriptionEngine
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -170,7 +170,7 @@ class TestUnstream:
         return gw, my_tick
 
     def _make_gateway(self):
-        from brokers.dhan.data.subscription_engine import SubscriptionEngine
+        from brokers.providers.dhan.market_data.subscription_engine import SubscriptionEngine
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -284,7 +284,7 @@ class TestCacheEviction:
         conn.market_feed = feed
         conn.create_market_feed = MagicMock(return_value=feed)
 
-        from brokers.dhan.data.subscription_engine import SubscriptionEngine
+        from brokers.providers.dhan.market_data.subscription_engine import SubscriptionEngine
 
         conn.subscription_engine = SubscriptionEngine(conn)
 
@@ -314,7 +314,7 @@ class TestThreadSafeStreamCreation:
         feed = MagicMock()
         feed.is_connected = False
         conn.create_market_feed = MagicMock(return_value=feed)
-        from brokers.dhan.data.subscription_engine import SubscriptionEngine
+        from brokers.providers.dhan.market_data.subscription_engine import SubscriptionEngine
 
         conn.subscription_engine = SubscriptionEngine(conn)
 
@@ -350,7 +350,7 @@ class TestThreadSafeStreamCreation:
     def test_stream_registry_exists(self):
         """DhanWireAdapter connection must own a SubscriptionEngine."""
         conn = MagicMock()
-        from brokers.dhan.data.subscription_engine import SubscriptionEngine
+        from brokers.providers.dhan.market_data.subscription_engine import SubscriptionEngine
 
         conn.create_market_feed = MagicMock(return_value=MagicMock(is_connected=False))
         conn.instruments = MagicMock()

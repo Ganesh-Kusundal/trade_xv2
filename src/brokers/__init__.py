@@ -1,21 +1,19 @@
-"""TradeXV2 Brokers Package — Trading OS market-access layer.
+"""TradeXV2 Brokers Package — Trading OS market-access adapters.
 
-**Public API (use this)**::
+**Public API (domain-centric)**::
 
-    from brokers.session import BrokerSession
+    from brokers import BrokerSession
 
     session = BrokerSession.connect("paper")  # or "dhan" / "upstox"
     stock = session.stock("RELIANCE")
-    stock.refresh()
+    stock.refresh()                          # market data on Instrument
+    session.gateway.place_order(...)         # broker ops on Gateway
+    session.gateway.subscribe([stock])
+    session.extension(SomeExtension)         # broker-specific only
 
-Or via CLI / MCP (same ``brokers.services`` core)::
-
-    broker quote RELIANCE --broker paper
-    broker verify paper
-
-Gateways under ``brokers.dhan.wire`` / ``brokers.upstox.wire`` are
+Wire adapters under ``brokers.providers.dhan.wire`` / ``brokers.providers.upstox.wire`` are
 **private transport shims** — do not import them from product code.
-See ``docs/constitution/09-broker-subsystem-gap-analysis.md``.
+See ``docs/superpowers/specs/2026-07-21-broker-hybrid-facade-design.md``.
 """
 
 from __future__ import annotations
@@ -32,11 +30,15 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-__all__ = ["BrokerSession", "available_brokers", "create_session"]
+__all__ = ["BrokerGateway", "BrokerSession", "available_brokers", "create_session"]
 
 
 def __getattr__(name: str):
-    if name in __all__:
+    if name == "BrokerGateway":
+        from brokers.gateway import BrokerGateway
+
+        return BrokerGateway
+    if name in ("BrokerSession", "available_brokers", "create_session"):
         from brokers import session as _session
 
         return getattr(_session, name)

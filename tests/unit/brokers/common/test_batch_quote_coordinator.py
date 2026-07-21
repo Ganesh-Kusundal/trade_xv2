@@ -6,8 +6,8 @@ from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
 from application.data.batch_quote_coordinator import BatchQuoteCoordinator, BatchQuoteQuery
 from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.upstox.capabilities import upstox_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.upstox.capabilities import upstox_capabilities
 from domain.candles.historical import InstrumentRef
 from domain.policies.source_selection import auto_dual_broker_policy
 from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway

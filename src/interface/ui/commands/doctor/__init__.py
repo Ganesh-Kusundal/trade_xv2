@@ -33,7 +33,6 @@ from typing import Any
 
 from rich.console import Console
 
-from interface.ui.commands._broker import broker_id_from
 from interface.ui.commands.doctor.checks import CheckResult, CheckStrategy
 from interface.ui.commands.doctor.orchestrator import CheckOrchestrator, SectionResult
 from interface.ui.commands.doctor.renderer import ResultRenderer, _status_str
@@ -48,7 +47,6 @@ from interface.ui.commands.doctor.strategies import (
     OMSRiskManagerCheck,
 )
 from interface.ui.services.broker_service import BrokerService
-from runtime.platform_bridge import run_doctor
 
 logger = logging.getLogger(__name__)
 
@@ -116,19 +114,6 @@ def _run_checks_in_parallel(
 # ═══════════════════════════════════════════════════════════════════════════
 # Legacy check functions — delegate to strategy classes for backward compat
 # ═══════════════════════════════════════════════════════════════════════════
-
-
-def _services_doctor_results(broker_service: BrokerService) -> list[CheckResult]:
-    """Map brokers.services.run_doctor output to UI CheckResult rows."""
-    report = run_doctor(broker_id_from(broker_service))
-    out: list[CheckResult] = []
-    for c in getattr(report, "checks", []) or []:
-        status_val = getattr(getattr(c, "status", None), "value", str(getattr(c, "status", "INFO")))
-        ui_status = status_val.upper()
-        if ui_status == "WARNING":
-            ui_status = "WARN"
-        out.append(CheckResult(getattr(c, "name", "?"), ui_status, getattr(c, "detail", "")))
-    return out
 
 
 def _check_broker_registry() -> list[CheckResult]:
@@ -209,11 +194,7 @@ def run_doctor(
     auth_results = AuthenticatedReadinessCheck().execute(broker_service)
     renderer.render_section("🔐 Authenticated Readiness", auth_results)
 
-    # Section 2: Broker layer checks via brokers.services (single code path)
-    services_results = _services_doctor_results(broker_service)
-    renderer.render_section("📡 Broker Layer (services)", services_results)
-
-    # UI-only checks (OMS, lifecycle, HTTP observability)
+    # UI-owned checks (OMS, lifecycle, HTTP observability)
     check_strategies: list[tuple[str, str, Any]] = [
         ("Active Broker", "🔌 Active Broker Identity", ActiveBrokerCheck()),
         ("Instrument Catalog", "📚 Instrument Catalog", InstrumentCatalogCheck()),
@@ -272,7 +253,6 @@ def run_doctor(
     all_results = (
         broker_results
         + auth_results
-        + services_results
         + gw_results
         + active_results
         + inst_results

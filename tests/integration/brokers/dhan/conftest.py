@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
 from infrastructure.gateway.factory import bootstrap_gateway
 
 _INTEGRATION_DIR = Path(__file__).resolve().parent
@@ -59,7 +59,7 @@ def skip_on_dhan_entitlement_error(exc: BaseException) -> None:
     if "DH-905" in msg or "DH-904" in msg:
         pytest.skip("Dhan Data API not provisioned for this client ID")
     try:
-        from brokers.dhan.exceptions import MarketDataError
+        from brokers.providers.dhan.exceptions import MarketDataError
 
         if isinstance(exc, MarketDataError):
             pytest.skip("Dhan Data API not provisioned for this client ID")

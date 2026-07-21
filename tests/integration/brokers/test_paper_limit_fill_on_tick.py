@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.paper_gateway import PaperGateway
 from domain import OrderStatus, Side
 from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.market import Quote

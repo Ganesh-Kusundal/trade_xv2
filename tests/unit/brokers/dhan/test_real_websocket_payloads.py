@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.dhan.websocket import DhanMarketFeed
+from brokers.providers.dhan.websocket import DhanMarketFeed
 
 
 class TestRealDhanWebSocketPayloads:

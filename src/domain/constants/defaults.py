@@ -45,7 +45,7 @@ RISK_FAIL_OPEN_THRESHOLD: Decimal = RISK_MANUAL_FAIL_OPEN
 # ── Paper trading ───────────────────────────────────────────────────────────
 
 PAPER_INITIAL_CAPITAL: Decimal = Decimal("1000000")
-"""Default initial capital for :class:`~brokers.paper.PaperGateway`."""
+"""Default initial capital for :class:`~brokers.providers.paper.PaperGateway`."""
 
 PAPER_MAX_POSITION_PCT: Decimal = Decimal("20.0")
 """Default per-position / gross-exposure / daily-loss defaults for

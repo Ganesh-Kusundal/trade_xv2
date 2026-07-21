@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import brokers.dhan
-import brokers.paper
-import brokers.upstox  # noqa: F401
+import brokers.providers.dhan
+import brokers.providers.paper
+import brokers.providers.upstox  # noqa: F401
 from domain.market.segment_registry import registered_broker_ids, segment_mapper_for
 from domain.types import ExchangeSegment
 

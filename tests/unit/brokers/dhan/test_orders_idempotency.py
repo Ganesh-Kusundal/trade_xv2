@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from brokers.dhan.execution.orders import IdempotencyCache, OrdersAdapter
+from brokers.providers.dhan.execution.orders import IdempotencyCache, OrdersAdapter
 from domain import Order, OrderResponse, OrderStatus
 from domain.orders.requests import OrderRequest
 

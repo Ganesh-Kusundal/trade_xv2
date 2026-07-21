@@ -8,6 +8,7 @@ from typing import Any
 from brokers.session import BrokerSession
 
 from ._session import _borrow_session
+from domain.entities.market import QuoteSnapshot
 from domain.market_enums import ExchangeId
 
 
@@ -18,10 +19,12 @@ def get_quote(
     *,
     session: BrokerSession | None = None,
     **kwargs: Any,
-) -> Any:
+) -> QuoteSnapshot | None:
+    """Product quote path — always ``QuoteSnapshot`` (never wire ``Quote``)."""
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
-        return s.stock(symbol, exchange=exchange).refresh()
+        snap = s.stock(symbol, exchange=exchange).refresh()
+        return snap if isinstance(snap, QuoteSnapshot) else None
     finally:
         if close:
             s.close()
@@ -89,12 +92,13 @@ def run_subscribe_probe(
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
         inst = s.stock(symbol, exchange=exchange)
-        handle = s.subscribe(inst)
+        handles = s.gateway.subscribe([inst])
+        handle = handles[0] if handles else None
         if handle is not None:
             deadline = time.monotonic() + wait_seconds
             while time.monotonic() < deadline and not getattr(handle, "is_connected", False):
                 time.sleep(0.05)
-            s.unsubscribe(inst)
+            s.gateway.unsubscribe([inst])
         return handle is not None
     finally:
         if close:

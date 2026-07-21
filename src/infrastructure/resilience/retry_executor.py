@@ -8,7 +8,7 @@ and is the module every broker / gateway / connection hot-path should route
 through.
 
 Broker-specific retry *policies* (e.g. Dhan's per-endpoint configs in
-``brokers.dhan.resilience.retry_policies``) build on this executor rather than
+``brokers.providers.dhan.resilience.retry_policies``) build on this executor rather than
 re-implementing retry logic.
 
 Maps 1:1 to Trade_J's RetryExecutor pattern:

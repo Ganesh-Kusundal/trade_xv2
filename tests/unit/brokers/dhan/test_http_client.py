@@ -4,13 +4,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
+from brokers.providers.dhan.api.http_client import DhanHttpClient
+from brokers.providers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 
 
 def _make_client() -> DhanHttpClient:
     """Create a DhanHttpClient with a mocked session (no real HTTP calls)."""
-    with patch("brokers.dhan.api.http_client.requests.Session") as mock_cls:
+    with patch("brokers.providers.dhan.api.http_client.requests.Session") as mock_cls:
         mock_session = MagicMock()
         mock_session.headers = {}
         mock_cls.return_value = mock_session
@@ -81,8 +81,8 @@ def test_update_token():
 
 
 def test_async_http_client_uses_public_config_constants():
-    from brokers.dhan import config as dhan_config
-    from brokers.dhan.api import async_http_client
+    from brokers.providers.dhan import config as dhan_config
+    from brokers.providers.dhan.api import async_http_client
 
     assert async_http_client.DEFAULT_MAX_RETRIES == dhan_config.DEFAULT_MAX_RETRIES
     assert async_http_client.DEFAULT_RATE_LIMITS == dhan_config.DEFAULT_RATE_LIMITS

@@ -1,7 +1,7 @@
 """Tick and market-depth validation, mirroring Dhan strict mode.
 
 These helpers centralise the drop rules that previously lived inline in
-``brokers/dhan/websocket/market_feed.py`` (see ``_publish_tick``). A quote
+``brokers/providers/dhan/websocket/market_feed.py`` (see ``_publish_tick``). A quote
 or book that fails validation should be *dropped* rather than published,
 because malformed packets (e.g. a zero-LTP tick) would otherwise be treated
 as real signals by downstream strategies.

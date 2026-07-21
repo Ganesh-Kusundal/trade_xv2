@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.execution.order_cancellation import OrderCanceller
-from brokers.dhan.execution.orders import OrdersAdapter
+from brokers.providers.dhan.execution.order_cancellation import OrderCanceller
+from brokers.providers.dhan.execution.orders import OrdersAdapter
 from domain import OrderStatus
 
 

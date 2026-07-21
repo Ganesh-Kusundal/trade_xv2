@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.dhan.execution.order_placement import OrderPlacer
+from brokers.providers.dhan.execution.order_placement import OrderPlacer
 from domain import OrderType, ProductType, Validity
 from domain.models.dtos import BrokerOrderPayload
 

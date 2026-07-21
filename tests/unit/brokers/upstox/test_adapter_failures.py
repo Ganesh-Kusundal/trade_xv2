@@ -16,9 +16,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from brokers.upstox.auth.exceptions import UpstoxApiError
-from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
-from brokers.upstox.ipo.client import UpstoxIpoClient
+from brokers.providers.upstox.auth.exceptions import UpstoxApiError
+from brokers.providers.upstox.ipo.adapter import UpstoxIpoAdapter
+from brokers.providers.upstox.ipo.client import UpstoxIpoClient
 
 
 class TestIpoAdapterFailures:

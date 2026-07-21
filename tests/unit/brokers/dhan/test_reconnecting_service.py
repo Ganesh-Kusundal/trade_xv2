@@ -12,7 +12,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
+from brokers.providers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 
 
 class _StubMixin(ReconnectingServiceMixin):

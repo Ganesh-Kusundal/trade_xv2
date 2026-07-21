@@ -20,7 +20,7 @@ import datetime as _dt
 
 import pytest
 
-from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from brokers.session.broker_session import BrokerSession
 from domain.ports.broker_gateway import HistoricalBarRequest
 

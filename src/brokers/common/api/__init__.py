@@ -13,7 +13,6 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from brokers.common.api.spi import BrokerSource
 from domain.entities import (
     FundLimits,
     Holding,
@@ -108,7 +107,6 @@ class PortfolioProvider(Protocol):
 
 
 __all__ = [
-    "BrokerSource",
     "MarginCalculationError",
     "MarginProvider",
     "MarginResult",

@@ -92,6 +92,7 @@ _UPSTOX_PUBLIC = frozenset(
 
 _PAPER_PUBLIC = frozenset(
     {
+        "authenticate",
         "cancel_order",
         "capabilities",
         "close",
@@ -107,6 +108,7 @@ _PAPER_PUBLIC = frozenset(
         "list_capabilities",
         "load_instruments",
         "ltp",
+        "ltp_batch",
         "modify_order",
         "option_chain",
         "place_order",
@@ -121,6 +123,7 @@ _PAPER_PUBLIC = frozenset(
         "stream_depth",
         "stream_order",
         "trades",
+        "unstream",
     }
 )
 
@@ -137,7 +140,7 @@ def _class_body_public_methods(cls: type) -> set[str]:
 
 
 def test_dhan_gateway_public_surface_frozen():
-    from brokers.dhan.wire import DhanWireAdapter
+    from brokers.providers.dhan.wire import DhanWireAdapter
 
     actual = _class_body_public_methods(DhanWireAdapter)
     extra = actual - _DHAN_PUBLIC
@@ -152,7 +155,7 @@ def test_dhan_gateway_public_surface_frozen():
 
 
 def test_upstox_gateway_public_surface_frozen():
-    from brokers.upstox.wire import UpstoxWireAdapter
+    from brokers.providers.upstox.wire import UpstoxWireAdapter
 
     actual = _class_body_public_methods(UpstoxWireAdapter)
     extra = actual - _UPSTOX_PUBLIC
@@ -163,7 +166,7 @@ def test_upstox_gateway_public_surface_frozen():
 
 
 def test_paper_gateway_public_surface_frozen():
-    from brokers.paper.paper_gateway import PaperGateway
+    from brokers.providers.paper.paper_gateway import PaperGateway
 
     actual = _class_body_public_methods(PaperGateway)
     extra = actual - _PAPER_PUBLIC
@@ -174,6 +177,6 @@ def test_paper_gateway_public_surface_frozen():
 
 
 def test_dhan_broker_gateway_alias():
-    from brokers.dhan.wire import DhanWireAdapter
+    from brokers.providers.dhan.wire import DhanWireAdapter
 
     assert DhanWireAdapter is DhanWireAdapter

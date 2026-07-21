@@ -88,9 +88,9 @@ All paths delegate to same `OrderManager.place_order`.
 
 ```toml
 [project.entry-points."tradex.brokers"]
-dhan = "brokers.dhan:register"
-upstox = "brokers.upstox:register"
-paper = "brokers.paper:register"
+dhan = "brokers.providers.dhan:register"
+upstox = "brokers.providers.upstox:register"
+paper = "brokers.providers.paper:register"
 
 [project.entry-points."tradex.exchanges"]
 nse = "..."

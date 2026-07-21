@@ -22,7 +22,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from domain import MarketDepth, Quote
 from tests.integration.fixtures.upstox import (
     make_depth_response,

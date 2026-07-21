@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
 from infrastructure.gateway.factory import bootstrap_gateway
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]

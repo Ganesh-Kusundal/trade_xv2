@@ -166,7 +166,7 @@ class _FakeOrdersAdapter:
 
 def test_g1_gateway_has_modify_and_cancel_all_methods():
     gateway_mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.wire", fromlist=["DhanWireAdapter"]).DhanWireAdapter
+        lambda: __import__("brokers.providers.dhan.wire", fromlist=["DhanWireAdapter"]).DhanWireAdapter
     )
     assert callable(getattr(gateway_mod, "modify_order", None))
     assert callable(getattr(gateway_mod, "cancel_all_orders", None))
@@ -174,7 +174,7 @@ def test_g1_gateway_has_modify_and_cancel_all_methods():
 
 def test_g1_gateway_init_runs_without_raising():
     mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.wire", fromlist=["DhanWireAdapter"])
+        lambda: __import__("brokers.providers.dhan.wire", fromlist=["DhanWireAdapter"])
     )
     DhanWireAdapter = mod.DhanWireAdapter
     conn = _FakeConnection()
@@ -187,9 +187,9 @@ def test_g1_gateway_init_runs_without_raising():
 
 def test_g1_stream_routes_through_create_market_feed():
     mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.wire", fromlist=["DhanWireAdapter"])
+        lambda: __import__("brokers.providers.dhan.wire", fromlist=["DhanWireAdapter"])
     )
-    from brokers.dhan.streaming.connection import DhanConnection
+    from brokers.providers.dhan.streaming.connection import DhanConnection
     from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
 
     DhanWireAdapter = mod.DhanWireAdapter
@@ -203,7 +203,7 @@ def test_g1_stream_routes_through_create_market_feed():
     assert feed is not None
     assert conn.market_feed is not None
     assert conn.market_feed is feed
-    from brokers.dhan.websocket.market_feed import DhanMarketFeed
+    from brokers.providers.dhan.websocket.market_feed import DhanMarketFeed
 
     assert isinstance(feed, DhanMarketFeed)
 
@@ -216,12 +216,12 @@ def test_g1_stream_routes_through_create_market_feed():
 def _make_adapter(client, allow_live=True):
     """Build a real OrdersAdapter around fakes (lazy import)."""
     orders_mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.execution.orders", fromlist=["OrdersAdapter"])
+        lambda: __import__("brokers.providers.dhan.execution.orders", fromlist=["OrdersAdapter"])
     )
     OrdersAdapter = orders_mod.OrdersAdapter
     identity = _skip_if_import_error(
         lambda: __import__(
-            "brokers.dhan.identity", fromlist=["DhanIdentityProvider"]
+            "brokers.providers.dhan.identity", fromlist=["DhanIdentityProvider"]
         ).DhanIdentityProvider
     )(_FakeResolver())
     return OrdersAdapter(client, identity, allow_live_orders=allow_live)
@@ -259,7 +259,7 @@ def test_r3_same_correlation_id_issues_one_post():
     assert client.post_calls.count(cid) == 1
 
 
-def test_r3_distinct_correlation_ids_issue_n_posts():
+def test_distinct_correlation_ids_each_post_once():
     client = _FakeClient()
     adapter = _make_adapter(client)
 

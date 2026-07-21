@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 from domain import Quote
 
 _FIXTURE = Path(__file__).resolve().parents[3] / "fixtures" / "golden" / "upstox_bus_ticks.json"

@@ -33,7 +33,7 @@ def test_build_domain_trade_shared():
 
 
 def test_dhan_authenticate_ensures_token_not_ws_liveness():
-    from brokers.dhan.wire import DhanWireAdapter
+    from brokers.providers.dhan.wire import DhanWireAdapter
 
     client = SimpleNamespace(access_token="tok", _try_refresh_token=lambda: False)
     conn = SimpleNamespace(_client=client, _auth=None, _session_manager=None, market_feed=None)

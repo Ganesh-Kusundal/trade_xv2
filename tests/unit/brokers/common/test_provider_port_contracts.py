@@ -14,11 +14,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.api.transport import DhanOrderTransport
-from brokers.paper.data_provider import PaperDataProvider
-from brokers.paper.execution_provider import PaperExecutionProvider
-from brokers.paper.paper_gateway import PaperGateway
-from brokers.upstox import UpstoxExecutionProvider
+from brokers.providers.dhan.api.transport import DhanOrderTransport
+from brokers.providers.paper.data_provider import PaperDataProvider
+from brokers.providers.paper.execution_provider import PaperExecutionProvider
+from brokers.providers.paper.paper_gateway import PaperGateway
+from brokers.providers.upstox import UpstoxExecutionProvider
 from domain.entities.order import OrderResponse
 from domain.instruments.instrument_id import InstrumentId
 from domain.orders.requests import OrderRequest
@@ -44,13 +44,13 @@ class _FakeGateway:
     """Minimal duck-typed gateway for offline ExecutionProvider contracts."""
 
     def __init__(self) -> None:
-        self.orders: list[dict[str, Any]] = []
+        self.orders: list[OrderRequest] = []
         self._n = 0
 
-    def place_order(self, **kwargs: Any) -> OrderResponse:
+    def place_order(self, request: OrderRequest) -> OrderResponse:
         self._n += 1
         oid = f"FAKE-{self._n}"
-        self.orders.append({"order_id": oid, **kwargs})
+        self.orders.append(request)
         return OrderResponse.ok(order_id=oid, message="placed")
 
     def cancel_order(self, order_id: str) -> OrderResponse:

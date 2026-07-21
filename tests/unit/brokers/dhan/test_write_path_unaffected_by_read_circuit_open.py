@@ -27,8 +27,8 @@ def test_dhan_place_order_with_read_cb_open_still_posts_order() -> None:
     order placement was blocked. Phase A / A1 split the breaker into
     read / write / admin categories. This test pins that split.
     """
-    from brokers.dhan.api.http_client import DhanHttpClient
-    from brokers.dhan.exceptions import DhanError
+    from brokers.providers.dhan.api.http_client import DhanHttpClient
+    from brokers.providers.dhan.exceptions import DhanError
 
     cb_read = CircuitBreaker(
         "test-read", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)
@@ -69,8 +69,8 @@ def test_dhan_place_order_with_read_cb_open_still_posts_order() -> None:
 
 def test_dhan_post_orders_with_write_cb_open_fails_fast() -> None:
     """The inverse: a write CB that is OPEN must fast-fail a POST /orders call."""
-    from brokers.dhan.api.http_client import DhanHttpClient
-    from brokers.dhan.exceptions import DhanError
+    from brokers.providers.dhan.api.http_client import DhanHttpClient
+    from brokers.providers.dhan.exceptions import DhanError
 
     cb_write = CircuitBreaker(
         "test-write", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)

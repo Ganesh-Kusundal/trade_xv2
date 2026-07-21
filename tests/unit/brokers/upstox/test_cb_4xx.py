@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.http import UpstoxHttpClient
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox.auth.http import UpstoxHttpClient
 from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitState
 
 

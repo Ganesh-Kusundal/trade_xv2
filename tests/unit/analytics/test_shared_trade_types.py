@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from analytics.paper.models import PaperTrade
 from analytics.replay.models import SimulatedTrade
-from analytics.shared.trade_types import SimPosition, SimTrade
+from analytics.simulation.trade_mapping import SimPosition, SimTrade
 from domain.enums import Side
 
 
@@ -41,7 +41,7 @@ def test_replay_and_paper_share_domain_conversion():
     """
     # Patch the shared helper to prove both engines call it.
     calls = []
-    import analytics.shared.trade_types as tt
+    import analytics.simulation.trade_mapping as tt
 
     real = tt.sim_trade_to_domain
 

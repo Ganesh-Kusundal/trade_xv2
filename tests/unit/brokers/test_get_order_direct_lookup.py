@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.wire import DhanWireAdapter
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 from domain import OrderResponse, OrderStatus
 from tests.fixtures.domain_helpers import make_order
 
@@ -97,7 +97,7 @@ def test_cancel_order_verification_uses_direct_lookup(gateway_bundle) -> None:
                 }
             },
         )
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.resolver import SymbolResolver
 
         resolver = SymbolResolver()
         gw = _make_gateway_with_real_adapter(client, resolver)
@@ -143,7 +143,7 @@ def test_cancel_order_detects_race_condition_fill(gateway_bundle) -> None:
                 }
             },
         )
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.resolver import SymbolResolver
 
         resolver = SymbolResolver()
         gw = _make_gateway_with_real_adapter(client, resolver)
@@ -171,7 +171,7 @@ def test_cancel_order_fails_when_post_verify_lookup_fails(gateway_bundle) -> Non
     client = FakeHttpClient()
     client.set_response("DELETE", "/orders/ORD-123", {"status": "success"})
     client.set_side_effect("GET", "/orders/ORD-123", RuntimeError("purged"))
-    from brokers.dhan.resolver import SymbolResolver
+    from brokers.providers.dhan.resolver import SymbolResolver
 
     gw = _make_gateway_with_real_adapter(client, SymbolResolver())
 

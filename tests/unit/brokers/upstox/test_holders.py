@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.upstox.auth.holders import (
+from brokers.providers.upstox.auth.holders import (
     UpstoxAnalyticsTokenHolder,
     UpstoxExtendedTokenHolder,
     UpstoxStaticTokenHolder,

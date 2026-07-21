@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.common.contracts.market_coverage_contract import MarketCoverageContract
-from brokers.paper.paper_gateway import PaperGateway
+from brokers.providers.paper.paper_gateway import PaperGateway
 
 
 @pytest.fixture()

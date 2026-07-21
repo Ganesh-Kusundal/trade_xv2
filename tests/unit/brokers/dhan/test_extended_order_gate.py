@@ -13,10 +13,10 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.domain import ForeverOrderRequest
-from brokers.dhan.execution.exit_all import ExitAllAdapter
-from brokers.dhan.execution.forever_orders import ForeverOrdersAdapter
-from brokers.dhan.execution.super_orders import SuperOrdersAdapter
+from brokers.providers.dhan._dhan_types import ForeverOrderRequest
+from brokers.providers.dhan.execution.exit_all import ExitAllAdapter
+from brokers.providers.dhan.execution.forever_orders import ForeverOrdersAdapter
+from brokers.providers.dhan.execution.super_orders import SuperOrdersAdapter
 
 
 class _Blocked(RuntimeError):

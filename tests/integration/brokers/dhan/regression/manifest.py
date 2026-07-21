@@ -19,7 +19,7 @@ import pytest
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
 
 Tier = str  # "off_market_safe" | "market_hours" | "pre_prod" | "sandbox"
 
@@ -145,7 +145,7 @@ def _assert_post_cancel_fill_detection(_gw: DhanWireAdapter) -> None:
 
     text = (
         Path(__file__).resolve().parents[5]
-        / "src/brokers/dhan/execution/order_cancellation.py"
+        / "src/brokers/providers/dhan/execution/order_cancellation.py"
     ).read_text()
     assert "_verify_cancel_not_race_filled" in text
     assert "get_order_fn" in text
@@ -155,7 +155,7 @@ def _assert_tick_normalize_logging(_gw: DhanWireAdapter) -> None:
     from pathlib import Path
 
     text = (
-        Path(__file__).resolve().parents[5] / "src/brokers/dhan/data/data_provider.py"
+        Path(__file__).resolve().parents[5] / "src/brokers/providers/dhan/data/data_provider.py"
     ).read_text()
     assert "tick_normalize_failed" in text
 

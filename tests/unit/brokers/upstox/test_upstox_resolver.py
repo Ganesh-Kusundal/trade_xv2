@@ -12,8 +12,8 @@ Tests cover:
 
 from __future__ import annotations
 
-from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
-from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver, _generate_alternate_keys
+from brokers.providers.upstox.instruments.definition import UpstoxInstrumentDefinition
+from brokers.providers.upstox.instruments.resolver import UpstoxInstrumentResolver, _generate_alternate_keys
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -420,7 +420,7 @@ class TestContractSymbolBuilder:
     docstring example in to_instrument_id)."""
 
     def test_equity_passthrough(self):
-        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from brokers.providers.upstox.instrument_adapter import to_upstox_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.equity("NSE", "RELIANCE")
@@ -429,7 +429,7 @@ class TestContractSymbolBuilder:
     def test_mcx_future(self):
         from datetime import date
 
-        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from brokers.providers.upstox.instrument_adapter import to_upstox_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.future("MCX", "CRUDEOIL", date(2026, 7, 20))
@@ -438,7 +438,7 @@ class TestContractSymbolBuilder:
     def test_mcx_option(self):
         from datetime import date
 
-        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from brokers.providers.upstox.instrument_adapter import to_upstox_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.option("MCX", "CRUDEOIL", date(2026, 7, 16), 7800, "PE")
@@ -447,7 +447,7 @@ class TestContractSymbolBuilder:
     def test_nfo_future(self):
         from datetime import date
 
-        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from brokers.providers.upstox.instrument_adapter import to_upstox_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.future("NFO", "NIFTY", date(2026, 7, 30))
@@ -456,7 +456,7 @@ class TestContractSymbolBuilder:
     def test_nfo_option_call(self):
         from datetime import date
 
-        from brokers.upstox.instrument_adapter import to_upstox_symbol
+        from brokers.providers.upstox.instrument_adapter import to_upstox_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.option("NFO", "NIFTY", date(2026, 6, 26), 25000, "CE")

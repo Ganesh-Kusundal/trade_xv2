@@ -6,8 +6,8 @@ from unittest import mock
 
 import pytest
 
-from brokers.dhan.config.capabilities import dhan_capabilities
-from brokers.paper import PaperGateway
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.paper import PaperGateway
 from domain.candles.historical import InstrumentRef
 from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain.enums import OrderType, ProductType, Side, Validity

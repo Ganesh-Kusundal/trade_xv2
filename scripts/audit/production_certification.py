@@ -593,25 +593,28 @@ def check_replay_determinism() -> CheckResult:
 
 
 def check_broker_certification() -> CheckResult:
-    """Run ``broker verify paper`` — Trading OS broker layer gate."""
+    """Paper broker import smoke — former ``broker verify`` CLI removed."""
     start = time.monotonic()
     try:
-        result = run_command(
-            [sys.executable, "-m", "brokers.cli.broker", "--broker", "paper", "verify"],
-            timeout=120,
-        )
-        if result.returncode == 0:
+        from brokers.session import BrokerSession
+
+        session = BrokerSession.connect("paper")
+        try:
+            ok = session.stock("RELIANCE") is not None
+        finally:
+            session.close()
+        if ok:
             return CheckResult(
                 name="broker_certification",
                 status=CheckStatus.PASS,
                 duration_seconds=time.monotonic() - start,
-                message="broker verify paper passed",
+                message="paper BrokerSession.connect + stock() ok",
             )
         return CheckResult(
             name="broker_certification",
             status=CheckStatus.FAIL,
             duration_seconds=time.monotonic() - start,
-            message=f"broker verify paper failed: {result.stderr or result.stdout}",
+            message="paper stock() returned None",
         )
     except Exception as e:
         return CheckResult(

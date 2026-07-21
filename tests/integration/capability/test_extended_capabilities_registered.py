@@ -6,7 +6,7 @@ import inspect
 
 import pytest
 
-from brokers.dhan.config.capabilities import dhan_capabilities
+from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from domain.capability_manifest import CAPABILITY_SURFACES, classify_exposure
 
 
@@ -36,7 +36,7 @@ class TestDhanExtendedCapabilities:
     """Dhan extended.py methods are represented in manifest."""
 
     def test_dhan_extended_class_methods_covered(self) -> None:
-        from brokers.dhan.extended import DhanExtendedCapabilities
+        from brokers.providers.dhan.extended import DhanExtendedCapabilities
 
         [
             name

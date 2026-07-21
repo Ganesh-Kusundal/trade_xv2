@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.data.data_provider import DhanDataProvider
+from brokers.providers.dhan.market_data.data_provider import DhanDataProvider
 from domain.entities.market import QuoteSnapshot
 from domain.instruments.instrument_id import InstrumentId
 
@@ -57,7 +57,7 @@ def test_subscribe_calls_stream_with_mode_and_on_tick() -> None:
 
 def test_subscribe_depth_mode() -> None:
     # "DEPTH" is not a real Dhan feed mode (only LTP/QUOTE/FULL — see
-    # brokers.dhan.websocket._helpers._mode_map) and silently produced plain
+    # brokers.providers.dhan.websocket._helpers._mode_map) and silently produced plain
     # quotes with bid=None/ask=None. "FULL" is the mode that actually carries
     # bid/ask, verified live.
     gw = MagicMock()

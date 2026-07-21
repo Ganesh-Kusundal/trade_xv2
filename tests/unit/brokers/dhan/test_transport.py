@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from tests.support.order_request_factory import make_order_request as _order_request
+
 from decimal import Decimal
 
-from brokers.dhan.api.transport import _DHAN_CAPABILITIES, DhanTransport
+from brokers.providers.dhan.api.transport import _DHAN_CAPABILITIES, DhanTransport
 from domain.capabilities import Capability
 from domain.orders.requests import OrderRequest
 from domain.types import OrderType, ProductType, Side
@@ -23,23 +25,20 @@ class FakeGateway:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
 
-    def place_order(
-        self,
-        symbol,
-        exchange="NSE",
-        side="BUY",
-        quantity=1,
-        price=Decimal("0"),
-        order_type="MARKET",
-        product_type="INTRADAY",
-        validity="DAY",
-        trigger_price=Decimal("0"),
-        correlation_id=None,
-        disclosed_quantity=0,
-        **kwargs,
-    ):
+    def place_order(self, request: OrderRequest):
+        side = getattr(request.transaction_type, "value", request.transaction_type)
+        order_type = getattr(request.order_type, "value", request.order_type)
+        product_type = getattr(request.product_type, "value", request.product_type)
         self.calls.append(
-            ("place_order", symbol, exchange, side, quantity, order_type, product_type)
+            (
+                "place_order",
+                request.symbol,
+                request.exchange,
+                side,
+                request.quantity,
+                order_type,
+                product_type,
+            )
         )
         return _FakeResponse()
 

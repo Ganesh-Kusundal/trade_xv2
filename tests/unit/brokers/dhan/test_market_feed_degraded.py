@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.dhan.websocket.publish import MarketFeedPublisher
+from brokers.providers.dhan.websocket.publish import MarketFeedPublisher
 
 
 def test_drop_emits_market_data_degraded_event() -> None:

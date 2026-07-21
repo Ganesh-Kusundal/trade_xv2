@@ -13,9 +13,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
-from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
+from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 
 
 def _fake_authorizer() -> UpstoxFeedAuthorizer:
@@ -211,7 +211,7 @@ class TestUpstoxCacheEviction:
 class TestUpstoxSubscriptionManagerRegression:
     def test_subscribe_same_key_same_mode_is_noop(self):
         """Subscribing the same key in the same mode must not increase count."""
-        from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
+        from brokers.providers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
 
         mgr = UpstoxV3SubscriptionManager()
         mgr.subscribe(["NSE_EQ|INE002A01018"], "ltpc")
@@ -222,7 +222,7 @@ class TestUpstoxSubscriptionManagerRegression:
 
     def test_subscribe_mode_change_moves_key(self):
         """Changing a key's mode must remove it from old mode and add to new."""
-        from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
+        from brokers.providers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
 
         mgr = UpstoxV3SubscriptionManager()
         key = "NSE_EQ|INE002A01018"
@@ -235,7 +235,7 @@ class TestUpstoxSubscriptionManagerRegression:
 
     def test_unsubscribe_removes_from_manager(self):
         """unsubscribe() must remove the key from the manager."""
-        from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
+        from brokers.providers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
 
         mgr = UpstoxV3SubscriptionManager()
         key = "NSE_EQ|INE002A01018"
@@ -247,7 +247,7 @@ class TestUpstoxSubscriptionManagerRegression:
 
     def test_limit_enforcement_raises(self):
         """Exceeding per-mode limit must raise SubscriptionLimitExceeded."""
-        from brokers.upstox.websocket.v3_subscription_manager import (
+        from brokers.providers.upstox.websocket.v3_subscription_manager import (
             SubscriptionLimitExceededError,
             UpstoxV3SubscriptionLimits,
             UpstoxV3SubscriptionManager,
@@ -296,7 +296,7 @@ class TestUpstoxThreadSafetyRegression:
 
     def test_concurrent_subscribe_unsubscribe(self):
         """Concurrent subscribe/unsubscribe must not corrupt subscription manager."""
-        from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
+        from brokers.providers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionManager
 
         mgr = UpstoxV3SubscriptionManager()
         keys = [f"NSE_EQ|{i}" for i in range(50)]

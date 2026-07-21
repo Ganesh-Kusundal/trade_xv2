@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from brokers.common.transport import ReconnectingTransport
 from brokers.common.transport_policy import ResiliencePolicy
-from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
+from brokers.providers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 
 
 def test_upstox_policy_matches_sdk_defaults():

@@ -2,7 +2,7 @@ import json
 import sys
 from datetime import datetime
 
-from brokers.dhan.symbol_validator import DhanSymbolValidator
+from brokers.providers.dhan.symbol_validator import DhanSymbolValidator
 
 
 def validate_schema(result: dict) -> bool:

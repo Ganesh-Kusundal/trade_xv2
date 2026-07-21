@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[2]
 PAPER = ROOT / "src" / "analytics" / "paper"
 REPLAY = ROOT / "src" / "analytics" / "replay"
 FORBIDDEN_BROKER_PREFIXES = (
-    "brokers.dhan",
-    "brokers.upstox",
-    "brokers.paper",
+    "brokers.providers.dhan",
+    "brokers.providers.upstox",
+    "brokers.providers.paper",
 )
 
 

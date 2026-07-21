@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.market_data.trade_pnl import TradePnL, TradePnLCalculator
+from brokers.providers.upstox.market_data.trade_pnl import TradePnL, TradePnLCalculator
 
 
 @pytest.fixture

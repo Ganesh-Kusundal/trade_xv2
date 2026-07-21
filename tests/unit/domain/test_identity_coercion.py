@@ -24,7 +24,7 @@ from unittest import mock
 
 import pytest
 
-from brokers.dhan.identity import (
+from brokers.providers.dhan.identity import (
     DhanIdentityProvider,
     SymbolResolver,
     coerce_identity_provider,

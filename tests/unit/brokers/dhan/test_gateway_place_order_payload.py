@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from tests.support.order_request_factory import make_order_request as _order_request
+
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan.wire import DhanWireAdapter
 from domain.entities.order import OrderResponse
 from domain.enums import OrderStatus, OrderType, Side
 from domain.models.dtos import BrokerOrderPayload
@@ -18,7 +20,7 @@ def test_place_order_builds_broker_order_payload() -> None:
     )
     gw = DhanWireAdapter(conn)
 
-    result = gw.place_order(
+    result = gw.place_order(_order_request(
         symbol="RELIANCE",
         exchange="NSE",
         side="BUY",
@@ -27,7 +29,7 @@ def test_place_order_builds_broker_order_payload() -> None:
         product_type="INTRADAY",
         price=Decimal("1000"),
         correlation_id="corr123",
-    )
+    ))
 
     assert result.success is True
     assert result.order_id == "SBX-1"
@@ -38,3 +40,5 @@ def test_place_order_builds_broker_order_payload() -> None:
     assert payload.order_type == OrderType.LIMIT
     assert payload.price == Decimal("1000")
     assert payload.correlation_id == "corr123"
+
+

@@ -1,7 +1,7 @@
 """Unit tests for segment constant mappings."""
 
-from brokers.dhan.domain import Exchange
-from brokers.dhan.segments import (
+from brokers.providers.dhan._dhan_types import Exchange
+from brokers.providers.dhan.segments import (
     _COMPACT_SEGMENT_MAP,
     EXCHANGE_TO_SEGMENT,
     NUMERIC_TO_SEGMENT,

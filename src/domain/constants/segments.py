@@ -1,9 +1,9 @@
 """Exchange segment set helpers — single source of truth for segment grouping.
 
 Extracted from scattered duplicates in broker extensions:
-- `brokers.upstox.extensions.depth._NSE_SEGMENTS`
-- `brokers.dhan.extensions.depth20._NSE_SEGMENTS`
-- `brokers.dhan.extensions.depth200._NSE_SEGMENTS`
+- `brokers.providers.upstox.extensions.depth._NSE_SEGMENTS`
+- `brokers.providers.dhan.extensions.depth20._NSE_SEGMENTS`
+- `brokers.providers.dhan.extensions.depth200._NSE_SEGMENTS`
 
 All broker extensions should use `nse_eligible_segments()` instead of
 defining their own duplicated frozensets.

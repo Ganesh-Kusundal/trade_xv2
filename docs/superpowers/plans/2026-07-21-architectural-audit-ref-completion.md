@@ -302,9 +302,9 @@ For each file, replace `from domain.types import X` with the canonical `from dom
 | `domain/entities/trade.py:11` | `from domain.enums import ProductType, Side` |
 | `domain/exchange_segments.py:25` | `from domain.market_enums import ExchangeSegment` |
 | `domain/orders/requests.py:18-23` | `from domain.enums import OrderType, ProductType, Side, Validity` |
-| `brokers/dhan/segments.py:28` | `from domain.market_enums import ExchangeSegment` |
+| `brokers/providers/dhan/segments.py:28` | `from domain.market_enums import ExchangeSegment` |
 | `brokers/common/order_wire.py:9` | `from domain.market_enums import ExchangeSegment` |
-| `brokers/paper/segment_mapper.py:15` | `from domain.market_enums import ExchangeSegment` |
+| `brokers/providers/paper/segment_mapper.py:15` | `from domain.market_enums import ExchangeSegment` |
 | `infrastructure/persistence/sqlite_order_store.py:30` | `from domain.enums import OrderStatus, OrderType, ProductType, Side` |
 | `infrastructure/persistence/sqlite_execution_ledger.py:20` | `from domain.enums import Side` |
 | `application/composer/execution.py:16` | `from domain.enums import OrderStatus` |
@@ -363,72 +363,72 @@ git commit -m "refactor(ref-9): migrate domain+application facade imports to can
 
 Key files (85 total `from domain import` in brokers/):
 
-- `brokers/upstox/broker.py:79` — `from domain.capabilities import Capability, ConnectionStatus`
-- `brokers/upstox/adapters/upstox_orders.py:14-24` — split into 3 imports (entities, enums, market_enums)
-- `brokers/upstox/adapters/tick_translator.py:15` — `from domain.entities import Quote`
-- `brokers/upstox/orders/cover_order_adapter.py:15` — `from domain.entities import Order`
-- `brokers/upstox/orders/gtt_adapter.py:12-16` — `from domain.entities import ConditionalAlert, ConditionalAlertRequest, Order`
-- `brokers/upstox/orders/order_query_adapter.py:8` — `from domain.entities import Order, Trade`
-- `brokers/upstox/orders/alert_adapter.py:6` — `from domain.entities import ConditionalAlert, ConditionalAlertRequest`
-- `brokers/upstox/adapters/upstox_streaming.py:16` — `from domain.entities import MarketDepth, Quote`
-- `brokers/upstox/streaming_service.py:16` — `from domain.entities import MarketDepth, Quote`
-- `brokers/upstox/orders/slice_adapter.py:19` — `from domain.entities import Order` + `from domain.orders.requests import SliceOrderRequest`
-- `brokers/upstox/adapters/stream_manager.py:16` — `from domain.entities import Quote`
-- `brokers/upstox/mappers/derivatives_mapper.py:15-25` — split into 3 imports
+- `brokers/providers/upstox/broker.py:79` — `from domain.capabilities import Capability, ConnectionStatus`
+- `brokers/providers/upstox/adapters/upstox_orders.py:14-24` — split into 3 imports (entities, enums, market_enums)
+- `brokers/providers/upstox/adapters/tick_translator.py:15` — `from domain.entities import Quote`
+- `brokers/providers/upstox/orders/cover_order_adapter.py:15` — `from domain.entities import Order`
+- `brokers/providers/upstox/orders/gtt_adapter.py:12-16` — `from domain.entities import ConditionalAlert, ConditionalAlertRequest, Order`
+- `brokers/providers/upstox/orders/order_query_adapter.py:8` — `from domain.entities import Order, Trade`
+- `brokers/providers/upstox/orders/alert_adapter.py:6` — `from domain.entities import ConditionalAlert, ConditionalAlertRequest`
+- `brokers/providers/upstox/adapters/upstox_streaming.py:16` — `from domain.entities import MarketDepth, Quote`
+- `brokers/providers/upstox/streaming_service.py:16` — `from domain.entities import MarketDepth, Quote`
+- `brokers/providers/upstox/orders/slice_adapter.py:19` — `from domain.entities import Order` + `from domain.orders.requests import SliceOrderRequest`
+- `brokers/providers/upstox/adapters/stream_manager.py:16` — `from domain.entities import Quote`
+- `brokers/providers/upstox/mappers/derivatives_mapper.py:15-25` — split into 3 imports
 - `brokers/common/api/__init__.py:18-25` — `from domain.entities import FundLimits, Holding, MarketDepth, OptionContract, Position, Quote`
-- `brokers/upstox/instruments/segment_mapper.py:12` — `from domain.market_enums import ExchangeSegment`
-- `brokers/upstox/mappers/_base.py:12-20` — split into 2 imports
-- `brokers/upstox/mappers/equity_mapper.py:12-19` — split into 2 imports
-- `brokers/upstox/orders/order_command_adapter.py:19-25` — remove `Side as OrderSide` alias, use `Side` directly
-- `brokers/upstox/wire.py:24-36` — split into 2 imports
-- `brokers/upstox/mappers/options_mapper.py:12` — `from domain.entities import OptionContract`
+- `brokers/providers/upstox/instruments/segment_mapper.py:12` — `from domain.market_enums import ExchangeSegment`
+- `brokers/providers/upstox/mappers/_base.py:12-20` — split into 2 imports
+- `brokers/providers/upstox/mappers/equity_mapper.py:12-19` — split into 2 imports
+- `brokers/providers/upstox/orders/order_command_adapter.py:19-25` — remove `Side as OrderSide` alias, use `Side` directly
+- `brokers/providers/upstox/wire.py:24-36` — split into 2 imports
+- `brokers/providers/upstox/mappers/options_mapper.py:12` — `from domain.entities import OptionContract`
 - `brokers/common/acl.py:12` — `from domain.enums import OrderStatus`
 - `brokers/common/recon_local.py:8` — split into 2 imports
-- `brokers/upstox/market_data_service.py:22-27` — `from domain.entities import ...`
-- `brokers/dhan/websocket/publish.py:14` — `from domain.entities import DepthLevel, MarketDepth, Quote`
+- `brokers/providers/upstox/market_data_service.py:22-27` — `from domain.entities import ...`
+- `brokers/providers/dhan/websocket/publish.py:14` — `from domain.entities import DepthLevel, MarketDepth, Quote`
 - `brokers/common/contracts/broker_contract.py:20-26` — split into 2 imports
-- `brokers/dhan/data/subscription_engine.py:16` — `from domain.entities import Quote`
-- `brokers/upstox/extensions/depth.py:13` — `from domain.entities import MarketDepth`
-- `brokers/dhan/websocket/polling_feed.py:18` — `from domain.entities import Quote`
+- `brokers/providers/dhan/data/subscription_engine.py:16` — `from domain.entities import Quote`
+- `brokers/providers/upstox/extensions/depth.py:13` — `from domain.entities import MarketDepth`
+- `brokers/providers/dhan/websocket/polling_feed.py:18` — `from domain.entities import Quote`
 - `brokers/common/contracts/market_coverage_contract.py:21` — `from domain.entities import Quote`
-- `brokers/dhan/data/depth_feed_base/__init__.py:37` — `from domain.entities import DepthLevel, MarketDepth`
-- `brokers/dhan/websocket/order_stream.py:22-30` — split into 2 imports
-- `brokers/dhan/order_capabilities.py:11` — `from domain.entities import OrderResponse`
-- `brokers/dhan/extensions/depth20.py:13` — `from domain.entities import MarketDepth`
-- `brokers/upstox/market_intelligence/snapshot.py:15` — `from domain.entities import MarketIntelligenceSnapshot`
-- `brokers/dhan/data/market_data.py:11` — `from domain.entities import DepthLevel, MarketDepth, Quote`
-- `brokers/dhan/status_mapper.py:9` — `from domain.enums import OrderStatus`
-- `brokers/dhan/data/depth_parser.py:20` — `from domain.entities import DepthLevel, MarketDepth`
-- `brokers/dhan/streaming/connection.py:37` — `from domain.entities import MarketDepth`
-- `brokers/dhan/extensions/depth200.py:11` — `from domain.entities import MarketDepth`
-- `brokers/dhan/domain.py:14` — `from domain.entities import Holding, Order, Position, Trade`
-- `brokers/dhan/__init__.py:47` — split into entities + reconciliation
-- `brokers/dhan/data/depth_20.py:17` — `from domain.entities import MarketDepth`
-- `brokers/dhan/data/depth_200.py:36` — `from domain.entities import MarketDepth`
-- `brokers/upstox/status_mapper.py:9` — `from domain.enums import OrderStatus`
-- `brokers/dhan/wire.py:25` — `from domain.entities import Balance, MarketDepth, OrderResponse, Quote`
-- `brokers/upstox/websocket/market_data_v3.py:34` — `from domain.entities import Quote`
-- `brokers/upstox/capabilities/orders.py:8` — `from domain.entities import OrderResponse` + `from domain.orders.requests import OrderRequest`
-- `brokers/dhan/execution/super_orders.py:18` — `from domain.entities import OrderResponse`
-- `brokers/dhan/portfolio/portfolio.py:13` — split into 2 imports
-- `brokers/dhan/execution/forever_orders.py:18` — `from domain.entities import OrderResponse`
-- `brokers/dhan/execution/orders.py:27-35` — split into 2 imports, remove `Side as OrderSide`
-- `brokers/dhan/execution/order_validator.py:15` — `from domain.enums import OrderType, ProductType`
-- `brokers/dhan/portfolio/reconciliation.py:16` — `from domain.reconciliation import DriftItem, ReconciliationReport`
-- `brokers/paper/paper_market_data.py:8` — `from domain.entities import DepthLevel, MarketDepth, Quote`
-- `brokers/paper/paper_gateway.py:12-24` — split into 2 imports
-- `brokers/paper/paper_orders.py:9-18` — split into 2 imports
-- `brokers/paper/sim_config.py:8` — `from domain.enums import Side`
-- `brokers/dhan/execution/order_placement.py:24-32` — split into 2 imports, remove `Side as OrderSide`
-- `brokers/dhan/execution/order_cancellation.py:16` — split into 2 imports
-- `brokers/paper/paper_portfolio.py:7` — `from domain.entities import Balance, Holding, Position`
-- `brokers/upstox/reconciliation/service.py:18` — `from domain.reconciliation import DriftItem, ReconciliationReport`
+- `brokers/providers/dhan/data/depth_feed_base/__init__.py:37` — `from domain.entities import DepthLevel, MarketDepth`
+- `brokers/providers/dhan/websocket/order_stream.py:22-30` — split into 2 imports
+- `brokers/providers/dhan/order_capabilities.py:11` — `from domain.entities import OrderResponse`
+- `brokers/providers/dhan/extensions/depth20.py:13` — `from domain.entities import MarketDepth`
+- `brokers/providers/upstox/market_intelligence/snapshot.py:15` — `from domain.entities import MarketIntelligenceSnapshot`
+- `brokers/providers/dhan/data/market_data.py:11` — `from domain.entities import DepthLevel, MarketDepth, Quote`
+- `brokers/providers/dhan/status_mapper.py:9` — `from domain.enums import OrderStatus`
+- `brokers/providers/dhan/data/depth_parser.py:20` — `from domain.entities import DepthLevel, MarketDepth`
+- `brokers/providers/dhan/streaming/connection.py:37` — `from domain.entities import MarketDepth`
+- `brokers/providers/dhan/extensions/depth200.py:11` — `from domain.entities import MarketDepth`
+- `brokers/providers/dhan/domain.py:14` — `from domain.entities import Holding, Order, Position, Trade`
+- `brokers/providers/dhan/__init__.py:47` — split into entities + reconciliation
+- `brokers/providers/dhan/data/depth_20.py:17` — `from domain.entities import MarketDepth`
+- `brokers/providers/dhan/data/depth_200.py:36` — `from domain.entities import MarketDepth`
+- `brokers/providers/upstox/status_mapper.py:9` — `from domain.enums import OrderStatus`
+- `brokers/providers/dhan/wire.py:25` — `from domain.entities import Balance, MarketDepth, OrderResponse, Quote`
+- `brokers/providers/upstox/websocket/market_data_v3.py:34` — `from domain.entities import Quote`
+- `brokers/providers/upstox/capabilities/orders.py:8` — `from domain.entities import OrderResponse` + `from domain.orders.requests import OrderRequest`
+- `brokers/providers/dhan/execution/super_orders.py:18` — `from domain.entities import OrderResponse`
+- `brokers/providers/dhan/portfolio/portfolio.py:13` — split into 2 imports
+- `brokers/providers/dhan/execution/forever_orders.py:18` — `from domain.entities import OrderResponse`
+- `brokers/providers/dhan/execution/orders.py:27-35` — split into 2 imports, remove `Side as OrderSide`
+- `brokers/providers/dhan/execution/order_validator.py:15` — `from domain.enums import OrderType, ProductType`
+- `brokers/providers/dhan/portfolio/reconciliation.py:16` — `from domain.reconciliation import DriftItem, ReconciliationReport`
+- `brokers/providers/paper/paper_market_data.py:8` — `from domain.entities import DepthLevel, MarketDepth, Quote`
+- `brokers/providers/paper/paper_gateway.py:12-24` — split into 2 imports
+- `brokers/providers/paper/paper_orders.py:9-18` — split into 2 imports
+- `brokers/providers/paper/sim_config.py:8` — `from domain.enums import Side`
+- `brokers/providers/dhan/execution/order_placement.py:24-32` — split into 2 imports, remove `Side as OrderSide`
+- `brokers/providers/dhan/execution/order_cancellation.py:16` — split into 2 imports
+- `brokers/providers/paper/paper_portfolio.py:7` — `from domain.entities import Balance, Holding, Position`
+- `brokers/providers/upstox/reconciliation/service.py:18` — `from domain.reconciliation import DriftItem, ReconciliationReport`
 - `interface/ui/commands/market_handlers.py:15` — `from domain.entities import DepthLevel, MarketDepth`
 
 Also remove `Side as OrderSide` aliases from:
-- `brokers/dhan/execution/orders.py:35`
-- `brokers/dhan/execution/order_placement.py:32`
-- `brokers/upstox/orders/order_command_adapter.py:25`
+- `brokers/providers/dhan/execution/orders.py:35`
+- `brokers/providers/dhan/execution/order_placement.py:32`
+- `brokers/providers/upstox/orders/order_command_adapter.py:25`
 
 - [ ] **Step 2: Fix infrastructure + interface + datalake layer**
 

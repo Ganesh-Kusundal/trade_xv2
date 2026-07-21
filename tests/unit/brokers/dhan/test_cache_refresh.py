@@ -8,7 +8,7 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
-from brokers.dhan.loader import InstrumentLoader
+from brokers.providers.dhan.loader import InstrumentLoader
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def test_configurable_cache_dir(temp_cache_dir):
 
     with (
         mock.patch("pandas.read_csv", return_value=mock_df),
-        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+        mock.patch("brokers.providers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
     ):
         rows = InstrumentLoader.load_cached(force_refresh=True)
 
@@ -87,7 +87,7 @@ def test_cache_ttl_less_than_6_hours(temp_cache_dir):
 
     with (
         mock.patch("pandas.read_csv") as mock_read_csv,
-        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+        mock.patch("brokers.providers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
     ):
         # When reading cache, pd.read_csv is called with cache_path.
         # We configure it to return the mock_df.
@@ -142,7 +142,7 @@ def test_cache_ttl_more_than_6_hours_forces_refresh(temp_cache_dir):
     # We patch read_csv. When it loads from URL (fresh download), it returns fresh_df.
     with (
         mock.patch("pandas.read_csv", return_value=fresh_df) as mock_read_csv,
-        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+        mock.patch("brokers.providers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
     ):
         rows = InstrumentLoader.load_cached(force_refresh=False)
 
@@ -185,7 +185,7 @@ def test_graceful_fallback_on_download_failure(temp_cache_dir):
 
     with (
         mock.patch("pandas.read_csv", side_effect=side_effect),
-        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+        mock.patch("brokers.providers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
     ):
         rows = InstrumentLoader.load_cached(force_refresh=False)
 
@@ -229,7 +229,7 @@ def test_cache_cleanup_older_than_7_days(temp_cache_dir):
     # Run cache load (which triggers cleanup)
     with (
         mock.patch("pandas.read_csv", return_value=dummy_df),
-        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+        mock.patch("brokers.providers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
     ):
         InstrumentLoader.load_cached(force_refresh=False)
 

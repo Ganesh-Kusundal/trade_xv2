@@ -14,11 +14,11 @@ from pathlib import Path
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.dhan.domain import Exchange
-from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.execution.orders import IdempotencyCache
-from brokers.dhan.streaming.connection import DhanConnection
-from brokers.dhan.wire import DhanWireAdapter
+from brokers.providers.dhan._dhan_types import Exchange
+from brokers.providers.dhan.exceptions import InstrumentNotFoundError
+from brokers.providers.dhan.execution.orders import IdempotencyCache
+from brokers.providers.dhan.streaming.connection import DhanConnection
+from brokers.providers.dhan.wire import DhanWireAdapter
 from domain import MarketDepth, Quote
 from infrastructure.gateway.factory import bootstrap_gateway
 from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
@@ -183,7 +183,7 @@ class TestDhanExtendedOrderExecutionSurface:
     def test_kill_switch_delegates_and_honors_live_orders_guard(
         self, offline_gateway: DhanWireAdapter
     ) -> None:
-        from brokers.dhan.exceptions import OrderError
+        from brokers.providers.dhan.exceptions import OrderError
 
         with pytest.raises(OrderError, match="Live orders are disabled"):
             offline_gateway._conn.orders.kill_switch(True)
@@ -212,7 +212,7 @@ class TestDhanExtendedOrderExecutionSurface:
         assert hasattr(order, "order_id")
 
     def test_calculate_margin_delegates(self, offline_gateway: DhanWireAdapter) -> None:
-        from brokers.dhan.domain import MarginRequest
+        from brokers.providers.dhan._dhan_types import MarginRequest
 
         result = offline_gateway._conn.margin.calculate(
             MarginRequest(

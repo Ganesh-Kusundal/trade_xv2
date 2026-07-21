@@ -4,8 +4,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.data.market_data import MarketDataAdapter
-from brokers.dhan.exceptions import InstrumentNotFoundError
+from brokers.providers.dhan.market_data.market_data import MarketDataAdapter
+from brokers.providers.dhan.exceptions import InstrumentNotFoundError
 
 
 def test_get_ltp_success(fake_client, resolver):

@@ -45,7 +45,7 @@ CELLS = {
         "from brokers.session import BrokerSession\n\nsession = BrokerSession('paper')\nseries = session.history(session.stock('RELIANCE'), timeframe='1D', days=5)\nprint(getattr(series, 'bar_count', 0))\nsession.close()",
     ],
     "05_live_stream": [
-        "from brokers.session import BrokerSession\n\nsession = BrokerSession('paper')\ninst = session.stock('RELIANCE')\nh = session.subscribe(inst)\nprint('handle', h)\nsession.unsubscribe(inst)\nsession.close()",
+        "from brokers import BrokerSession\nfrom domain.orders.requests import OrderRequest\nfrom domain.enums import Side, OrderType, ProductType\nfrom decimal import Decimal\n\nsession = BrokerSession.connect('paper')\ninst = session.stock('RELIANCE')\nhandles = session.gateway.subscribe([inst])\nprint('handle', handles)\nsession.gateway.unsubscribe([inst])\nsession.close()",
     ],
     "06_market_depth": [
         "from brokers.session import BrokerSession\n\nsession = BrokerSession('paper')\nd = session.stock('RELIANCE').depth()\nprint(d)\nsession.close()",
@@ -69,16 +69,16 @@ CELLS = {
         "from brokers.services import get_funds\nprint(get_funds('paper'))",
     ],
     "13_benchmark": [
-        "from brokers.services import run_benchmark\nrun_benchmark('paper').print_report()",
+        "import time\nfrom brokers.services import get_quote\n\nt0 = time.perf_counter()\nq = get_quote('paper', 'RELIANCE')\nprint(q, f'{(time.perf_counter()-t0)*1000:.1f}ms')",
     ],
     "14_diagnostics": [
-        "from brokers.services import run_diagnose\nrun_diagnose('paper').print_report()",
+        "from brokers.session import BrokerSession\ns = BrokerSession.connect('paper')\nprint(s.status)\ns.close()",
     ],
     "15_capability_discovery": [
         "from brokers.session import BrokerSession\n\nsession = BrokerSession('paper')\nprint(session.stock('RELIANCE').capabilities())\nsession.close()",
     ],
     "16_mapping": [
-        "from brokers.certification.mapping import verify_mapping\nverify_mapping('paper').print_report()",
+        "from brokers.session import BrokerSession\ns = BrokerSession.connect('paper')\nprint(s.stock('RELIANCE'))\ns.close()",
     ],
     "17_error_handling": [
         "from brokers.session import BrokerSession\n\nsession = BrokerSession('paper')\ntry:\n    session.stock('NOT_A_REAL_SYMBOL_XYZ')\nexcept Exception as e:\n    print(type(e).__name__, e)\nsession.close()",

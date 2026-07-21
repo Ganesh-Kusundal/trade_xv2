@@ -11,9 +11,9 @@ import random
 
 import pytest
 
-from brokers.dhan.domain import Exchange, InstrumentType
-from brokers.dhan.loader import InstrumentLoader
-from brokers.dhan.resolver import SymbolResolver
+from brokers.providers.dhan._dhan_types import Exchange, InstrumentType
+from brokers.providers.dhan.loader import InstrumentLoader
+from brokers.providers.dhan.resolver import SymbolResolver
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
 

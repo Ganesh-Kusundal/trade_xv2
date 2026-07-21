@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.news.adapter import UpstoxNewsAdapter
-from brokers.upstox.news.client import UpstoxNewsClient
+from brokers.providers.upstox.news.adapter import UpstoxNewsAdapter
+from brokers.providers.upstox.news.client import UpstoxNewsClient
 
 
 @pytest.fixture

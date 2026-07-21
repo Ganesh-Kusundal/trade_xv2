@@ -161,42 +161,40 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
 
 def _run_broker_validation(args: list[str], broker_service, console: Console) -> None:
-    """Validate broker via brokers.services.run_verify."""
+    """Validate broker via quote + session smoke (verify CLI removed)."""
     broker = broker_service.active_broker_name if broker_service else BrokerId.DHAN
     for i, a in enumerate(args):
         if a == "--broker" and i + 1 < len(args):
             broker = args[i + 1].lower()
             break
 
-    console.print(f"\n[bold]Validating broker ({broker}) via run_verify...[/bold]\n")
+    console.print(f"\n[bold]Validating broker ({broker}) via quote smoke...[/bold]\n")
     from pathlib import Path
 
     from interface.ui.commands._broker import broker_id_from
-    from runtime.platform_bridge import run_verify
+    from interface.ui.services.broker_ops import get_quote
 
     env = {"env_path": str(Path(".env.local")), "load_instruments": True}
     if broker == BrokerId.UPSTOX:
         env = {"env_path": str(Path(".env.upstox")), "load_instruments": True}
 
-    try:
-        report = run_verify(broker_id_from(broker_service, default=broker), **env)
-    except Exception as exc:
-        console.print(f"[red]Verify failed: {exc}[/red]")
-        return
-
+    broker_id = broker_id_from(broker_service, default=broker)
     table = Table(show_header=True, header_style="bold")
     table.add_column("Step", style="cyan")
     table.add_column("Status", justify="center")
     table.add_column("Detail")
 
-    for step in report.steps:
-        status = "PASS" if step.passed else "FAIL"
-        style = "green" if step.passed else "red"
-        table.add_row(step.name, f"[{style}]{status}[/{style}]", step.detail[:60])
+    try:
+        quote = get_quote(broker_id, "RELIANCE", **env)
+        ok = quote is not None
+        table.add_row("Sample Quote", "[green]PASS[/green]" if ok else "[red]FAIL[/red]", "RELIANCE")
+    except Exception as exc:
+        table.add_row("Sample Quote", "[red]FAIL[/red]", str(exc)[:60])
+        ok = False
 
     console.print(table)
-    overall = "PASS" if report.passed else "FAIL"
-    color = "green" if report.passed else "red"
+    overall = "PASS" if ok else "FAIL"
+    color = "green" if ok else "red"
     console.print(f"\n[bold {color}]Overall: {overall}[/bold {color}]")
 
     # Extended wire-only surfaces (futures/options listing) — keep gateway path

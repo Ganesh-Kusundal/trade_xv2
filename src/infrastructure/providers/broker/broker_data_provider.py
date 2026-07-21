@@ -16,7 +16,8 @@ from typing import Any
 import pandas as pd
 
 from domain.constants import DEFAULT_EXCHANGE
-from domain.entities.market import MarketDepth, QuoteSnapshot
+from domain.candles.historical import InstrumentRef
+from domain.entities.market import MarketDepth, Quote, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import SubscriptionHandle
@@ -73,7 +74,7 @@ class BrokerDataProvider:
         return self._broker_name
 
     def get_quote(self, instrument_id: InstrumentId) -> QuoteSnapshot | None:
-        """Get latest quote via gateway.quote()."""
+        """Get latest quote via gateway.quote() → product QuoteSnapshot."""
         try:
             quote = self._gateway.quote(
                 symbol=instrument_id.underlying,
@@ -81,22 +82,24 @@ class BrokerDataProvider:
             )
             if quote is None:
                 return None
-            return QuoteSnapshot(
-                instrument=instrument_id,
-                ltp=quote.ltp,
-                event_time=quote.timestamp or pd.Timestamp.now(),
+            if isinstance(quote, QuoteSnapshot):
+                return quote
+            if not isinstance(quote, Quote):
+                logger.warning(
+                    "get_quote(%s) unexpected type %s",
+                    instrument_id,
+                    type(quote).__name__,
+                )
+                return None
+            return quote.to_snapshot(
                 provenance=DataProvenance.now(
                     broker_id=self._broker_name,
                     request_id=f"quote:{instrument_id}",
                 ),
-                open=quote.open,
-                high=quote.high,
-                low=quote.low,
-                close=quote.close,
-                volume=quote.volume,
-                change_pct=quote.change,
-                bid=quote.bid,
-                ask=quote.ask,
+                instrument=InstrumentRef(
+                    symbol=instrument_id.underlying,
+                    exchange=instrument_id.exchange,
+                ),
             )
         except Exception as exc:
             logger.warning("get_quote(%s) failed: %s", instrument_id, exc)
@@ -180,28 +183,53 @@ class BrokerDataProvider:
             )
             return _BrokerSubscription(handle, instrument_id)
 
-        def _on_tick(tick: dict) -> None:
+        def _on_tick(tick: Any) -> None:
             try:
                 from decimal import Decimal
 
+                # Wire ticks may be Quote or dict; normalize to product QuoteSnapshot.
+                if isinstance(tick, Quote):
+                    snap = tick.to_snapshot(
+                        provenance=DataProvenance.now(
+                            broker_id=self._broker_name,
+                            request_id=f"stream:{instrument_id}",
+                        ),
+                        instrument=InstrumentRef(
+                            symbol=instrument_id.underlying,
+                            exchange=instrument_id.exchange,
+                        ),
+                    )
+                    callback(instrument_id, snap)
+                    return
+                if isinstance(tick, QuoteSnapshot):
+                    callback(instrument_id, tick)
+                    return
+                if not isinstance(tick, dict):
+                    return
                 ltp = Decimal(str(tick.get("ltp", 0)))
-                quote = QuoteSnapshot(
-                    instrument=instrument_id,
+                wire = Quote(
+                    symbol=instrument_id.underlying,
                     ltp=ltp,
-                    event_time=pd.Timestamp.now(),
-                    provenance=DataProvenance.now(
-                        broker_id=self._broker_name,
-                        request_id=f"stream:{instrument_id}",
-                    ),
-                    volume=int(tick.get("volume", 0)),
-                    bid=Decimal(str(tick["bid"])) if tick.get("bid") else None,
-                    ask=Decimal(str(tick["ask"])) if tick.get("ask") else None,
                     open=Decimal(str(tick.get("open", 0))),
                     high=Decimal(str(tick.get("high", 0))),
                     low=Decimal(str(tick.get("low", 0))),
                     close=Decimal(str(tick.get("close", 0))),
+                    volume=int(tick.get("volume", 0)),
+                    bid=Decimal(str(tick["bid"])) if tick.get("bid") else None,
+                    ask=Decimal(str(tick["ask"])) if tick.get("ask") else None,
+                    timestamp=pd.Timestamp.now().to_pydatetime(),
                 )
-                callback(instrument_id, quote)
+                snap = wire.to_snapshot(
+                    provenance=DataProvenance.now(
+                        broker_id=self._broker_name,
+                        request_id=f"stream:{instrument_id}",
+                    ),
+                    instrument=InstrumentRef(
+                        symbol=instrument_id.underlying,
+                        exchange=instrument_id.exchange,
+                    ),
+                )
+                callback(instrument_id, snap)
             except Exception as exc:
                 logger.warning("Stream callback error for %s: %s", instrument_id, exc)
 

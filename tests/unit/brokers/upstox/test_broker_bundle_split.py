@@ -92,7 +92,7 @@ def test_broker_class_has_expected_public_attributes():
     attributes is fine; removing documented ones is a breaking
     change.
     """
-    from brokers.upstox.broker import UpstoxBroker
+    from brokers.providers.upstox.broker import UpstoxBroker
 
     declared = set(UpstoxBroker.__dict__.keys())
     # Public methods we'd expect to find on a Broker.

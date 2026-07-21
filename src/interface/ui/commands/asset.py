@@ -139,25 +139,14 @@ def _usage(console: Console) -> None:
 
 
 def _show_quote(instrument, console: Console) -> None:
+    from domain.entities.market import QuoteSnapshot
+    from interface.ui.services.renderers import render_quote
+
     q = instrument.refresh()
-    if q is None:
+    if q is None or not isinstance(q, QuoteSnapshot):
         console.print("[red]No quote data.[/red]")
         return
-    tbl = Table(
-        title=f"Quote: {instrument.symbol} ({instrument.exchange})",
-        header_style="bold green",
-    )
-    tbl.add_column("Metric", style="bold white")
-    tbl.add_column("Value", justify="right")
-    tbl.add_row("LTP", f"₹{_f(q.ltp)}")
-    tbl.add_row("Open", f"₹{_f(q.open)}")
-    tbl.add_row("High", f"₹{_f(q.high)}")
-    tbl.add_row("Low", f"₹{_f(q.low)}")
-    tbl.add_row("Prev Close", f"₹{_f(q.close)}")
-    chg = getattr(q, "change_pct", None)
-    tbl.add_row("Change %", _f(chg) if chg is not None else "-")
-    tbl.add_row("Volume", f"{int(q.volume):,}")
-    console.print(tbl)
+    render_quote(console, instrument.symbol, q, exchange=instrument.exchange)
 
 
 def _show_depth(instrument, console: Console) -> None:

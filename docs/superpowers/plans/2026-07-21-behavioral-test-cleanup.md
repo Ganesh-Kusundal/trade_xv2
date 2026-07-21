@@ -35,13 +35,15 @@
 
 ### 1b. CI scripts (`scripts/ci/`)
 
-- [ ] `check_file_size_limit.py` (from test_file_size_limit)
-- [ ] `check_no_mock_in_integration.py`
-- [ ] `check_broker_name_branching.py`
+- [x] `check_file_size_limit.py` (from test_file_size_limit)
+- [x] `check_no_mock_in_integration.py`
+- [x] `check_broker_name_branching.py`
+- [x] Wired into `.github/workflows/ci.yml` + `architecture-enforcement.yml`
 
 ### 1c. Delete MOVE_STATIC architecture duplicates
 
-- [ ] Remove pytest files listed in classify script ARCH_MOVE_STATIC set
+- [x] Removed pytest wrappers covered by CI: file_size, no_mock, broker_name_branching, canonical_domain_imports, datalake_no_analytics, analytics_simulation_isolation, cli_gateway_calls, rest_data_source_contract
+- [ ] Remaining MOVE_STATIC without CI twin (follow-up)
 
 ### 1d. Rewrite capital-path tests
 
@@ -49,6 +51,13 @@
 - [ ] `test_fail_closed_capital_paths.py`
 - [ ] `test_stream_oms_lock_discipline.py`
 - [ ] `test_execution_target_resolver.py`
+
+### Hierarchy cleanup (Pass A–D) ✓
+
+- [x] Delete temporary duplicate component/ui + integration recent_fixes copies
+- [x] Move MOVE_LAYER UI/doctor tests → `tests/unit/interface/ui/`
+- [x] Capability manifest contract → `tests/architecture/`; slim future_chain integration
+- [x] Rename process vocabulary; expand behavioral-name forbidden list
 
 ### Verify
 
@@ -74,14 +83,14 @@
 
 ## Phase 4 — Component / UI
 
-- [ ] Move `tests/component/ui/test_risk_controls.py`, `test_order_placement.py`, doctor suites → `tests/unit/interface/ui/`
+- [x] Move mock CLI/doctor suites → `tests/unit/interface/ui/` (Pass B)
 
 ---
 
 ## Phase 5 — Integration / e2e
 
-- [ ] Move `integration/capability/test_cli_gateway_calls.py` → architecture/CI
-- [ ] Move `integration/brokers/dhan/regression/test_recent_fixes.py` → unit
+- [x] Move `integration/capability/test_cli_gateway_calls.py` → CI script
+- [x] Move `integration/brokers/dhan/regression/test_recent_fixes.py` → unit (renamed behavioral)
 - [ ] Rewrite `test_risk_deny_never_hits_venue.py` with recording fake (no MagicMock PM)
 
 ---

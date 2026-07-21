@@ -37,8 +37,8 @@ def _register_domain_runtime_hooks() -> None:
     # Ensure broker adapter classes are registered into infrastructure.adapter_factory.
     # Brokers self-register on package import; importing them here guarantees the
     # registry is populated for every test (idempotent).
-    import brokers.dhan
-    import brokers.upstox  # noqa: F401
+    import brokers.providers.dhan
+    import brokers.providers.upstox  # noqa: F401
 
 
 def is_token_expired(token: str) -> bool:

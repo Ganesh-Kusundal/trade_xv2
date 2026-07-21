@@ -4,20 +4,18 @@ Product API (preferred)::
 
     import tradex
     from decimal import Decimal
+    from domain.orders.requests import OrderRequest
+    from domain.enums import Side, OrderType, ProductType
 
     session = tradex.connect("paper")                 # mode=sim
-    # session = tradex.connect("dhan", mode="market") # live data; buy disabled
-    # session = tradex.connect("dhan", mode="trade")  # process OMS required
     stock = session.universe.equity("RELIANCE")
     stock.refresh()
-    series = stock.history(timeframe="1D", days=5)       # history facade
-    result = stock.buy(1, price=Decimal("2500"), correlation_id="demo:1")  # OMS-only
-    # or: session.buy(stock, 1, price=Decimal("2500"))
+    series = stock.history(timeframe="1D", days=5)
 
-    idx = session.universe.index("NIFTY")
-    chain = idx.option_chain()
-    if chain.atm:
-        chain.atm.moneyness(chain.spot or Decimal("0"))
+    # Prefer BrokerSession.gateway for broker ops:
+    #   from brokers import BrokerSession
+    #   bs = BrokerSession.connect("paper")
+    #   bs.gateway.place_order(OrderRequest(...))
 
     session.close()
 

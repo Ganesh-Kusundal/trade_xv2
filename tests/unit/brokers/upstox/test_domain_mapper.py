@@ -2,24 +2,20 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-from domain import (
-    FundLimits,
+from brokers.providers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+from domain.entities import (
     Holding,
     MarketDepth,
     OptionContract,
-    OrderRequest,
     OrderResponse,
-    OrderStatus,
-    OrderType,
     Position,
-    ProductType,
     Quote,
-    Side,
     Trade,
-    Validity,
 )
+from domain.entities.account import FundLimits
+from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
 from domain.models.dtos import BrokerOrderPayload
+from domain.orders.requests import OrderRequest
 
 
 def test_status_normalisation():

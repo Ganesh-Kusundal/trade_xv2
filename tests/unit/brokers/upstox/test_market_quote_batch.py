@@ -8,9 +8,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-from brokers.upstox.market_data.client_v3 import UPSTOX_QUOTE_MAX_KEYS, UpstoxMarketDataV3Client
-from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter, _chunked
+from brokers.providers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+from brokers.providers.upstox.market_data.client_v3 import UPSTOX_QUOTE_MAX_KEYS, UpstoxMarketDataV3Client
+from brokers.providers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter, _chunked
 from domain import Quote
 
 # ---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ class TestMarketDataAdapterBatch:
 
 class TestGatewayNativeBatch:
     def test_quote_batch_maps_back_to_symbols(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         gw = object.__new__(UpstoxWireAdapter)
         gw._data_gw = MagicMock()
@@ -285,7 +285,7 @@ class TestGatewayNativeBatch:
         gw._data_gw.quote_batch.assert_called_once_with(["RELIANCE", "TCS"], "NSE")
 
     def test_ltp_batch_empty(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         gw = object.__new__(UpstoxWireAdapter)
         gw._data_gw = MagicMock()
@@ -300,7 +300,7 @@ class TestGatewayNativeBatch:
 
 class TestDataProviderBatch:
     def test_get_quotes_batch_uses_gateway_quote_batch(self):
-        from brokers.upstox.data_provider import UpstoxDataProvider
+        from brokers.providers.upstox.data_provider import UpstoxDataProvider
         from domain.instruments.instrument_id import InstrumentId
 
         gw = MagicMock()
@@ -325,7 +325,7 @@ class TestUpstoxHistorySeries:
     def test_adapter_get_history_series_returns_domain_series(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter
+        from brokers.providers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter
         from domain.candles.historical import HistoricalSeries
 
         v2 = MagicMock()
@@ -356,7 +356,7 @@ class TestUpstoxHistorySeries:
 
         import pandas as pd
 
-        from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter
+        from brokers.providers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter
 
         v2 = MagicMock()
         v3 = MagicMock()
@@ -385,7 +385,7 @@ class TestUpstoxHistorySeries:
 
         import pandas as pd
 
-        from brokers.upstox.data_provider import UpstoxDataProvider
+        from brokers.providers.upstox.data_provider import UpstoxDataProvider
         from domain.candles.historical import HistoricalBar
         from domain.instruments.instrument_id import InstrumentId
 

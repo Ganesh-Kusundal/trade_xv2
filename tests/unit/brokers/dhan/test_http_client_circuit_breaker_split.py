@@ -18,11 +18,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.api.http_client import (
+from brokers.providers.dhan.api.http_client import (
     DhanHttpClient,
     _categorize_endpoint,
 )
-from brokers.dhan.exceptions import DhanError
+from brokers.providers.dhan.exceptions import DhanError
 from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,

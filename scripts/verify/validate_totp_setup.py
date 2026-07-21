@@ -52,7 +52,7 @@ def check_config_loading() -> bool:
     """Verify configuration loads with TOTP fields."""
     print("\n✓ Checking configuration loading...")
     try:
-        from brokers.upstox.auth.config import VALID_AUTH_MODES, UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.config import VALID_AUTH_MODES, UpstoxConnectionSettings
 
         # Check TOTP is in valid auth modes
         if "TOTP" in VALID_AUTH_MODES:
@@ -97,8 +97,8 @@ def check_token_manager() -> bool:
     """Verify token manager supports TOTP bootstrap."""
     print("\n✓ Checking token manager...")
     try:
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
-        from brokers.upstox.auth.token_manager import UpstoxTokenManager
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.token_manager import UpstoxTokenManager
 
         settings = UpstoxConnectionSettings(
             client_id="test",
@@ -132,7 +132,7 @@ def check_scheduler() -> bool:
     """Verify TOTP scheduler is available."""
     print("\n✓ Checking TOTP scheduler...")
     try:
-        from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
+        from brokers.providers.upstox.auth.totp_scheduler import TotpRefreshScheduler
 
         print("  ✓ TotpRefreshScheduler imported successfully")
 
@@ -180,7 +180,7 @@ def main():
         print("1. Set UPSTOX_AUTH_MODE=TOTP in .env.local")
         print("2. Configure UPSTOX_MOBILE, UPSTOX_PIN, UPSTOX_TOTP_SECRET")
         print(
-            "3. Run: ./venv/bin/python -c 'from brokers.upstox.auth.config import UpstoxSettingsLoader; s = UpstoxSettingsLoader.from_env(); print(f\"Auth mode: {s.auth_mode}\")'"
+            "3. Run: ./venv/bin/python -c 'from brokers.providers.upstox.auth.config import UpstoxSettingsLoader; s = UpstoxSettingsLoader.from_env(); print(f\"Auth mode: {s.auth_mode}\")'"
         )
         return 0
     else:

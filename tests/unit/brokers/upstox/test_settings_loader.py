@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.upstox.auth.config import (
+from brokers.providers.upstox.auth.config import (
     UpstoxConnectionSettings,
     UpstoxSettingsLoader,
 )

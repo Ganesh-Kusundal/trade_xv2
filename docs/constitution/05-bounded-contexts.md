@@ -274,4 +274,4 @@ flowchart TB
 | Strategy calling `place_order` bypassing Risk | P0 |
 | Second EventBus in analytics | P1 |
 | Datalake importing application OMS | P0 |
-| Interface importing `brokers.dhan` | P1 |
+| Interface importing `brokers.providers.dhan` | P1 |

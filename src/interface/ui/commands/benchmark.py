@@ -12,7 +12,6 @@ from rich.table import Table
 from domain.enums import BrokerId
 from interface.ui.commands._broker import broker_id_from
 from interface.ui.services.broker_ops import get_history, get_option_chain, get_quote
-from runtime.platform_bridge import run_benchmark
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,6 @@ def run(args: list[str], broker_service, console: Console) -> None:
     _bench_quote(dhan_ok, upstox_ok, symbols, console)
     _bench_ltp(dhan_ok, upstox_ok, symbols, console)
     _bench_option_chain(dhan_ok, console)
-    _print_services_benchmark(dhan_ok, upstox_ok, console)
     _print_summary(console)
 
 
@@ -156,27 +154,6 @@ def _bench_option_chain(dhan_ok: bool, console: Console) -> None:
     strikes = len(getattr(chain, "strikes", []) or [])
     console.print(f"  Dhan NIFTY: {t_dhan:.0f}ms ({strikes} strikes)")
     console.print("  Upstox: N/A (deprecated)")
-
-
-def _print_services_benchmark(dhan_ok: bool, upstox_ok: bool, console: Console) -> None:
-    console.print("\n[cyan]brokers.services run_benchmark (per broker)...[/cyan]")
-    for label, ok, broker_id in (
-        ("Dhan", dhan_ok, BrokerId.DHAN),
-        ("Upstox", upstox_ok, BrokerId.UPSTOX),
-    ):
-        if not ok:
-            console.print(f"  {label}: N/A")
-            continue
-        try:
-            report = run_benchmark(broker_id_from(None, default=broker_id))
-            avg = (
-                sum(r.latency_ms for r in report.results) / len(report.results)
-                if report.results
-                else 0
-            )
-            console.print(f"  {label}: avg {avg:.1f}ms ({len(report.results)} probes)")
-        except Exception as exc:
-            console.print(f"  {label}: ERROR ({exc})")
 
 
 def _print_summary(console: Console) -> None:

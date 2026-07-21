@@ -402,10 +402,24 @@ class DataLakeGateway(MarketDataGateway):
     # MarketDataGateway — Trading (not supported)
     # -----------------------------------------------------------------------
 
+    def authenticate(self) -> bool:
+        return True
+
+    def list_capabilities(self) -> Any:
+        from domain.capabilities.broker_capabilities import CapabilityDescriptor
+
+        return CapabilityDescriptor.build(self.capabilities(), frozenset())
+
     def place_order(self, *args, **kwargs) -> Any:
         raise NotImplementedError("DataLakeGateway does not support trading")
 
     def cancel_order(self, *args, **kwargs) -> bool:
+        raise NotImplementedError("DataLakeGateway does not support trading")
+
+    def modify_order(self, *args, **kwargs) -> Any:
+        raise NotImplementedError("DataLakeGateway does not support trading")
+
+    def get_order(self, order_id: str) -> Any:
         raise NotImplementedError("DataLakeGateway does not support trading")
 
     def get_orderbook(self) -> list[Any]:
@@ -413,6 +427,21 @@ class DataLakeGateway(MarketDataGateway):
 
     def get_trade_book(self) -> list[Any]:
         raise NotImplementedError("DataLakeGateway does not support trading")
+
+    def unstream(self, *args, **kwargs) -> None:
+        from domain.exceptions import UnsupportedGatewayOperationError
+
+        raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
+
+    def stream_depth(self, *args, **kwargs) -> Any:
+        from domain.exceptions import UnsupportedGatewayOperationError
+
+        raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
+
+    def stream_order(self, *args, **kwargs) -> Any:
+        from domain.exceptions import UnsupportedGatewayOperationError
+
+        raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Portfolio (not supported)

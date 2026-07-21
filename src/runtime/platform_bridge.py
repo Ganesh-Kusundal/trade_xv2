@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 
 def check_live_actionable(broker_name: str) -> None:
@@ -15,24 +15,6 @@ def set_live_actionable_gate(value: bool) -> None:
     from brokers.services._session import set_live_actionable_gate as _set
 
     _set(value)
-
-
-def run_doctor(*args: Any, **kwargs: Any) -> Any:
-    from brokers.platform_ops import run_doctor as _run
-
-    return _run(*args, **kwargs)
-
-
-def run_verify(*args: Any, **kwargs: Any) -> Any:
-    from brokers.platform_ops import run_verify as _run
-
-    return _run(*args, **kwargs)
-
-
-def run_benchmark(*args: Any, **kwargs: Any) -> Any:
-    from brokers.platform_ops import run_benchmark as _run
-
-    return _run(*args, **kwargs)
 
 
 def broker_session_type() -> type:
@@ -91,11 +73,5 @@ def get_quote(*args: Any, **kwargs: Any) -> Any:
 
 def lookup_security(*args: Any, **kwargs: Any) -> Any:
     from brokers.services import lookup_security as _fn
-
-    return _fn(*args, **kwargs)
-
-
-def run_certify(*args: Any, **kwargs: Any) -> Any:
-    from brokers.services import run_certify as _fn
 
     return _fn(*args, **kwargs)

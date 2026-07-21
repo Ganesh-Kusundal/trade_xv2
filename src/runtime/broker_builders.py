@@ -18,7 +18,7 @@ def create_dhan_gateway(
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
 ) -> Any | None:
-    from brokers.dhan.identity.factory import BrokerFactory
+    from brokers.providers.dhan.identity.factory import BrokerFactory
 
     resolved = Path(env_path) if env_path is not None else None
     return BrokerFactory().create(
@@ -38,7 +38,7 @@ def create_upstox_gateway(
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
 ) -> Any | None:
-    from brokers.upstox.factory import UpstoxBrokerFactory
+    from brokers.providers.upstox.factory import UpstoxBrokerFactory
 
     resolved = Path(env_path) if env_path is not None else None
     return UpstoxBrokerFactory().create(
@@ -54,7 +54,7 @@ def create_paper_gateway(
     env_path: Path | None = None,
     **kwargs: Any,
 ) -> Any | None:
-    from brokers.paper import PaperGateway
+    from brokers.providers.paper import PaperGateway
 
     return PaperGateway()
 

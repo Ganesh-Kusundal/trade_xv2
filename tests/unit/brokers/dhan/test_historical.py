@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from brokers.dhan.data.historical import HistoricalAdapter
+from brokers.providers.dhan.market_data.historical import HistoricalAdapter
 
 
 def test_intraday_epoch_parses_as_utc_aware_not_naive(fake_client, resolver):

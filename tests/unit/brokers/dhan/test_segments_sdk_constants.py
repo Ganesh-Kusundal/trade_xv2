@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.segments import DHAN_SDK_SEGMENT_CONSTANTS, NUMERIC_TO_SEGMENT, SEGMENT_TO_NUMERIC
+from brokers.providers.dhan.segments import DHAN_SDK_SEGMENT_CONSTANTS, NUMERIC_TO_SEGMENT, SEGMENT_TO_NUMERIC
 
 
 @pytest.mark.parametrize("attr,expected", list(DHAN_SDK_SEGMENT_CONSTANTS.items()))

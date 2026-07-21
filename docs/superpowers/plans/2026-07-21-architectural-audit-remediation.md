@@ -389,11 +389,11 @@ git commit -m "refactor(ref-7): unify TimeService in infrastructure, runtime bec
 ### Task 5: REF-12 — Remove Broker __getattr__ Reach-Throughs
 
 **Files:**
-- Modify: `src/brokers/dhan/domain.py` (remove __getattr__)
+- Modify: `src/brokers/providers/dhan/domain.py` (remove __getattr__)
 - Update: All consumers to use explicit imports
 
 **Interfaces:**
-- Consumes: Current `brokers.dhan.domain.__getattr__` pattern
+- Consumes: Current `brokers.providers.dhan.domain.__getattr__` pattern
 - Produces: Explicit imports from `domain` submodules
 
 - [ ] **Step 1: Write failing test**
@@ -401,7 +401,7 @@ git commit -m "refactor(ref-7): unify TimeService in infrastructure, runtime bec
 ```python
 # tests/architecture/test_no_broker_getattr.py
 def test_dhan_domain_no_getattr():
-    import brokers.dhan.domain as dhan_domain
+    import brokers.providers.dhan.domain as dhan_domain
     # Check module doesn't have custom __getattr__
     assert "__getattr__" not in dhan_domain.__dict__, "dhan/domain.py should not use __getattr__"
 ```
@@ -414,7 +414,7 @@ Expected: FAIL
 - [ ] **Step 3: Replace __getattr__ with explicit imports**
 
 ```python
-# src/brokers/dhan/domain.py — remove __getattr__ and _CANONICAL/_ALIASES
+# src/brokers/providers/dhan/domain.py — remove __getattr__ and _CANONICAL/_ALIASES
 
 # Add explicit imports for types that were previously re-exported
 from domain.entities import Order, Position, Trade
@@ -423,7 +423,7 @@ from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
 
 - [ ] **Step 4: Update all consumers**
 
-Search for `from brokers.dhan.domain import` and update to use `domain.*` directly.
+Search for `from brokers.providers.dhan.domain import` and update to use `domain.*` directly.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -441,7 +441,7 @@ Expected: PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/brokers/dhan/domain.py pyproject.toml tests/architecture/test_no_broker_getattr.py
+git add src/brokers/providers/dhan/domain.py pyproject.toml tests/architecture/test_no_broker_getattr.py
 git commit -m "refactor(ref-12): remove __getattr__ reach-throughs in dhan/domain.py"
 ```
 

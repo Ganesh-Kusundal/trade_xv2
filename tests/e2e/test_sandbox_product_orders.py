@@ -16,6 +16,14 @@ Not run in default CI — requires ``@pytest.mark.sandbox`` and credentials.
 
 from __future__ import annotations
 
+from brokers import BrokerSession
+from tests.support.gateway_orders import (
+    cancel_via_gateway,
+    modify_via_gateway,
+    place_via_gateway,
+    subscribe_via_gateway,
+)
+
 import contextlib
 import os
 import uuid
@@ -80,9 +88,9 @@ def sandbox_session():
     import tradex
     from application.oms.process_context import register_oms_context, reset_oms_context
     from application.oms.session_bridge import build_oms_service
-    from brokers.dhan.identity.account_registry import AccountConnectionRegistry
-    from brokers.paper.execution_provider import PaperExecutionProvider
-    from brokers.paper.paper_gateway import PaperGateway
+    from brokers.providers.dhan.identity.account_registry import AccountConnectionRegistry
+    from brokers.providers.paper.execution_provider import PaperExecutionProvider
+    from brokers.providers.paper.paper_gateway import PaperGateway
 
     reset_oms_context()
     AccountConnectionRegistry.release_all()
@@ -127,7 +135,7 @@ def test_sandbox_product_path_limit_place_and_cancel(sandbox_session) -> None:
     price = Decimal("1000")
     corr = uuid.uuid4().hex[:16]
 
-    result = stock.buy(
+    result = place_via_gateway(session, stock, 
         1,
         price=price,
         correlation_id=corr,
@@ -154,7 +162,7 @@ def test_sandbox_product_path_limit_place_and_cancel(sandbox_session) -> None:
     oid = result.order.order_id
     assert oid
 
-    can = session.cancel(oid)
+    can = cancel_via_gateway(session, oid)
     if not can.success:
         # Order may already be rejected/cancelled by broker — still exercised path
         pytest.skip(f"sandbox cancel soft-fail (order may be terminal): {can.error}")
@@ -169,7 +177,7 @@ def test_sandbox_allow_live_orders_gate_blocks_when_disabled() -> None:
     # Unit-level: OrdersAdapter fail-closed
     from unittest.mock import MagicMock
 
-    from brokers.dhan.execution.orders import OrdersAdapter
+    from brokers.providers.dhan.execution.orders import OrdersAdapter
     from domain.enums import OrderType, ProductType, Side, Validity
     from domain.models.dtos import BrokerOrderPayload
 

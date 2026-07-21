@@ -2,13 +2,16 @@
 
 Product path::
 
-    tradex.connect("paper")
+    BrokerSession.connect("paper")
       → universe.equity → refresh → history → subscribe → close
 
 No gateway imports in the user-facing path under test.
 """
 
 from __future__ import annotations
+
+from brokers import BrokerSession
+from tests.support.gateway_orders import place_via_gateway, subscribe_via_gateway
 
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -21,7 +24,7 @@ from domain.candles.historical import HistoricalSeries
 
 def test_market_access_paper_quote_history_subscribe() -> None:
     """MA-S1: full paper market-access MVP."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         assert session.status is not None
         assert session.status.mode == "sim"
@@ -48,7 +51,7 @@ def test_market_access_paper_quote_history_subscribe() -> None:
         def _on_tick(iid, payload) -> None:
             received.append((iid, payload))
 
-        handle = stock.subscribe(_on_tick)
+        handle = subscribe_via_gateway(session, stock, _on_tick)
         assert handle is not None
         assert handle.is_active is True
         assert stock.is_live is True
@@ -63,7 +66,7 @@ def test_market_access_paper_quote_history_subscribe() -> None:
 
 
 def test_paper_history_respects_lookback_days() -> None:
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("INFY")
         series = stock.history(timeframe="1D", days=10)
@@ -73,10 +76,10 @@ def test_paper_history_respects_lookback_days() -> None:
 
 
 def test_paper_subscribe_without_callback_still_marks_live() -> None:
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("TCS")
-        handle = stock.subscribe()
+        handle = subscribe_via_gateway(session, stock)
         assert handle is not None
         assert stock.is_live is True
         handle.unsubscribe()
@@ -89,7 +92,7 @@ def test_market_mode_connect_without_oms_orders_disabled() -> None:
     mock_gw = MagicMock(name="DhanGateway")
 
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)
         try:
@@ -100,11 +103,11 @@ def test_market_mode_connect_without_oms_orders_disabled() -> None:
 
             stock = session.universe.equity("RELIANCE")
             with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
-                session.buy(stock, 1, price=Decimal("100"))
+                place_via_gateway(session, stock, 1, price=Decimal("100"))
             # Instrument path uses NotConfiguredError with ORDERS_DISABLED message
             from domain.errors import NotConfiguredError
 
             with pytest.raises((RuntimeError, NotConfiguredError), match="ORDERS_DISABLED"):
-                stock.buy(1, price=Decimal("100"))
+                place_via_gateway(session, stock, 1, price=Decimal("100"))
         finally:
             session.close()

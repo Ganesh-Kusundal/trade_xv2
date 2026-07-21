@@ -45,7 +45,7 @@ from datalake.core.constants import (
 
 # Supported timeframes (defined in :mod:`datalake.core.constants`). Adding a new
 # one requires also adding it to the historical loader's ``_TIMEFRAME_MAP`` in
-# :mod:`brokers.dhan.historical` and the corresponding CLI
+# :mod:`brokers.providers.dhan.historical` and the corresponding CLI
 # ``options sync`` and ``backtest`` commands.
 
 # Default timeframe for ``DataLake.history`` and CLI smoke tests (see

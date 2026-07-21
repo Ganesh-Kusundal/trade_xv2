@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Delete timezone-mislabeled candles (the Dhan/Upstox -5:30h shift bug,
-fixed in brokers/dhan/data/historical.py and domain/candles/historical.py)
+fixed in brokers/providers/dhan/data/historical.py and domain/candles/historical.py)
 in a given date window, per symbol.
 
 This is the delete half of the repair -- run scripts/sync_datalake.py

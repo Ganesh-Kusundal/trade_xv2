@@ -2,8 +2,8 @@
 
 from decimal import Decimal
 
-from brokers.dhan.domain import Exchange
-from brokers.dhan.execution.orders import OrdersAdapter
+from brokers.providers.dhan._dhan_types import Exchange
+from brokers.providers.dhan.execution.orders import OrdersAdapter
 from domain import OrderStatus, Side
 from domain.models.dtos import BrokerOrderPayload
 from infrastructure.event_bus import EventBus

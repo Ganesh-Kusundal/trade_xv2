@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 UI_ROOT = Path(__file__).resolve().parents[2] / "src" / "interface" / "ui"
-FORBIDDEN_PREFIXES = ("brokers.dhan", "brokers.upstox", "brokers.paper")
+FORBIDDEN_PREFIXES = ("brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper")
 
 
 def _module_prefix(node: ast.AST) -> str | None:
@@ -35,7 +35,7 @@ def _forbidden_imports(path: Path) -> list[str]:
 
 @pytest.mark.architecture
 def test_interface_ui_has_no_concrete_broker_imports() -> None:
-    """UI may use brokers.services / platform_ops, never dhan/upstox/paper packages."""
+    """UI may use brokers.services / platform_bridge, never dhan/upstox/paper packages."""
     violations: list[str] = []
     for path in UI_ROOT.rglob("*.py"):
         if "__pycache__" in str(path):

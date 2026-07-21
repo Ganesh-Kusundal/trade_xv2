@@ -11,7 +11,7 @@ caller's callback.
 
 from __future__ import annotations
 
-from brokers.upstox.adapters.stream_manager import StreamManagerAdapter
+from brokers.providers.upstox.adapters.stream_manager import StreamManagerAdapter
 
 
 class FakeWebSocket:

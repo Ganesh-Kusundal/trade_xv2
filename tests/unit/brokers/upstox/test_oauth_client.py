@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.upstox.auth.exceptions import UpstoxAuthError
-from brokers.upstox.auth.oauth_client import TokenResponse, UpstoxOAuthClient
+from brokers.providers.upstox.auth.exceptions import UpstoxAuthError
+from brokers.providers.upstox.auth.oauth_client import TokenResponse, UpstoxOAuthClient
 
 
 def _oauth() -> UpstoxOAuthClient:

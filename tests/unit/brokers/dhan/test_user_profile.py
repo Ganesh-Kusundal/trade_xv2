@@ -1,6 +1,6 @@
 """Unit tests for UserProfileAdapter."""
 
-from brokers.dhan.identity.user_profile import UserProfileAdapter
+from brokers.providers.dhan.identity.user_profile import UserProfileAdapter
 
 
 def test_get_user_profile(fake_client):

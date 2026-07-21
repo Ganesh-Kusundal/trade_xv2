@@ -43,7 +43,7 @@ def test_upstox_market_data_publishes_tick_to_event_bus() -> None:
     """Contract: UpstoxMarketDataV3Multiplexer publishes TICK when event_bus wired."""
     import inspect
 
-    from brokers.upstox.websocket import market_data_v3
+    from brokers.providers.upstox.websocket import market_data_v3
 
     source = inspect.getsource(market_data_v3.UpstoxMarketDataV3Multiplexer)
     assert "_publish_tick_to_bus" in source
@@ -54,8 +54,8 @@ def test_upstox_market_data_publishes_tick_to_event_bus() -> None:
 @pytest.mark.parametrize(
     "module_path,class_name",
     [
-        ("brokers.dhan.websocket.publish", "MarketFeedPublisher"),
-        ("brokers.upstox.websocket.market_data_v3", "UpstoxMarketDataV3Multiplexer"),
+        ("brokers.providers.dhan.websocket.publish", "MarketFeedPublisher"),
+        ("brokers.providers.upstox.websocket.market_data_v3", "UpstoxMarketDataV3Multiplexer"),
     ],
 )
 def test_tick_drop_surfaces_market_data_degraded(module_path: str, class_name: str) -> None:

@@ -2,9 +2,9 @@
 
 import pytest
 
-from brokers.dhan.domain import Exchange, InstrumentType, OptionType
-from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.resolver import SymbolResolver
+from brokers.providers.dhan._dhan_types import Exchange, InstrumentType, OptionType
+from brokers.providers.dhan.exceptions import InstrumentNotFoundError
+from brokers.providers.dhan.resolver import SymbolResolver
 
 
 def test_resolve_equity(resolver):

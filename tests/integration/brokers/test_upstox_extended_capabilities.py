@@ -28,8 +28,8 @@ def mock_url_resolver():
 
 class TestUpstoxIpoAdapter:
     def test_get_ipos_returns_list(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
-        from brokers.upstox.ipo.client import UpstoxIpoClient
+        from brokers.providers.upstox.ipo.adapter import UpstoxIpoAdapter
+        from brokers.providers.upstox.ipo.client import UpstoxIpoClient
 
         mock_http_client.get_json.return_value = {
             "status": "success",
@@ -49,8 +49,8 @@ class TestUpstoxIpoAdapter:
         mock_http_client.get_json.assert_called_once()
 
     def test_get_ipos_empty_response(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
-        from brokers.upstox.ipo.client import UpstoxIpoClient
+        from brokers.providers.upstox.ipo.adapter import UpstoxIpoAdapter
+        from brokers.providers.upstox.ipo.client import UpstoxIpoClient
 
         mock_http_client.get_json.return_value = {"status": "success", "data": []}
 
@@ -69,7 +69,7 @@ class TestUpstoxGatewayNewFeatures:
     def _make_mock_broker(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.broker import UpstoxBroker
+        from brokers.providers.upstox.broker import UpstoxBroker
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.instrument_resolver = MagicMock()
@@ -80,7 +80,7 @@ class TestUpstoxGatewayNewFeatures:
         return mock_broker
 
     def test_gateway_ipo_property(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.ipo = MagicMock()
@@ -90,7 +90,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "get_ipos")
 
     def test_gateway_payments_property(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.payments = MagicMock()
@@ -100,7 +100,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "initiate_payout")
 
     def test_gateway_mutual_funds_property(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.mutual_funds = MagicMock()
@@ -110,7 +110,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "get_mutual_fund_holdings")
 
     def test_gateway_fundamentals_property(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.fundamentals = MagicMock()
@@ -120,7 +120,7 @@ class TestUpstoxGatewayNewFeatures:
         assert hasattr(gateway.extended, "get_pnl")
 
     def test_gateway_capabilities_includes_new_features(self):
-        from brokers.upstox.wire import UpstoxWireAdapter
+        from brokers.providers.upstox.wire import UpstoxWireAdapter
 
         mock_broker = self._make_mock_broker()
         mock_broker.portfolio = MagicMock()

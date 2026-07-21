@@ -1,4 +1,4 @@
-"""Tests for the brokers.upstox package skeleton + login entry point."""
+"""Tests for the brokers.providers.upstox package skeleton + login entry point."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from brokers.upstox import UpstoxBroker
-from brokers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.providers.upstox import UpstoxBroker
+from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
 
 
 @dataclass
@@ -97,8 +97,8 @@ class TestUpstoxBrokerStub:
 
 class TestLoginModule:
     def test_build_auth_url(self):
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
-        from brokers.upstox.auth.login import build_auth_url
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.login import build_auth_url
 
         s = UpstoxConnectionSettings(
             client_id="cid",
@@ -116,8 +116,8 @@ class TestLoginModule:
         assert "/login/authorization/dialog" in url
 
     def test_build_auth_url_no_state(self):
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
-        from brokers.upstox.auth.login import build_auth_url
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth.login import build_auth_url
 
         s = UpstoxConnectionSettings(
             client_id="cid",
@@ -128,8 +128,8 @@ class TestLoginModule:
         assert "state=" not in url
 
     def test_main_minimal(self, monkeypatch):
-        from brokers.upstox.auth import login as login_mod
-        from brokers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.providers.upstox.auth import login as login_mod
+        from brokers.providers.upstox.auth.config import UpstoxConnectionSettings
 
         s = UpstoxConnectionSettings(
             client_id="cid",

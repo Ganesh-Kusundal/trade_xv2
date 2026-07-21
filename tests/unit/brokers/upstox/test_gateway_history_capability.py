@@ -18,7 +18,7 @@ from brokers.common.capabilities_validator import (
     enforce_gateway_capabilities,
     validate_gateway_capabilities,
 )
-from brokers.upstox.wire import UpstoxWireAdapter
+from brokers.providers.upstox.wire import UpstoxWireAdapter
 
 # ── TASK B: history() surfaces errors ──
 
@@ -41,7 +41,7 @@ def test_history_raises_when_fetch_raises() -> None:
 
 
 def test_history_raises_upstox_api_error() -> None:
-    from brokers.upstox.auth.exceptions import UpstoxApiError
+    from brokers.providers.upstox.auth.exceptions import UpstoxApiError
 
     gw = _gateway_with_failing_fetch(UpstoxApiError("rate limited", status_code=429))
     with pytest.raises(UpstoxApiError):
@@ -76,7 +76,7 @@ def test_history_success_path_unaffected() -> None:
 def test_gateway_construct_runs_capability_check() -> None:
     broker = MagicMock()
     with patch(
-        "brokers.upstox.wire.enforce_gateway_capabilities",
+        "brokers.providers.upstox.wire.enforce_gateway_capabilities",
         wraps=enforce_gateway_capabilities,
     ) as spy:
         gw = UpstoxWireAdapter(broker)

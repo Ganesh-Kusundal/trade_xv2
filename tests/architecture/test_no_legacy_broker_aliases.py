@@ -9,7 +9,7 @@ import importlib
 
 def test_no_dhan_broker_gateway_alias() -> None:
     """DhanBrokerGateway alias was removed — use DhanWireAdapter."""
-    mod = importlib.import_module("brokers.dhan.wire")
+    mod = importlib.import_module("brokers.providers.dhan.wire")
     assert not hasattr(mod, "DhanBrokerGateway"), (
         "DhanBrokerGateway legacy alias must not exist. Use DhanWireAdapter."
     )
@@ -20,7 +20,7 @@ def test_no_dhan_broker_gateway_alias() -> None:
 
 def test_no_upstox_broker_gateway_alias() -> None:
     """UpstoxBrokerGateway alias was removed — use UpstoxWireAdapter."""
-    mod = importlib.import_module("brokers.upstox.wire")
+    mod = importlib.import_module("brokers.providers.upstox.wire")
     assert not hasattr(mod, "UpstoxBrokerGateway"), (
         "UpstoxBrokerGateway legacy alias must not exist. Use UpstoxWireAdapter."
     )
@@ -32,8 +32,8 @@ def test_no_upstox_broker_gateway_alias() -> None:
 def test_all_wire_exports_are_canonical() -> None:
     """Wire adapter __all__ must contain only canonical names."""
     for mod_name, canonical in [
-        ("brokers.dhan.wire", "DhanWireAdapter"),
-        ("brokers.upstox.wire", "UpstoxWireAdapter"),
+        ("brokers.providers.dhan.wire", "DhanWireAdapter"),
+        ("brokers.providers.upstox.wire", "UpstoxWireAdapter"),
     ]:
         mod = importlib.import_module(mod_name)
         assert canonical in mod.__all__, (

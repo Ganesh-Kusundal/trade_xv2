@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
-from brokers.upstox.orders.gtt_client import UpstoxGttClient
+from brokers.providers.upstox.orders.gtt_adapter import UpstoxGttAdapter
+from brokers.providers.upstox.orders.gtt_client import UpstoxGttClient
 
 
 class TestGttAdapterStubMethods:

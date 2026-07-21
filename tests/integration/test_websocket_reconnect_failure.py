@@ -120,7 +120,7 @@ def flaky_ws_server():
 
 class TestDepthFeedNetworkReconnect:
     def test_reconnects_after_server_drops_connection(self, flaky_ws_server):
-        from brokers.dhan.data.depth_20 import DhanDepth20Feed
+        from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
 
         feed = DhanDepth20Feed("TEST_CLIENT", "TOKEN_A")
         feed.ENDPOINT = flaky_ws_server.base_url
@@ -135,7 +135,7 @@ class TestDepthFeedNetworkReconnect:
             feed.stop()
 
     def test_token_refresh_reconnects_with_new_credentials(self, flaky_ws_server):
-        from brokers.dhan.data.depth_20 import DhanDepth20Feed
+        from brokers.providers.dhan.market_data.depth_20 import DhanDepth20Feed
 
         feed = DhanDepth20Feed("TEST_CLIENT", "TOKEN_A")
         feed.ENDPOINT = flaky_ws_server.base_url

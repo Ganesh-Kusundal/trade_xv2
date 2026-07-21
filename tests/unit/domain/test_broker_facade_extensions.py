@@ -76,7 +76,7 @@ def test_connect_dhan_stamps_extensions_on_instrument():
             return_value=[_FakeDepth20, _FakeDepth200],
         ),
     ):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)
         eq = session.universe.equity("RELIANCE")
@@ -106,7 +106,7 @@ def test_paper_broker_facade_empty_capabilities():
 
 
 def test_upstox_news_extension_capabilities_enum() -> None:
-    from brokers.upstox.extensions.news import UpstoxNewsExtension
+    from brokers.providers.upstox.extensions.news import UpstoxNewsExtension
     from domain.capabilities import Capability
 
     ext = UpstoxNewsExtension(MagicMock())
@@ -115,8 +115,8 @@ def test_upstox_news_extension_capabilities_enum() -> None:
 
 
 def test_broker_facade_capability_names_includes_upstox_news() -> None:
-    from brokers.upstox.extensions.depth import UpstoxDepth30Extension
-    from brokers.upstox.extensions.news import UpstoxNewsExtension
+    from brokers.providers.upstox.extensions.depth import UpstoxDepth30Extension
+    from brokers.providers.upstox.extensions.news import UpstoxNewsExtension
 
     gw = MagicMock()
     facade = BrokerFacade("upstox", [UpstoxDepth30Extension(gw), UpstoxNewsExtension(gw)])

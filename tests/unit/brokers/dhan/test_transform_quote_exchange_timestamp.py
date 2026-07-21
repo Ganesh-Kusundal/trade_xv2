@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from brokers.dhan.websocket._helpers import _transform_quote
+from brokers.providers.dhan.websocket._helpers import _transform_quote
 
 
 def test_transform_quote_uses_last_traded_time():

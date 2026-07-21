@@ -11,6 +11,7 @@ from ._session import _borrow_session, check_live_actionable
 from .capabilities import _session_gateway
 from .order_port import order_port_from_session
 from domain.market_enums import ExchangeId
+from domain.orders.requests import OrderRequest
 
 
 def get_news(
@@ -90,25 +91,23 @@ def place_order(
     check_live_actionable(broker)
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
+        from domain.enums import OrderType, ProductType, Side, Validity
+
+        px = Decimal(str(price)) if price is not None else Decimal("0")
+        request = OrderRequest(
+            symbol=symbol,
+            exchange=exchange,
+            transaction_type=Side((side or "BUY").upper()),
+            quantity=quantity,
+            price=px,
+            order_type=OrderType(order_type.upper()),
+            product_type=ProductType(product_type.upper()),
+            validity=Validity.DAY,
+        )
         port = order_port_from_session(s)
-        if port is not None:
-            px = Decimal(str(price)) if price is not None else None
-            return port.place_order(
-                symbol=symbol,
-                exchange=exchange,
-                side=(side or "BUY").upper(),
-                quantity=quantity,
-                price=px,
-                order_type=order_type,
-                product_type=product_type,
-            )
-        inst = s.stock(symbol, exchange=exchange)
-        px = Decimal(str(price)) if price is not None else None
-        if (side or "BUY").upper() == "SELL":
-            return s.sell(
-                inst, quantity, price=px, order_type=order_type, product_type=product_type
-            )
-        return s.buy(inst, quantity, price=px, order_type=order_type, product_type=product_type)
+        if port is None:
+            raise RuntimeError(f"broker {broker!r} has no gateway for place_order")
+        return port.place_order(request)
     finally:
         if close:
             s.close()
@@ -125,9 +124,9 @@ def cancel_order(
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
         port = order_port_from_session(s)
-        if port is not None and hasattr(port, "cancel_order"):
-            return port.cancel_order(order_id)
-        return s.cancel(order_id)
+        if port is None or not hasattr(port, "cancel_order"):
+            raise RuntimeError(f"broker {broker!r} has no gateway for cancel_order")
+        return port.cancel_order(order_id)
     finally:
         if close:
             s.close()
@@ -151,9 +150,9 @@ def modify_order(
         if price is not None:
             kw["price"] = Decimal(str(price))
         port = order_port_from_session(s)
-        if port is not None and hasattr(port, "modify_order"):
-            return port.modify_order(order_id, **kw)
-        return s.modify(order_id, **kw)
+        if port is None or not hasattr(port, "modify_order"):
+            raise RuntimeError(f"broker {broker!r} has no gateway for modify_order")
+        return port.modify_order(order_id, **kw)
     finally:
         if close:
             s.close()

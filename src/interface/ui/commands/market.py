@@ -36,7 +36,9 @@ def resolve_exchange(symbol: str) -> str:
 def show_quote(
     broker_service: BrokerService, symbol: str, console: Console, live_mode: bool = False
 ) -> None:
-    """Display real-time quote for a symbol."""
+    """Display real-time quote for a symbol (product ``QuoteSnapshot``)."""
+    from interface.ui.services.renderers import quote_table
+
     exchange = resolve_exchange(symbol)
 
     def generate_table() -> Table:
@@ -44,29 +46,7 @@ def show_quote(
             quote = get_quote(broker_id_from(broker_service), symbol, exchange=exchange)
         except Exception:
             quote = None
-        table = Table(
-            title=f"Quote Terminal: {symbol.upper()} ({exchange})", header_style="bold green"
-        )
-        table.add_column("Metric", style="bold white")
-        table.add_column("Value", justify="right")
-
-        if quote is not None:
-            ts_str = (
-                format_ist_time(quote.timestamp)
-                if isinstance(quote.timestamp, datetime)
-                else str(quote.timestamp)
-            )
-            table.add_row("Last Traded Price (LTP)", f"Rs. {quote.ltp:,.2f}")
-            table.add_row("Open", f"Rs. {quote.open:,.2f}")
-            table.add_row("High", f"Rs. {quote.high:,.2f}")
-            table.add_row("Low", f"Rs. {quote.low:,.2f}")
-            table.add_row("Prev Close", f"Rs. {quote.close:,.2f}")
-            table.add_row("Change", f"Rs. {quote.change:,.2f}")
-            table.add_row("Volume", f"{quote.volume:,}")
-            table.add_row("Last Updated", ts_str)
-        else:
-            table.add_row("Status", "[red]No quote data received[/red]")
-        return table
+        return quote_table(symbol, quote, exchange=exchange)
 
     if not live_mode:
         console.print(generate_table())
@@ -399,15 +379,14 @@ def _build_stream_table(symbol: str, rows: list[list[str]]) -> Table:
 def show_stream(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Stream live ticks via the broker WebSocket and display as a rolling table.
 
-    Uses ``gateway.stream()`` which subscribes to the broker WebSocket and
-    fires ``on_tick(quote: Quote)`` for every incoming tick.  The canonical
-    ``Quote`` object is broker-agnostic — no security IDs or instrument keys
-    are exposed here.
-
-    Falls back to polling REST quotes if the gateway does not support
-    ``stream()`` (e.g. MockBroker).
+    Uses ``gateway.stream()`` which fires ticks; wire ``Quote`` is converted
+    to product ``QuoteSnapshot`` at this boundary (``.event_time`` /
+    ``.change_pct``). Falls back to polling REST if ``stream()`` is missing.
     """
     import threading
+    from decimal import Decimal
+
+    from domain.entities.market import Quote, QuoteSnapshot
 
     gw = broker_service.active_broker
     exchange = resolve_exchange(symbol)
@@ -423,30 +402,34 @@ def show_stream(broker_service: BrokerService, symbol: str, console: Console) ->
 
     def on_tick(quote: object) -> None:
         nonlocal tick_count
-        # Accept canonical Quote OR raw dict (fallback path)
         try:
-            if hasattr(quote, "ltp"):
-                ltp = quote.ltp  # type: ignore[attr-defined]
-                open_ = quote.open  # type: ignore[attr-defined]
-                high = quote.high  # type: ignore[attr-defined]
-                low = quote.low  # type: ignore[attr-defined]
-                vol = quote.volume  # type: ignore[attr-defined]
-                chg = quote.change  # type: ignore[attr-defined]
-                ts = quote.timestamp  # type: ignore[attr-defined]
+            snap: QuoteSnapshot | None = None
+            if isinstance(quote, QuoteSnapshot):
+                snap = quote
+            elif isinstance(quote, Quote):
+                snap = quote.to_snapshot(exchange=exchange)
             elif isinstance(quote, dict):
                 payload = quote.get("payload", quote)
-                ltp = payload.get("last_price", 0) if isinstance(payload, dict) else 0
-                open_ = high = low = chg = 0
-                vol = 0
-                ts = None
+                if not isinstance(payload, dict):
+                    return
+                wire = Quote(
+                    symbol=symbol,
+                    ltp=Decimal(str(payload.get("last_price", payload.get("ltp", 0)) or 0)),
+                    volume=int(payload.get("volume", 0) or 0),
+                    timestamp=datetime.now(timezone.utc),
+                )
+                snap = wire.to_snapshot(exchange=exchange)
             else:
                 return
 
-            # Tick's own timestamp is often missing (e.g. Dhan quotes) --
-            # fall back to "now" rather than the generic "N/A" since this
-            # is a live stream and the tick just arrived.
-            ts = ts if ts and hasattr(ts, "strftime") else datetime.now(timezone.utc)
+            ts = snap.event_time if snap.event_time else datetime.now(timezone.utc)
             ts_str = format_ist_time(ts)
+            ltp = snap.ltp
+            open_ = snap.open
+            high = snap.high
+            low = snap.low
+            vol = snap.volume
+            chg = snap.change_pct
             chg_str = (
                 f"[green]+{float(chg):,.2f}[/green]"
                 if float(chg) >= 0

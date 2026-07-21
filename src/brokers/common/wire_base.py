@@ -1,7 +1,7 @@
 """Shared base for broker wire adapters.
 
-Both :class:`~brokers.dhan.wire.DhanWireAdapter` and
-:class:`~brokers.upstox.wire.UpstoxWireAdapter` implement the same
+Both :class:`~brokers.providers.dhan.wire.DhanWireAdapter` and
+:class:`~brokers.providers.upstox.wire.UpstoxWireAdapter` implement the same
 ``BrokerAdapter`` port but historically duplicated transport-agnostic behavior
 and — critically — diverged on the meaning of ``is_connected``:
 

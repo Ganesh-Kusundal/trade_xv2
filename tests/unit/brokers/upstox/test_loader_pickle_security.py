@@ -27,7 +27,7 @@ import sys
 import types
 from pathlib import Path
 
-from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
+from brokers.providers.upstox.instruments.loader import UpstoxInstrumentLoader
 
 
 def _write_minimal_upstox_json(path: Path) -> None:

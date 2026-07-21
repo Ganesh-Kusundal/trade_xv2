@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.dhan.execution.orders import OrdersAdapter
+from brokers.providers.dhan.execution.orders import OrdersAdapter
 from domain.models.dtos import BrokerOrderPayload
 
 

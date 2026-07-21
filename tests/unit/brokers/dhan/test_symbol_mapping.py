@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.domain import Exchange, InstrumentType, OptionType
-from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.resolver import SymbolResolver
+from brokers.providers.dhan._dhan_types import Exchange, InstrumentType, OptionType
+from brokers.providers.dhan.exceptions import InstrumentNotFoundError
+from brokers.providers.dhan.resolver import SymbolResolver
 
 # ---------------------------------------------------------------------------
 # Helper: load resolver from SAMPLE_ROWS via conftest
@@ -485,7 +485,7 @@ class TestContractSymbolBuilder:
     Dhan symbol."""
 
     def test_equity_passthrough(self):
-        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from brokers.providers.dhan.market_data.instrument_adapter import to_dhan_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.equity("NSE", "RELIANCE")
@@ -494,7 +494,7 @@ class TestContractSymbolBuilder:
     def test_mcx_future(self):
         from datetime import date
 
-        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from brokers.providers.dhan.market_data.instrument_adapter import to_dhan_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.future("MCX", "CRUDEOIL", date(2026, 7, 20))
@@ -503,7 +503,7 @@ class TestContractSymbolBuilder:
     def test_mcx_option(self):
         from datetime import date
 
-        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from brokers.providers.dhan.market_data.instrument_adapter import to_dhan_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.option("MCX", "CRUDEOIL", date(2026, 7, 16), 7650, "CE")
@@ -512,7 +512,7 @@ class TestContractSymbolBuilder:
     def test_nfo_future(self):
         from datetime import date
 
-        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from brokers.providers.dhan.market_data.instrument_adapter import to_dhan_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.future("NFO", "NIFTY", date(2026, 7, 30))
@@ -521,7 +521,7 @@ class TestContractSymbolBuilder:
     def test_nfo_option_put(self):
         from datetime import date
 
-        from brokers.dhan.data.instrument_adapter import to_dhan_symbol
+        from brokers.providers.dhan.market_data.instrument_adapter import to_dhan_symbol
         from domain.instruments.instrument_id import InstrumentId
 
         iid = InstrumentId.option("NFO", "NIFTY", date(2026, 6, 26), 25000, "PE")

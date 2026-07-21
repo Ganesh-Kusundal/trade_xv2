@@ -7,7 +7,7 @@ managed.
 
 from __future__ import annotations
 
-from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
+from brokers.providers.dhan.websocket import DhanMarketFeed, DhanOrderStream
 from tests.support.brokers.dhan.mock_sdk import mock_market_feed_class, mock_order_update_class
 
 
@@ -43,7 +43,7 @@ class TestDhanWebSocketReconnectRecovery:
     def test_market_feed_start_does_not_mark_connected_before_handshake(self):
         from unittest import mock
 
-        from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
+        from brokers.providers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 
         feed = DhanMarketFeed.__new__(DhanMarketFeed)
         feed._lock = __import__("threading").Lock()
@@ -68,7 +68,7 @@ class TestDhanWebSocketReconnectRecovery:
     def test_order_stream_start_does_not_mark_connected_before_handshake(self):
         from unittest import mock
 
-        from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
+        from brokers.providers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 
         stream = DhanOrderStream.__new__(DhanOrderStream)
         stream._lock = __import__("threading").Lock()

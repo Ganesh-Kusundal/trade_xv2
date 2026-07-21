@@ -30,7 +30,7 @@ def test_should_publish_tick_directly_false_when_orchestrator_wired() -> None:
 
 
 def test_dhan_publisher_skips_eventbus_when_orchestrator_wired() -> None:
-    from brokers.dhan.websocket.publish import MarketFeedPublisher
+    from brokers.providers.dhan.websocket.publish import MarketFeedPublisher
 
     reset_tick_authority_for_tests()
     mark_stream_to_bus_wired()
@@ -48,7 +48,7 @@ def test_dhan_publisher_skips_eventbus_when_orchestrator_wired() -> None:
 def test_upstox_skips_eventbus_when_orchestrator_wired() -> None:
     from types import SimpleNamespace
 
-    from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+    from brokers.providers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
     from domain import Quote
 
     reset_tick_authority_for_tests()
@@ -72,7 +72,7 @@ def test_upstox_skips_eventbus_when_orchestrator_wired() -> None:
     from unittest.mock import patch
 
     with patch(
-        "brokers.upstox.websocket.market_data_v3.TickTranslatorAdapter.translate",
+        "brokers.providers.upstox.websocket.market_data_v3.TickTranslatorAdapter.translate",
         return_value=Quote(symbol="RELIANCE", ltp=Decimal("2500")),
     ):
         svc._publish_tick_to_bus(frame)

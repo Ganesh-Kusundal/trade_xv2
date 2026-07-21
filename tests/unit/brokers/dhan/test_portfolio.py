@@ -2,8 +2,8 @@
 
 from decimal import Decimal
 
-from brokers.dhan.domain import ProductType
-from brokers.dhan.portfolio.portfolio import PortfolioAdapter
+from domain.enums import ProductType
+from brokers.providers.dhan.portfolio.portfolio import PortfolioAdapter
 
 
 def test_get_positions_parsing(fake_client, resolver):

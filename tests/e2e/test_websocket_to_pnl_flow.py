@@ -218,7 +218,7 @@ class TestQuoteUpdatesPositionPnl:
         assert pos is not None
         assert pos.ltp == Decimal("105.0")
         # 100 × (105.0 − 100.0) = 500.0
-        assert pos.unrealized_pnl == Decimal("500.0")
+        assert Decimal(str(pos.unrealized_pnl)) == Decimal("500.0")
 
         capturer.assert_event_published(EventType.POSITION_UPDATED.value, min_count=1)
 
@@ -255,7 +255,7 @@ class TestPnlDecimalPrecision:
         assert pos is not None
         assert pos.ltp == Decimal("101.5000")
         # 100 × (101.5000 − 100.0000) = 150.0000
-        assert pos.unrealized_pnl == Decimal("150.0000")
+        assert Decimal(str(pos.unrealized_pnl)) == Decimal("150.0000")
         assert pos.pnl == Decimal("150.0000")
 
 
@@ -294,7 +294,7 @@ class TestPositionEventPublished:
         position = event.payload["position"]
         assert position.ltp == Decimal("210.0")
         # 50 × (210.0 − 200.0) = 500.0
-        assert position.unrealized_pnl == Decimal("500.0")
+        assert Decimal(str(position.unrealized_pnl)) == Decimal("500.0")
 
 
 # ── 5. DLQ Captures Failed Handler ────────────────────────────────────────────
@@ -536,4 +536,4 @@ class TestSubscriptionRecoveryAfterDisconnect:
         pos = wired_ctx.position_manager.get_position("RELIANCE", "NSE")
         assert pos.ltp == Decimal("110.0")
         # 10 × (110.0 − 100.0) = 100.0
-        assert pos.unrealized_pnl == Decimal("100.0")
+        assert Decimal(str(pos.unrealized_pnl)) == Decimal("100.0")

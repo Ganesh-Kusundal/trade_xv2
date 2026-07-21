@@ -2,7 +2,7 @@
 
 Canonical gateway construction: ``infrastructure.gateway.factory``.
 Concrete broker **types** are resolved only via ``runtime.broker_accessors``
-so this UI module never imports ``brokers.dhan`` / ``upstox`` / ``paper``.
+so this UI module never imports ``brokers.providers.dhan`` / ``upstox`` / ``paper``.
 """
 
 from __future__ import annotations

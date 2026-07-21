@@ -80,7 +80,9 @@ class FeedProbe:
                 result.tick_count += 1
 
         try:
-            instrument.subscribe(_on_frame, depth=depth)
+            provider = instrument._resolve_provider()
+            handle = provider.subscribe(instrument.id, _on_frame, depth=depth)
+            instrument._subscription = handle
         except Exception as exc:
             result.errors.append(f"subscribe_failed: {exc}")
             result.ended_at = datetime.now(timezone.utc).isoformat()

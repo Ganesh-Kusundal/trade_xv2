@@ -174,7 +174,12 @@ class MarketDepth:
 
 @dataclass(slots=True, frozen=True)
 class Quote:
-    """Canonical quote snapshot — returned by every broker adapter."""
+    """Wire/transport quote DTO — returned by ``BrokerAdapter.quote`` only.
+
+    Product surfaces (``DataProvider``, ``Instrument``, CLI, API) must use
+    :class:`QuoteSnapshot`. Convert at the provider boundary via
+    :meth:`to_snapshot`.
+    """
 
     symbol: str
     ltp: Decimal = Decimal("0")
@@ -183,7 +188,7 @@ class Quote:
     low: Decimal = Decimal("0")
     close: Decimal = Decimal("0")
     volume: int = 0
-    change: Decimal = Decimal("0")
+    change: Decimal = Decimal("0")  # absolute price change from previous close
     oi: int = 0  # open interest — populated for derivatives, 0 for equity
     bid: Decimal | None = None
     ask: Decimal | None = None
@@ -265,13 +270,20 @@ class Quote:
             return "UNKNOWN"
         return "OPEN"
 
-    def to_snapshot(self, provenance: DataProvenance | None = None) -> QuoteSnapshot:
-        """Bridge: convert Quote to QuoteSnapshot."""
+    def to_snapshot(
+        self,
+        provenance: DataProvenance | None = None,
+        *,
+        exchange: str = "",
+        instrument: InstrumentRef | None = None,
+    ) -> QuoteSnapshot:
+        """Bridge: wire ``Quote`` → product ``QuoteSnapshot`` (single conversion site)."""
         from domain.ports.time_service import get_current_clock
 
         prov = provenance or DataProvenance.now("bridge", "quote-to-snapshot")
+        pct = self.change_pct()
         return QuoteSnapshot(
-            instrument=InstrumentRef(symbol=self.symbol, exchange=""),
+            instrument=instrument or InstrumentRef(symbol=self.symbol, exchange=exchange),
             ltp=self.ltp,
             event_time=self.timestamp or get_current_clock().now(),
             provenance=prov,
@@ -280,6 +292,7 @@ class Quote:
             low=self.low,
             close=self.close,
             volume=self.volume,
+            change_pct=pct if pct is not None else Decimal("0"),
             oi=self.oi,
             bid=self.bid,
             ask=self.ask,
@@ -310,10 +323,12 @@ class MarketTick:
 
 @dataclass(slots=True, frozen=True)
 class QuoteSnapshot:
-    """Point-in-time quote snapshot with provenance — returned by gateway methods.
+    """Product-facing quote with provenance — sole type above the wire boundary.
 
-    Distinct from ``Quote`` which is the older model without provenance.
-    New code should prefer ``QuoteSnapshot`` for multi-broker auditing.
+    Returned by ``DataProvider.get_quote``, ``Instrument.refresh``, and
+    ``brokers.services.get_quote``. Wire adapters emit :class:`Quote` and
+    convert via :meth:`Quote.to_snapshot`. Time field is ``event_time``
+    (not ``timestamp``); change is ``change_pct`` (not absolute ``change``).
     """
 
     instrument: InstrumentRef
@@ -400,7 +415,12 @@ class QuoteSnapshot:
         return "OPEN"
 
     def to_quote(self) -> Quote:
-        """Bridge: convert QuoteSnapshot back to Quote (loses provenance)."""
+        """Bridge: product snapshot → wire Quote (loses provenance)."""
+        abs_change = (
+            (self.change_pct / Decimal("100")) * self.close
+            if self.close
+            else Decimal("0")
+        )
         return Quote(
             symbol=self.instrument.symbol if self.instrument else "",
             ltp=self.ltp,
@@ -409,7 +429,7 @@ class QuoteSnapshot:
             low=self.low,
             close=self.close,
             volume=self.volume,
-            change=Decimal("0"),
+            change=abs_change,
             oi=self.oi,
             bid=self.bid,
             ask=self.ask,

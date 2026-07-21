@@ -39,54 +39,54 @@ class TestImportDirection:
     """Import direction rules - prevent circular dependencies."""
 
     def test_brokers_common_does_not_import_dhan(self):
-        """brokers.common cannot import from brokers.dhan."""
+        """brokers.common cannot import from brokers.providers.dhan."""
         violations = []
         for py_file in _get_python_files("brokers/common"):
             imports = _get_imports(py_file)
             for imp in imports:
-                if "brokers.dhan" in imp:
+                if "brokers.providers.dhan" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, "brokers.common must not import from brokers.dhan:\n" + "\n".join(
+        assert not violations, "brokers.common must not import from brokers.providers.dhan:\n" + "\n".join(
             violations
         )
 
     def test_brokers_common_does_not_import_upstox(self):
-        """brokers.common cannot import from brokers.upstox."""
+        """brokers.common cannot import from brokers.providers.upstox."""
         violations = []
         for py_file in _get_python_files("brokers/common"):
             imports = _get_imports(py_file)
             for imp in imports:
-                if "brokers.upstox" in imp:
+                if "brokers.providers.upstox" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, "brokers.common must not import from brokers.upstox:\n" + "\n".join(
+        assert not violations, "brokers.common must not import from brokers.providers.upstox:\n" + "\n".join(
             violations
         )
 
     def test_brokers_dhan_does_not_import_upstox(self):
-        """brokers.dhan cannot import from brokers.upstox."""
+        """brokers.providers.dhan cannot import from brokers.providers.upstox."""
         violations = []
-        for py_file in _get_python_files("brokers/dhan"):
+        for py_file in _get_python_files("brokers/providers/dhan"):
             imports = _get_imports(py_file)
             for imp in imports:
-                if "brokers.upstox" in imp:
+                if "brokers.providers.upstox" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, "brokers.dhan must not import from brokers.upstox:\n" + "\n".join(
+        assert not violations, "brokers.providers.dhan must not import from brokers.providers.upstox:\n" + "\n".join(
             violations
         )
 
     def test_brokers_upstox_does_not_import_dhan(self):
-        """brokers.upstox cannot import from brokers.dhan."""
+        """brokers.providers.upstox cannot import from brokers.providers.dhan."""
         violations = []
-        for py_file in _get_python_files("brokers/upstox"):
+        for py_file in _get_python_files("brokers/providers/upstox"):
             imports = _get_imports(py_file)
             for imp in imports:
-                if "brokers.dhan" in imp:
+                if "brokers.providers.dhan" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, "brokers.upstox must not import from brokers.dhan:\n" + "\n".join(
+        assert not violations, "brokers.providers.upstox must not import from brokers.providers.dhan:\n" + "\n".join(
             violations
         )
 
@@ -230,7 +230,7 @@ class TestModuleBoundaries:
         init_file = ROOT / "src" / "brokers" / "__init__.py"
         content = init_file.read_text()
 
-        # Should not export Dhan-specific types
+        # Should not export Dhan-specific types (BrokerGateway is the public facade)
         dhan_specific = [
             "DhanConnection",
             "DhanHttpClient",
@@ -239,7 +239,6 @@ class TestModuleBoundaries:
             "SymbolResolver",
             "InstrumentLoader",
             "BrokerFactory",
-            "BrokerGateway",
         ]
 
         violations = [
@@ -248,22 +247,22 @@ class TestModuleBoundaries:
 
         assert not violations, (
             f"brokers/__init__.py should not export Dhan-specific types: {violations}\n"
-            f"Import directly from brokers.dhan instead."
+            f"Import directly from brokers.providers.dhan instead."
         )
 
     def test_dhan_has_all_declaration(self):
-        """brokers/dhan/__init__.py must have __all__."""
-        init_file = ROOT / "src" / "brokers" / "dhan" / "__init__.py"
+        """brokers/providers/dhan/__init__.py must have __all__."""
+        init_file = ROOT / "src" / "brokers" / "providers" / "dhan" / "__init__.py"
         content = init_file.read_text()
 
-        assert "__all__" in content, "brokers/dhan/__init__.py must define __all__"
+        assert "__all__" in content, "brokers/providers/dhan/__init__.py must define __all__"
 
     def test_upstox_has_all_declaration(self):
-        """brokers/upstox/__init__.py must have __all__."""
-        init_file = ROOT / "src" / "brokers" / "upstox" / "__init__.py"
+        """brokers/providers/upstox/__init__.py must have __all__."""
+        init_file = ROOT / "src" / "brokers" / "providers" / "upstox" / "__init__.py"
         content = init_file.read_text()
 
-        assert "__all__" in content, "brokers/upstox/__init__.py must define __all__"
+        assert "__all__" in content, "brokers/providers/upstox/__init__.py must define __all__"
 
     def test_brokers_common_has_all_declaration(self):
         """brokers/common/__init__.py must have __all__."""
@@ -279,7 +278,7 @@ class TestNamingConventions:
     def test_exception_classes_end_with_error(self):
         """All exception classes should end with 'Error'."""
         violations = []
-        for directory in ["brokers/common", "brokers/dhan", "brokers/upstox"]:
+        for directory in ["brokers/common", "brokers/providers/dhan", "brokers/providers/upstox"]:
             for py_file in _get_python_files(directory):
                 try:
                     tree = ast.parse(py_file.read_text())

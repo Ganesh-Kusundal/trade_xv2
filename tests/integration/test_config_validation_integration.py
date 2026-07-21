@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.config.settings import DhanSettingsLoader
+from brokers.providers.dhan.config.settings import DhanSettingsLoader
 
 # ── Fixture to isolate tests from workspace .env.local ─────────────────
 

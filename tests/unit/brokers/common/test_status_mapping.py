@@ -7,6 +7,7 @@ These tests ensure that:
 4. Order placement properly uses strict status mapping
 """
 
+from tests.support.order_request_factory import make_order_request as _order_request
 from unittest.mock import Mock, patch
 
 import pytest
@@ -110,7 +111,7 @@ class TestDhanStatusMapping:
     def test_dhan_specific_statuses(self):
         """Test Dhan-specific status strings."""
         # Import Dhan status map
-        from brokers.dhan.status_mapper import DHAN_STATUS_MAP
+        from brokers.providers.dhan.status_mapper import DHAN_STATUS_MAP
 
         dhan_specific = {
             "PLACED": OrderStatus.OPEN,
@@ -135,7 +136,7 @@ class TestUpstoxStatusMapping:
     def test_upstox_specific_statuses(self):
         """Test Upstox-specific status strings."""
         # Import Upstox status map
-        from brokers.upstox.status_mapper import UPSTOX_STATUS_MAP
+        from brokers.providers.upstox.status_mapper import UPSTOX_STATUS_MAP
 
         upstox_specific = {
             "OPEN_ORDER": OrderStatus.OPEN,
@@ -163,7 +164,7 @@ class TestStrictStatusMappingIntegration:
 
     def test_dhan_gateway_uses_strict_status_mapping(self):
         """Unknown broker orderStatus on placement fails closed (UNMAPPED_STATUS)."""
-        from brokers.dhan.resolver import SymbolResolver
+        from brokers.providers.dhan.resolver import SymbolResolver
         from tests.support.brokers.dhan.fixtures import FakeHttpClient, SAMPLE_ROWS
         from tests.unit.brokers.dhan.test_gateway_get_order import (
             _make_gateway_with_real_adapter,
@@ -179,7 +180,7 @@ class TestStrictStatusMappingIntegration:
         )
         gateway = _make_gateway_with_real_adapter(client, resolver)
 
-        response = gateway.place_order("RELIANCE", "NSE", "BUY", 1)
+        response = gateway.place_order(_order_request(symbol="RELIANCE", exchange="NSE", side="BUY", quantity=1))
 
         assert not response.success
         assert response.error_code == "UNMAPPED_STATUS"
@@ -187,7 +188,7 @@ class TestStrictStatusMappingIntegration:
 
     def test_upstox_domain_mapper_uses_strict_status_mapping(self):
         """Test that UpstoxDomainMapper uses strict status mapping."""
-        from brokers.upstox.mappers.domain_mapper import (
+        from brokers.providers.upstox.mappers.domain_mapper import (
             _wire_status_to_domain_status,
         )
         from domain.status_mapper import UnmappedBrokerStatusError
@@ -205,7 +206,7 @@ class TestStrictStatusMappingIntegration:
 
     def test_upstox_to_order_response_includes_status(self):
         """Test that to_order_response extracts and includes status."""
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+        from brokers.providers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
         # Test with successful response including status
         payload = {"data": {"order_id": "test_123", "status": "OPEN"}}
@@ -217,7 +218,7 @@ class TestStrictStatusMappingIntegration:
 
     def test_upstox_to_order_response_handles_unknown_status(self):
         """Test that to_order_response handles unknown statuses gracefully."""
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+        from brokers.providers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
         # Test with unknown status - should log but not fail
         payload = {"data": {"order_id": "test_456", "status": "UNKNOWN_STATUS"}}
@@ -245,7 +246,7 @@ class TestStatusMappingEdgeCases:
 
     def test_none_status(self):
         """Test handling of None status."""
-        from brokers.upstox.mappers.domain_mapper import _wire_status_to_domain_status
+        from brokers.providers.upstox.mappers.domain_mapper import _wire_status_to_domain_status
 
         # Should handle None gracefully
         result = _wire_status_to_domain_status(None)
@@ -253,7 +254,7 @@ class TestStatusMappingEdgeCases:
 
     def test_non_string_status(self):
         """Test handling of non-string status values."""
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+        from brokers.providers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
         # Should handle integer status codes
         payload = {

@@ -8,12 +8,20 @@ Slices:
 
 Product path::
 
-    tradex.connect("paper")
+    BrokerSession.connect("paper")
       → universe.equity → buy/market/sell/modify/cancel
       → account.refresh → positions / funds
 """
 
 from __future__ import annotations
+
+from brokers import BrokerSession
+from tests.support.gateway_orders import (
+    cancel_via_gateway,
+    modify_via_gateway,
+    place_via_gateway,
+    subscribe_via_gateway,
+)
 
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -22,6 +30,7 @@ import pytest
 
 import tradex
 from domain.enums import OrderStatus
+from domain.value_objects.price import snap_to_tick
 
 
 def _status_value(order) -> str:
@@ -31,15 +40,37 @@ def _status_value(order) -> str:
     return st.value if hasattr(st, "value") else str(st)
 
 
+def _dec(value) -> Decimal:
+    """Money / Decimal / numeric → Decimal for assertions."""
+    if value is None:
+        return Decimal("0")
+    if hasattr(value, "to_decimal"):
+        return value.to_decimal()
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
+
+
+def _domain_session(session):
+    return getattr(session, "session", session)
+
+
+def _tick_aligned_limit(stock, multiple: Decimal = Decimal("2")) -> Decimal:
+    """Build a tick-aligned LIMIT price from LTP (risk rejects unaligned prices)."""
+    raw = _dec(getattr(stock, "ltp", None) or Decimal("1000")) * multiple
+    tick = _dec(getattr(stock, "tick_size", None) or Decimal("0.05"))
+    return snap_to_tick(raw, tick)
+
+
 # ── TR-020: buy / sell / modify / cancel ────────────────────────────────
 
 
 def test_tr020_instrument_limit_buy_stays_open() -> None:
     """Instrument LIMIT buy far below market remains OPEN on paper."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
-        result = stock.buy(
+        result = place_via_gateway(session, stock, 
             1,
             price=Decimal("1"),
             correlation_id="e2e:tr020:limit-open",
@@ -49,17 +80,17 @@ def test_tr020_instrument_limit_buy_stays_open() -> None:
         assert result.order.order_id
         assert _status_value(result.order) == OrderStatus.OPEN.value
         assert result.order.quantity == 1
-        assert result.order.price == Decimal("1")
+        assert _dec(result.order.price) == Decimal("1")
     finally:
         session.close()
 
 
 def test_tr020_session_market_buy_fills() -> None:
     """session.market BUY fills immediately on paper."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
-        result = session.market(stock, 2, side="BUY")
+        result = place_via_gateway(session, stock, 2, side="BUY", order_type="MARKET")
         assert result.success is True
         assert result.order is not None
         assert result.order.order_id
@@ -72,17 +103,17 @@ def test_tr020_session_market_buy_fills() -> None:
 
 def test_tr020_session_sell_places_order() -> None:
     """session.sell places a SELL order successfully (LIMIT may stay OPEN)."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("INFY")
         # Establish a long so sell is meaningful if risk checks apply
-        buy = session.market(stock, 3, side="BUY")
+        buy = place_via_gateway(session, stock, 3, side="BUY", order_type="MARKET")
         assert buy.success is True
 
         stock.refresh()
         # Price must stay within risk notional bounds (extreme limits are rejected)
-        limit_px = (stock.ltp or Decimal("1000")) * Decimal("2")
-        result = session.sell(stock, 1, price=limit_px)
+        limit_px = _tick_aligned_limit(stock)
+        result = place_via_gateway(session, stock, 1, price=limit_px, side="SELL")
         assert result.success is True, getattr(result, "error", None)
         assert result.order is not None
         assert result.order.order_id
@@ -93,10 +124,10 @@ def test_tr020_session_sell_places_order() -> None:
 
 def test_tr020_cancel_open_order() -> None:
     """session.cancel cancels an OPEN limit order."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("TCS")
-        placed = stock.buy(
+        placed = place_via_gateway(session, stock, 
             1,
             price=Decimal("1"),
             correlation_id="e2e:tr020:cancel",
@@ -105,7 +136,7 @@ def test_tr020_cancel_open_order() -> None:
         oid = placed.order.order_id
         assert _status_value(placed.order) == OrderStatus.OPEN.value
 
-        cancelled = session.cancel(oid)
+        cancelled = cancel_via_gateway(session, oid)
         assert cancelled.success is True
         assert cancelled.order is not None
         assert _status_value(cancelled.order) == OrderStatus.CANCELLED.value
@@ -115,10 +146,10 @@ def test_tr020_cancel_open_order() -> None:
 
 def test_tr020_modify_price_then_cancel() -> None:
     """session.modify updates limit price; subsequent cancel succeeds."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
-        placed = stock.buy(
+        placed = place_via_gateway(session, stock, 
             1,
             price=Decimal("1"),
             correlation_id="e2e:tr020:modify",
@@ -127,13 +158,13 @@ def test_tr020_modify_price_then_cancel() -> None:
         oid = placed.order.order_id
 
         new_price = Decimal("2")
-        modified = session.modify(oid, price=new_price)
+        modified = modify_via_gateway(session, oid, price=new_price)
         assert modified.success is True, getattr(modified, "error", None)
         assert modified.order is not None
-        assert modified.order.price == new_price
+        assert _dec(modified.order.price) == new_price
         assert _status_value(modified.order) == OrderStatus.OPEN.value
 
-        cancelled = session.cancel(oid)
+        cancelled = cancel_via_gateway(session, oid)
         assert cancelled.success is True
         assert _status_value(cancelled.order) == OrderStatus.CANCELLED.value
     finally:
@@ -142,27 +173,27 @@ def test_tr020_modify_price_then_cancel() -> None:
 
 def test_tr020_full_order_lifecycle_slice() -> None:
     """TR-020 combined: limit OPEN → market FILL → sell → modify → cancel."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
 
-        limit_r = stock.buy(1, price=Decimal("1"), correlation_id="e2e:tr020:life:limit")
+        limit_r = place_via_gateway(session, stock, 1, price=Decimal("1"), correlation_id="e2e:tr020:life:limit")
         assert limit_r.success and _status_value(limit_r.order) == OrderStatus.OPEN.value
         open_id = limit_r.order.order_id
 
-        mkt = session.market(stock, 2, side="BUY")
+        mkt = place_via_gateway(session, stock, 2, side="BUY", order_type="MARKET")
         assert mkt.success and _status_value(mkt.order) == OrderStatus.FILLED.value
 
         stock.refresh()
-        sell_px = (stock.ltp or Decimal("2500")) * Decimal("2")
-        sell_r = session.sell(stock, 1, price=sell_px)
+        sell_px = _tick_aligned_limit(stock)
+        sell_r = place_via_gateway(session, stock, 1, price=sell_px, side="SELL")
         assert sell_r.success is True, getattr(sell_r, "error", None)
 
-        mod = session.modify(open_id, price=Decimal("3"))
+        mod = modify_via_gateway(session, open_id, price=Decimal("3"))
         assert mod.success is True
-        assert mod.order.price == Decimal("3")
+        assert _dec(mod.order.price) == Decimal("3")
 
-        can = session.cancel(open_id)
+        can = cancel_via_gateway(session, open_id)
         assert can.success is True
         assert _status_value(can.order) == OrderStatus.CANCELLED.value
     finally:
@@ -174,11 +205,11 @@ def test_tr020_full_order_lifecycle_slice() -> None:
 
 def test_tr021_account_positions_after_market_fill() -> None:
     """After market fill, account.refresh() exposes position + funds."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
         qty = 2
-        fill = session.market(stock, qty, side="BUY")
+        fill = place_via_gateway(session, stock, qty, side="BUY", order_type="MARKET")
         assert fill.success is True
         assert _status_value(fill.order) == OrderStatus.FILLED.value
 
@@ -209,10 +240,10 @@ def test_tr021_account_positions_after_market_fill() -> None:
 
 def test_tr021_portfolio_reflects_position() -> None:
     """AccountView.portfolio tracks at least one position after fill."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("INFY")
-        assert session.market(stock, 1, side="BUY").success is True
+        assert place_via_gateway(session, stock, 1, side="BUY", order_type="MARKET").success is True
 
         session.account.refresh()
         portfolio = session.account.portfolio
@@ -230,19 +261,20 @@ def test_tr021_portfolio_reflects_position() -> None:
 
 def test_tr023_same_correlation_id_same_order_id() -> None:
     """Placing twice with the same correlation_id returns the same order_id."""
-    session = tradex.connect("paper")
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("RELIANCE")
         cid = "e2e:tr023:idempotent-1"
-        intent = session.intent(
+        ds = _domain_session(session)
+        intent = ds.intent(
             stock,
             "BUY",
             1,
             price=Decimal("100"),
             correlation_id=cid,
         )
-        r1 = session.place(intent)
-        r2 = session.place(intent)
+        r1 = ds.place(intent)
+        r2 = ds.place(intent)
 
         assert r1.success is True
         assert r2.success is True
@@ -254,13 +286,13 @@ def test_tr023_same_correlation_id_same_order_id() -> None:
 
 
 def test_tr023_instrument_buy_idempotent_correlation_id() -> None:
-    """Instrument.buy with same correlation_id is idempotent via OMS."""
-    session = tradex.connect("paper")
+    """gateway place_order with same correlation_id is idempotent via OMS."""
+    session = BrokerSession.connect("paper")
     try:
         stock = session.universe.equity("TCS")
         cid = "e2e:tr023:inst-buy"
-        r1 = stock.buy(1, price=Decimal("50"), correlation_id=cid)
-        r2 = stock.buy(1, price=Decimal("50"), correlation_id=cid)
+        r1 = place_via_gateway(session, stock, 1, price=Decimal("50"), correlation_id=cid)
+        r2 = place_via_gateway(session, stock, 1, price=Decimal("50"), correlation_id=cid)
         assert r1.success and r2.success
         assert r1.order.order_id == r2.order.order_id
     finally:
@@ -275,7 +307,7 @@ def test_market_mode_orders_disabled() -> None:
     mock_gw = MagicMock(name="DhanGateway")
 
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
-        import brokers.dhan  # noqa: F401
+        import brokers.providers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)
         try:
@@ -286,15 +318,15 @@ def test_market_mode_orders_disabled() -> None:
 
             stock = session.universe.equity("RELIANCE")
             with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
-                session.buy(stock, 1, price=Decimal("100"))
+                place_via_gateway(session, stock, 1, price=Decimal("100"))
             with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
-                session.cancel("fake-id")
+                cancel_via_gateway(session, "fake-id")
             with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
-                session.modify("fake-id", price=Decimal("101"))
+                modify_via_gateway(session, "fake-id", price=Decimal("101"))
 
             from domain.errors import NotConfiguredError
 
             with pytest.raises((RuntimeError, NotConfiguredError), match="ORDERS_DISABLED"):
-                stock.buy(1, price=Decimal("100"))
+                place_via_gateway(session, stock, 1, price=Decimal("100"))
         finally:
             session.close()

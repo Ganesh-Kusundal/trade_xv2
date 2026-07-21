@@ -16,11 +16,11 @@ from unittest.mock import Mock
 import pytest
 
 # Import directly from submodules to avoid circular import through __init__.py
-from brokers.dhan.domain import DhanInstrument, Exchange, InstrumentType
-from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
-from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
-from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+from brokers.providers.dhan._dhan_types import DhanInstrument, Exchange, InstrumentType
+from brokers.providers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
+from brokers.providers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
+from brokers.providers.dhan.resolver import SymbolResolver
+from brokers.providers.dhan.segments import EXCHANGE_TO_SEGMENT
 from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
 # ── DhanInstrumentRef Tests ────────────────────────────────────────────────

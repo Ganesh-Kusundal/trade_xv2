@@ -88,6 +88,14 @@ jobs:
             exit 1
           fi
           echo "✅ No production tradex.runtime facade imports"
+      - name: Static architecture CI scripts
+        run: |
+          python3 scripts/ci/check_no_mock_in_integration.py
+          python3 scripts/ci/check_broker_name_branching.py
+          python3 scripts/ci/check_canonical_domain_imports.py
+          python3 scripts/ci/check_analytics_cross_imports.py
+          python3 scripts/ci/check_cli_gateway_references.py
+          python3 scripts/ci/check_rest_data_source_contract.py
 
   no-print-statements:
     name: No Print Statements in Production Code
