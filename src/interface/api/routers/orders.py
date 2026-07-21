@@ -1,5 +1,6 @@
 """Orders endpoints (orders, trades, orderbook)."""
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime
@@ -271,10 +272,10 @@ async def modify_order(
         product_type=product_type,
     )
 
-    async def modify_fn(r: ModifyOrderRequest) -> Any:
-        return await composer.modify_order(r)
+    def modify_fn(r: ModifyOrderRequest) -> Any:
+        return asyncio.run(composer.modify_order(r))
 
-    result = om.modify_order(modify_req, modify_fn=modify_fn)
+    result = await asyncio.to_thread(om.modify_order, modify_req, modify_fn=modify_fn)
 
     if not result.success:
         raise HTTPException(
@@ -317,11 +318,11 @@ async def cancel_order(
 
     enforce_live_order_authority(mutation_action="cancel")
 
-    async def cancel_fn(oid: str) -> bool:
-        response = await composer.cancel_order(oid)
+    def cancel_fn(oid: str) -> bool:
+        response = asyncio.run(composer.cancel_order(oid))
         return bool(getattr(response, "success", False))
 
-    result = om.cancel_order(order_id, cancel_fn=cancel_fn)
+    result = await asyncio.to_thread(om.cancel_order, order_id, cancel_fn=cancel_fn)
 
     if not result.success:
         raise HTTPException(
