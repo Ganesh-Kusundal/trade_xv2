@@ -1,0 +1,10 @@
+"""Volume profile: point of control (POC)."""
+
+from __future__ import annotations
+
+
+def poc(price_volume: dict[float, float]) -> float | None:
+    """Price level with the highest volume. None if empty."""
+    if not price_volume:
+        return None
+    return max(price_volume, key=price_volume.__getitem__)

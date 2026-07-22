@@ -1,0 +1,29 @@
+name: tradex-v2-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          if command -v ruff >/dev/null 2>&1; then
+            ruff check src tests
+          else
+            echo "ruff not available — skip"
+          fi
+      - name: Test
+        run: PYTHONPATH=src python -m pytest tests/ -q
+        working-directory: .

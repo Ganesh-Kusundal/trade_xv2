@@ -1,0 +1,12 @@
+environment: PAPER
+broker: dhan
+
+components:
+  risk:
+    max_order_size: 500
+    max_position_size: 2000
+    max_daily_loss: 25000
+    max_orders_per_day: 50
+
+logging:
+  level: INFO

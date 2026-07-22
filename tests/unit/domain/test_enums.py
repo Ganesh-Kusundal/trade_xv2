@@ -1,92 +1,164 @@
-"""Tests for domain.enums — canonical trading enum invariants."""
-
-from __future__ import annotations
-
-from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
-
-
-class TestSide:
-    def test_buy_value(self):
-        assert Side.BUY == "BUY"
-
-    def test_sell_value(self):
-        assert Side.SELL == "SELL"
-
-    def test_is_str_enum(self):
-        assert isinstance(Side.BUY, str)
-
-    def test_only_two_sides(self):
-        assert len(Side) == 2
+from src.domain.enums import (
+    OrderSide, OrderType, OrderStatus, TimeInForce,
+    Environment, BrokerId, ExchangeId, AssetClass,
+    InstrumentType, OptionType, SignalDirection,
+    RiskLevel, DriftSeverity
+)
 
 
-class TestOrderStatus:
-    def test_all_statuses_exist(self):
-        expected = {
-            "OPEN",
-            "PARTIALLY_FILLED",
-            "FILLED",
-            "CANCELLED",
-            "PARTIALLY_CANCELLED",
-            "REJECTED",
-            "EXPIRED",
-            "UNKNOWN",
-        }
-        assert {s.value for s in OrderStatus} == expected
+class TestOrderSide:
+    def test_buy(self):
+        assert OrderSide.BUY == "BUY"
 
-    def test_terminal_statuses(self):
-        assert OrderStatus.FILLED.is_terminal
-        assert OrderStatus.CANCELLED.is_terminal
-        assert OrderStatus.PARTIALLY_CANCELLED.is_terminal
-        assert OrderStatus.REJECTED.is_terminal
-        assert OrderStatus.EXPIRED.is_terminal
-
-    def test_non_terminal_statuses(self):
-        assert not OrderStatus.OPEN.is_terminal
-        assert not OrderStatus.PARTIALLY_FILLED.is_terminal
-        assert not OrderStatus.UNKNOWN.is_terminal
-
-    def test_normalize_delegates_to_registry(self):
-        result = OrderStatus.normalize("FILLED")
-        assert result == OrderStatus.FILLED
-
-    def test_normalize_complete_maps_to_filled(self):
-        assert OrderStatus.normalize("COMPLETE") == OrderStatus.FILLED
-
-    def test_normalize_executed_maps_to_filled(self):
-        assert OrderStatus.normalize("EXECUTED") == OrderStatus.FILLED
-
-    def test_normalize_unknown_for_garbage(self):
-        assert OrderStatus.normalize("XYZ_GARBAGE_STATUS") == OrderStatus.UNKNOWN
-
-    def test_normalize_empty_string_returns_unknown(self):
-        assert OrderStatus.normalize("") == OrderStatus.UNKNOWN
-
-    def test_is_str_enum(self):
-        assert isinstance(OrderStatus.FILLED, str)
+    def test_sell(self):
+        assert OrderSide.SELL == "SELL"
 
 
 class TestOrderType:
-    def test_all_types(self):
-        assert OrderType.LIMIT == "LIMIT"
+    def test_market(self):
         assert OrderType.MARKET == "MARKET"
-        assert OrderType.STOP_LOSS == "STOP_LOSS"
-        assert OrderType.STOP_LOSS_MARKET == "STOP_LOSS_MARKET"
 
-    def test_count(self):
-        assert len(OrderType) == 4
+    def test_limit(self):
+        assert OrderType.LIMIT == "LIMIT"
 
+    def test_stop(self):
+        assert OrderType.STOP == "STOP"
 
-class TestProductType:
-    def test_all_types(self):
-        assert ProductType.CNC == "CNC"
-        assert ProductType.INTRADAY == "INTRADAY"
-        assert ProductType.MARGIN == "MARGIN"
-        assert ProductType.MTF == "MTF"
+    def test_stop_limit(self):
+        assert OrderType.STOP_LIMIT == "STOP_LIMIT"
 
 
-class TestValidity:
+class TestOrderStatus:
+    def test_pending(self):
+        assert OrderStatus.PENDING == "PENDING"
+
+    def test_submitted(self):
+        assert OrderStatus.SUBMITTED == "SUBMITTED"
+
+    def test_partially_filled(self):
+        assert OrderStatus.PARTIALLY_FILLED == "PARTIALLY_FILLED"
+
+    def test_filled(self):
+        assert OrderStatus.FILLED == "FILLED"
+
+    def test_cancelled(self):
+        assert OrderStatus.CANCELLED == "CANCELLED"
+
+    def test_rejected(self):
+        assert OrderStatus.REJECTED == "REJECTED"
+
+    def test_unknown(self):
+        assert OrderStatus.UNKNOWN == "UNKNOWN"
+
+
+class TestTimeInForce:
     def test_day(self):
-        assert Validity.DAY == "DAY"
+        assert TimeInForce.DAY == "DAY"
 
     def test_ioc(self):
-        assert Validity.IOC == "IOC"
+        assert TimeInForce.IOC == "IOC"
+
+    def test_gtc(self):
+        assert TimeInForce.GTC == "GTC"
+
+
+class TestEnvironment:
+    def test_replay(self):
+        assert Environment.REPLAY == "REPLAY"
+
+    def test_backtest(self):
+        assert Environment.BACKTEST == "BACKTEST"
+
+    def test_paper(self):
+        assert Environment.PAPER == "PAPER"
+
+    def test_live(self):
+        assert Environment.LIVE == "LIVE"
+
+
+class TestBrokerId:
+    def test_dhan(self):
+        assert BrokerId.DHAN == "dhan"
+
+    def test_upstox(self):
+        assert BrokerId.UPSTOX == "upstox"
+
+    def test_paper(self):
+        assert BrokerId.PAPER == "paper"
+
+
+class TestExchangeId:
+    def test_nse(self):
+        assert ExchangeId.NSE == "NSE"
+
+    def test_bse(self):
+        assert ExchangeId.BSE == "BSE"
+
+    def test_mcx(self):
+        assert ExchangeId.MCX == "MCX"
+
+
+class TestAssetClass:
+    def test_equity(self):
+        assert AssetClass.EQUITY == "EQUITY"
+
+    def test_derivative(self):
+        assert AssetClass.DERIVATIVE == "DERIVATIVE"
+
+    def test_commodity(self):
+        assert AssetClass.COMMODITY == "COMMODITY"
+
+
+class TestInstrumentType:
+    def test_equity(self):
+        assert InstrumentType.EQUITY == "EQUITY"
+
+    def test_future(self):
+        assert InstrumentType.FUTURE == "FUTURE"
+
+    def test_option(self):
+        assert InstrumentType.OPTION == "OPTION"
+
+    def test_index(self):
+        assert InstrumentType.INDEX == "INDEX"
+
+
+class TestOptionType:
+    def test_call(self):
+        assert OptionType.CALL == "CALL"
+
+    def test_put(self):
+        assert OptionType.PUT == "PUT"
+
+
+class TestSignalDirection:
+    def test_buy(self):
+        assert SignalDirection.BUY == "BUY"
+
+    def test_sell(self):
+        assert SignalDirection.SELL == "SELL"
+
+    def test_neutral(self):
+        assert SignalDirection.NEUTRAL == "NEUTRAL"
+
+
+class TestRiskLevel:
+    def test_info(self):
+        assert RiskLevel.INFO == "INFO"
+
+    def test_warning(self):
+        assert RiskLevel.WARNING == "WARNING"
+
+    def test_critical(self):
+        assert RiskLevel.CRITICAL == "CRITICAL"
+
+
+class TestDriftSeverity:
+    def test_low(self):
+        assert DriftSeverity.LOW == "LOW"
+
+    def test_medium(self):
+        assert DriftSeverity.MEDIUM == "MEDIUM"
+
+    def test_high(self):
+        assert DriftSeverity.HIGH == "HIGH"

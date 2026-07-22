@@ -1,0 +1,18 @@
+environment: LIVE
+broker: dhan
+
+components:
+  risk:
+    max_order_size: 100
+    max_position_size: 500
+    max_daily_loss: 10000
+    max_orders_per_day: 20
+  message_bus:
+    persistent_log: true
+
+logging:
+  level: INFO
+
+observability:
+  metrics_enabled: true
+  tracing_enabled: true

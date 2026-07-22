@@ -1,0 +1,24 @@
+environment: PAPER
+broker: paper
+
+components:
+  message_bus:
+    max_queue_size: 10000
+    persistent_log: false
+  risk:
+    max_order_size: 1000
+    max_position_size: 5000
+    max_daily_loss: 50000
+    max_orders_per_day: 100
+  data:
+    datalake_path: ./data/lake
+    default_timeframe: 1m
+
+logging:
+  level: INFO
+  format: json
+
+observability:
+  metrics_enabled: true
+  tracing_enabled: true
+  otlp_endpoint: http://localhost:4317

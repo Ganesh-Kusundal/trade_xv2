@@ -1,0 +1,12 @@
+environment: BACKTEST
+broker: paper
+
+components:
+  risk:
+    max_order_size: 10000
+    max_position_size: 50000
+    max_daily_loss: 1000000
+    max_orders_per_day: 10000
+
+logging:
+  level: INFO

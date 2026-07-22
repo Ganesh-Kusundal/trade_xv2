@@ -91,6 +91,14 @@ runtime-dev/
 /runtime/*.sqlite-wal
 /runtime/event-log/
 
+# V2 process runtime state (tokens, cooldowns — never commit)
+v2/runtime/*.json
+v2/runtime/*.lock
+v2/runtime/*.log
+v2/runtime/*.sqlite
+v2/runtime/*.sqlite-shm
+v2/runtime/*.sqlite-wal
+
 # Process state under src/runtime package dir (locks, tokens, event logs)
 src/runtime/*.json
 src/runtime/*.lock

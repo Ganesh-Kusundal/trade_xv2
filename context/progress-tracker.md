@@ -6,6 +6,26 @@
 
 ## Current Phase
 
+- **V2 Auth probe-before-mint (2026-07-22):** Aligned `v2` TOTP/token policy with `src/infrastructure/auth/token_ensure.py` + Upstox `_bootstrap_totp_if_needed`: reuse valid store/env JWT (JWT `exp` via `jwt_expiry.py`); mint only on missing/expired/401; shared repo `runtime/*-totp-cooldown.json` + `*-token-state.json`; no sleep/poll loops — `TotpRateLimitError.remaining_seconds` reported once. `check_connection` never clears tokens to force mint.
+
+- **Spec Synthesis (2026-07-22):** Created `specs/IMPLEMENTATION-SPEC.md` — unified implementation specification synthesizing `goal.md` (231KB, monolithic with duplicate sections) and all 16 numbered spec documents (00–15) into a single 1,715-line source of truth. Covers: product vision, architecture, domain model, message bus, execution engine, strategy/analytics, broker adapters, data infrastructure, risk/safety, observability, configuration, testing, deployment, DFDs, implementation phases, framework contract, and 147-capability coverage ledger. Updated `specs/README.md` to reference the new unified spec as the starting point. `goal.md` preserved as legacy reference.
+
+- **V2 Broker E2E (2026-07-22):** Full Dhan+Upstox LIVE path under `v2/src/plugins/brokers/` — multi-bucket rate limiter + `HttpTransport`, TOTP cooldown + auto-token (`DhanTotpClient` / `UpstoxTokenManager`), Gateway→Connection→adapters (orders/MD/portfolio/instruments/streaming), `AppConfig.dhan|upstox`, `runtime/broker_factory.py`, LIVE `boot()` authenticate fail-closed, `BrokerFillSource` returns SUBMITTED (never fake FILLED). Tests: rate limit/cooldown/HTTP, auth, harness, live boot, live smoke (`@pytest.mark.live` skip without creds).
+
+- **V2 Agent E3 Datalake (2026-07-22):** `v2/src/datalake/` — Phase 5 JSONL bar store (no DuckDB required): `DataCatalog` write/read/query_bars, `DataQualityEngine.detect_gaps`, `CorporateActionStore.adjust_price` (splits), `SourceSelectionPolicy` prefer local→remote, in-process `DatalakeMcpServer` list_tools/call_tool. `v2/src/plugins/exchanges/nse/calendar.py` — `NSETradingCalendar.is_trading_day` (weekends + optional holidays). Tests: 19 passed (`test_datalake`, `test_quality`, `test_corporate_actions`, `test_source_selection`, `test_mcp`, `test_nse_calendar`).
+
+- **V2 Agent E1 Research Pipeline (2026-07-22):** `v2/src/application/analytics/` — `FeaturePipeline` (returns/sma → `EnrichedBar`), `ReplayEngine`/`BacktestEngine`/`PaperTradingEngine`/`LiveTradingEngine`. `v2/src/application/strategy/` — `StrategyEngine` + `BuyAndHold`. `FakeClock.set` for deterministic jumps. Component tests: 4 passed (`test_feature_pipeline`, `test_strategy_engine`, `test_replay_engine`, `test_backtest_engine`). Coexists with E2 `analytics/suite/`.
+
+- **V2 Agent E4 Interfaces (2026-07-22):** `v2/src/tradex/node.py` (TradingNode configure/start/stop/submit via RuntimeFactory+load_config+discover_brokers), `tradex/cli.py` (stdlib argparse: version/config validate/scanner/paper/backtest), `interface/api/app.py` (FastAPI health or stdlib HealthApp), `interface/tui/app.py` (TradeXTUI.render), `interface/mcp/server.py` (list_tools+health). Tests: 4 passed (`test_trading_node`, `test_cli`, `test_health_api`, `test_tui`).
+
+- **V2 Agent E2 Analytics Suite (2026-07-22):** `v2/src/application/analytics/suite/` — pure compute modules (SMA/EMA/RSI, momentum_scan, rank_by_return, sector_strength, BS call + intrinsic, futures basis, realized_vol, orderflow imbalance, advance_decline, volume POC, win_rate, pe_ratio, sharpe/max_drawdown, walk-forward windows). Tests: 16 passed (`tests/unit/analytics/test_analytics_suite.py`).
+
+- **V2 Agent D1 Composition Root (2026-07-22):** `v2/src/runtime/` — `execution_target` (Environment→FillSource/Clock), `RuntimeFactory.build`, `boot` (risk-bound + freeze env), frozen `Runtime`. `v2/src/infrastructure/clock.py` (SystemClock/FakeClock). Durable MessageLog via `persistent_log`→`InMemoryMessageLog`. `tradex/__init__.py` placeholder TradingNode. Tests: 13 passed (`test_execution_target`, `test_runtime_factory`, `test_startup`, `test_message_log_replay`).
+
+- **V2 Agent C2 Risk + Idempotency (2026-07-22):** `v2/src/application/risk/` — `RiskCheckResult`, `RiskContext`, rules engine (Position/OrderSize/DailyLoss/OrderRate, first failure wins), `RiskManager` (kill switch + fail-closed). `v2/src/infrastructure/idempotency/` — in-memory `IdempotencyGuard` (NEW|DUPLICATE+prior). Tests: 15 passed (`test_risk_rules`, `test_risk_manager`, `test_idempotency`). No ExecutionEngine.
+
+- **V2 Agent C1 OMS Core (2026-07-22):** `v2/src/application/oms/` — `TradingCache`, `OrderManager` (uses domain `Order.transition_to`), `PositionManager` (qty/avg/realized_pnl), `TradingContext`. Component tests: `test_order_manager`, `test_position_manager`, `test_trading_cache` (7 passed).
+
 - **Phase 4 Domain/Market/Runtime Consolidation CLOSED (2026-07-22):** Date/Time + Market Feed/Tick/Depth audits + M2+ subset (WS-A through WS-J). **Still NO-GO for live money** — ADR-0013 gates unchanged. Verification: 233 targeted remediation tests passed. ADR-0024 (paper/replay hooks). See WS-A–WS-J entries below.
 
 - **Phase 4 WS-A (2026-07-22):** Domain tz enforcement + depth enum completeness — `require_tz_aware()` in `domain/parsing.py`; guards on `MarketTick`/`QuoteSnapshot`/`OptionsBar`/`ContractBar`; deleted dead `TimestampSemantics`; `DepthKind` values aligned to runtime (`DEPTH_5/20/30/200`); `EventType.DEPTH_30`; `MarketDepth.depth_type` typed as `DepthKind`; `instrument` refs on `Quote`/`MarketDepth`. Tests: `test_time_guards.py`, `test_market_entities_tz_enforcement.py`, `test_depth_kind_enum.py`, bar tz tests.
@@ -1538,4 +1558,14 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
 - **Docs:** gap analysis addendum G-BS-REV-*; `graphify update src` applied
 
 **Next:** Operator live certify; optional extension-surface capability validation for super/forever/slice orders
+
+---
+
+## 2026-07-22 — TradeX V2 Agent B3 (Dhan + Upstox stubs + discovery)
+
+**Completed (under `v2/` only):**
+- Dhan + Upstox sandbox gateways: Gateway→Connection→adapters/{orders,market_data,portfolio,instruments,streaming} + wire.py; injectable `BaseTransport`
+- `runtime/discovery.py` — `tradex.brokers` entry points with explicit paper/dhan/upstox `register()` fallback
+- Integration harness tests via B2 `AdapterTestHarness` + FakeTransport fixtures; discovery unit test
+- Reused B1 `plugins.brokers.registry` / common transport+wire; did not modify paper plugin
 

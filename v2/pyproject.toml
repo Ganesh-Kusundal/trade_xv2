@@ -1,0 +1,109 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tradex-v2"
+version = "0.1.0"
+description = "TradeX V2 — NautilusTrader-style event-driven trading framework"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "pyyaml>=6.0",
+    "structlog>=24.0",
+    "pyotp>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "import-linter>=2.0",
+]
+upstox-totp = [
+    "upstox-totp>=0.1",
+]
+
+[project.scripts]
+tradex = "tradex.cli:main"
+
+[project.entry-points."tradex.brokers"]
+paper = "plugins.brokers.paper:register"
+dhan = "plugins.brokers.dhan:register"
+upstox = "plugins.brokers.upstox:register"
+
+[project.entry-points."tradex.exchanges"]
+nse = "plugins.exchanges.nse:register"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/domain",
+    "src/application",
+    "src/infrastructure",
+    "src/runtime",
+    "src/plugins",
+    "src/datalake",
+    "src/interface",
+    "src/config",
+    "src/shared",
+    "src/tradex",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "parity: four-mode parity gate tests",
+    "integration: requires external services",
+    "live: requires live broker credentials",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+
+[tool.importlinter]
+root_packages = [
+    "domain",
+    "application",
+    "infrastructure",
+    "runtime",
+    "interface",
+    "shared",
+    "plugins",
+    "datalake",
+    "config",
+    "tradex",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain has no outer imports"
+type = "forbidden"
+source_modules = ["domain"]
+forbidden_modules = ["application", "infrastructure", "runtime", "interface", "plugins", "datalake"]
+
+[[tool.importlinter.contracts]]
+name = "Application depends only on Domain + Shared"
+type = "forbidden"
+source_modules = ["application"]
+forbidden_modules = ["infrastructure", "runtime", "interface", "plugins"]
+
+[[tool.importlinter.contracts]]
+name = "Infrastructure does not import runtime or interface"
+type = "forbidden"
+source_modules = ["infrastructure"]
+forbidden_modules = ["runtime", "interface"]
+
+[[tool.importlinter.contracts]]
+name = "Interface does not import infrastructure directly"
+type = "forbidden"
+source_modules = ["interface"]
+forbidden_modules = ["infrastructure", "plugins"]
