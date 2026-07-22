@@ -134,8 +134,9 @@ class PaperOrders:
         so brokers never import the application layer. OrderManager only needs
         duck-typed attributes (symbol/side/qty/…); OrderIntent matches that shape.
         """
-        self._order_seq += 1
-        seq = self._order_seq
+        with self._lock:
+            self._order_seq += 1
+            seq = self._order_seq
 
         cmd = OrderIntent(
             symbol=normalize_symbol(symbol),
@@ -290,7 +291,6 @@ class PaperOrders:
         # Keep internal order/trade list synced for backward-compatible getters.
         with self._lock:
             self._orders.append(result.order)
-            self._order_seq = seq  # sync sequence counter
 
         # Only record trade / positions on market fills (single lock for atomicity).
         if is_market and result.order.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):

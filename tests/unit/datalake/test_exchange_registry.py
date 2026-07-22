@@ -19,6 +19,7 @@ from datalake.exchange_registry import (
     get_active_adapter,
     get_active_exchange_code,
     set_active_adapter,
+    wire_exchange_plugins,
 )
 from domain.exceptions import ExchangeNotConfigured
 from domain.ports.exchange_adapter import ExchangeAdapter
@@ -87,3 +88,16 @@ class TestExchangeRegistry:
     def test_get_adapter_returns_same(self):
         set_active_adapter(ADAPTER)
         assert get_active_adapter() is ADAPTER
+
+    def test_wire_exchange_plugins_discovers_nse(self):
+        wire_exchange_plugins()
+        assert get_active_exchange_code() == "NSE"
+
+    def test_wire_exchange_plugins_fail_closed_without_legacy(self, monkeypatch):
+        exchange_registry._ExchangeState._active_adapter = None
+        exchange_registry._ExchangeState._discovered = False
+        monkeypatch.setenv("TRADEX_LEGACY_NSE_DEFAULT", "0")
+        with patch("datalake.exchange_registry.entry_points", return_value=[]):
+            wire_exchange_plugins()
+        with pytest.raises(ExchangeNotConfigured):
+            get_active_adapter()

@@ -127,6 +127,10 @@ class DhanWireAdapter(BaseWireAdapter, BrokerAdapter):
         If ``correlation_id`` is not set on the request, the current thread's
         active correlation ID is used for automatic end-to-end tracing.
         """
+        from brokers.services._session import check_live_actionable
+
+        check_live_actionable(self.broker_id)
+
         if not request.correlation_id:
             try:
                 from domain.correlation import get_current_correlation_id

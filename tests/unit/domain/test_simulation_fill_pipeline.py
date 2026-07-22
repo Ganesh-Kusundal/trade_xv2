@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from domain import Side
 from domain.entities import Trade
-from domain.simulation_fill_pipeline import SimulationFillPipeline
+from application.services.simulation_orchestrator import SimulationFillPipeline
 
 
 def test_apply_trade_updates_projector_after_reducer_accepts() -> None:

@@ -52,7 +52,7 @@ def test_instrument_lookup_failure_skips_check():
     )
 
     result = risk.check_order(_make_order())
-    assert result.allowed is True
+    assert result.allowed is False
 
 
 def test_instrument_lookup_success_continues_to_tick_check():

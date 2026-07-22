@@ -43,9 +43,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Chaos tests
+      - name: Chaos tests (ADR-0013 Gate 3)
         run: |
-          PYTHONPATH=src pytest tests/chaos/ -v --tb=short -x
+          PYTHONPATH=src pytest tests/chaos/ -m chaos -v --tb=short -x
+      - name: Write chaos-green artifact
+        if: success()
+        run: |
+          PYTHONPATH=src python scripts/ci/write_chaos_green_artifact.py
+      - name: Upload chaos-green artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adr-0013-chaos-green-${{ github.run_id }}
+          path: artifacts/adr-0013-chaos-green.json
+          retention-days: 90
       - name: Memory leak regression
         run: |
           PYTHONPATH=src pytest tests/architecture/regression_invariants/test_memory_leaks.py -v --tb=short

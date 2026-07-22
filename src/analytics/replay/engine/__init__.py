@@ -28,7 +28,7 @@ from analytics.pipeline.errors import FeaturePipelineError
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.engine.bar_loop import run_multi_symbol as _run_multi_symbol_fn
 from analytics.replay.engine.bar_loop import run_single as _run_single_fn
-from analytics.replay.fill_recorder import FillRecorder
+from analytics.simulation.fill_recorder import FillRecorder
 from analytics.replay.models import (
     FillModel,
     ReplayConfig,
@@ -145,10 +145,13 @@ class ReplayEngine:
             self._oms_adapter,
             self._portfolio_tracker,
         )
+        # NOTE: on_sync intentionally omitted. sync_from_tracker resets
+        # session.capital to SimulatedCashLedger (which never updates), which
+        # breaks equity tracking and the daily_pnl feed to RiskManager.
+        # session.capital is correctly tracked by _book_*_fill hooks.
         self._signal_processor = SignalProcessor(
             self._fill_recorder,
             self._oms_adapter,
-            on_sync=self._position_closer.sync_from_tracker,
         )
 
     # ------------------------------------------------------------------

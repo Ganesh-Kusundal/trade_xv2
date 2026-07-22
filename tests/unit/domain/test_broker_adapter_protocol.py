@@ -8,11 +8,12 @@ from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.protocols import DataProvider, ExecutionProvider
 
 
-def test_broker_adapter_is_protocol():
-    """BrokerAdapter must be a Protocol (and runtime_checkable)."""
-    assert issubclass(BrokerAdapter, Protocol)
-    # runtime_checkable protocols support isinstance checks
-    assert getattr(BrokerAdapter, "_is_runtime_protocol", False) is True
+from abc import ABC
+
+
+def test_broker_adapter_is_abc():
+    """BrokerAdapter must be an ABC."""
+    assert issubclass(BrokerAdapter, ABC)
 
 
 def test_trivial_adapter_satisfies_isinstance():
@@ -21,7 +22,8 @@ def test_trivial_adapter_satisfies_isinstance():
     class FakeInstrument:
         pass
 
-    class TrivialAdapter:
+    class TrivialAdapter(BrokerAdapter):
+        __abstractmethods__ = set()
         broker_id = "fake"
         is_connected = True
 
@@ -106,6 +108,7 @@ def test_trivial_adapter_satisfies_isinstance():
         def close(self) -> None:
             return None
 
+    TrivialAdapter.__abstractmethods__ = frozenset()
     obj = TrivialAdapter()
     assert isinstance(obj, BrokerAdapter)
     assert isinstance(obj, DataProvider)

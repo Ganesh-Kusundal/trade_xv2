@@ -10,6 +10,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+pytestmark = pytest.mark.usefixtures("_wired")
+
 from analytics.backtest.engine import BacktestEngine, ResearchMode
 from analytics.backtest.models import BacktestConfig
 from analytics.paper.engine import PaperTradingEngine
@@ -19,9 +21,20 @@ from analytics.replay.engine import ReplayEngine
 from analytics.replay.models import ReplayConfig
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from runtime.wire_runtime_hooks import wire_runtime_hooks
 from tests.conftest import build_test_trading_context
 
 EQUITY_TOLERANCE = 1e-6
+
+
+@pytest.fixture(scope="module")
+def _wired():
+    """Wire runtime hooks + domain port sinks once per module."""
+    from runtime.factory import wire_domain_port_sinks
+
+    wire_runtime_hooks()
+    wire_domain_port_sinks()
+
 
 
 def _ohlcv(rows: int = 80) -> pd.DataFrame:
@@ -266,6 +279,9 @@ def test_analytics_entry_points_parity_daily_loss_trips() -> None:
     ctx.risk_manager._loss_cb.config = LossCircuitBreakerConfig(
         loss_threshold_pct=Decimal("99"),
     )
+    # Disable rate throttler for backtest (real-time throttler blocks simulated
+    # orders because 60 bars run in <1s). Daily-loss check still gates.
+    ctx.risk_manager._throttler._max_per_second = 100000
     ctx.event_bus.subscribe(EventType.RISK_REJECTED.value, rejected.append)
 
     engine = ReplayEngine(

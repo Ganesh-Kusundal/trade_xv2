@@ -21,12 +21,12 @@ from domain.extensions.fundamentals import (
     FundamentalsSnapshot,
 )
 from domain.extensions.news import NewsItem, NewsProvider
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_gateway import QuotaToken
 
 
 class UpstoxNewsExtension(NewsProvider):
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         broker = getattr(gateway, "_broker", None)
         if broker is None:
             raise RuntimeError("Upstox gateway missing _broker reference")
@@ -73,7 +73,7 @@ class UpstoxNewsExtension(NewsProvider):
 
 
 class UpstoxFundamentalsExtension(FundamentalsProvider):
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         self._extended = gateway.extended
 
     async def fetch_fundamentals(self, isin: str, *, quota: QuotaToken) -> FundamentalsSnapshot:
@@ -123,7 +123,7 @@ class UpstoxFundamentalsExtension(FundamentalsProvider):
 class UpstoxGttForeverOrderStrategy(ForeverOrderProvider):
     """Registry strategy — forever-order port backed by Upstox GTT adapter."""
 
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         broker = getattr(gateway, "_broker", None)
         if broker is None:
             raise RuntimeError("Upstox gateway missing _broker reference")
@@ -182,7 +182,7 @@ class UpstoxExtendedOrderExecutor(ExtendedOrderExecutor):
 
     broker_id = "upstox"
 
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         self._gateway = gateway
 
     @property
@@ -241,7 +241,7 @@ class UpstoxExtendedOrderExecutor(ExtendedOrderExecutor):
         return self._broker.kill_switch.set_status(updates)
 
 
-def register_upstox_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
+def register_upstox_extensions(gateway: BrokerAdapter) -> ExtensionBundle:
     bundle = ExtensionBundle("upstox")
     bundle.register(NewsProvider, UpstoxNewsExtension(gateway))
     bundle.register(FundamentalsProvider, UpstoxFundamentalsExtension(gateway))

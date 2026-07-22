@@ -1,10 +1,10 @@
-"""BrokerContractSuite — tests that verify any MarketDataGateway implementation
+"""BrokerContractSuite — tests that verify any BrokerAdapter implementation
 conforms to the frozen v1.0 contract.
 
 Usage: subclass this in each broker's contract test directory and provide
-a ``gateway`` fixture that returns a configured MarketDataGateway instance.
+a ``gateway`` fixture that returns a configured BrokerAdapter instance.
 
-The method names tested here match the actual MarketDataGateway ABC
+The method names tested here match the actual BrokerAdapter ABC
 (quote, history, option_chain, etc.), not legacy names (get_quote, etc.).
 """
 
@@ -24,19 +24,19 @@ from domain.entities import (
     Quote,
 )
 from domain.enums import OrderStatus
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.market_enums import ExchangeId
 
 
 class BrokerContractSuite:
-    """Contract tests for any MarketDataGateway implementation.
+    """Contract tests for any BrokerAdapter implementation.
 
     Subclasses must provide a ``gateway`` fixture returning a
-    configured MarketDataGateway instance.
+    configured BrokerAdapter instance.
     """
 
     @pytest.fixture
-    def gateway(self) -> MarketDataGateway:
+    def gateway(self) -> BrokerAdapter:
         raise NotImplementedError("gateway fixture must be provided by the broker implementation")
 
     # ── Lifecycle ─────────────────────────────────────────────────────────

@@ -212,6 +212,56 @@ def backtest_walkforward(args: tuple[str, ...]) -> None:
 
 
 @tradex.group()
+def datalake() -> None:
+    """Datalake maintenance — manual sync trigger."""
+
+
+@datalake.command("sync")
+@click.option("--timeframe", default="1m", help="Candle timeframe to sync.")
+@click.option("--workers", default=10, type=int, help="Parallel symbol workers.")
+@click.option("--limit", default=None, type=int, help="Sync only the first N symbols (testing).")
+@click.option(
+    "--skip-health-check", is_flag=True, help="Skip post-sync corruption scan (dev/ad-hoc only)."
+)
+@click.option(
+    "--repair-gaps",
+    is_flag=True,
+    help="Fill mid-history holes only (slow). Default is tail-only daily catch-up.",
+)
+@click.option("--full", is_flag=True, help="Tail + internal gap repair (slowest).")
+def datalake_sync(
+    timeframe: str,
+    workers: int,
+    limit: int | None,
+    skip_health_check: bool,
+    repair_gaps: bool,
+    full: bool,
+) -> None:
+    """Sync every registered symbol up to today (federated, quota-aware).
+
+    Default: tail-only (last bar → today). Use ``--repair-gaps`` for mid-history
+    holes or ``--full`` for both phases.
+    """
+    from runtime.datalake_sync import run_federated_sync
+
+    if full and repair_gaps:
+        raise click.ClickException("Use only one of --repair-gaps or --full")
+    repair_scope = "all" if full else ("internal" if repair_gaps else "tail")
+
+    report = run_federated_sync(
+        timeframe=timeframe,
+        workers=workers,
+        limit=limit,
+        print_fn=click.echo,
+        run_health_check=not skip_health_check,
+        repair_scope=repair_scope,
+    )
+    click.echo(json.dumps(report.as_dict(), indent=2, default=str))
+    if not report.ok:
+        raise SystemExit(1)
+
+
+@tradex.group()
 def support() -> None:
     """Support/resistance levels (read-only datalake query)."""
 

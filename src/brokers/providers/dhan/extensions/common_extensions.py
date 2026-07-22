@@ -24,12 +24,12 @@ from domain.extensions.super_order import (
     SuperOrderRequest,
     SuperOrderResult,
 )
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_gateway import QuotaToken
 
 
 class DhanSuperOrderStrategy(SuperOrderProvider):
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         self._extended = gateway.extended
 
     async def place_super_order(
@@ -81,7 +81,7 @@ class DhanSuperOrderStrategy(SuperOrderProvider):
 
 
 class DhanForeverOrderStrategy(ForeverOrderProvider):
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         self._extended = gateway.extended
 
     async def place_forever_order(
@@ -123,7 +123,7 @@ class DhanForeverOrderStrategy(ForeverOrderProvider):
 
 
 class DhanNativeSliceExtension(NativeSliceOrderProvider):
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         self._orders = gateway.extended.orders
 
     async def place_slice_order(self, spec: SliceOrderSpec, *, quota: object) -> Sequence[Any]:
@@ -150,7 +150,7 @@ class DhanExtendedOrderExecutor(ExtendedOrderExecutor):
 
     broker_id = "dhan"
 
-    def __init__(self, gateway: MarketDataGateway) -> None:
+    def __init__(self, gateway: BrokerAdapter) -> None:
         self._gateway = gateway
 
     @property
@@ -176,7 +176,7 @@ class DhanExtendedOrderExecutor(ExtendedOrderExecutor):
         return conn.orders.place_slice_order(**payload)
 
 
-def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
+def register_dhan_extensions(gateway: BrokerAdapter) -> ExtensionBundle:
     bundle = ExtensionBundle("dhan")
     bundle.register(SuperOrderProvider, DhanSuperOrderStrategy(gateway))
     bundle.register(ForeverOrderProvider, DhanForeverOrderStrategy(gateway))

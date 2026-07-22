@@ -74,7 +74,7 @@ def initialize_api_services(
         )
         logger.info("Composers created with risk_manager=%s", "yes" if risk_manager else "no")
 
-    return {
+    services = {
         "datalake_gateway": datalake_gateway,
         "data_catalog": data_catalog,
         "view_manager": view_manager,
@@ -85,6 +85,16 @@ def initialize_api_services(
         "execution_composer": execution_composer,
         "runtime": runtime,
     }
+
+    from interface.api.lifecycle import wire_api_process_session
+
+    wire_api_process_session(
+        trading_context=trading_context,
+        execution_composer=execution_composer,
+        runtime=runtime,
+    )
+
+    return services
 
 
 __all__ = ["initialize_api_services"]

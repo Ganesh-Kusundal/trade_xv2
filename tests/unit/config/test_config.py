@@ -55,6 +55,39 @@ class TestAppConfigDefaults:
         cfg = AppConfig()
         assert cfg.rate_limit_window_seconds == 60.0
 
+    def test_default_trading_runtime_fields(self) -> None:
+        cfg = AppConfig()
+        assert cfg.orchestrator_dry_run is False
+        assert cfg.skip_parity_gate is False
+        assert cfg.risk_fail_open is False
+        assert cfg.primary_broker == "dhan"
+
+
+class TestAppConfigProductionEnv:
+    def test_tradex_env_production_maps_to_strict_profile(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"TRADEX_ENV": "production", "TRADEX_FORCE_PROD_VALIDATION": "1"},
+            clear=False,
+        ):
+            cfg = AppConfig.from_env()
+            assert cfg.app_env == "prod"
+            assert cfg.is_production_or_staging() is True
+
+    def test_trading_flags_from_legacy_env(self) -> None:
+        env = {
+            "RISK_FAIL_OPEN": "1",
+            "SKIP_PARITY_GATE": "1",
+            "ORCHESTRATOR_DRY_RUN": "1",
+            "TRADEX_PRIMARY_BROKER": "upstox",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            cfg = AppConfig.from_env()
+        assert cfg.risk_fail_open is True
+        assert cfg.skip_parity_gate is True
+        assert cfg.orchestrator_dry_run is True
+        assert cfg.primary_broker == "upstox"
+
 
 class TestEnvVarLoading:
     """Verify from_env reads environment variables correctly."""

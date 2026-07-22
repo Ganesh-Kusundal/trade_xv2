@@ -256,3 +256,40 @@ class TestDataCatalogThreadSafety:
         _close_writer(catalog)
         symbols = catalog.list_symbols()
         assert len(symbols) == 20
+
+    def test_concurrent_get_symbol_and_register_symbol_does_not_crash(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression guard for a real segfault: repair_missing()'s per-symbol
+        catalog fast-path read (get_symbol) racing register_symbol's write on
+        the same shared DuckDB connection segfaulted the process under a
+        thread pool matching auto_sync.sync_all's worker concurrency. Both
+        must serialize on DataCatalog._conn_lock."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        catalog = DataCatalog(root=str(tmp_path))
+        errors: list[Exception] = []
+        symbols = [f"SYM{i:03d}" for i in range(30)]
+
+        def worker(i: int) -> None:
+            sym = symbols[i % len(symbols)]
+            try:
+                for _ in range(20):
+                    catalog.register_symbol(
+                        symbol=sym,
+                        exchange="NSE",
+                        first_date=date(2026, 1, 1),
+                        last_date=date(2026, 1, 31),
+                        total_rows=i,
+                        timeframe="1m",
+                        parquet_path=f"path/{sym}",
+                    )
+                    catalog.get_symbol(sym)
+            except Exception as exc:
+                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            list(executor.map(worker, range(30)))
+
+        assert not errors
+        _close_writer(catalog)

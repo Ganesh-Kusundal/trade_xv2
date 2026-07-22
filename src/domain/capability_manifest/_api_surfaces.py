@@ -187,7 +187,7 @@ API_PRODUCT_SURFACES = (
         "interface.api.symbols",
         cli=(
             ("instrument", "src/interface/ui/commands/instrument.py"),
-            ("instrument", "src/brokers/cli/broker.py"),
+            ("instrument", "src/interface/ui/commands/broker.py"),
         ),
         notes="MCP: broker_instrument_lookup; services: lookup_instrument",
         rest=(

@@ -30,7 +30,7 @@ class TestApiConfig:
 class TestTradingConfig:
     def test_default_values(self):
         config = TradingConfig()
-        assert config.orchestrator_dry_run is True
+        assert config.orchestrator_dry_run is False
         assert config.orchestrator_min_confidence == 0.7
         assert config.enable_intelligent_gateway is False
         assert config.skip_parity_gate is False

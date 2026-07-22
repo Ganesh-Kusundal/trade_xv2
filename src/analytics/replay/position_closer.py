@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from analytics.replay.fill_recorder import FillRecorder
+from analytics.simulation.fill_recorder import FillRecorder
 from analytics.replay.models import ReplaySession, SimulatedTrade
 from analytics.simulation.position_closer import PositionCloser as _SharedPositionCloser
 from analytics.simulation.position_closer import PositionCloserHooks

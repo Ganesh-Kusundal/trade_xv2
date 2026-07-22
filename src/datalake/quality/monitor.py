@@ -84,7 +84,7 @@ class OverallReport:
 def _expected_candles_per_day(timeframe: str) -> int | None:
     """Return expected candles per trading day for *timeframe*, or None."""
     if timeframe in ("1m", "5m", "15m", "30m"):
-        from datalake.core.nse_calendar import expected_candles_per_day
+        from datalake.exchange_registry import expected_candles_per_day
 
         return expected_candles_per_day(timeframe)
     return None
@@ -105,7 +105,7 @@ def _check_freshness(days_old: int, last_date: str) -> tuple[QualityMetric, str 
 def _check_completeness(
     avg_candles: float, expected: int
 ) -> tuple[QualityMetric, str | None] | None:
-    from datalake.core.nse_calendar import COMPLETENESS_OK_FRACTION
+    from datalake.exchange_registry import COMPLETENESS_OK_FRACTION
 
     if expected <= 0:
         return None

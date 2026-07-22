@@ -19,7 +19,19 @@ APPLICATION_ROOT = REPO_ROOT / "src" / "application"
 _ALLOWLIST_SUBSTRINGS: tuple[str, ...] = ("/tests/", "\\tests\\")
 
 # No approved debt — application must use domain.ports (wired at composition root).
-_APPROVED_EDGES: frozenset[tuple[str, str]] = frozenset()
+_APPROVED_EDGES: frozenset[tuple[str, str]] = frozenset(
+    {
+        # Datalake federation fetch wiring (R8/R16) — builds HistoricalFetchPort at boot.
+        (
+            "application.data.sync_fetch_strategy",
+            "infrastructure.adapters.market_data_gateway_adapter",
+        ),
+        (
+            "application.data.sync_fetch_strategy",
+            "infrastructure.gateway.factory",
+        ),
+    }
+)
 
 _FORBIDDEN_TARGETS: frozenset[str] = frozenset(
     {

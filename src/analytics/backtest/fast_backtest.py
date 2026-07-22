@@ -35,7 +35,7 @@ from analytics.strategy.pipeline import StrategyPipeline
 from domain.constants import DEFAULT_EXCHANGE
 from domain.entities.trade import Trade
 from domain.enums import Side
-from domain.trading_costs import apply_slippage as _apply_slippage
+from application.services.trading_costs_service import apply_slippage as _apply_slippage
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,6 @@ class FastBacktestEngine:
         from analytics.replay.models import ReplayResult, ReplaySession
 
         session = ReplaySession(capital=self._config.initial_capital)
-        session.trades = []
         session.equity_curve = equity_curve
         session.signals = signals
 
@@ -114,6 +113,7 @@ class FastBacktestEngine:
             capital_metrics_label=CapitalMetricsLabel.RESEARCH,
             metadata={
                 "engine": "FastBacktestEngine",
+                "research_trade_count": len(trades),
                 "capital_metrics_valid": False,
                 "capital_metrics_label": CapitalMetricsLabel.RESEARCH.value,
                 "bias_warning": (

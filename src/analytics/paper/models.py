@@ -15,11 +15,11 @@ from analytics.simulation.models import FillModel
 from domain.constants import DEFAULT_EXCHANGE
 from domain.entities import Trade
 from domain.enums import OrderStatus, PositionSide, Side
-from domain.portfolio_projection import PortfolioProjector
+from application.services.simulation_orchestrator import PortfolioProjector
+from application.services.simulation_orchestrator import SimulationFillPipeline
+from application.services.simulation_orchestrator import PositionMeta
+from application.services.trading_costs_service import CommissionModel, IndianMarketFees
 from domain.ports.time_service import get_current_clock
-from domain.simulation_fill_pipeline import SimulationFillPipeline
-from domain.simulation_position_meta import PositionMeta
-from domain.trading_costs import CommissionModel, IndianMarketFees
 
 # Back-compat alias: older call sites and tests refer to Side as OrderSide.
 OrderSide = Side

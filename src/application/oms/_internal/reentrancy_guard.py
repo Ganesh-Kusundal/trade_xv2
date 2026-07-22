@@ -1,19 +1,34 @@
 """Shared re-entrancy guard for event handler depth tracking.
 
 Used by :class:`OrderManager` and :class:`PositionManager` to prevent
-re-entrant calls into the same handler.
+re-entrant calls into the same handler on the *same thread*.
+
+Concurrent handlers on different threads must not share one depth counter —
+that falsely sets ``reentered`` and drops fills (Phase 1 D-07 / R1 fix).
 """
 
 from __future__ import annotations
 
+import threading
+
+
+def _depth_local(owner: object) -> threading.local:
+    local = getattr(owner, "reentrancy_depth_local", None)
+    if local is None:
+        local = threading.local()
+        owner.reentrancy_depth_local = local  # type: ignore[attr-defined]
+    if not hasattr(local, "depth"):
+        local.depth = 0
+    return local
+
 
 class _ReentrancyGuard:
-    """Context manager that atomically checks and increments a handler-depth counter.
+    """Context manager that atomically checks and increments a per-thread depth counter.
 
     Eliminates the duplicated try/finally pattern from event handlers
     in :class:`OrderManager` and :class:`PositionManager`.  On ``__enter__``
     the ``reentered`` flag records whether a handler was already active
-    (``_handler_depth > 0`` before incrementing).  The caller checks
+    on this thread (``depth > 0`` before incrementing).  The caller checks
     ``guard.reentered`` to decide whether to bail out.
 
     Usage::
@@ -32,11 +47,13 @@ class _ReentrancyGuard:
         self.reentered = False
 
     def __enter__(self):
+        local = _depth_local(self._owner)
         with self._lock:
-            self.reentered = self._owner._handler_depth > 0
-            self._owner._handler_depth += 1
+            self.reentered = local.depth > 0
+            local.depth += 1
         return self
 
     def __exit__(self, *args) -> None:
+        local = _depth_local(self._owner)
         with self._lock:
-            self._owner._handler_depth -= 1
+            local.depth -= 1

@@ -201,7 +201,7 @@ ORDER_SURFACES = (
         abc_required=True,
         cli=(
             ("doctor", "src/interface/ui/commands/doctor/strategies/active_broker.py"),
-            ("capability", "src/brokers/cli/broker.py"),
+            ("capability", "src/interface/ui/commands/broker.py"),
         ),
         notes="MCP: broker_capabilities; services: get_capabilities",
         tier="broker_only",

@@ -157,6 +157,65 @@ class PaperGateway(BaseWireAdapter, BrokerAdapter):
     # Market Data (read-only)
     # =======================================================================
 
+    _HISTORY_COLUMNS = (
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "oi",
+        "symbol",
+        "exchange",
+        "timeframe",
+    )
+
+    def _empty_history_frame(self) -> pd.DataFrame:
+        return pd.DataFrame(columns=list(self._HISTORY_COLUMNS))
+
+    def _synthetic_history(
+        self,
+        symbol: str,
+        exchange: str,
+        timeframe: str,
+        lookback_days: int,
+    ) -> pd.DataFrame:
+        """Legacy RNG bars — dev-only via TRADEX_PAPER_SYNTHETIC_HISTORY=1."""
+        import hashlib
+        from datetime import timedelta
+
+        import numpy as np
+
+        from domain.ports.time_service import get_current_clock
+
+        n = lookback_days
+        dates = [get_current_clock().now() - timedelta(days=n - i) for i in range(n)]
+        seed = int(hashlib.sha256(symbol.encode()).hexdigest()[:8], 16) % (2**31)
+        np.random.seed(seed)
+        base_price = 500.0 + np.random.uniform(0, 4500)
+        close = base_price + np.cumsum(np.random.randn(n) * base_price * 0.02)
+        high = close + abs(np.random.randn(n)) * base_price * 0.01
+        low = close - abs(np.random.randn(n)) * base_price * 0.01
+        open_ = close + np.random.randn(n) * base_price * 0.005
+        volume = np.random.randint(10000, 500000, n).astype(float)
+        rows = []
+        for i in range(n):
+            rows.append(
+                {
+                    "timestamp": dates[i],
+                    "open": round(open_[i], 2),
+                    "high": round(high[i], 2),
+                    "low": round(low[i], 2),
+                    "close": round(close[i], 2),
+                    "volume": int(volume[i]),
+                    "oi": 0,
+                    "symbol": symbol,
+                    "exchange": exchange,
+                    "timeframe": timeframe,
+                }
+            )
+        return pd.DataFrame(rows)
+
     def history(
         self,
         symbol: str,
@@ -166,45 +225,24 @@ class PaperGateway(BaseWireAdapter, BrokerAdapter):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        import hashlib
-        from datetime import timedelta
+        import os
 
-        import numpy as np
+        from datalake.gateway import DataLakeGateway
 
-        from domain.ports.time_service import get_current_clock
-
-        symbols = [symbol]
-        n = lookback_days
-        dates = [get_current_clock().now() - timedelta(days=n - i) for i in range(n)]
-
-        rows = []
-        for sym in symbols:
-            seed = int(hashlib.sha256(sym.encode()).hexdigest()[:8], 16) % (2**31)
-            np.random.seed(seed)
-            base_price = 500.0 + np.random.uniform(0, 4500)
-            close = base_price + np.cumsum(np.random.randn(n) * base_price * 0.02)
-            high = close + abs(np.random.randn(n)) * base_price * 0.01
-            low = close - abs(np.random.randn(n)) * base_price * 0.01
-            open_ = close + np.random.randn(n) * base_price * 0.005
-            volume = np.random.randint(10000, 500000, n).astype(float)
-
-            for i in range(n):
-                rows.append(
-                    {
-                        "timestamp": dates[i],
-                        "open": round(open_[i], 2),
-                        "high": round(high[i], 2),
-                        "low": round(low[i], 2),
-                        "close": round(close[i], 2),
-                        "volume": int(volume[i]),
-                        "oi": 0,
-                        "symbol": sym,
-                        "exchange": exchange,
-                        "timeframe": timeframe,
-                    }
-                )
-
-        return pd.DataFrame(rows)
+        lake = DataLakeGateway()
+        df = lake.history(
+            symbol,
+            exchange=exchange,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        if df is not None and not df.empty:
+            return df
+        if os.getenv("TRADEX_PAPER_SYNTHETIC_HISTORY") == "1":
+            return self._synthetic_history(symbol, exchange, timeframe, lookback_days)
+        return self._empty_history_frame()
 
     def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         q = self._market_data.get_quote(symbol, exchange)

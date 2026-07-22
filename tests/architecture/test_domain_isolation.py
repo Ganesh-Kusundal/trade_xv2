@@ -7,9 +7,8 @@ Critical: scan ``src/domain`` (src-layout). A previous version scanned
 ``ROOT/domain`` which does not exist, so the AST walker parsed zero files
 and the suite silently passed.
 
-REF-10 documented shims: domain modules that re-export from
-application/services/ are intentionally allowed. They are tracked in
-test_domain_no_orchestration_imports.py and will be removed by REF-13.
+REF-10 backward-compat shims have been removed — domain now has zero
+application imports.
 """
 
 from __future__ import annotations
@@ -35,15 +34,9 @@ FORBIDDEN_LAYERS = (
     "runtime",
 )
 
-# REF-10 backward-compat re-export shims — documented exceptions to the
-# application-import ban.  Tracked in test_domain_no_orchestration_imports.py.
-REF10_SHIMS = {
-    DOMAIN_DIR / "trading_costs.py",
-    DOMAIN_DIR / "simulation_fill_pipeline.py",
-    DOMAIN_DIR / "simulation_position_meta.py",
-    DOMAIN_DIR / "portfolio_projection.py",
-    DOMAIN_DIR / "reconciliation_engine.py",
-}
+# REF-10 backward-compat re-export shims — all removed by architectural audit.
+# Domain now has zero application imports.
+REF10_SHIMS: set[Path] = set()
 
 
 def _extract_import_root(stmt: ast.stmt) -> str | None:

@@ -16,7 +16,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from domain.exceptions import BrokerNotReadyError
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from interface.ui.services.broker_registry import bootstrap_gateway
 
 if TYPE_CHECKING:
@@ -36,9 +36,9 @@ class MarketDataBootstrap:
 
     def __init__(self, service: BrokerService) -> None:
         self._svc = service
-        self._gateways: dict[str, MarketDataGateway] = {}
+        self._gateways: dict[str, BrokerAdapter] = {}
 
-    def market_gateway(self, name: str) -> MarketDataGateway:
+    def market_gateway(self, name: str) -> BrokerAdapter:
         """Bootstrap *name* for read-only market data only. Cached per
         broker name; safe to call repeatedly."""
         key = (name or "").lower().strip()

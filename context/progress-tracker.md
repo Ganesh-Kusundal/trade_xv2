@@ -6,6 +6,40 @@
 
 ## Current Phase
 
+- **Phase 4 R17 (2026-07-22):** Manifest-gated datalake sync — `data/lake/sync_manifest.csv` is the authoritative allowlist; `sync_all` no longer discovers symbols from filesystem dirs; `delisted_symbols.csv` applies to equities + indices; `download_universe` auto-registers manifest entries; `scripts/bootstrap_sync_manifest.py` (excludes BSE100/200/500 orphans, optional `--purge-excluded`); catalog `unregister_symbol()`. Live lake bootstrapped: 519 symbols (501 eq + 18 idx). Tests: `test_sync_manifest.py`.
+
+- **Phase 4 R13 (2026-07-22):** Research engines polish — `BaseScanner._begin_scan` / `_finish_scan` / `_empty_scan_result` so SCAN_STARTED always pairs with SCAN_COMPLETED (no orphan on `NotImplementedError`); concrete scanners call `_begin_scan` at scan entry; `FastBacktestEngine` keeps `ReplaySession.trades` as typed `SimulatedTrade[]` (research trade count in metadata). Tests: `test_research_engines.py`.
+
+- **Phase 4 R14 (2026-07-22):** Frontend boundary (ADR-0022, Option B) — operator surface = FastAPI REST + `tradex` CLI/TUI; SPA deferred (`web/` placeholder only); WS auth ratchet (`reject_ws_if_unauthorized` on market/replay handlers when `AUTH_MODE=api_key`); CORS via `AppConfig`. Tests: `test_frontend_boundary.py`.
+
+- **Phase 4 R15 (2026-07-22):** Live execution lift PREP (ADR-0013 seam, live still blocked) — `assert_live_lift_preconditions()` double opt-in (`TRADEX_ENABLE_LIVE_EXECUTION` + `TRADEX_ADR_0013_LIFT`) + PRE-DEPLOY ≥8.5 + chaos streak ≥4; wired in `execution_config`, `execution_target`, `validate_production_config(surface="runtime")`. Tests: `test_live_lift_prep.py`.
+
+- **Phase 4 R16 (2026-07-22):** Native datalake sync + fast daily path — `DataLake.sync()` / `runtime/datalake_sync.py` single wiring; `HistoricalFetchPort`; mid-history gap repair (Phase B) with NSE calendar; equities+indices `sync_all`; DuckDB catalog `_conn_lock` (fixes exit-139 under parallel sync); `repair_scope` (`tail`|`internal`|`all`) — default **tail-only** (~15 min daily) via `scripts/sync_datalake.py`, `--repair-gaps` off-hours, `--full` both phases; API `POST /datalake/sync?repair_scope=tail`. Tests: `test_repair_internal_gaps.py`, `test_auto_sync.py`, `test_datalake_does_not_import_application.py`, catalog concurrency test.
+
+- **Phase 4 R12 (2026-07-22):** Deployment artifact — multi-stage `Dockerfile` (non-root `tradex`, pip install, `TRADEX_STATE_ROOT` volume); `scripts/docker_entrypoint.sh`; SessionRecorder under `{TRADEX_STATE_ROOT}/session-recordings`; observability bind via `TRADEX_OBSERVABILITY_HOST/PORT`; `fastapi`+`uvicorn` promoted to main deps; CI `docker-smoke.yml` (healthz/readyz/metrics). Tests: `test_deployment_artifact.py`.
+
+- **Phase 4 R11 (2026-07-22):** Testing & chaos maturity (ADR-0013 Gate 3) — `tests/chaos/conftest.py` auto-applies `@pytest.mark.chaos`; replaced tautological `assert len(drift) >= 0` in reconciliation chaos with behavioral drift-kind checks; `scripts/ci/write_chaos_green_artifact.py` + weekly-hardening artifact upload (90-day retention for 4-week streak tracking). Tests: `test_chaos_maturity.py`.
+
+- **Phase 4 R10 (2026-07-22):** Operator API hardening (ADR-0020) — `interface/api/lifecycle.py` process session singleton (`wire_api_process_session`); `place_order` uses startup `ExecutionComposer` (no per-request `tradex.connect`); modify/cancel use `run_coro_sync` not `asyncio.run`; `AUTH_MODE=none` gated by `TRADEX_DEV=1` / local dev (prod still requires `api_key` via `validate_production_config`). Tests: `test_operator_api_hardening.py`.
+
+- **Phase 4 R9 (2026-07-22):** Risk engine unification (ADR-0017/0018) — `RiskManager._check_exposure_limits` delegates to domain `RiskGate.evaluate`; always wires domain `KillSwitch`; `resolve_capital_provider()` selects Fixed vs Gateway capital by execution target; `TRADEX_RISK_LEGACY=1` rollback for inline pct checks.
+
+- **Phase 4 R8 (2026-07-22):** Exchange-agnostic datalake (ADR-005) — `wire_exchange_plugins()` at composition boot (entry-point discovery + `TRADEX_LEGACY_NSE_DEFAULT` NSE fallback); calendar helpers on `exchange_registry`; `nse_calendar.py` is shim; loader/gap_detector/monitor migrated off direct imports. Tests: `test_exchange_agnostic_datalake.py`, datalake conftest wires NSE.
+
+- **Phase 4 R7 (2026-07-22):** AppConfig migration (ADR-003) — trading/runtime safety fields on `AppConfig` (`risk_fail_open`, `skip_parity_gate`, orchestrator flags); `load_api_config`/`load_trading_config` delegate to `AppConfig.from_env()`; `validate_production_config` reads `AppConfig` (TRADEX_ENV→prod compat). Broker `SettingsLoaderBase` retained for `DHAN_*`/`UPSTOX_*` only.
+
+- **Phase 4 R6 (2026-07-22):** Event bus consolidation (ADR-004) — deleted `FastEventBus`/`fast_event_bus.py` (no production callers after R5). Latency benchmark retargeted to canonical `EventBus`; architecture ratchet extended in `test_single_bus.py`.
+
+- **Phase 4 R5 (2026-07-22):** Single composition root — added `runtime/kernel.py` (ADR-0015); deleted broken `ApplicationContainer`/`container.py` (FastEventBus + `ExecutionEngine._ctx=None`). `bootstrap_platform()` returns wired `PaperSession` via `build_paper_session`. `paper_session` + `broker_session` import `wire_domain_port_sinks` from `composition`. Tests: `test_runtime_kernel.py`, `test_runtime_kernel` architecture ratchet.
+
+- **Phase 4 R4 (2026-07-22):** REF-5 — replay uses `analytics.simulation.fill_recorder`; deleted `analytics/replay/fill_recorder.py`.
+
+- **Phase 4 R3 (2026-07-22):** BrokerGateway resolves derivatives via InstrumentId; PaperGateway.history reads datalake (synthetic behind TRADEX_PAPER_SYNTHETIC_HISTORY); BrokerSession FSM health probe before HEALTHY; Dhan/Upstox wire place_order calls check_live_actionable.
+
+- **Phase 4 R2 (2026-07-22):** Deleted dead `domain/portfolio/position_book.py` and `domain/orders/order_fsm.py` (+ unit tests). Fixed `MarketDataGatewayAdapter`/`BrokerAdapterAdapter` alias in market data adapter. `sync_fetch_strategy` uses `async_bridge.run_coro_sync` after `wire_domain_port_sinks()`. Architecture test `test_async_bridge_purity.py`.
+
+- **Phase 4 R0+R1 (2026-07-22):** Governance docs restored (`context/`, `docs/constitution/`). Money-safety hotfixes: shared `PositionManager` in `build_paper_session`, per-thread reentrancy guard, DuckDB `ON CONFLICT` catalog SQL, `datalake/mcp/tools.py` `dataclasses` import. Tests: `test_reentrancy_guard.py`, catalog suite green.
+
 - **Quote/QuoteSnapshot contract unification (2026-07-21):** Product path is `QuoteSnapshot` (`event_time` / `change_pct`); wire `Quote` converts only via `Quote.to_snapshot()`. `BrokerDataProvider.get_quote`, `brokers.services.get_quote`, UI `render_quote`/`show_quote` aligned. Ratchet: `tests/unit/interface/ui/test_quote_product_contract.py` + `tests/unit/domain/entities/test_quote_snapshot_contract.py`.
 - **CLI quote hang fix (2026-07-21):** `tradex ui quote` (and other market-data cmds) no longer touch `trading_context` → OMS event-log replay. `MARKET_ONLY_CMDS` expanded; CLI entry wraps `with_correlation()` so logs stop showing `[no-correlation]`.
 - **CLI passthrough fix (2026-07-21):** `tradex ui` (and analytics wrappers) use Click `ignore_unknown_options` so flags like `--broker dhan` reach `interface.ui.main` instead of failing as unknown options on the wrapper. Unit: `tests/unit/tradex/test_cli.py::test_ui_forwards_broker_flag`.

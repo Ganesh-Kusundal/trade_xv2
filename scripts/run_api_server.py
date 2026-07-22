@@ -27,19 +27,25 @@ def create_api_app():
     """Create API app with all services initialized via runtime bootstrap."""
     import os
 
+    from config.schema import AppConfig
+
     configure_logging()
     project_root = Path(__file__).parent.parent
     bootstrap_environment(project_root)
-    services = initialize_api_services(project_root)
+    services = initialize_api_services(
+        project_root,
+        skip_parity_gate=os.getenv("SKIP_PARITY_GATE", "0") == "1",
+    )
 
-    # Honor AUTH_MODE from env (local SPA: AUTH_MODE=none TRADEX_ALLOW_AUTH_NONE=1).
-    auth_mode = (os.getenv("AUTH_MODE") or "api_key").strip().lower()
+    app_cfg = AppConfig.from_env()
+    auth_mode = (os.getenv("AUTH_MODE") or app_cfg.auth_mode).strip().lower()
     config = APIConfig(
-        host="127.0.0.1",
-        port=8080,
+        host=app_cfg.api_host,
+        port=app_cfg.api_port,
         auth_mode=auth_mode,
-        api_key=os.getenv("API_KEY", ""),
-        cors_origins=[
+        api_key=os.getenv("API_KEY", app_cfg.api_key),
+        cors_origins=app_cfg.cors_origins
+        or [
             "http://localhost:5173",
             "http://localhost:3000",
             "http://127.0.0.1:5173",
@@ -53,5 +59,8 @@ def create_api_app():
 if __name__ == "__main__":
     import uvicorn
 
+    from config.schema import AppConfig
+
+    app_cfg = AppConfig.from_env()
     app = create_api_app()
-    uvicorn.run(app, host="127.0.0.1", port=8080)
+    uvicorn.run(app, host=app_cfg.api_host, port=app_cfg.api_port)

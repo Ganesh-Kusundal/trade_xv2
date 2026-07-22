@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
-from application.oms.capital_provider import FixedCapitalProvider
+from application.oms.capital_provider import resolve_capital_provider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
+from domain.ports.execution_target import ExecutionTargetKind
 from infrastructure.bootstrap import (
     build_dead_letter_queue,
     build_execution_ledger,
@@ -31,7 +32,17 @@ def build_risk_manager(service: BrokerService) -> tuple[RiskManager, Any | None]
     broker ``funds()``. Returns ``(RiskManager, None)`` — no gateway capital hook.
     """
     capital = Decimal(os.getenv("TRADEX_PAPER_CAPITAL", str(PAPER_INITIAL_CAPITAL)))
-    capital_provider = FixedCapitalProvider(capital)
+    kind = (
+        ExecutionTargetKind.LIVE
+        if getattr(service, "live_actionable", False)
+        else ExecutionTargetKind.PAPER
+    )
+    capital_provider = resolve_capital_provider(
+        execution_kind=kind,
+        gateway=getattr(service, "_gateway", None),
+        fixed_capital=capital,
+        fail_closed=not getattr(service, "authorize_risk_fail_open", False),
+    )
     risk_manager = RiskManager(
         position_manager=PositionManager(),
         config=RiskConfig(),

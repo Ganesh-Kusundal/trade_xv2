@@ -345,19 +345,24 @@ class OmsBootstrap:
         # as ``not live-actionable`` so the production readiness gate
         # surfaces the problem rather than silently disabling /healthz,
         # /readyz, and /metrics.
-        metrics_port_env = os.environ.get("TRADEX_METRICS_PORT")
+        metrics_port_env = (
+            os.environ.get("TRADEX_OBSERVABILITY_PORT")
+            or os.environ.get("TRADEX_METRICS_PORT")
+        )
         try:
             metrics_port = int(metrics_port_env) if metrics_port_env else 8765
         except ValueError:
             logger.warning(
-                "TRADEX_METRICS_PORT_invalid: %r — falling back to 8765",
+                "TRADEX_OBSERVABILITY_PORT_invalid: %r — falling back to 8765",
                 metrics_port_env,
             )
             metrics_port = 8765
 
+        obs_host = (os.environ.get("TRADEX_OBSERVABILITY_HOST") or "127.0.0.1").strip()
+
         try:
             server = HttpObservabilityServer(
-                host="127.0.0.1",
+                host=obs_host,
                 port=metrics_port,
                 lifecycle=svc._lifecycle,
                 event_metrics=event_metrics,
@@ -371,7 +376,7 @@ class OmsBootstrap:
             svc._http_observability = server
             logger.info(
                 "http_observability_started",
-                extra={"host": "127.0.0.1", "port": metrics_port},
+                extra={"host": obs_host, "port": metrics_port},
             )
         except Exception as exc:
             # Phase 1.3: do NOT silently disable observability. Log at

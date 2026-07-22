@@ -34,8 +34,9 @@ from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
 @pytest.fixture
-def paper_gateway():
+def paper_gateway(monkeypatch):
     """Return a PaperGateway instance for contract testing."""
+    monkeypatch.setenv("TRADEX_PAPER_SYNTHETIC_HISTORY", "1")
     from brokers.providers.paper.paper_gateway import PaperGateway
 
     return PaperGateway()

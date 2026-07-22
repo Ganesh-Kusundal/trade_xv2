@@ -24,7 +24,7 @@ from analytics.simulation.position_closer import PositionCloser, PositionCloserH
 from domain.candles.historical import HistoricalBar
 from domain.constants import DEFAULT_EXCHANGE
 from domain.enums import PositionSide, Side
-from domain.trading_costs import compute_commission
+from application.services.trading_costs_service import compute_commission
 
 logger = logging.getLogger(__name__)
 

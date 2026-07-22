@@ -30,6 +30,8 @@ dependencies = [
     "cachetools>=7.1.4",
     "pyarrow>=25.0.0",
     "yfinance>=0.2",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
 ]
 
 [project.scripts]
@@ -56,7 +58,6 @@ dev = [
     "import-linter>=2.0",
     "hypothesis>=6.100",
     "mutmut>=3.0",
-    "fastapi>=0.110",
     "httpx>=0.27",
 ]
 
@@ -454,8 +455,9 @@ source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Composer / services / OMS use domain.ports; infrastructure is wired at
-    # runtime.composition.wire_domain_port_sinks (audit Phase 0 / F1).
+    # Datalake federation fetch wiring (R8/R16) — builds HistoricalFetchPort at boot.
+    "application.data.sync_fetch_strategy -> infrastructure.adapters.market_data_gateway_adapter",
+    "application.data.sync_fetch_strategy -> infrastructure.gateway.factory",
 ]
 
 [[tool.importlinter.contracts]]
@@ -478,8 +480,6 @@ type = "forbidden"
 source_modules = ["interface.api"]
 forbidden_modules = ["brokers.providers.dhan", "brokers.providers.upstox", "brokers.providers.paper"]
 ignore_imports = [
-    # API orders go through tradex.session (composition root).
-    "interface.api.routers.orders -> tradex",
 ]
 
 [[tool.importlinter.contracts]]

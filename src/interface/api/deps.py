@@ -128,6 +128,9 @@ def reset_container() -> None:
     global _container, _trade_journal_instance  # intentional module singleton — test reset only
     _container = None
     _trade_journal_instance = None
+    from interface.api.lifecycle import reset_api_process_session
+
+    reset_api_process_session()
 
 
 # ── FastAPI Dependencies ─────────────────────────────────────────────────────
@@ -465,6 +468,14 @@ def initialize_all_services(
     )
 
     set_container(services)
+
+    from interface.api.lifecycle import wire_api_process_session
+
+    wire_api_process_session(
+        trading_context=trading_context,
+        execution_composer=execution_composer,
+        runtime=additional_services.get("runtime"),
+    )
 
     # Log initialization status
     all_named = [

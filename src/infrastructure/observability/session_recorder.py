@@ -42,7 +42,15 @@ logger = logging.getLogger(__name__)
 
 
 def _default_session_dir() -> Path:
-    return Path(__file__).resolve().parents[3] / "runtime" / "session-recordings"
+    return resolve_session_recording_dir()
+
+
+def resolve_session_recording_dir() -> Path:
+    """Default SessionRecorder output under ``TRADEX_STATE_ROOT`` (container-safe)."""
+    import os
+
+    root = (os.environ.get("TRADEX_STATE_ROOT") or "data/state").strip() or "data/state"
+    return Path(root) / "session-recordings"
 
 
 class SessionRecorder:
@@ -157,4 +165,4 @@ class SessionRecorder:
         return json.dumps(data, default=str)
 
 
-__all__ = ["SessionRecorder"]
+__all__ = ["SessionRecorder", "resolve_session_recording_dir"]

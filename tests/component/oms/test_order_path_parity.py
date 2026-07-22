@@ -310,7 +310,7 @@ class TestReconHealPolicy:
         assert order_manager.get_order("BRK-REPAIR-1") is not None
 
     def test_funds_mismatch_detected(self):
-        from domain.reconciliation_engine import ReconciliationEngine
+        from application.services.reconciliation_service import ReconciliationEngine
 
         engine = ReconciliationEngine()
         drift = engine.compare_funds(Decimal("100"), Decimal("50"))

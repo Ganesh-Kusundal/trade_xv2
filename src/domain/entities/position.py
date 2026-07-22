@@ -189,7 +189,7 @@ POSITION_STATE_TRANSITIONS: dict[PositionState, frozenset[PositionState]] = {
             PositionState.CLOSED,
         }
     ),
-    PositionState.CLOSED: frozenset({PositionState.FLAT}),
+    PositionState.CLOSED: frozenset({PositionState.FLAT, PositionState.OPEN}),
     PositionState.REVERSED: frozenset(
         {
             PositionState.FLAT,

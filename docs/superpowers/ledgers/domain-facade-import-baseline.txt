@@ -1,2 +1,0 @@
-# REF-9 baseline: CLEARED — all facade imports migrated to canonical submodule paths.
-# This file is kept empty so the CI script still works; entries are no longer needed.

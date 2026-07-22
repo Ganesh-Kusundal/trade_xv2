@@ -15,7 +15,7 @@ from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.constants import DEFAULT_EXCHANGE
 from domain.entities import Position, Trade
 from domain.events.types import DomainEvent, EventType
-from domain.portfolio_projection import project_trade
+from application.services.simulation_orchestrator import project_trade
 from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
 from domain.state_machine import IllegalTransitionError, StateMachine
 from domain.symbols import make_position_key

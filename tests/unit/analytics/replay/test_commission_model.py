@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from analytics.replay.models import ReplayConfig
-from domain.trading_costs import (
+from application.services.trading_costs_service import (
     CommissionModel,
     IndianMarketFees,
     compute_indian_equity_fees,

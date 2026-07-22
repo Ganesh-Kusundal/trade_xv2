@@ -15,7 +15,7 @@ CORE_SURFACES = (
         cli=(
             ("historical", "src/interface/ui/commands/market_handlers.py"),
             ("history", "src/interface/ui/commands/market_handlers.py"),
-            ("history", "src/brokers/cli/broker.py"),
+            ("history", "src/interface/ui/commands/broker.py"),
         ),
         rest=(
             ("GET", "/api/v1/market/candles", "src/interface/api/routers/market.py", "datalake"),
@@ -37,7 +37,7 @@ CORE_SURFACES = (
         upstox="market_data.get_quote",
         cli=(
             ("quote", "src/interface/ui/commands/market_handlers.py"),
-            ("quote", "src/brokers/cli/broker.py"),
+            ("quote", "src/interface/ui/commands/broker.py"),
         ),
         notes="MCP: broker_quote; services: get_quote",
         rest=(
@@ -81,7 +81,7 @@ CORE_SURFACES = (
         upstox="market_data.get_depth",
         cli=(
             ("depth", "src/interface/ui/commands/market_handlers.py"),
-            ("depth", "src/brokers/cli/broker.py"),
+            ("depth", "src/interface/ui/commands/broker.py"),
         ),
         rest=(
             (

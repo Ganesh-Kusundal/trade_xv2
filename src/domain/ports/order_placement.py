@@ -15,6 +15,14 @@ OrderPlacementPort = OrderTransportPort
 
 def invoke_place_order(port: OrderPlacementPort, request: OrderRequest) -> OrderResponse:
     """Route an :class:`OrderRequest` through :class:`OrderPlacementPort` (SS-02)."""
+    kwargs = {}
+    if getattr(request, "disclosed_quantity", None) is not None:
+        kwargs["disclosed_quantity"] = request.disclosed_quantity
+    if kwargs:
+        try:
+            return port.place_order(request, **kwargs)
+        except TypeError:
+            pass
     return port.place_order(request)
 
 

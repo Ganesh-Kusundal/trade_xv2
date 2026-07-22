@@ -1,0 +1,61 @@
+name: Docker Smoke
+
+on:
+  push:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - src/**
+      - scripts/run_api_server.py
+      - scripts/docker_entrypoint.sh
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - src/**
+      - scripts/run_api_server.py
+      - scripts/docker_entrypoint.sh
+  workflow_dispatch:
+
+concurrency:
+  group: docker-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    name: Build image + probe health endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build -t tradexv2-api:ci .
+
+      - name: Run API container
+        run: |
+          docker run -d --name tradexv2-smoke \
+            -p 18080:8080 \
+            -p 18765:8765 \
+            -e SKIP_PARITY_GATE=1 \
+            -e TRADEX_DEV=1 \
+            -e AUTH_MODE=none \
+            tradexv2-api:ci
+          sleep 15
+
+      - name: Smoke test API liveness
+        run: |
+          curl -fsS http://127.0.0.1:18080/api/v1/health
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/api/v1/health/readyz)
+          test "$code" = "200" -o "$code" = "503"
+
+      - name: Smoke test observability healthz + metrics
+        run: |
+          curl -fsS http://127.0.0.1:18765/healthz
+          curl -fsS http://127.0.0.1:18765/metrics | head -5
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f tradexv2-smoke || true

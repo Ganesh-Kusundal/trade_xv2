@@ -32,7 +32,8 @@ class DefaultFieldMapping(FieldMapping):
         return str(data.get("tradingSymbol", data.get("symbol", "")))
 
     def map_exchange(self, data: dict) -> str:
-        return str(data.get("exchangeSegment", data.get("exchange", DEFAULT_EXCHANGE)))
+        val = data.get("exchangeSegment", data.get("exchange", DEFAULT_EXCHANGE))
+        return val.value if hasattr(val, "value") else str(val)
 
     def map_side(self, data: dict) -> str:
         return str(data.get("transactionType", data.get("side", "BUY"))).upper()

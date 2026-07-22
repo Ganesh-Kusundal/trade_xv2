@@ -4,12 +4,15 @@ Provides:
 - Hive-partitioned Parquet storage for OHLCV bars
 - DuckDB catalog for metadata and fast queries
 - Research API for scanner/strategy/backtest
-- Data quality tracking
+- Native self-update via :meth:`DataLake.sync`
 
 Usage:
-    from datalake import DataLake
+    from datalake import DataLake, SyncReport, sync_all
 
     lake = DataLake()
+
+    # Self-update (production: inject federated fetch via runtime.datalake_sync)
+    report = lake.sync(fetch_fn=federated_fetch_fn)
 
     # Research API
     df = lake.history("RELIANCE", years=5)
@@ -23,13 +26,17 @@ Usage:
     report = lake.quality.check("RELIANCE")
 """
 
+from typing import Any
+
 from datalake.analytics.corporate_actions import CorporateActionStore
+from datalake.ingestion.auto_sync import SyncReport, sync_all
 from datalake.analytics.vwap import compute_daily_vwap, compute_vwap
 from datalake.ingestion.loader import HistoricalDataLoader
 from datalake.quality.engine import DataQualityEngine
 from datalake.quality.universe import UniverseQualityEngine
 from datalake.research.api import ResearchAPI
 from datalake.storage.catalog import DataCatalog
+from domain.ports.historical_fetch import HistoricalFetchPort
 
 __all__ = [
     "CorporateActionStore",
@@ -38,9 +45,11 @@ __all__ = [
     "DataQualityEngine",
     "HistoricalDataLoader",
     "ResearchAPI",
+    "SyncReport",
     "UniverseQualityEngine",
     "compute_daily_vwap",
     "compute_vwap",
+    "sync_all",
 ]
 
 
@@ -79,3 +88,13 @@ class DataLake:
 
     def scan(self, universe: str = "NIFTY500"):
         return self._api.scan(universe)
+
+    def sync(
+        self,
+        *,
+        fetch_fn: HistoricalFetchPort | None = None,
+        gateway: Any = None,
+        **kwargs: Any,
+    ) -> SyncReport:
+        """Sync every registered symbol up to today (equities + indices by default)."""
+        return sync_all(root=self._root, fetch_fn=fetch_fn, gateway=gateway, **kwargs)

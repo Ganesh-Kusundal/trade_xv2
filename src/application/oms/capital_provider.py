@@ -102,6 +102,28 @@ class GatewayCapitalProvider(CapitalProvider):
         self._gateway = gateway
 
 
+def resolve_capital_provider(
+    *,
+    execution_kind=None,
+    gateway=None,
+    fixed_capital: Decimal | None = None,
+    fail_closed: bool = True,
+) -> CapitalProvider:
+    """Select capital source by execution target (ADR-0017)."""
+    from domain.constants.defaults import PAPER_INITIAL_CAPITAL
+    from domain.ports.execution_target import ExecutionTargetKind
+
+    kind = execution_kind or ExecutionTargetKind.PAPER
+    if isinstance(kind, str):
+        kind = ExecutionTargetKind(kind.lower())
+
+    if kind is ExecutionTargetKind.LIVE:
+        return GatewayCapitalProvider(gateway, fail_closed=fail_closed)
+
+    cap = fixed_capital if fixed_capital is not None else PAPER_INITIAL_CAPITAL
+    return FixedCapitalProvider(Decimal(str(cap)))
+
+
 class FixedCapitalProvider(CapitalProvider):
     """CapitalProvider with fixed capital (for backtesting/paper trading)."""
 

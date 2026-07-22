@@ -248,8 +248,9 @@ class PatternScanner(BaseScanner):
     pipeline: FeaturePipeline = field(default_factory=_build_pattern_pipeline)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
+        self._begin_scan(universe)
         if universe.empty:
-            return ScanResult(scanner=self.name, universe_size=0)
+            return self._empty_scan_result(universe)
 
         df = self._compute_features(universe)
         if "symbol" in df.columns:

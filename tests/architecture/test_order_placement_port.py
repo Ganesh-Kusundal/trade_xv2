@@ -14,7 +14,7 @@ def test_gateway_submit_accepts_order_placement_port() -> None:
     from application.execution.gateway_submit import make_gateway_submit_fn
 
     class _Gw:
-        def place_order(self, symbol, exchange, side, quantity, **kwargs):
+        def place_order(self, request, **kwargs):
             from domain.entities import OrderResponse
 
             return OrderResponse(success=True, order_id="x1")
@@ -31,8 +31,9 @@ def test_invoke_place_order_routes_through_port() -> None:
     seen: dict[str, object] = {}
 
     class _Gw:
-        def place_order(self, symbol, exchange, side, quantity, **kwargs):
-            seen.update(symbol=symbol, exchange=exchange, side=side, quantity=quantity, **kwargs)
+        def place_order(self, request, **kwargs):
+            seen["request"] = request
+            seen.update(kwargs)
             from domain.entities import OrderResponse
 
             return OrderResponse(success=True, order_id="p1")
@@ -47,5 +48,6 @@ def test_invoke_place_order_routes_through_port() -> None:
     )
     resp = invoke_place_order(_Gw(), request)
     assert resp.success
-    assert seen["symbol"] == "RELIANCE"
-    assert seen["side"] == "BUY"
+    req = seen["request"]
+    assert req.symbol == "RELIANCE"
+    assert req.transaction_type == Side.BUY

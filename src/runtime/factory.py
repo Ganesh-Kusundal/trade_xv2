@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from application.oms.context import TradingContext
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from infrastructure.lifecycle import LifecycleManager
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ class Runtime:
     """Fully-wired trading runtime."""
 
     broker_name: str
-    gateway: MarketDataGateway | None
+    gateway: BrokerAdapter | None
     trading_context: TradingContext | None
     lifecycle: LifecycleManager
     oms_service: Any
@@ -99,7 +99,7 @@ class BuildOptions:
 # ---------------------------------------------------------------------------
 
 
-def _quote_fn_from_gateway(gateway: MarketDataGateway | None):
+def _quote_fn_from_gateway(gateway: BrokerAdapter | None):
     """Resolve LTP for paper fills from the active market-data gateway."""
     if gateway is None:
         return None
@@ -129,7 +129,7 @@ def _both_brokers_available(broker_service: Any) -> bool:
 
 def _wire_trading_orchestrator(
     tc: TradingContext,
-    gateway: MarketDataGateway | None,
+    gateway: BrokerAdapter | None,
     lifecycle: LifecycleManager,
     *,
     orchestrator_dry_run: bool = True,
@@ -259,11 +259,12 @@ def build_from_broker_service(
     options: BuildOptions | None = None,
 ) -> Runtime:
     """Build a :class:`Runtime` from an injected broker service (canonical API)."""
-    from runtime.composition import wire_domain_port_sinks
     from runtime.parity_gate import assert_runtime_parity_or_raise
     from runtime.production_config import is_production_environment, validate_production_config
 
     opts = options or BuildOptions()
+
+    from runtime.composition import wire_domain_port_sinks
 
     wire_domain_port_sinks()
     validate_production_config(surface="runtime")
@@ -439,6 +440,16 @@ class MultiStrategyRuntime:
     def list_strategies(self) -> list[str]:
         return list(self.strategy_names)
 
+
+# ---------------------------------------------------------------------------
+# Composition helpers — canonical impl in runtime.composition; prefer runtime.kernel
+# ---------------------------------------------------------------------------
+
+from runtime.composition import create_api_event_bus, wire_domain_port_sinks
+
+
+
+# ---------------------------------------------------------------------------
 
 def build_multi_strategy_runtime(names: list[str] | None = None) -> MultiStrategyRuntime:
     """Build a :class:`MultiStrategyRuntime` with an injected strategy pipeline.

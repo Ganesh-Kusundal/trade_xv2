@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from application.oms import RiskConfig, RiskManager
-from application.oms.capital_provider import FixedCapitalProvider
+from application.oms.capital_provider import resolve_capital_provider
+from domain.ports.execution_target import ExecutionTargetKind
 from application.oms.factory import create_trading_context
 from application.oms.position_manager import PositionManager
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
@@ -38,10 +39,14 @@ def build_paper_risk_manager(
     capital = initial_capital or Decimal(
         os.getenv("TRADEX_PAPER_CAPITAL", str(PAPER_INITIAL_CAPITAL))
     )
+    capital_provider = resolve_capital_provider(
+        execution_kind=ExecutionTargetKind.PAPER,
+        fixed_capital=capital,
+    )
     return RiskManager(
         position_manager=PositionManager(),
         config=RiskConfig(),
-        capital_provider=FixedCapitalProvider(capital),
+        capital_provider=capital_provider,
     )
 
 

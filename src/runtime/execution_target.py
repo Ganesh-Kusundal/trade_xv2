@@ -38,6 +38,9 @@ def resolve_execution_target(
         kind = ExecutionTargetKind.from_str(kind)
 
     if kind is ExecutionTargetKind.LIVE:
+        from runtime.execution_config import assert_live_lift_preconditions
+
+        assert_live_lift_preconditions()
         if gateway is None:
             raise ValueError("Live execution target requires a broker gateway")
         from application.execution.fill_source import BrokerFillSource

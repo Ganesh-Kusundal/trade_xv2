@@ -423,6 +423,16 @@ class EventBus:
         """Backward-compat delegate to :class:`EventDispatchHook`."""
         self._dispatch.handle_failure(event, handler_id, exc)
 
+    @property
+    def _processed_event_ids(self) -> set[str]:
+        """Backward-compat property exposing set of seen event IDs."""
+        return self._idempotency_guard._processed_event_ids
+
+    @property
+    def _processed_events(self) -> set[str]:
+        """Backward-compat property alias for _processed_event_ids."""
+        return self._idempotency_guard._processed_event_ids
+
 
 class EventBusAlertingService:
     """LifecycleManager-compatible wrapper for EventBus alerting (TOS-P7-003 / GC-01).

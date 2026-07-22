@@ -17,7 +17,7 @@ from brokers.providers.upstox.auth.config import UpstoxSettingsLoader
 from brokers.providers.upstox.auth.exceptions import UpstoxAuthError
 from brokers.providers.upstox.broker import UpstoxBroker
 from brokers.providers.upstox.wire import UpstoxWireAdapter
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
         analytics_only: bool = False,
         backfill_callback: Callable[[list[str], Any, Any], list[dict]] | None = None,
         reconciliation_service: Any | None = None,
-    ) -> MarketDataGateway:
+    ) -> BrokerAdapter:
         # Use the canonical settings loader instead of manual env reads.
         settings = UpstoxSettingsLoader.from_env(env_path=env_path)
         if analytics_only or settings.analytics_only:
@@ -79,7 +79,7 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
         lifecycle: Any | None,
         backfill_callback: Callable[[list[str], Any, Any], list[dict]] | None,
         reconciliation_service: Any | None,
-    ) -> MarketDataGateway:
+    ) -> BrokerAdapter:
         broker = UpstoxBroker(
             settings=settings,
             event_bus=event_bus,

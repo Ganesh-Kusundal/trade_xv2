@@ -20,7 +20,7 @@ from application.oms.context import TradingContext
 from domain.entities import Order
 from domain.enums import Side
 from domain.enums import BrokerId
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from infrastructure.lifecycle.lifecycle import LifecycleManager
 from interface.ui.services.broker_registry import (
     create_seeded_mock_broker,
@@ -96,8 +96,8 @@ class BrokerService:
             ``RISK_FAIL_OPEN=1`` in the environment without this flag is
             refused at startup to prevent silent risk-gate bypasses.
         """
-        self._gateway: MarketDataGateway | None = None
-        self._upstox_gateway: MarketDataGateway | None = None
+        self._gateway: BrokerAdapter | None = None
+        self._upstox_gateway: BrokerAdapter | None = None
         self._paper: PaperGateway | None = None
         self._mock: MockBroker | None = None
         self._active_name: str = BrokerId.DHAN
@@ -177,7 +177,7 @@ class BrokerService:
         return self._trading_context
 
     @property
-    def active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
+    def active_broker(self) -> BrokerAdapter | PaperGateway | MockBroker:
         """Return the active broker: live Dhan, live Upstox, paper, or mock."""
         return self._manager.get_active_broker()
 
@@ -225,12 +225,12 @@ class BrokerService:
         return self._manager.get_dhan_load_error()
 
     @property
-    def dhan_gateway(self) -> MarketDataGateway | None:
+    def dhan_gateway(self) -> BrokerAdapter | None:
         """Public access to the Dhan gateway (G1: replaces getattr(_gateway))."""
         return self._gateway
 
     @property
-    def upstox_gateway(self) -> MarketDataGateway | None:
+    def upstox_gateway(self) -> BrokerAdapter | None:
         """Public access to the Upstox gateway (G1: replaces getattr(_upstox_gateway))."""
         return self._upstox_gateway
 
@@ -279,7 +279,7 @@ class BrokerService:
         """
         self._ensure_initialized()
 
-    def market_gateway(self, name: str) -> MarketDataGateway:
+    def market_gateway(self, name: str) -> BrokerAdapter:
         """Bootstrap *name* for read-only market data only — no OMS/risk
         manager/reconciliation wiring and no ``ProductionReadinessChecker``
         gate. Independent of :meth:`_ensure_initialized`/the live-trade

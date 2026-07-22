@@ -12,9 +12,9 @@ from application.oms.order_manager import OmsOrderCommand, OrderManager
 from domain.entities import Order, Trade
 from domain.enums import OrderStatus, ProductType, Side
 from domain.ports.time_service import get_current_clock
-from domain.trading_costs import apply_slippage  # noqa: F401  (intentional re-export)
+from application.services.trading_costs_service import apply_slippage  # noqa: F401 (intentional re-export)
 
-# Re-export from domain.trading_costs (single source of truth)
+# Re-export from application.services.trading_costs_service (single source of truth)
 
 
 def make_simulated_submit_fn(

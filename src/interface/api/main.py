@@ -408,6 +408,11 @@ def create_app(
 
     app.include_router(symbols_router, prefix=f"{cfg.api_prefix}/symbols", tags=["Symbols"])
 
+    # Datalake maintenance endpoints
+    from interface.api.routers.datalake import router as datalake_router
+
+    app.include_router(datalake_router, prefix=f"{cfg.api_prefix}/datalake", tags=["Datalake"])
+
     # Market data endpoints
     from interface.api.routers.market import router as market_router
 
@@ -473,7 +478,7 @@ def create_app(
 
     app.include_router(live_router, prefix=f"{cfg.api_prefix}/live", tags=["Live Broker"])
 
-    # WebSocket endpoints (mounted separately)
+    # WebSocket endpoints (ADR-0022: auth via reject_ws_if_unauthorized when AUTH_MODE=api_key)
     from interface.api.ws.market import router as ws_market_router
 
     app.include_router(ws_market_router, prefix="/ws", tags=["WebSocket - Market"])

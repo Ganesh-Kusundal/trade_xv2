@@ -1,4 +1,4 @@
-"""DataLakeGateway — MarketDataGateway implementation backed by Parquet lake.
+"""DataLakeGateway — BrokerAdapter implementation backed by Parquet lake.
 
 Provides the same interface as Dhan/Upstox/Paper gateways, but reads
 historical data from the local Parquet lake instead of a live broker.
@@ -34,15 +34,15 @@ from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     HistoricalWindowConstraint,
 )
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 
 logger = logging.getLogger(__name__)
 
 
-class DataLakeGateway(MarketDataGateway):
-    """MarketDataGateway backed by local Parquet data lake.
+class DataLakeGateway(BrokerAdapter):
+    """BrokerAdapter backed by local Parquet data lake.
 
-    Implements the read-only subset of the MarketDataGateway contract.
+    Implements the read-only subset of the BrokerAdapter contract.
     Trading methods raise NotImplementedError.
     """
 
@@ -147,7 +147,7 @@ class DataLakeGateway(MarketDataGateway):
         return df[mask].copy()
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Market Data
+    # BrokerAdapter — Market Data
     # -----------------------------------------------------------------------
 
     def history(
@@ -329,7 +329,7 @@ class DataLakeGateway(MarketDataGateway):
         raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Batch
+    # BrokerAdapter — Batch
     #
     # REF-32: previous versions of these methods did a serial ``for sym in
     # symbols: self.<single>(sym)`` loop. Each call did a separate
@@ -399,7 +399,7 @@ class DataLakeGateway(MarketDataGateway):
         )
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Trading (not supported)
+    # BrokerAdapter — Trading (not supported)
     # -----------------------------------------------------------------------
 
     def authenticate(self) -> bool:
@@ -444,7 +444,7 @@ class DataLakeGateway(MarketDataGateway):
         raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Portfolio (not supported)
+    # BrokerAdapter — Portfolio (not supported)
     # -----------------------------------------------------------------------
 
     def positions(self) -> list[Any]:
@@ -460,7 +460,7 @@ class DataLakeGateway(MarketDataGateway):
         raise NotImplementedError("DataLakeGateway does not support portfolio")
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Instrument
+    # BrokerAdapter — Instrument
     # -----------------------------------------------------------------------
 
     def search(self, query: str, exchange: str = ExchangeId.NSE) -> list[dict]:
@@ -472,7 +472,7 @@ class DataLakeGateway(MarketDataGateway):
         return None
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Lifecycle
+    # BrokerAdapter — Lifecycle
     # -----------------------------------------------------------------------
 
     def describe(self) -> dict:

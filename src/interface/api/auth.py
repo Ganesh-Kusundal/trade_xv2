@@ -35,6 +35,20 @@ def _normalize_auth_mode(mode: str) -> str:
     return m
 
 
+def _auth_none_allowed() -> bool:
+    """AUTH_MODE=none is allowed in pytest, TRADEX_DEV=1, or local dev app_env."""
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return True
+    if os.getenv("TRADEX_DEV") == "1":
+        return True
+    from config.schema import AppConfig
+
+    cfg = AppConfig.from_env()
+    if cfg.is_production_or_staging():
+        return False
+    return cfg.app_env in ("dev", "development")
+
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 
@@ -49,6 +63,11 @@ class _AuthConfig:
     def configure(cls, *, auth_mode: str, api_key: str = "") -> None:
         """Override auth settings from APIConfig (called by ``create_app``)."""
         cls.AUTH_MODE = _normalize_auth_mode(auth_mode)
+        if cls.AUTH_MODE == "none" and not _auth_none_allowed():
+            raise RuntimeError(
+                "AUTH_MODE=none is not allowed outside local dev. "
+                "Set TRADEX_DEV=1 for explicit dev override, or AUTH_MODE=api_key."
+            )
         if api_key:
             cls.API_KEY = api_key.strip()
         elif cls.AUTH_MODE == "api_key" and not cls.API_KEY:

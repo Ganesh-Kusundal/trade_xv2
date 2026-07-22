@@ -55,15 +55,17 @@ delegates to (no circular imports):
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Callable
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from domain.portfolio.risk_profile import RiskProfile
     from domain.ports.margin_provider import MarginProviderPort
     from domain.risk.policy import KillSwitch as DomainKillSwitch
+
+from domain.risk.policy import build_risk_gate_from_config
 
 from application.oms._internal.daily_pnl_tracker import (
     RISK_LIMIT_BREACH_THRESHOLD,
@@ -142,17 +144,21 @@ class RiskManager:
         on_risk_event: Callable[[str, dict], None] | None = None,
         domain_kill_switch: DomainKillSwitch | None = None,
     ) -> None:
+        from domain.risk.policy import KillSwitch as DomainKillSwitch
+
         self._position_manager = position_manager
         self._config = config
         self._margin_provider = margin_provider
         self._instrument_provider = instrument_provider
-        # Optional event-publish hook: on_risk_event(event_type_value, payload).
-        # None by default (no-op) so every existing caller is unaffected.
         self._on_risk_event = on_risk_event
-        # Optional domain KillSwitch (REF-4 bridge). When set, check_order
-        # consults it in addition to RiskConfig.kill_switch; set_kill_switch
-        # keeps both in sync. Default None = legacy config-only path.
+        # Single domain KillSwitch (ADR-0018) — always present; app wrapper publishes events.
+        if domain_kill_switch is None:
+            domain_kill_switch = DomainKillSwitch()
+            if config.kill_switch:
+                domain_kill_switch.activate()
         self._domain_kill_switch = domain_kill_switch
+        self._risk_gate = build_risk_gate_from_config(config)
+        self._use_legacy_risk = os.getenv("TRADEX_RISK_LEGACY", "").strip() == "1"
 
         # Support both old capital_fn and new capital_provider (P2-2)
         if capital_provider is not None:
@@ -342,45 +348,14 @@ class RiskManager:
                     f"(MARKET orders require LTP/ref price)",
                 )
 
-            # Per-symbol concentration (includes in-flight pending — R4)
-            current_notional = (
-                Decimal(str(abs(int(current.quantity))))
-                * (
-                    current.avg_price.to_decimal()
-                    if hasattr(current.avg_price, "to_decimal")
-                    else Decimal(str(current.avg_price))
-                )
-                * (current.multiplier if getattr(current, "multiplier", None) else Decimal("1"))
-                if current
-                else Decimal("0")
+            gate_reject = self._check_exposure_limits(
+                order=order,
+                capital=capital,
+                current=current,
+                notional=notional,
             )
-            pending_symbol = self._margin_checker.pending_symbol_notional(
-                order.symbol, order.exchange
-            )
-            if (
-                current_notional + pending_symbol + notional
-            ) / capital * 100 > self._config.max_position_pct:
-                return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
-
-            # Gross exposure
-            positions = self._position_manager.get_positions()
-            gross = sum(
-                (
-                    Decimal(str(abs(int(p.quantity))))
-                    * (
-                        p.avg_price.to_decimal()
-                        if hasattr(p.avg_price, "to_decimal")
-                        else Decimal(str(p.avg_price))
-                    )
-                    * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
-                )
-                for p in positions
-            )
-            pending_gross = self._margin_checker.pending_gross()
-            if (
-                gross + pending_gross + notional
-            ) / capital * 100 > self._config.max_gross_exposure_pct:
-                return RiskResult(False, "Exceeds max gross exposure pct")
+            if gate_reject is not None:
+                return gate_reject
 
             # Daily loss
             # Self-heal only when a prior reset has genuinely gone stale
@@ -400,6 +375,64 @@ class RiskManager:
 
             self._margin_checker.reserve_pending(order, notional)
             return RiskResult(True)
+
+    def _check_exposure_limits(
+        self,
+        *,
+        order: Order,
+        capital: Decimal,
+        current: Any,
+        notional: Decimal,
+    ) -> RiskResult | None:
+        """Return a rejection RiskResult, or None if exposure limits pass."""
+        current_notional = (
+            Decimal(str(abs(int(current.quantity))))
+            * (
+                current.avg_price.to_decimal()
+                if hasattr(current.avg_price, "to_decimal")
+                else Decimal(str(current.avg_price))
+            )
+            * (current.multiplier if getattr(current, "multiplier", None) else Decimal("1"))
+            if current
+            else Decimal("0")
+        )
+        pending_symbol = self._margin_checker.pending_symbol_notional(
+            order.symbol, order.exchange
+        )
+        symbol_exposure = current_notional + pending_symbol + notional
+
+        positions = self._position_manager.get_positions()
+        gross = sum(
+            (
+                Decimal(str(abs(int(p.quantity))))
+                * (
+                    p.avg_price.to_decimal()
+                    if hasattr(p.avg_price, "to_decimal")
+                    else Decimal(str(p.avg_price))
+                )
+                * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
+            )
+            for p in positions
+        )
+        pending_gross = self._margin_checker.pending_gross()
+        total_exposure = gross + pending_gross + notional
+
+        if self._use_legacy_risk:
+            if symbol_exposure / capital * 100 > self._config.max_position_pct:
+                return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
+            if total_exposure / capital * 100 > self._config.max_gross_exposure_pct:
+                return RiskResult(False, "Exceeds max gross exposure pct")
+            return None
+
+        gate_result = self._risk_gate.evaluate(
+            order_notional=symbol_exposure,
+            portfolio_notional=capital,
+            total_exposure=total_exposure,
+            capital=capital,
+        )
+        if not gate_result.approved:
+            return risk_result_from_domain(gate_result)
+        return None
 
     def update_daily_pnl(self, pnl: Decimal) -> None:
         """Update session equity delta (F5 — not absolute book MTM).

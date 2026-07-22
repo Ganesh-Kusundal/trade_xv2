@@ -20,8 +20,8 @@ from domain.constants import DEFAULT_EXCHANGE
 from domain.enums import Side
 from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from domain.simulation_position_meta import PositionMeta
-from domain.trading_costs import compute_commission
+from application.services.simulation_orchestrator import PositionMeta
+from application.services.trading_costs_service import compute_commission
 
 logger = logging.getLogger(__name__)
 

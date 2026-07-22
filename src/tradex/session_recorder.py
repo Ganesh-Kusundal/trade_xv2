@@ -37,9 +37,16 @@ def maybe_start(
         logger.debug("session_recorder_skipped_no_event_bus")
         return
     try:
-        from infrastructure.observability.session_recorder import SessionRecorder
+        from infrastructure.observability.session_recorder import (
+            SessionRecorder,
+            resolve_session_recording_dir,
+        )
 
-        recorder = SessionRecorder(bus, session_id=session_id)
+        recorder = SessionRecorder(
+            bus,
+            session_id=session_id,
+            output_dir=resolve_session_recording_dir(),
+        )
         recorder.start()
         session._session_recorder = recorder
     except Exception:

@@ -149,11 +149,33 @@ class BrokerGateway:
     # ── Helpers ───────────────────────────────────────────────────────
 
     def _resolve_instrument(self, symbol: str, exchange: str) -> Instrument:
+        """Resolve symbol+exchange to a stamped Instrument (not always equity)."""
+        from domain.exchange_segments import (
+            canonical_exchange_short,
+            is_currency_segment,
+            is_derivative_segment,
+            parse_segment,
+        )
+        from domain.instruments.instrument_id import InstrumentId
+
         universe = self._session.universe
-        # Equity is the default cash instrument; options/futures callers should
-        # pass a pre-built instrument via session factories + OrderRequest.symbol
-        # that matches an equity for the OMS spine today.
-        return universe.equity(symbol, exchange)
+        sym = symbol.strip()
+
+        if ":" in sym:
+            return universe.get(InstrumentId.parse(sym))
+
+        seg = parse_segment(exchange, default=None)
+        if seg is not None and is_derivative_segment(seg):
+            exch_code = canonical_exchange_short(seg)
+            try:
+                return universe.get(InstrumentId.parse(f"{exch_code}:{sym}"))
+            except ValueError:
+                pass
+
+        if seg is not None and is_currency_segment(seg):
+            return universe.currency(sym, exchange)
+
+        return universe.equity(sym, exchange)
 
     @staticmethod
     def _as_list(instruments: Sequence[Instrument] | Instrument) -> list[Instrument]:

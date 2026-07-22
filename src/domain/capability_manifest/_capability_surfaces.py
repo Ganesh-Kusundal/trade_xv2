@@ -184,6 +184,14 @@ CAPABILITY_ENUM_SURFACES = (
         broker_only_reason="Dhan depth_20 feed — alias of level2_market_data",
     ),
     surface(
+        "capability.depth_200",
+        capability=Capability.DEPTH_200,
+        gateway_method="depth_20",
+        dhan="depth_20_feed.subscribe",
+        tier="extended",
+        broker_only_reason="Dhan depth_200 feed — alias of level2_market_data",
+    ),
+    surface(
         "capability.option_greeks",
         capability=Capability.OPTION_GREEKS,
         upstox="market_data_v3.get_option_greeks_v3",
@@ -211,5 +219,29 @@ CAPABILITY_ENUM_SURFACES = (
         tier="broker_only",
         broker_only_reason="Not implemented",
         severity_if_gap="P3",
+    ),
+    surface(
+        "capability.authenticate",
+        gateway_method="authenticate",
+        tier="extended",
+        broker_only_reason="Internal broker authentication port method",
+    ),
+    surface(
+        "capability.unstream",
+        gateway_method="unstream",
+        tier="extended",
+        broker_only_reason="Internal broker streaming unsubscribe port method",
+    ),
+    surface(
+        "capability.get_order",
+        gateway_method="get_order",
+        tier="extended",
+        broker_only_reason="Internal broker order query port method",
+    ),
+    surface(
+        "capability.list_capabilities",
+        gateway_method="list_capabilities",
+        tier="extended",
+        broker_only_reason="Internal broker capabilities listing port method",
     ),
 )

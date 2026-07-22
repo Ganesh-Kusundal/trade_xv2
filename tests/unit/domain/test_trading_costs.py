@@ -16,7 +16,7 @@ from decimal import Decimal
 
 import pytest
 
-from domain.trading_costs import (
+from application.services.trading_costs_service import (
     CommissionModel,
     IndianMarketFees,
     SlippageModel,

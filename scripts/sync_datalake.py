@@ -1,196 +1,137 @@
 #!/usr/bin/env python3
-"""Sync existing datalake symbols up to today.
+"""CLI entrypoint for runtime.datalake_sync — federated datalake self-update.
 
-Two fetch strategies:
-
---mode ad-hoc (single broker, no rate-limit intelligence)
-    Auto-detects what's missing per symbol (repair_missing), fetches
-    through a single gateway, chunked to respect that broker's
-    max_chunk_days. No pre-emptive throttling and no cross-broker
-    failover -- a burst of parallel workers can and does trip the
-    broker's own rate limiter (HTTP 429), which just fails that symbol
-    for this run.
-
---mode federated (default; both brokers, quota-aware)
-    Routes every fetch through the existing application-layer smart
-    router: MarketDataComposer.fetch_historical(), which federates
-    across Dhan + Upstox concurrently through QuotaScheduler (per-broker
-    token-bucket throttling -- pre-emptive, not react-after-429),
-    chunk-plans per broker's real max_chunk_days/max_lookback_days, and
-    merges results. See application/composer/factory.py:create_composers
-    and domain/policies/defaults.py:default_source_selection_policy
-    ("Historical: Quota-aware across Dhan + Upstox").
-
-Both modes write through the same HistoricalDataLoader.repair_missing()
-merge path (data/lake/**, hive-partitioned Parquet) -- only the fetch
-strategy differs.
+See ``runtime.datalake_sync`` and ``datalake.ingestion.auto_sync`` for the
+sync loop; this script only parses CLI arguments.
 
 Usage:
-    python scripts/sync_datalake.py [--mode federated|ad-hoc] [--timeframe 1m] [--workers 5] [--limit N]
+    # Daily catch-up (default): tail gaps only, ~15 min for full lake
+    python scripts/sync_datalake.py
+
+    # First-time / regenerate allowlist from on-disk parquets (excludes BSE100/200/500)
+    python scripts/bootstrap_sync_manifest.py --overwrite --purge-excluded
+
+    # Slow mid-history hole repair — run off-hours, not every day
+    python scripts/sync_datalake.py --repair-gaps
+
+    # Both phases (original behaviour)
+    python scripts/sync_datalake.py --full
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-import time
-from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from _connect import bootstrap_or_exit, bootstrap_or_none
-
-from datalake.ingestion.broker_selection import _TIMEFRAME_ALIASES
-from datalake.ingestion.loader import HistoricalDataLoader
-from datalake.storage.catalog import DataCatalog
-from infrastructure.batch_executor import batch_execute
+from _connect import bootstrap_or_exit
 
 ROOT = "data/lake"
-
-
-def _existing_symbols(root: str, asset: str, timeframe: str) -> list[str]:
-    base = Path(root) / asset / "candles" / f"timeframe={timeframe}"
-    if not base.exists():
-        return []
-    return sorted(
-        p.name.removeprefix("symbol=")
-        for p in base.iterdir()
-        if p.is_dir() and p.name.startswith("symbol=")
-    )
-
-
-def _load_delisted(root: str) -> set[str]:
-    """Symbols every broker has confirmed can't be fetched -- e.g. GSPL,
-    JBCHEPHARM (both reject on Dhan *and* Upstox as of 2026-07-17). Skips
-    them at the source instead of re-discovering the same broker rejection
-    every run. Edit data/lake/delisted_symbols.csv to add/remove entries."""
-    path = Path(root) / "delisted_symbols.csv"
-    if not path.exists():
-        return set()
-    import csv
-
-    with open(path) as f:
-        return {row["symbol"] for row in csv.DictReader(f)}
-
-
-def _build_federated_fetch_fn():
-    """Wire the existing application-layer smart router (BrokerRouter +
-    QuotaScheduler + HistoricalDataCoordinator) and adapt it to the
-    narrow fetch_fn(symbol, exchange, timeframe, lookback_days) ->
-    DataFrame shape HistoricalDataLoader expects.
-
-    datalake/ doesn't import application/ (no existing precedent for
-    that direction in this codebase -- see domain/policies/defaults.py
-    for the routing policy, application/composer/factory.py for the
-    composer wiring). This closure is the adapter boundary: it lives in
-    a script, which is free to import from anywhere.
-    """
-    from application.composer.factory import create_composers
-    from application.data.historical_coordinator import HistoricalQuery
-    from domain.candles.historical import InstrumentRef
-    from infrastructure.adapters.market_data_gateway_adapter import wrap_market_gateway
-    from runtime.event_loop import run_coro_sync
-
-    print("Bootstrapping Dhan gateway...")
-    dhan_gw = bootstrap_or_exit("dhan", load_instruments=True)
-    print("Bootstrapping Upstox gateway...")
-    upstox_gw = bootstrap_or_none("upstox", load_instruments=True)
-
-    gateways = [wrap_market_gateway(dhan_gw, "dhan")]
-    if upstox_gw is not None:
-        gateways.append(wrap_market_gateway(upstox_gw, "upstox"))
-    else:
-        print("WARNING: Upstox unavailable, federating across Dhan only")
-
-    composer, _execution = create_composers(gateways)
-
-    def _fetch(symbol: str, exchange: str, timeframe: str, lookback_days: int):
-        query = HistoricalQuery(
-            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
-            timeframe=_TIMEFRAME_ALIASES.get(timeframe, timeframe),
-            from_date=date.today() - timedelta(days=lookback_days),
-            to_date=date.today(),
-        )
-        series, ledger = run_coro_sync(composer.fetch_historical(query))
-        if ledger.degraded:
-            print(f"  [{symbol}] degraded: {ledger.degraded_reason}")
-        return series.to_dataframe()
-
-    return _fetch
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["ad-hoc", "federated"], default="federated")
     parser.add_argument("--timeframe", default="1m")
-    parser.add_argument("--workers", type=int, default=5)
+    parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--skip-health-check",
+        action="store_true",
+        help="Skip post-sync corruption scan (dev/ad-hoc only)",
+    )
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument(
+        "--tail-only",
+        action="store_const",
+        const="tail",
+        dest="repair_scope",
+        help="Catch up last bar through today only (default, fast daily sync)",
+    )
+    scope.add_argument(
+        "--repair-gaps",
+        action="store_const",
+        const="internal",
+        dest="repair_scope",
+        help="Fill mid-history trading-day holes only (slow — run off-hours)",
+    )
+    scope.add_argument(
+        "--full",
+        action="store_const",
+        const="all",
+        dest="repair_scope",
+        help="Tail + internal gap repair (slowest)",
+    )
+    parser.set_defaults(repair_scope="tail")
     args = parser.parse_args()
 
-    catalog = DataCatalog(ROOT)
-    loader = HistoricalDataLoader(root=ROOT, catalog=catalog)
+    from runtime import datalake_sync
 
-    fetch_fn = None
-    gateway = None
-    if args.mode == "federated":
-        fetch_fn = _build_federated_fetch_fn()
-    else:
-        print("Bootstrapping Dhan gateway...")
-        gateway = bootstrap_or_exit("dhan", load_instruments=True)
-
-    equities = _existing_symbols(ROOT, "equities", args.timeframe)
-    delisted = _load_delisted(ROOT)
-    if delisted:
-        skipped = [s for s in equities if s in delisted]
-        if skipped:
-            print(f"Skipping {len(skipped)} delisted symbol(s): {', '.join(skipped)}")
-        equities = [s for s in equities if s not in delisted]
-    symbols = [(s, "equities") for s in equities]
-    if args.limit:
-        symbols = symbols[: args.limit]
-
-    print(
-        f"Syncing {len(symbols)} equity symbols @ timeframe={args.timeframe}, "
-        f"mode={args.mode}, workers={args.workers} "
-        f"(indices synced separately -- different exchange code)"
+    sync_kwargs = dict(
+        root=ROOT,
+        timeframe=args.timeframe,
+        workers=args.workers,
+        limit=args.limit,
+        run_health_check=not args.skip_health_check,
+        repair_scope=args.repair_scope,
     )
 
-    start = time.time()
-    results: dict[str, int] = {}
-    errors: dict[str, str] = {}
+    if args.mode == "federated":
+        report = datalake_sync.run_federated_sync(**sync_kwargs)
+    else:
+        print(
+            "WARNING: ad-hoc mode skips quota management and federated degraded-data "
+            "gating — not for production use.",
+            file=sys.stderr,
+        )
+        print("Bootstrapping Dhan gateway...")
+        gateway = bootstrap_or_exit("dhan", load_instruments=True)
+        report = datalake_sync.run_adhoc_sync(gateway=gateway, **sync_kwargs)
 
-    def _sync_one(entry: str) -> int:
-        symbol, _asset = entry.split("|", 1)
-        return loader.repair_missing(symbol, gateway, timeframe=args.timeframe, fetch_fn=fetch_fn)
-
-    def _on_error(entry: str, exc: Exception) -> None:
-        symbol, _ = entry.split("|", 1)
-        errors[symbol] = str(exc)
-
-    keys = [f"{s}|{a}" for s, a in symbols]
-    raw_results = batch_execute(keys, _sync_one, max_workers=args.workers, on_error=_on_error)
-    for k, rows in raw_results.items():
-        symbol = k.split("|", 1)[0]
-        results[symbol] = rows
-
-    elapsed = time.time() - start
-    total_new_rows = sum(results.values())
-    synced_with_new_data = sum(1 for r in results.values() if r > 0)
-    up_to_date = sum(1 for r in results.values() if r == 0)
-
-    print(f"\nDone in {elapsed:.1f}s (mode={args.mode})")
-    print(f"  Symbols processed: {len(results)}/{len(symbols)}")
-    print(f"  Already up to date: {up_to_date}")
-    print(f"  Received new data: {synced_with_new_data}")
-    print(f"  Total new rows: {total_new_rows}")
-    print(f"  Errors: {len(errors)}")
-    if errors:
-        for sym, err in list(errors.items())[:20]:
+    scope_label = {"tail": "tail-only", "internal": "repair-gaps", "all": "full"}[
+        args.repair_scope
+    ]
+    print(
+        f"\nSyncing equities + indices @ timeframe={args.timeframe}, "
+        f"mode={args.mode}, scope={scope_label}, workers={args.workers}"
+    )
+    print(f"\nDone in {report.elapsed_s:.1f}s (mode={args.mode})")
+    print(f"  Symbols processed: {len(report.results)}/{report.symbols_total}")
+    print(f"  Already up to date: {report.up_to_date}")
+    print(f"  Received new data: {report.synced_with_new_data}")
+    print(f"  Total new rows: {report.total_new_rows}")
+    print(f"  Errors: {len(report.errors)}")
+    if report.errors:
+        for sym, err in list(report.errors.items())[:20]:
             print(f"    {sym}: {err}")
 
-    return 0 if not errors else 1
+    if not args.skip_health_check and report.health_results:
+        print("\nPost-sync health check...")
+        if report.health_ok:
+            print("  ALL CHECKS PASSED")
+        else:
+            print("  ISSUES FOUND")
+            for name, result in report.health_results.items():
+                if name == "thin_coverage":
+                    n = len(result.get("sample", []))
+                    if n:
+                        print(
+                            f"  FAIL thin_coverage: {n} symbol(s) below "
+                            f"{result['min_rows_threshold']} rows"
+                        )
+                        for row in result["sample"][:5]:
+                            print(f"    {row}")
+                    continue
+                count = result.get("count", 0)
+                if count:
+                    print(f"  FAIL {name}: {count} row(s)")
+                    for row in result.get("sample", [])[:5]:
+                        print(f"    {row}")
+
+    return 0 if report.ok else 1
 
 
 if __name__ == "__main__":

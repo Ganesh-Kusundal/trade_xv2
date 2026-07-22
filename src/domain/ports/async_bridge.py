@@ -39,3 +39,4 @@ def new_dedicated_loop() -> Any:
             "Call domain.ports.async_bridge.set_dedicated_loop_factory() from runtime."
         )
     return _new_dedicated_loop()
+

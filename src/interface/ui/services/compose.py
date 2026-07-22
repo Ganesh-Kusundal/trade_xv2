@@ -42,7 +42,7 @@ __all__ = ["Runtime", "build_for_api", "build_runtime"]
 
 
 def _ensure_wired() -> None:
-    from runtime.composition import wire_domain_port_sinks
+    from runtime.factory import wire_domain_port_sinks
     from runtime.interface_compose import wire_interface_compose
 
     wire_domain_port_sinks()

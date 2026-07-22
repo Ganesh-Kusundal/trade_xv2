@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Any
 
 from domain.enums import PositionSide, Side
-from domain.trading_costs import CommissionModel, IndianMarketFees
+from application.services.trading_costs_service import CommissionModel, IndianMarketFees
 from domain.market_enums import ExchangeId
 
 

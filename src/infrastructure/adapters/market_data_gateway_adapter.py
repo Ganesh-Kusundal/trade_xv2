@@ -1,4 +1,4 @@
-"""Wrap sync MarketDataGateway instances as BrokerAdapter adapters."""
+"""Wrap sync BrokerAdapter instances as BrokerAdapter adapters."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from domain.capabilities.broker_capabilities import BrokerCapabilities, Capabili
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
@@ -27,7 +27,7 @@ from infrastructure.adapters.historical_mapper import dataframe_to_historical_ba
 logger = logging.getLogger(__name__)
 
 
-def capabilities_for_gateway(gateway: MarketDataGateway, broker_id: str) -> BrokerCapabilities:
+def capabilities_for_gateway(gateway: BrokerAdapter, broker_id: str) -> BrokerCapabilities:
     get_capabilities = getattr(gateway, "capabilities", None)
     if callable(get_capabilities):
         capabilities = get_capabilities()
@@ -41,7 +41,7 @@ class _GatewayStreamHandle:
 
     def __init__(
         self,
-        adapter: MarketDataGatewayAdapter,
+        adapter: BrokerAdapterAdapter,
         feed: Any,
         instruments: list[str],
         on_tick: Any,
@@ -107,11 +107,11 @@ class _GatewayStreamHandle:
 
 
 class MarketDataGatewayAdapter:
-    """Adapts a legacy ``MarketDataGateway`` to ``BrokerAdapter``."""
+    """Adapts a legacy ``BrokerAdapter`` to ``BrokerAdapter``."""
 
     def __init__(
         self,
-        gateway: MarketDataGateway,
+        gateway: BrokerAdapter,
         broker_id: str,
         *,
         capabilities: BrokerCapabilities | None = None,
@@ -130,8 +130,8 @@ class MarketDataGatewayAdapter:
         return self._broker_id
 
     @property
-    def legacy_gateway(self) -> MarketDataGateway:
-        """Underlying MarketDataGateway — for transitional call sites."""
+    def legacy_gateway(self) -> BrokerAdapter:
+        """Underlying BrokerAdapter — for transitional call sites."""
         return self._gateway
 
     def list_capabilities(self) -> CapabilityDescriptor:
@@ -326,7 +326,7 @@ class MarketDataGatewayAdapter:
 
 
 def wrap_market_gateway(
-    gateway: MarketDataGateway,
+    gateway: BrokerAdapter,
     broker_id: str,
     *,
     capabilities: BrokerCapabilities | None = None,
@@ -339,3 +339,7 @@ def wrap_market_gateway(
         capabilities=capabilities,
         extensions=extensions,
     )
+
+
+# ponytail: transitional alias — call sites still say BrokerAdapterAdapter
+BrokerAdapterAdapter = MarketDataGatewayAdapter

@@ -15,6 +15,8 @@ from domain.enums import (
     ProductType,
     Side,
 )
+from domain.orders.requests import OrderRequest as DomainOrderRequest
+from domain.ports.async_bridge import run_coro_sync
 from infrastructure.observability.tracing import trace_operation
 from interface.api.auth import require_auth
 from interface.api.deps import (
@@ -136,25 +138,43 @@ def _resolve_api_broker() -> str:
     return load_trading_config().primary_broker
 
 
+def _api_to_domain_order_request(
+    req: OrderRequest,
+    *,
+    side: Side,
+    order_type: OrderType,
+    product_type: ProductType,
+) -> DomainOrderRequest:
+    """Map API schema → domain OrderRequest for ExecutionComposer."""
+    price = Decimal(str(req.price)) if req.price else Decimal("0")
+    if order_type == OrderType.MARKET:
+        price = Decimal("0")
+    trigger = Decimal(str(req.trigger_price)) if req.trigger_price else None
+    return DomainOrderRequest(
+        symbol=req.symbol,
+        exchange=req.exchange or "NSE",
+        transaction_type=side,
+        quantity=req.quantity,
+        price=price,
+        trigger_price=trigger,
+        order_type=order_type,
+        product_type=product_type,
+        correlation_id=req.correlation_id or f"api:{uuid.uuid4().hex[:12]}",
+    )
+
+
 @router.post("", response_model=OrderResponse)
 @trace_operation("interface.api.orders.place_order")
 async def place_order(
     req: OrderRequest,
+    composer: Any = Depends(get_execution_composer),
 ):
-    """Place a new order via institutional OMS spine (tradex.connect).
+    """Place a new order via process ExecutionComposer + OMS spine.
 
-    Path: OrderIntent → Risk → OMS → ExecutionProvider.
+    Path: API → live authority gate → ExecutionComposer → OMS → broker.
     Broker is resolved from server ``TRADEX_PRIMARY_BROKER`` / trading config
-    (not from client input).
-
-    The order is admitted through the process-wide OMS singleton (registered
-    by the composition root), so fills land in the SAME book that
-    ``GET /orders`` and ``GET /tradebook`` later query. ``correlation_id``
-    from the request is forwarded for idempotency (prevents duplicate orders
-    on client retry).
+    (not from client input). Uses the process session wired at startup (ADR-0020).
     """
-    import tradex
-
     broker = _resolve_api_broker()
 
     try:
@@ -169,42 +189,43 @@ async def place_order(
             detail=f"Invalid order parameter: {exc}",
         ) from exc
 
-    session = tradex.connect(broker)
-    try:
-        instrument = session.universe.equity(req.symbol, exchange=req.exchange or "NSE")
-        px = Decimal(str(req.price)) if req.price else None
-        trigger_px = Decimal(str(req.trigger_price)) if req.trigger_price else None
-        if order_type == OrderType.MARKET:
-            px = None
-        intent = session.intent(
-            instrument,
-            side,
-            req.quantity,
-            price=px,
-            trigger_price=trigger_px,
-            order_type=order_type,
-            product_type=product_type,
-            correlation_id=req.correlation_id or f"api:{uuid.uuid4().hex[:12]}",
-        )
-        result = session.place(intent)
-    finally:
-        # Do NOT discard the OMS on close: tradex.connect now resolves the
-        # process-wide singleton. session.close() only clears the per-session
-        # default provider registration.
-        session.close()
+    enforce_live_order_authority(
+        mutation_action="place",
+        risk_payload={
+            "symbol": req.symbol,
+            "exchange": req.exchange or "NSE",
+            "side": req.transaction_type.upper(),
+            "order_type": req.order_type.upper(),
+            "quantity": req.quantity,
+            "price": req.price or "0",
+            "product_type": (req.product_type or product_type.value).upper(),
+        },
+    )
 
-    if not result.success:
+    domain_req = _api_to_domain_order_request(
+        req, side=side, order_type=order_type, product_type=product_type
+    )
+
+    try:
+        response = await composer.place_order(domain_req, broker_id=broker)
+    except Exception as exc:
+        logger.exception("place_order failed via ExecutionComposer")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order rejected by OMS/risk/broker",
+            detail=str(exc),
+        ) from exc
+
+    if not getattr(response, "success", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=getattr(response, "message", None) or "Order rejected by OMS/risk/broker",
         )
 
-    order = result.order
-    status_val = getattr(getattr(order, "status", None), "value", None) or str(
-        getattr(order, "status", "OPEN")
+    status_val = getattr(getattr(response, "status", None), "value", None) or str(
+        getattr(response, "status", "OPEN")
     )
     return OrderResponse(
-        order_id=getattr(order, "order_id", "") or "",
+        order_id=getattr(response, "order_id", "") or "",
         symbol=req.symbol,
         exchange=req.exchange,
         transaction_type=req.transaction_type,
@@ -278,7 +299,7 @@ async def modify_order(
     )
 
     def modify_fn(r: ModifyOrderRequest) -> Any:
-        return asyncio.run(composer.modify_order(r))
+        return run_coro_sync(composer.modify_order(r))
 
     result = await asyncio.to_thread(om.modify_order, modify_req, modify_fn=modify_fn)
 
@@ -324,7 +345,7 @@ async def cancel_order(
     enforce_live_order_authority(mutation_action="cancel")
 
     def cancel_fn(oid: str) -> bool:
-        response = asyncio.run(composer.cancel_order(oid))
+        response = run_coro_sync(composer.cancel_order(oid))
         return bool(getattr(response, "success", False))
 
     result = await asyncio.to_thread(om.cancel_order, order_id, cancel_fn=cancel_fn)

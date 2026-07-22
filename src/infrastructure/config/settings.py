@@ -11,8 +11,10 @@ Intentional separation from :mod:`config.schema` (``AppConfig``):
   These handle broker-prefixed env vars (``DHAN_*``, ``UPSTOX_*``),
   ``.env`` file discovery, and ``SecretsManager`` integration.
 
-The two systems serve different consumers and different env-var namespaces,
-so the dual-config architecture is intentional.  Do NOT merge them.
+The two systems serve different consumers and different env-var namespaces.
+``SettingsLoaderBase`` remains for broker credential loaders only (``DHAN_*``,
+``UPSTOX_*``). Application-level settings must use :class:`config.schema.AppConfig`
+(ADR-003) — do not add new app-level env reads via ``SettingsLoaderBase``.
 
 Phase 3 (Configuration Centralization) — both :class:`DhanConnectionSettings`
 and :class:`UpstoxConnectionSettings` inherit from :class:`BrokerSettings`,

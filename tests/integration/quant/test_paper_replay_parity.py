@@ -47,11 +47,18 @@ class AlwaysBuyStrategy:
         )
 
 
-@pytest.fixture
-def trading_context():
-    # Composition-root wiring: register the real OMS backtest factory so the
-    # replay engine routes through the shared OMS kernel (zero-parity), not SIM.
+@pytest.fixture(scope="module")
+def _wired():
+    """Wire runtime hooks + domain port sinks once per module."""
+    from runtime.factory import wire_domain_port_sinks
+
     wire_runtime_hooks()
+    wire_domain_port_sinks()
+
+
+@pytest.fixture
+def trading_context(_wired):
+    """TradingContext with no event replay (sim-only)."""
     return build_test_trading_context(replay_events=False)
 
 

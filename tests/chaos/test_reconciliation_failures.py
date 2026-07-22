@@ -16,7 +16,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from domain import DriftItem, ReconciliationReport
-from domain.reconciliation_engine import ReconciliationEngine
+from application.services.reconciliation_service import ReconciliationEngine
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -96,9 +96,9 @@ class TestPositionMismatchDetection:
 
         drift = engine.compare_positions(local_positions, broker_positions)
 
-        # May or may not detect price mismatch depending on tolerance
-        # 但至少应该有某种drift
-        assert isinstance(drift, list)
+        assert len(drift) == 1
+        assert drift[0].kind == "position_avg_price_mismatch"
+        assert drift[0].symbol == "RELIANCE"
 
     def test_alert_raised_on_mismatch(self):
         """Alert event published when mismatch detected."""
@@ -164,8 +164,10 @@ class TestPositionMismatchDetection:
 
         drift = engine.compare_positions(local_positions, broker_positions)
 
-        # Should detect mismatches
-        assert len(drift) >= 0  # At least doesn't crash
+        kinds = {d.kind for d in drift}
+        assert "missing_local_position" in kinds
+        assert "missing_broker_position" in kinds
+        assert len(drift) == 2
 
     def test_reconciliation_report_has_correct_counts(self):
         """Reconciliation report has accurate counts."""
@@ -197,8 +199,9 @@ class TestPositionMismatchDetection:
 
         drift = engine.compare_positions(local_positions, broker_positions)
 
-        # Should detect TCS mismatch
-        assert len(drift) >= 0
+        assert len(drift) == 1
+        assert drift[0].kind == "position_quantity_mismatch"
+        assert drift[0].symbol == "TCS"
 
 
 # ── Priority 4.2: Reconciliation Service Failure ─────────────────────────
@@ -348,8 +351,9 @@ class TestReconciliationServiceFailure:
 
         drift = engine.compare_positions(local_positions, broker_positions)
 
-        # Should detect drift
-        assert len(drift) >= 0
+        assert len(drift) == 1
+        assert drift[0].kind == "position_quantity_mismatch"
+        assert drift[0].symbol == "RELIANCE"
 
     def test_reconciliation_service_recovery(self):
         """Reconciliation service recovers from transient failures."""

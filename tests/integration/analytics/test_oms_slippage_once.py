@@ -14,12 +14,12 @@ from typing import Any
 from analytics.oms_fill_price import resolve_oms_fill_price
 from analytics.paper.models import PaperConfig, PaperSession
 from analytics.paper.signal_processor import PaperSignalProcessor
-from analytics.replay.fill_recorder import FillRecorder
+from analytics.simulation.fill_recorder import FillRecorder
 from analytics.replay.models import ReplayConfig, ReplaySession
 from analytics.replay.signal_processor import SignalProcessor
 from analytics.strategy.models import Signal, SignalType
 from domain.candles.historical import HistoricalBar
-from domain.trading_costs import apply_slippage
+from application.services.trading_costs_service import apply_slippage
 
 
 @dataclass

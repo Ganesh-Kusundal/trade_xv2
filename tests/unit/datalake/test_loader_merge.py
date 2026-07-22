@@ -19,11 +19,11 @@ import pytest
 from datalake.ingestion.loader import HistoricalDataLoader
 
 
-def _candles(dates: list[str], base_price: float = 100.0) -> pd.DataFrame:
+def _candles(dates: list[str], base_price: float = 100.0, *, symbol: str = "RELIANCE") -> pd.DataFrame:
     return pd.DataFrame(
         {
             "timestamp": pd.to_datetime(dates),
-            "symbol": ["RELIANCE"] * len(dates),
+            "symbol": [symbol] * len(dates),
             "exchange": ["NSE"] * len(dates),
             "open": [base_price] * len(dates),
             "high": [base_price + 1] * len(dates),
@@ -243,23 +243,29 @@ class TestRepairMissingExchangePassthrough:
         assert calls == [("NIFTY", "INDEX")]
 
     def test_exchange_forwarded_on_incremental_repair(self, tmp_path: Path) -> None:
-        calls: list[tuple] = []
+        from datetime import date, timedelta
 
-        def fetch_fn(symbol, exchange, timeframe, lookback_days):
-            calls.append((symbol, exchange))
-            old_dates = [f"2022-{m:02d}-01 09:15:00" for m in range(1, 13)]
-            return _candles(old_dates)
+        from datalake.core.nse_calendar import trading_days_between
 
         loader = HistoricalDataLoader(root=str(tmp_path))
-        loader.repair_missing("NIFTY", timeframe="1d", exchange="INDEX", fetch_fn=fetch_fn)
-        calls.clear()
+        today = date.today()
+        history_days = trading_days_between(today - timedelta(days=10), today - timedelta(days=1))
+        dates = [f"{d.isoformat()} 09:15:00" for d in history_days]
+        loader.download_symbol(
+            "NIFTY",
+            FakeGateway(_candles(dates)),
+            years=1,
+            timeframe="1d",
+            exchange="INDEX",
+        )
+
+        calls: list[tuple] = []
 
         def fetch_fn2(symbol, exchange, timeframe, lookback_days):
             calls.append((symbol, exchange))
-            return _candles(["2025-01-01 09:15:00"])
+            return _candles([f"{today.isoformat()} 09:15:00"])
 
-        loader2 = HistoricalDataLoader(root=str(tmp_path))
-        loader2.repair_missing("NIFTY", timeframe="1d", exchange="INDEX", fetch_fn=fetch_fn2)
+        loader.repair_missing("NIFTY", timeframe="1d", exchange="INDEX", fetch_fn=fetch_fn2)
         assert calls == [("NIFTY", "INDEX")]
 
 

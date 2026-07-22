@@ -13,7 +13,7 @@ import logging
 from collections.abc import Callable
 from decimal import Decimal
 
-from analytics.replay.fill_recorder import FillRecorder
+from analytics.simulation.fill_recorder import FillRecorder
 from analytics.replay.models import ReplayConfig, ReplaySession, SimulatedTrade
 from analytics.simulation.signal_processor import SignalProcessor as _SharedSignalProcessor
 from analytics.simulation.signal_processor import SignalProcessorHooks
@@ -23,7 +23,7 @@ from domain.constants import DEFAULT_EXCHANGE
 from domain.enums import Side
 from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from domain.simulation_position_meta import PositionMeta
+from application.services.simulation_orchestrator import PositionMeta
 
 logger = logging.getLogger(__name__)
 
@@ -117,29 +117,28 @@ class SignalProcessor:
         commission = self._fill_recorder.compute_commission(notional, Side.SELL)
         session.capital += notional - commission
 
-        if not via_oms:
-            entry_price_d = Decimal(str(view.entry_price))
-            exit_price_d = Decimal(str(price))
-            commission_d = Decimal(str(commission))
-            pnl = (exit_price_d - entry_price_d) * view.quantity - commission_d
-            pnl_pct = (
-                float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
+        entry_price_d = Decimal(str(view.entry_price))
+        exit_price_d = Decimal(str(price))
+        commission_d = Decimal(str(commission))
+        pnl = (exit_price_d - entry_price_d) * view.quantity - commission_d
+        pnl_pct = (
+            float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
+        )
+        session.trades.append(
+            SimulatedTrade(
+                symbol=view.symbol,
+                side=view.side,
+                entry_price=view.entry_price,
+                exit_price=price,
+                quantity=view.quantity,
+                entry_time=view.entry_time,
+                exit_time=bar.timestamp,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                strategy=view.strategy,
+                reasons=["simulated_signal"],
             )
-            session.trades.append(
-                SimulatedTrade(
-                    symbol=view.symbol,
-                    side=view.side,
-                    entry_price=view.entry_price,
-                    exit_price=price,
-                    quantity=view.quantity,
-                    entry_time=view.entry_time,
-                    exit_time=bar.timestamp,
-                    pnl=pnl,
-                    pnl_pct=pnl_pct,
-                    strategy=view.strategy,
-                    reasons=["simulated_signal"],
-                )
-            )
+        )
 
         self._fill_recorder.record(
             session,

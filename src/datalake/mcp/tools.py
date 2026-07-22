@@ -8,8 +8,10 @@ reach a broker (see the plan's "read-only analysis only" scope decision).
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from contextlib import contextmanager
+from typing import Any
 
 import pandas as pd
 
@@ -145,33 +147,65 @@ class DatalakeTools:
         return data
 
     def health_check(
-        self, timeframe: str = "1m", min_rows: int = 10000, sample_limit: int = 20
+        self,
+        timeframe: str = "1m",
+        min_rows: int = 10000,
+        sample_limit: int = 20,
+        symbols: list[str] | None = None,
     ) -> dict[str, Any]:
         """Corruption scan across every symbol for a timeframe: duplicate
         timestamps, OHLC inconsistency, negative volume, future timestamps,
         thin coverage. Runs directly against the real on-disk Parquet files
-        (not the legacy `curated/` layout the older `run_health_check()`
+        (not the legacy `curated/` view the older `run_health_check()`
         script targets, which is empty in this datalake).
+
+        When *symbols* is provided, checks are limited to those tickers
+        (used by post-sync verification in scripts/sync_datalake.py).
         """
         if timeframe not in SUPPORTED_TIMEFRAMES:
             raise ValueError(
                 f"unsupported timeframe {timeframe!r}; supported: {sorted(SUPPORTED_TIMEFRAMES)}"
             )
         glob = self._candles_glob().replace("timeframe=*", f"timeframe={timeframe}")
+        symbol_predicate = ""
+        if symbols:
+            from datalake.core.symbols import normalize_symbol_for_storage
+
+            normalized = [normalize_symbol_for_storage(s) for s in symbols]
+            quoted = ", ".join(f"'{s}'" for s in normalized)
+            symbol_predicate = f"symbol IN ({quoted})"
+
+        def _where(*clauses: str) -> str:
+            parts = [c for c in clauses if c]
+            return f" WHERE {' AND '.join(parts)}" if parts else ""
+
         checks = {
-            "duplicate_timestamps": """
+            "duplicate_timestamps": f"""
                 SELECT symbol, timestamp, count(*) AS n FROM candles
+                {_where(symbol_predicate)}
                 GROUP BY symbol, timestamp HAVING count(*) > 1
             """,
-            "ohlc_inconsistent": """
+            "ohlc_inconsistent": f"""
                 SELECT symbol, timestamp, open, high, low, close FROM candles
-                WHERE high < low OR high < open OR high < close OR low > open OR low > close
+                {_where(
+                    symbol_predicate,
+                    "high < low OR high < open OR high < close OR low > open OR low > close",
+                )}
             """,
-            "negative_volume": "SELECT symbol, timestamp, volume FROM candles WHERE volume < 0",
-            "future_timestamps": "SELECT symbol, timestamp FROM candles WHERE timestamp > now()",
-            "outside_session_hours": """
+            "negative_volume": f"""
+                SELECT symbol, timestamp, volume FROM candles
+                {_where(symbol_predicate, "volume < 0")}
+            """,
+            "future_timestamps": f"""
                 SELECT symbol, timestamp FROM candles
-                WHERE timestamp::TIME < TIME '09:15:00' OR timestamp::TIME > TIME '15:30:00'
+                {_where(symbol_predicate, "timestamp > now()")}
+            """,
+            "outside_session_hours": f"""
+                SELECT symbol, timestamp FROM candles
+                {_where(
+                    symbol_predicate,
+                    "timestamp::TIME < TIME '09:15:00' OR timestamp::TIME > TIME '15:30:00'",
+                )}
             """,
         }
         results: dict[str, Any] = {}
@@ -187,9 +221,11 @@ class DatalakeTools:
                 count = count_row[0]
                 sample = conn.execute(sample_sql).df()
                 results[name] = {"count": int(count), "sample": _records(sample)}
+            thin_where = _where(symbol_predicate)
+            thin_having = f"count(*) < {int(min_rows)}"
             thin_sql = (
-                f"SELECT symbol, count(*) AS n FROM candles GROUP BY symbol "  # noqa: S608
-                f"HAVING count(*) < {int(min_rows)} ORDER BY n LIMIT {int(sample_limit)}"
+                f"SELECT symbol, count(*) AS n FROM candles{thin_where} "
+                f"GROUP BY symbol HAVING {thin_having} ORDER BY n LIMIT {int(sample_limit)}"
             )
             thin = conn.execute(thin_sql).df()
             results["thin_coverage"] = {

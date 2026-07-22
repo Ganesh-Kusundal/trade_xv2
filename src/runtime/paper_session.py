@@ -20,7 +20,7 @@ from application.execution.oms_backtest_adapter import (
 from application.oms.context import TradingContext
 from application.oms.factory import create_trading_context
 from application.oms._internal.risk_manager import RiskConfig, RiskManager
-from application.oms.capital_provider import FixedCapitalProvider
+from application.oms.capital_provider import FixedCapitalProvider, resolve_capital_provider
 from application.oms.position_manager import PositionManager
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 from domain.ports.execution_target import ExecutionTargetKind
@@ -79,22 +79,35 @@ def build_paper_session(
     capital = Decimal(str(initial_capital or PAPER_INITIAL_CAPITAL))
     kind = resolve_execution_target_kind(execution_kind or ExecutionTargetKind.PAPER)
 
-    capital_provider = FixedCapitalProvider(capital)
+    dlq = create_default_dead_letter_queue()
+    event_dir = events_dir or Path(tempfile.mkdtemp(prefix="tradex-paper-events-"))
+    event_bus = EventBus(dead_letter_queue=dlq)
+    processed_trades = ProcessedTradeRepository()
+    event_log = BufferedEventLog(events_dir=event_dir)
+
+    position_manager = PositionManager(
+        event_bus=event_bus,
+        processed_trade_repository=processed_trades,
+    )
+    capital_provider = resolve_capital_provider(
+        execution_kind=kind,
+        gateway=gateway,
+        fixed_capital=capital,
+    )
     risk_manager = RiskManager(
-        position_manager=PositionManager(),
+        position_manager=position_manager,
         config=RiskConfig(),
         capital_provider=capital_provider,
     )
 
-    dlq = create_default_dead_letter_queue()
-    event_dir = events_dir or Path(tempfile.mkdtemp(prefix="tradex-paper-events-"))
     trading_context = create_trading_context(
         risk_manager=risk_manager,
+        position_manager=position_manager,
         capital_fn=lambda: capital,
-        event_bus=EventBus(dead_letter_queue=dlq),
+        event_bus=event_bus,
         dead_letter_queue=dlq,
-        processed_trade_repository=ProcessedTradeRepository(),
-        event_log=BufferedEventLog(events_dir=event_dir),
+        processed_trade_repository=processed_trades,
+        event_log=event_log,
         replay_events=True,
     )
 

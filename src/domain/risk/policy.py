@@ -184,3 +184,21 @@ class RiskGate:
         if not r.approved:
             return r
         return RiskResult(True)
+
+    evaluate = check_order  # ADR-0017 alias for application callers
+
+
+def build_risk_gate_from_config(
+    config: Any,
+    *,
+    max_notional: Decimal | None = None,
+) -> RiskGate:
+    """Build a :class:`RiskGate` from OMS :class:`RiskConfig` percentage limits."""
+    pct = Decimal("100")
+    return RiskGate(
+        notional=OrderNotionalLimit(
+            max_notional=max_notional or Decimal("999999999999")
+        ),
+        concentration=ConcentrationLimit(max_pct=config.max_position_pct / pct),
+        gross_exposure=GrossExposureLimit(max_pct=config.max_gross_exposure_pct / pct),
+    )

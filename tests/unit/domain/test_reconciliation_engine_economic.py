@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from domain.entities import Position
-from domain.reconciliation_engine import ReconciliationEngine
+from application.services.reconciliation_service import ReconciliationEngine
 from domain.types import OrderStatus
 from tests.fixtures.domain_helpers import make_order
 

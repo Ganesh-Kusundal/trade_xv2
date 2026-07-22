@@ -4,7 +4,7 @@ Both BrokerFactory (Dhan) and UpstoxBrokerFactory should implement this
 interface so BrokerService can call either factory polymorphically.
 
 .. note::
-    This factory returns ``MarketDataGateway`` (the legacy ABC). To use the
+    This factory returns ``BrokerAdapter`` (the legacy ABC). To use the
     new ``BrokerAdapter`` Protocol, wrap the result with
     ``infrastructure.adapters.wrap_market_gateway()``.  See
     ``brokers.common.bootstrap`` for the full wiring sequence.
@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 
 if TYPE_CHECKING:
     from typing import Any
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class BrokerProviderFactory(ABC):
-    """Abstract factory for creating configured MarketDataGateway instances."""
+    """Abstract factory for creating configured BrokerAdapter instances."""
 
     @abstractmethod
     def create(
@@ -36,8 +36,8 @@ class BrokerProviderFactory(ABC):
         event_bus: EventBus | None = None,
         risk_manager: Any | None = None,
         lifecycle: Any | None = None,
-    ) -> MarketDataGateway:
-        """Create a configured MarketDataGateway for this broker.
+    ) -> BrokerAdapter:
+        """Create a configured BrokerAdapter for this broker.
 
         Parameters
         ----------

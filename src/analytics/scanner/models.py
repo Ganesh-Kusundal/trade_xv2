@@ -145,10 +145,21 @@ class BaseScanner:
     _scan_run_id: str = field(default="", init=False, repr=False)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
-        """Default scan: compute features, score, rank. Override for custom logic.
+        """Override in subclasses.
 
-        P1-Phase 1: Publishes SCAN_STARTED and SCAN_COMPLETED events.
+        Subclasses must call ``_begin_scan(universe)`` at the start and either
+        ``_score_candidates(...)`` (which calls ``_finish_scan``) or
+        ``_empty_scan_result(universe)`` on early exit so SCAN_STARTED always
+        pairs with SCAN_COMPLETED.
         """
+        raise NotImplementedError("Subclasses must implement scan()")
+
+    def _begin_scan(self, universe: pd.DataFrame) -> None:
+        """Publish SCAN_STARTED and reset per-run state. Call at the start of ``scan()``."""
+        from domain.correlation import generate_correlation_id
+
+        self._scan_run_id = generate_correlation_id()
+        self._candidates = []
         if self.event_bus is not None:
             from domain.events import EventType
 
@@ -160,7 +171,23 @@ class BaseScanner:
                 },
             )
 
-        raise NotImplementedError("Subclasses must implement scan()")
+    def _finish_scan(self, *, universe_size: int, candidate_count: int) -> None:
+        """Publish SCAN_COMPLETED once per scan."""
+        if self.event_bus is not None:
+            from domain.events import EventType
+
+            self.event_bus.publish(
+                EventType.SCAN_COMPLETED.value,
+                payload={
+                    "candidate_count": candidate_count,
+                    "universe": universe_size,
+                },
+            )
+
+    def _empty_scan_result(self, universe: pd.DataFrame) -> ScanResult:
+        """Early-exit helper: finish scan events and return an empty result."""
+        self._finish_scan(universe_size=len(universe), candidate_count=0)
+        return ScanResult(scanner=self.name, universe_size=len(universe))
 
     def _compute_features(self, universe: pd.DataFrame) -> pd.DataFrame:
         """Run the pipeline on the entire universe.
@@ -168,11 +195,6 @@ class BaseScanner:
         P5.1: Avoid unnecessary .copy() — pipeline.run() already returns
         a new DataFrame, so we can safely mutate it in-place downstream.
         """
-        if not self._scan_run_id:
-            from domain.correlation import generate_correlation_id
-
-            self._scan_run_id = generate_correlation_id()
-
         df = universe
         # Ensure symbol column exists — use index as symbol if missing
         if "symbol" not in df.columns:
@@ -240,22 +262,12 @@ class BaseScanner:
                     },
                 )
 
+        candidate_count = len(self._candidates)
         result = ScanResult(
             scanner=self.name,
             candidates=self._candidates,
             universe_size=len(scored),
         )
-
-        if self.event_bus is not None:
-            from domain.events import EventType
-
-            self.event_bus.publish(
-                EventType.SCAN_COMPLETED.value,
-                payload={
-                    "candidate_count": len(self._candidates),
-                    "universe": len(scored),
-                },
-            )
-
+        self._finish_scan(universe_size=len(scored), candidate_count=candidate_count)
         self._candidates = []
         return result

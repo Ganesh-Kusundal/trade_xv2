@@ -29,7 +29,7 @@ from brokers.providers.dhan.identity.account_registry import AccountConnectionRe
 from brokers.providers.dhan.streaming.connection import DhanConnection
 from brokers.providers.dhan.streaming.session_manager import DhanSessionManager
 from brokers.providers.dhan.wire import DhanWireAdapter
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from infrastructure.auth import AuthManager, JsonTokenStateStore, TokenSource
 from infrastructure.auth.env_token import update_env_token as _infra_update_env_token
 from infrastructure.auth.token_ensure import ensure_access_token
@@ -50,7 +50,7 @@ class BrokerFactory(BrokerProviderFactory):
         lifecycle: Any | None = None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
         reconciliation_service: object | None = None,
-    ) -> MarketDataGateway:
+    ) -> BrokerAdapter:
         settings = DhanSettingsLoader.from_env(env_path=env_path)
         cid = settings.client_id
         resolved_env = env_path or Path(".env.local")
@@ -81,7 +81,7 @@ class BrokerFactory(BrokerProviderFactory):
         lifecycle: Any | None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None,
         reconciliation_service: object | None,
-    ) -> MarketDataGateway:
+    ) -> BrokerAdapter:
         # ── Auth & token ───────────────────────────────────────────
         auth, token = self._create_auth(settings, env_path)
 

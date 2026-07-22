@@ -1,4 +1,4 @@
-"""Neutral composition helpers for runtime/API bootstrap."""
+"""Single composition root helpers and domain port sink wiring (ADR-017)."""
 
 from __future__ import annotations
 
@@ -37,6 +37,9 @@ def wire_domain_port_sinks() -> None:
     set_dedicated_loop_factory(new_dedicated_loop)
     set_execution_target_resolver(resolve_execution_target, resolve_simulated_oms_adapter)
     wire_session_historical()
+    from datalake.exchange_registry import wire_exchange_plugins
+
+    wire_exchange_plugins()
 
 
 def create_api_event_bus(*, maxsize: int = 2000) -> tuple[Any, Any]:
@@ -55,3 +58,9 @@ def create_api_event_bus(*, maxsize: int = 2000) -> tuple[Any, Any]:
         "sync_bus": sync_bus,
     }
     return async_bus, config
+
+
+__all__ = [
+    "create_api_event_bus",
+    "wire_domain_port_sinks",
+]

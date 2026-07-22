@@ -322,6 +322,12 @@ class ProductionReadinessChecker:
             return False, "UPSTOX_CLIENT_ID / UPSTOX_API_KEY is empty"
         return True, f"Upstox client id is set ({cid[:4]}…)"
 
+    def _check_api_key_explicit(self) -> tuple[bool, str]:
+        key = os.environ.get("API_KEY", "").strip()
+        if not key:
+            return False, "API_KEY is empty"
+        return True, "API_KEY is configured"
+
     def _check_upstox_token(self) -> tuple[bool, str]:
         token = os.environ.get("UPSTOX_ACCESS_TOKEN", "").strip()
         if not token:

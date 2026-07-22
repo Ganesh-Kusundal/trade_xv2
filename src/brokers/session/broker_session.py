@@ -66,7 +66,7 @@ def _ensure_domain_ports_wired() -> None:
     idempotent, so this is a no-op when the real composition root already
     ran it.
     """
-    from runtime.factory import wire_domain_port_sinks
+    from runtime.composition import wire_domain_port_sinks
 
     wire_domain_port_sinks()
 
@@ -108,7 +108,14 @@ class BrokerSession:
             self._session_state, BrokerSessionState.AUTHENTICATING
         )
         self._session_state = transition_state(self._session_state, BrokerSessionState.CONNECTED)
-        self._session_state = transition_state(self._session_state, BrokerSessionState.HEALTHY)
+        if self._probe_session_health():
+            self._session_state = transition_state(
+                self._session_state, BrokerSessionState.HEALTHY
+            )
+        else:
+            self._session_state = transition_state(
+                self._session_state, BrokerSessionState.DEGRADED
+            )
         self._runtime = RuntimeBundle(session=self._session)
         self._runtime.record_startup()
         self._gateway: Any | None = None
@@ -206,6 +213,29 @@ class BrokerSession:
 
     def _set_session_state(self, target: BrokerSessionState) -> None:
         self._session_state = transition_state(self._session_state, target)
+
+    def _probe_session_health(self) -> bool:
+        """Health probe before HEALTHY — auth + transport must be usable."""
+        try:
+            domain_session = self._session
+            provider = getattr(domain_session, "provider", None)
+            gateway = getattr(provider, "gateway", None) if provider else None
+            if gateway is not None:
+                auth = getattr(gateway, "authenticate", None)
+                if callable(auth) and not auth():
+                    return False
+                describe = getattr(gateway, "describe", None)
+                if callable(describe):
+                    info = describe()
+                    if isinstance(info, dict) and not info.get("connected", True):
+                        return False
+            status = getattr(domain_session, "status", None)
+            if status is not None and hasattr(status, "authenticated"):
+                if not bool(getattr(status, "authenticated", True)):
+                    return False
+            return True
+        except Exception:
+            return False
 
     @property
     def status(self) -> BrokerSessionStatus:

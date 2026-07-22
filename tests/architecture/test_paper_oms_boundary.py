@@ -29,6 +29,10 @@ _KIND_ALLOWLIST = frozenset(
         SRC / "runtime" / "execution_config.py",
         SRC / "runtime" / "paper_session.py",
         SRC / "runtime" / "composition.py",
+        SRC / "runtime" / "factory.py",
+        SRC / "runtime" / "oms_composition.py",
+        SRC / "application" / "oms" / "capital_provider.py",
+        SRC / "interface" / "ui" / "services" / "oms_setup.py",
     )
 )
 

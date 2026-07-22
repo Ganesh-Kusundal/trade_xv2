@@ -23,10 +23,10 @@ from analytics.strategy.models import Signal
 from domain.constants import DEFAULT_EXCHANGE
 from domain.enums import Side
 from domain.events.types import DomainEvent
-from domain.portfolio_projection import PortfolioProjector
+from application.services.simulation_orchestrator import PortfolioProjector
+from application.services.simulation_orchestrator import SimulationFillPipeline
+from application.services.simulation_orchestrator import PositionMeta
 from domain.ports.time_service import get_current_clock
-from domain.simulation_fill_pipeline import SimulationFillPipeline
-from domain.simulation_position_meta import PositionMeta
 
 # ---------------------------------------------------------------------------
 # ReplayItem — single item in the merged replay stream
@@ -105,14 +105,14 @@ class ReplayMode(str, Enum):
     CUSTOM = "custom"  # User-defined filter
 
 
-# Re-export canonical models from domain.trading_costs (single source of truth)
+# Re-export canonical models from application.services.trading_costs_service (single source of truth)
 from analytics.simulation.models import FillModel
-from domain.candles.historical import HistoricalBar  # noqa: F401 — re-exported via __init__
-from domain.trading_costs import (
+from application.services.trading_costs_service import (
     CommissionModel,
     IndianMarketFees,
     SlippageModel,
 )
+from domain.candles.historical import HistoricalBar  # noqa: F401 — re-exported via __init__
 
 
 @dataclass

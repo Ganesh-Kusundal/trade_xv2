@@ -25,10 +25,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from _connect import bootstrap_or_exit
-from sync_datalake import ROOT, _build_federated_fetch_fn, _existing_symbols
 
+from application.data.sync_fetch_strategy import build_federated_fetch_fn
+from datalake.ingestion.sync_manifest import resolve_sync_work
 from datalake.ingestion.loader import HistoricalDataLoader
 from infrastructure.batch_executor import batch_execute
+
+ROOT = "data/lake"
 
 RATE_LIMIT_MARKERS = ("429", "too many requests", "dh-905", "rate limit")
 
@@ -68,9 +71,10 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=5)
     args = parser.parse_args()
 
-    symbols = _existing_symbols(ROOT, "equities", args.timeframe)[: args.limit]
+    manifest_entries = resolve_sync_work(ROOT, assets=("equities",))
+    symbols = [e.symbol for e in manifest_entries[: args.limit]]
     if not symbols:
-        print(f"No existing equity symbols found at timeframe={args.timeframe} under {ROOT}")
+        print(f"No equity symbols in sync manifest under {ROOT} (run bootstrap_sync_manifest.py)")
         return 1
     print(
         f"Benchmarking {len(symbols)} symbols, timeframe={args.timeframe}, "
@@ -95,7 +99,7 @@ def main() -> int:
         )
 
         print("\nBootstrapping federated (Dhan + Upstox) strategy...")
-        fetch_fn = _build_federated_fetch_fn()
+        fetch_fn = build_federated_fetch_fn()
         fed_loader = HistoricalDataLoader(root=fed_root)
 
         def _fed_sync(symbol: str) -> dict:

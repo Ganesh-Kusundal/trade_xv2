@@ -39,12 +39,22 @@ class DataCatalog:
         if not read_only:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: duckdb.DuckDBPyConnection | None = None
+        # DuckDBPyConnection is not safe for concurrent execute() from multiple
+        # threads (segfaults under contention) -- every access to the shared
+        # write connection goes through this lock (single-connection pool, so
+        # this is the write path's real serialization point, not a bottleneck
+        # vs. network-bound broker fetches).
+        self._conn_lock = threading.Lock()
         if not read_only:
             self._ensure_schema()
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
-        """Return the cached read-write connection (write mode only)."""
+        """Return the cached read-write connection (write mode only).
+
+        Callers must hold ``self._conn_lock`` while using the returned
+        connection -- prefer :meth:`_connection` which does this for you.
+        """
         if self._read_only:
             raise RuntimeError(
                 "DataCatalog is read-only; use _connection() context manager for reads"
@@ -55,14 +65,20 @@ class DataCatalog:
 
     @contextmanager
     def _connection(self, *, write: bool = False) -> Iterator[duckdb.DuckDBPyConnection]:
-        """Yield a DuckDB connection appropriate for read or write access."""
+        """Yield a DuckDB connection appropriate for read or write access.
+
+        The write-mode branch serializes on ``self._conn_lock`` since the
+        underlying connection is shared (and not thread-safe) across every
+        caller of this catalog instance.
+        """
         if write and self._read_only:
             raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         if self._read_only or not write:
             with duckdb_connection(self._db_path, read_only=True) as conn:
                 yield conn
         else:
-            yield self.conn
+            with self._conn_lock:
+                yield self.conn
 
     def close(self) -> None:
         if self._conn is not None:
@@ -71,7 +87,7 @@ class DataCatalog:
 
     def _ensure_schema(self) -> None:
         """Initialize schema once under a class-level lock."""
-        with self._schema_lock:
+        with self._schema_lock, self._conn_lock:
             self._init_schema(self.conn)
 
     def _init_schema(self, conn: duckdb.DuckDBPyConnection) -> None:
@@ -211,35 +227,48 @@ class DataCatalog:
         # Empty sector/isin means "leave existing value" on conflict (ingest rarely knows them).
         sector = "" if sector is None else sector
         isin = "" if isin is None else isin
-        self.conn.execute(
-            """
-            INSERT INTO symbols AS s
-            (symbol, exchange, sector, isin, first_date, last_date, total_rows,
-             timeframe, parquet_path, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())
-            ON CONFLICT (symbol) DO UPDATE SET
-                exchange = excluded.exchange,
-                sector = CASE WHEN excluded.sector = '' THEN s.sector ELSE excluded.sector END,
-                isin = CASE WHEN excluded.isin = '' THEN s.isin ELSE excluded.isin END,
-                first_date = excluded.first_date,
-                last_date = excluded.last_date,
-                total_rows = excluded.total_rows,
-                timeframe = excluded.timeframe,
-                parquet_path = excluded.parquet_path,
-                updated_at = now()
-            """,
-            [
-                symbol,
-                exchange,
-                sector,
-                isin,
-                first_date,
-                last_date,
-                total_rows,
-                timeframe,
-                parquet_path,
-            ],
-        )
+        with self._connection(write=True) as conn:
+            conn.execute(
+                """
+                INSERT INTO symbols AS s
+                (symbol, exchange, sector, isin, first_date, last_date, total_rows,
+                 timeframe, parquet_path, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+                ON CONFLICT (symbol) DO UPDATE SET
+                    exchange = excluded.exchange,
+                    sector = CASE WHEN excluded.sector = '' THEN s.sector ELSE excluded.sector END,
+                    isin = CASE WHEN excluded.isin = '' THEN s.isin ELSE excluded.isin END,
+                    first_date = excluded.first_date,
+                    last_date = excluded.last_date,
+                    total_rows = excluded.total_rows,
+                    timeframe = excluded.timeframe,
+                    parquet_path = excluded.parquet_path,
+                    updated_at = now()
+                """,
+                [
+                    symbol,
+                    exchange,
+                    sector,
+                    isin,
+                    first_date,
+                    last_date,
+                    total_rows,
+                    timeframe,
+                    parquet_path,
+                ],
+            )
+
+    def unregister_symbol(self, symbol: str) -> bool:
+        """Remove *symbol* from the catalog. Returns True if a row was deleted."""
+        if self._read_only:
+            raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
+        symbol = normalize_symbol_for_storage(symbol)
+        with self._connection(write=True) as conn:
+            before = conn.execute(
+                "SELECT COUNT(*) FROM symbols WHERE symbol = ?", [symbol]
+            ).fetchone()[0]
+            conn.execute("DELETE FROM symbols WHERE symbol = ?", [symbol])
+        return before > 0
 
     def backfill_sectors(
         self,
@@ -255,43 +284,50 @@ class DataCatalog:
             raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         updated = 0
         isin_by_symbol = isin_by_symbol or {}
-        for symbol, sector in mapping.items():
-            sym = normalize_symbol_for_storage(symbol)
-            exists = self.conn.execute("SELECT 1 FROM symbols WHERE symbol = ?", [sym]).fetchone()
-            if exists is None:
-                continue
-            isin = isin_by_symbol.get(sym) or isin_by_symbol.get(symbol) or ""
-            if isin:
-                self.conn.execute(
-                    """
-                    UPDATE symbols
-                    SET sector = ?, isin = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE symbol = ?
-                    """,
-                    [sector, isin, sym],
-                )
-            else:
-                self.conn.execute(
-                    """
-                    UPDATE symbols
-                    SET sector = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE symbol = ?
-                    """,
-                    [sector, sym],
-                )
-            updated += 1
+        with self._connection(write=True) as conn:
+            for symbol, sector in mapping.items():
+                sym = normalize_symbol_for_storage(symbol)
+                exists = conn.execute(
+                    "SELECT 1 FROM symbols WHERE symbol = ?", [sym]
+                ).fetchone()
+                if exists is None:
+                    continue
+                isin = isin_by_symbol.get(sym) or isin_by_symbol.get(symbol) or ""
+                if isin:
+                    conn.execute(
+                        """
+                        UPDATE symbols
+                        SET sector = ?, isin = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE symbol = ?
+                        """,
+                        [sector, isin, sym],
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE symbols
+                        SET sector = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE symbol = ?
+                        """,
+                        [sector, sym],
+                    )
+                updated += 1
         return updated
 
     def get_symbol(self, symbol: str) -> dict | None:
         """Get symbol metadata."""
         symbol = normalize_symbol_for_storage(symbol)
-        with self._connection() as conn:
-            result = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol]).fetchone()
-            if result is None:
-                return None
-            cursor = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol])
-            cols = [desc[0] for desc in cursor.description]
-            return dict(zip(cols, result, strict=False))
+        with self._connection(write=not self._read_only) as conn:
+            return self._fetch_symbol_row(conn, symbol)
+
+    @staticmethod
+    def _fetch_symbol_row(conn: duckdb.DuckDBPyConnection, symbol: str) -> dict | None:
+        result = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol]).fetchone()
+        if result is None:
+            return None
+        cursor = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol])
+        cols = [desc[0] for desc in cursor.description]
+        return dict(zip(cols, result, strict=False))
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
         """List all registered symbols."""
@@ -364,40 +400,43 @@ class DataCatalog:
         if as_of_date is None:
             as_of_date = date.today()
 
-        self.conn.execute(
-            """
-            UPDATE universe_history
-            SET end_date = ?
-            WHERE universe = ? AND end_date IS NULL
-        """,
-            [as_of_date, universe],
-        )
-
-        count = 0
-        for symbol in symbols:
-            self.conn.execute(
+        with self._connection(write=True) as conn:
+            conn.execute(
                 """
-                INSERT OR IGNORE INTO universe_history
-                (universe, symbol, effective_date)
-                VALUES (?, ?, ?)
+                UPDATE universe_history
+                SET end_date = ?
+                WHERE universe = ? AND end_date IS NULL
             """,
-                [universe, symbol, as_of_date],
+                [as_of_date, universe],
             )
-            count += 1
+
+            count = 0
+            for symbol in symbols:
+                conn.execute(
+                    """
+                    INSERT INTO universe_history
+                    (universe, symbol, effective_date)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT (universe, symbol, effective_date) DO NOTHING
+                """,
+                    [universe, symbol, as_of_date],
+                )
+                count += 1
 
         return count
 
     def get_universe_as_of(self, universe: str, as_of_date: date) -> list[str]:
-        result = self.conn.execute(
-            """
-            SELECT symbol FROM universe_history
-            WHERE universe = ?
-              AND effective_date <= ?
-              AND (end_date IS NULL OR end_date > ?)
-            ORDER BY symbol
-        """,
-            [universe, as_of_date, as_of_date],
-        ).fetchall()
+        with self._connection(write=not self._read_only) as conn:
+            result = conn.execute(
+                """
+                SELECT symbol FROM universe_history
+                WHERE universe = ?
+                  AND effective_date <= ?
+                  AND (end_date IS NULL OR end_date > ?)
+                ORDER BY symbol
+            """,
+                [universe, as_of_date, as_of_date],
+            ).fetchall()
         return [r[0] for r in result]
 
     def register_symbol_metadata_snapshot(
@@ -413,14 +452,21 @@ class DataCatalog:
         if as_of_date is None:
             as_of_date = date.today()
 
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO symbol_metadata_history
-            (symbol, effective_date, lot_size, tick_size, sector, isin, instrument_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-            [symbol, as_of_date, lot_size, tick_size, sector, isin, instrument_type],
-        )
+        with self._connection(write=True) as conn:
+            conn.execute(
+                """
+                INSERT INTO symbol_metadata_history
+                (symbol, effective_date, lot_size, tick_size, sector, isin, instrument_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (symbol, effective_date) DO UPDATE SET
+                    lot_size = excluded.lot_size,
+                    tick_size = excluded.tick_size,
+                    sector = excluded.sector,
+                    isin = excluded.isin,
+                    instrument_type = excluded.instrument_type
+            """,
+                [symbol, as_of_date, lot_size, tick_size, sector, isin, instrument_type],
+            )
 
     def record_quality(
         self,
@@ -439,27 +485,37 @@ class DataCatalog:
         from datetime import date as date_type
 
         check_date = date_type.today()
-        self.conn.execute(
-            """
-            INSERT OR REPLACE INTO data_quality
-            (symbol, check_date, timeframe, total_rows, missing_candles, duplicate_candles,
-             gap_days, min_date, max_date, completeness_pct, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            [
-                symbol,
-                check_date,
-                timeframe,
-                total_rows,
-                missing_candles,
-                duplicate_candles,
-                gap_days,
-                min_date,
-                max_date,
-                completeness_pct,
-                status,
-            ],
-        )
+        with self._connection(write=True) as conn:
+            conn.execute(
+                """
+                INSERT INTO data_quality
+                (symbol, check_date, timeframe, total_rows, missing_candles, duplicate_candles,
+                 gap_days, min_date, max_date, completeness_pct, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (symbol, check_date, timeframe) DO UPDATE SET
+                    total_rows = excluded.total_rows,
+                    missing_candles = excluded.missing_candles,
+                    duplicate_candles = excluded.duplicate_candles,
+                    gap_days = excluded.gap_days,
+                    min_date = excluded.min_date,
+                    max_date = excluded.max_date,
+                    completeness_pct = excluded.completeness_pct,
+                    status = excluded.status
+            """,
+                [
+                    symbol,
+                    check_date,
+                    timeframe,
+                    total_rows,
+                    missing_candles,
+                    duplicate_candles,
+                    gap_days,
+                    min_date,
+                    max_date,
+                    completeness_pct,
+                    status,
+                ],
+            )
 
     def summary(self) -> dict:
         """Get catalog summary."""

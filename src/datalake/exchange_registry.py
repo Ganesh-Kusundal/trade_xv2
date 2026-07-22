@@ -1,9 +1,9 @@
 """Exchange registry — datalake's access point for the active exchange adapter.
 
 ADR-005 / P5-2 (G3). The datalake reads exchange conventions ONLY through this
-module, never from hardcoded constants. At startup, ``discover_exchanges()``
-is called to load exchange plugins from the ``tradex.exchanges`` entry-point
-group. Until an adapter is registered, :func:`get_active_adapter` raises
+module, never from hardcoded constants. At startup, ``wire_exchange_plugins()``
+loads exchange plugins from the ``tradex.exchanges`` entry-point group.
+Until an adapter is registered, :func:`get_active_adapter` raises
 :class:`ExchangeNotConfigured`.
 """
 
@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import importlib
 import logging
+import os
 import threading
+from datetime import date, timedelta
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
@@ -26,6 +28,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ENTRY_POINT_GROUP = "tradex.exchanges"
+
+#: Fraction of expected candles required for a day/chunk to count as complete.
+COMPLETENESS_OK_FRACTION: float = 0.90
+
+_TIMEFRAME_MINUTES: dict[str, int] = {
+    "1m": 1,
+    "5m": 5,
+    "15m": 15,
+    "30m": 30,
+    "1h": 60,
+    "1d": 1440,
+}
 
 
 class _ExchangeState:
@@ -114,6 +128,28 @@ def discover_exchanges() -> list[str]:
     return _ExchangeState.discover()
 
 
+def wire_exchange_plugins() -> None:
+    """Discover ``tradex.exchanges`` plugins; register bundled NSE when configured.
+
+    Called from the runtime composition root. When no plugin is discovered and
+    ``TRADEX_LEGACY_NSE_DEFAULT=1`` (default), the bundled NSE adapter is
+    registered with a warning log (ponytail: remove after soak).
+    """
+    discover_exchanges()
+    if _ExchangeState._active_adapter is not None:
+        return
+    legacy = (os.getenv("TRADEX_LEGACY_NSE_DEFAULT") or "1").strip() == "1"
+    if not legacy:
+        return
+    logger.warning(
+        "No tradex.exchanges plugin discovered; registering bundled NSE adapter "
+        "(set TRADEX_LEGACY_NSE_DEFAULT=0 to fail closed)"
+    )
+    from plugins.exchanges.nse import ADAPTER
+
+    set_active_adapter(ADAPTER)
+
+
 # ---------------------------------------------------------------------------
 # Calendar helpers — derive session constants from the active adapter's
 # TradingCalendar instead of hardcoding NSE values in datalake/core.
@@ -159,3 +195,38 @@ def get_session_minutes() -> int:
 def get_expected_candles_per_day() -> int:
     """Return expected 1-minute candles per full trading day."""
     return get_session_minutes()
+
+
+def is_trading_day(d: date) -> bool:
+    """Return True when ``d`` is a trading day on the active exchange."""
+    return _get_calendar().is_trading_day(d)
+
+
+def trading_days_between(start: date, end: date) -> list[date]:
+    """Return trading days between *start* and *end* inclusive."""
+    days: list[date] = []
+    current = start
+    while current <= end:
+        if is_trading_day(current):
+            days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
+def count_trading_days(start: date, end: date) -> int:
+    """Count trading days between *start* and *end* inclusive."""
+    return len(trading_days_between(start, end))
+
+
+def expected_candles_per_day(timeframe: str = "1m", *, early_close: bool = False) -> int:
+    """Expected candle count for a full session and timeframe."""
+    # ponytail: early-close not on TradingCalendar port yet; 255m session when flagged.
+    minutes = 255 if early_close else get_session_minutes()
+    return minutes // _TIMEFRAME_MINUTES.get(timeframe, 1)
+
+
+def expected_candles(d: date, timeframe: str = "1m") -> int:
+    """Expected candle count for trading day *d* and *timeframe*."""
+    if not is_trading_day(d):
+        return 0
+    return expected_candles_per_day(timeframe)

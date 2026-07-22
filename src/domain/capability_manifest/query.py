@@ -11,6 +11,7 @@ from domain.capability_manifest.types import CapabilitySurface, ExposureStatus
 # protocol-introspection quirks and remain a deliberate coverage contract.
 _ABC_GATEWAY_METHODS: frozenset[str] = frozenset(
     {
+        "authenticate",
         "cancel_order",
         "capabilities",
         "close",
@@ -18,24 +19,24 @@ _ABC_GATEWAY_METHODS: frozenset[str] = frozenset(
         "describe",
         "funds",
         "future_chain",
+        "get_order",
         "get_orderbook",
         "get_trade_book",
         "history",
-        "history_batch",
         "holdings",
+        "list_capabilities",
         "load_instruments",
         "ltp",
-        "ltp_batch",
+        "modify_order",
         "option_chain",
         "place_order",
         "positions",
         "quote",
-        "quote_batch",
         "search",
         "stream",
         "stream_depth",
         "stream_order",
-        "trades",
+        "unstream",
     }
 )
 

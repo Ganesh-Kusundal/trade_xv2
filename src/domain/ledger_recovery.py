@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from domain.entities import Trade
 from domain.execution_contracts import LedgerFillRecord
-from domain.portfolio_projection import PortfolioProjector
 from domain.ports.execution_ledger import ExecutionLedgerPort
-from domain.simulation_fill_pipeline import SimulationFillPipeline
+from domain.simulation import PortfolioProjector
+from domain.simulation import SimulationFillPipeline
 
 
 def rebuild_projector_from_fills(

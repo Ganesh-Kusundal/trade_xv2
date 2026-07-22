@@ -44,6 +44,7 @@ _APPLICATION_INTERFACE_ALLOWLIST = frozenset(
 # Broker wire + domain protocol — tracked separately, not spine violations.
 _BROKER_WIRE_ALLOWLIST = frozenset(
     {
+        "src/brokers/gateway.py",
         "src/brokers/providers/paper/execution_provider.py",
         "src/brokers/providers/paper/paper_gateway.py",
         "src/brokers/providers/paper/paper_orders.py",
@@ -51,6 +52,7 @@ _BROKER_WIRE_ALLOWLIST = frozenset(
         "src/brokers/providers/upstox/mutual_funds/adapter.py",
         "src/brokers/providers/upstox/mutual_funds/client.py",
         "src/brokers/providers/upstox/adapters/order_gateway.py",
+        "src/brokers/providers/upstox/adapters/upstox_orders.py",
         "src/brokers/providers/upstox/orders/order_command_adapter.py",
         "src/brokers/providers/dhan/gateway.py",
         "src/brokers/providers/dhan/execution/orders.py",
@@ -65,6 +67,7 @@ _BROKER_WIRE_ALLOWLIST = frozenset(
 
 _DOMAIN_PROTOCOL_ALLOWLIST = frozenset(
     {
+        "src/domain/ports/broker_execution_port.py",
         "src/domain/ports/broker_gateway.py",
         "src/domain/ports/protocols.py",
         "src/domain/repositories/order_repository.py",

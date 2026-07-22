@@ -72,10 +72,11 @@ class OrderType(str, Enum):
 
 
 class PositionSide(str, Enum):
-    """Position side — LONG (buy) or SHORT (sell)."""
+    """Position side — LONG (buy), SHORT (sell), or FLAT."""
 
     LONG = "LONG"
     SHORT = "SHORT"
+    FLAT = "FLAT"
 
 
 class Validity(str, Enum):

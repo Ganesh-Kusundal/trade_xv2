@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.trading_costs import apply_slippage
+from application.services.trading_costs_service import apply_slippage
 
 
 def resolve_oms_fill_price(

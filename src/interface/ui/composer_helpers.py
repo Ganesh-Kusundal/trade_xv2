@@ -40,47 +40,27 @@ def _detect_enabled_brokers() -> list[str]:
 
 
 def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
-    """Create broker gateways for the specified broker IDs.
+    """Create broker gateways for the specified broker IDs using bootstrap_gateway."""
+    from infrastructure.adapters.market_data_gateway_adapter import (
+        wrap_market_gateway,
+    )
+    from interface.ui.services.connect import bootstrap_gateway
 
-    Parameters
-    ----------
-    broker_ids
-        List of broker IDs to initialize. If None, auto-detects from env.
-    """
-    try:
-        from interface.ui.services.broker_registry import DhanWireAdapter
-    except ImportError:
-        DhanWireAdapter = None  # noqa: N806
-
-    try:
-        from interface.ui.services.broker_registry import PaperBrokerGateway
-    except ImportError:
-        PaperBrokerGateway = None  # noqa: N806
     if broker_ids is None:
         broker_ids = _detect_enabled_brokers()
 
     gateways: list[Any] = []
-
     for broker_id in broker_ids:
-        if broker_id == BrokerId.DHAN:
-            if DhanWireAdapter is None:
-                logger.warning("DhanWireAdapter not available")
-                continue
-            try:
-                gateway = DhanWireAdapter.from_env()
-                gateways.append(gateway)
-                logger.info("Initialized DhanWireAdapter")
-            except Exception as exc:
-                logger.warning("Failed to initialize DhanWireAdapter: %s", exc)
-        elif broker_id == BrokerId.PAPER:
-            if PaperBrokerGateway is None:
-                logger.warning("PaperBrokerGateway not available")
-                continue
-            gateway = PaperBrokerGateway()
-            gateways.append(gateway)
-            logger.info("Initialized PaperBrokerGateway")
-        else:
-            logger.warning("Unknown broker ID: %s", broker_id)
+        try:
+            boot = bootstrap_gateway(broker_id, skip_auth_probe=True)
+            if boot.success and boot.gateway is not None:
+                wrapped = wrap_market_gateway(boot.gateway)
+                gateways.append(wrapped if wrapped is not None else boot.gateway)
+                logger.info("Initialized %s via bootstrap_gateway", broker_id)
+            else:
+                logger.warning("Failed to bootstrap gateway %s: %s", broker_id, boot.error)
+        except Exception as exc:
+            logger.warning("Failed to initialize gateway %s: %s", broker_id, exc)
 
     return gateways
 

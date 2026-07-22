@@ -5,7 +5,7 @@ the OMS lifecycle calls them synchronously. The returned coroutine is truthy,
 so the broker call was silently skipped (phantom cancel) or its result ignored
 (broken modify).
 
-The fix makes the callbacks sync (using ``asyncio.run`` inside a thread) and
+The fix makes the callbacks sync (using ``run_coro_sync`` inside a worker thread) and
 wraps the OMS call with ``asyncio.to_thread``, matching the pattern in
 ``application/composer/execution.py``.
 """
@@ -71,12 +71,14 @@ class TestCallbacksAreSyncBySource:
             "cancel_fn must not be async — OMS lifecycle calls it synchronously"
         )
         assert "def cancel_fn" in self.source
+        assert "run_coro_sync" in self.source
 
     def test_modify_fn_is_not_async(self):
         assert "async def modify_fn" not in self.source, (
             "modify_fn must not be async — OMS lifecycle calls it synchronously"
         )
         assert "def modify_fn" in self.source
+        assert "run_coro_sync" in self.source
 
 
 # ---------------------------------------------------------------------------
@@ -181,10 +183,7 @@ class TestOMSModifyCallbackExecuted:
 
 class TestAsyncComposerViaSyncCallback:
     """Simulate the exact flow: an async composer method wrapped in a sync
-    callback using asyncio.run() — matching the fix in orders.py.
-
-    This proves the pattern works: asyncio.run() in a worker thread can
-    drive an async composer method and return a result to the sync OMS.
+    callback using run_coro_sync — matching the fix in orders.py.
     """
 
     def test_cancel_with_async_composer(self, om):

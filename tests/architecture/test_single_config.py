@@ -111,6 +111,18 @@ def test_app_config_is_central():
     )
 
 
+@pytest.mark.architecture
+def test_production_config_uses_app_config():
+    """validate_production_config must read settings via AppConfig (ADR-003)."""
+    import inspect
+
+    from runtime import production_config
+
+    src = inspect.getsource(production_config.validate_production_config)
+    assert "AppConfig" in src
+    assert "os.getenv(\"RISK_FAIL_OPEN\")" not in src
+
+
 # ── 5. No scattered os.getenv in non-config modules ─────────────────────
 
 

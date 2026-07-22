@@ -171,6 +171,9 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter, BrokerAdapter):
         return self._data_gw.describe()
 
     def place_order(self, request: OrderRequest) -> OrderResponse:
+        from brokers.services._session import check_live_actionable
+
+        check_live_actionable(self.broker_id)
         return self._order_gw.place_order(request)
 
     def cancel_order(self, order_id: str) -> OrderResponse:

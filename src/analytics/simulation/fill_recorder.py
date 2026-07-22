@@ -17,7 +17,7 @@ from domain.entities import Trade
 from domain.enums import Side
 from domain.ports.time_service import get_current_clock
 from domain.primitives.value_objects import Money, Quantity
-from domain.trading_costs import compute_commission, compute_slippage_pct
+from application.services.trading_costs_service import compute_commission, compute_slippage_pct
 
 logger = logging.getLogger(__name__)
 

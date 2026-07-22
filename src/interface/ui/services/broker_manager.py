@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from domain.enums import BrokerId
 from domain.exceptions import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapStatus
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter
 from interface.ui.services.broker_observability import (
     resolve_active_broker,
 )
@@ -44,7 +44,7 @@ class BrokerManager:
     # Active broker resolution
     # ------------------------------------------------------------------
 
-    def get_active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
+    def get_active_broker(self) -> BrokerAdapter | PaperGateway | MockBroker:
         """Return the active broker: live Dhan, live Upstox, paper, or mock.
 
         Raises BrokerNotReadyError when the selected live broker failed

@@ -90,8 +90,9 @@ class MomentumScanner(BaseScanner):
     pipeline: FeaturePipeline = field(default_factory=_build_momentum_pipeline)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
+        self._begin_scan(universe)
         if universe.empty:
-            return ScanResult(scanner=self.name, universe_size=0)
+            return self._empty_scan_result(universe)
 
         # Run pipeline on full universe (features need time series)
         df = self._compute_features(universe)
@@ -166,8 +167,9 @@ class VolumeScanner(BaseScanner):
     pipeline: FeaturePipeline = field(default_factory=_build_volume_pipeline)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
+        self._begin_scan(universe)
         if universe.empty:
-            return ScanResult(scanner=self.name, universe_size=0)
+            return self._empty_scan_result(universe)
 
         # Run pipeline on full universe (features need time series)
         df = self._compute_features(universe)
@@ -235,8 +237,9 @@ class RSScanner(BaseScanner):
     pipeline: FeaturePipeline = field(default_factory=_build_rs_pipeline)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
+        self._begin_scan(universe)
         if universe.empty:
-            return ScanResult(scanner=self.name, universe_size=0)
+            return self._empty_scan_result(universe)
 
         # Run pipeline on full universe (features need time series)
         df = self._compute_features(universe)
@@ -309,8 +312,9 @@ class BreakoutScanner(BaseScanner):
     pipeline: FeaturePipeline = field(default_factory=_build_breakout_pipeline)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
+        self._begin_scan(universe)
         if universe.empty:
-            return ScanResult(scanner=self.name, universe_size=0)
+            return self._empty_scan_result(universe)
 
         # Run pipeline on full universe (features need time series)
         df = self._compute_features(universe)

@@ -7,7 +7,7 @@ from decimal import Decimal
 from application.oms.position_manager import PositionManager
 from domain import Side
 from domain.entities import Position, Trade
-from domain.portfolio_projection import PortfolioProjector, project_trade
+from application.services.simulation_orchestrator import PortfolioProjector, project_trade
 
 
 def _trade(symbol: str, side: Side, qty: int, price: str, tid: str) -> Trade:

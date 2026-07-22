@@ -29,7 +29,7 @@ from analytics.scanner.models import Candidate
 from analytics.strategy import Signal, SignalType
 from domain.entities.trade import Trade
 from domain.enums import Side
-from domain.trading_costs import apply_slippage as _apply_slippage
+from application.services.trading_costs_service import apply_slippage as _apply_slippage
 
 # ---------------------------------------------------------------------------
 # HalfTrend Strategy (wraps indicator for StrategyPipeline)

@@ -35,6 +35,20 @@ closed code gaps; remaining blockers are operational and governance.
 - No silent live submit on operator analytics paths.
 - Metrics auth (SEC-004/005) remains separate scope.
 
+## R15 prep (2026-07-22) — seam only, live still blocked
+
+Phase 4 R15 wires the lift **precondition check** without lifting ADR-0012:
+
+- `runtime/execution_config.py`: `assert_live_lift_preconditions()` — double opt-in
+  (`TRADEX_ENABLE_LIVE_EXECUTION=1` **and** `TRADEX_ADR_0013_LIFT=1`) plus
+  PRE-DEPLOY score ≥ 8.5 and chaos green streak ≥ 4 (env-overridable for CI).
+- `validate_production_config(surface="runtime")` invokes the check when
+  `TRADEX_EXECUTION_TARGET=live`.
+- `runtime/execution_target.py` calls the same check before `BrokerFillSource` wiring.
+- Ratchet: `tests/architecture/test_live_lift_prep.py`.
+
+Gates remain **not met** (live PRE-DEPLOY 6.8, chaos 0/4); default target stays PAPER.
+
 ## References
 
 - [ADR-0012](0012-paper-only-oms-boundary.md)

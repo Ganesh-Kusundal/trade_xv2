@@ -38,9 +38,10 @@ def test_resolve_replay_and_backtest_share_bt_prefix() -> None:
     assert backtest.kind is ExecutionTargetKind.BACKTEST
 
 
-def test_resolve_live_requires_gateway() -> None:
-    with pytest.raises(ValueError, match="gateway"):
-        resolve_execution_target(ExecutionTargetKind.LIVE)
+def test_resolve_live_requires_preconditions() -> None:
+    gateway = object()
+    with pytest.raises(RuntimeError, match="ADR-0013"):
+        resolve_execution_target(ExecutionTargetKind.LIVE, gateway=gateway)
 
 
 def test_resolve_unknown_raises() -> None:

@@ -73,6 +73,15 @@ class AppConfig(BaseModel):
     # ── API Routing ─────────────────────────────────────────
     api_prefix: str = "/api/v1"
 
+    # ── Trading runtime (ADR-003) ───────────────────────────
+    orchestrator_dry_run: bool = False
+    orchestrator_min_confidence: float = 0.7
+    enable_intelligent_gateway: bool = False
+    skip_parity_gate: bool = False
+    smart_routing: bool = True
+    primary_broker: str = "dhan"
+    risk_fail_open: bool = False
+
     model_config = {"env_prefix": "TRADEX_", "env_file": ".env", "env_file_encoding": "utf-8"}
 
     @field_validator("log_level")
@@ -92,6 +101,13 @@ class AppConfig(BaseModel):
             raise ValueError(f"Port must be > 0, got {v}")
         return v
 
+    def is_production_or_staging(self) -> bool:
+        """True when strict production boot validation must run."""
+        tradex_env = (os.environ.get("TRADEX_ENV") or "").strip().lower()
+        if tradex_env in ("production", "staging"):
+            return True
+        return self.app_env in ("prod", "staging")
+
     @classmethod
     def from_env(cls) -> AppConfig:
         """Load configuration from environment variables.
@@ -103,8 +119,17 @@ class AppConfig(BaseModel):
         # Build kwargs from env, preferring TRADEX_ prefixed then legacy
         kwargs: dict[str, object] = {}
 
-        # app_env: TRADEX_APP_ENV → APP_ENV
-        kwargs["app_env"] = os.environ.get("TRADEX_APP_ENV", os.environ.get("APP_ENV", "dev"))
+        # app_env: TRADEX_APP_ENV → APP_ENV → TRADEX_ENV (production→prod)
+        app_env_raw = os.environ.get("TRADEX_APP_ENV") or os.environ.get("APP_ENV")
+        if not app_env_raw:
+            tradex_env = (os.environ.get("TRADEX_ENV") or "development").strip().lower()
+            if tradex_env in ("production", "prod"):
+                app_env_raw = "prod"
+            elif tradex_env == "staging":
+                app_env_raw = "staging"
+            else:
+                app_env_raw = "dev"
+        kwargs["app_env"] = app_env_raw
 
         # log_level: TRADEX_LOG_LEVEL → XV2_LOG_LEVEL
         kwargs["log_level"] = os.environ.get(
@@ -181,7 +206,51 @@ class AppConfig(BaseModel):
         # api_prefix
         kwargs["api_prefix"] = os.environ.get("TRADEX_API_PREFIX", "/api/v1")
 
+        # trading runtime
+        kwargs["orchestrator_dry_run"] = _first_env_bool(
+            "TRADEX_ORCHESTRATOR_DRY_RUN", "ORCHESTRATOR_DRY_RUN", default=False
+        )
+        kwargs["orchestrator_min_confidence"] = _first_env_float(
+            "TRADEX_ORCHESTRATOR_MIN_CONFIDENCE",
+            "ORCHESTRATOR_MIN_CONFIDENCE",
+            default=0.7,
+        )
+        kwargs["enable_intelligent_gateway"] = _first_env_bool(
+            "TRADEX_ENABLE_INTELLIGENT_GATEWAY", "ENABLE_INTELLIGENT_GATEWAY"
+        )
+        kwargs["skip_parity_gate"] = _first_env_bool(
+            "TRADEX_SKIP_PARITY_GATE", "SKIP_PARITY_GATE"
+        )
+        kwargs["smart_routing"] = _first_env_bool(
+            "TRADEX_SMART_ROUTING", default=True
+        )
+        kwargs["primary_broker"] = os.environ.get(
+            "TRADEX_PRIMARY_BROKER", "dhan"
+        ).strip() or "dhan"
+        kwargs["risk_fail_open"] = _first_env_bool(
+            "TRADEX_RISK_FAIL_OPEN", "RISK_FAIL_OPEN"
+        )
+
         return cls(**kwargs)
+
+
+def _first_env_bool(*keys: str, default: bool = False) -> bool:
+    for key in keys:
+        raw = os.environ.get(key, "")
+        if raw:
+            return raw.lower() in ("1", "true", "yes")
+    return default
+
+
+def _first_env_float(*keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        raw = os.environ.get(key, "")
+        if raw:
+            try:
+                return float(raw)
+            except ValueError:
+                return default
+    return default
 
 
 # Broker config lives in brokers/*/config/settings.py (G4 resolved)
@@ -235,20 +304,19 @@ def _get_float(key: str, default: float = 0.0) -> float:
 
 
 def load_api_config() -> ApiConfig:
-    """Load API server configuration from environment variables."""
-    return ApiConfig(
-        auth_mode=os.environ.get("AUTH_MODE", "none"),
-        api_key=os.environ.get("API_KEY", ""),
-    )
+    """Load API server configuration from AppConfig (ADR-003)."""
+    cfg = AppConfig.from_env()
+    return ApiConfig(auth_mode=cfg.auth_mode, api_key=cfg.api_key)
 
 
 def load_trading_config() -> TradingConfig:
-    """Load trading runtime configuration from environment variables."""
+    """Load trading runtime configuration from AppConfig (ADR-003)."""
+    cfg = AppConfig.from_env()
     return TradingConfig(
-        orchestrator_dry_run=_get_bool("ORCHESTRATOR_DRY_RUN", False),
-        orchestrator_min_confidence=_get_float("ORCHESTRATOR_MIN_CONFIDENCE", 0.7),
-        enable_intelligent_gateway=_get_bool("ENABLE_INTELLIGENT_GATEWAY"),
-        skip_parity_gate=_get_bool("SKIP_PARITY_GATE"),
-        smart_routing=_get_bool("TRADEX_SMART_ROUTING", True),
-        primary_broker=os.environ.get("TRADEX_PRIMARY_BROKER", "dhan"),
+        orchestrator_dry_run=cfg.orchestrator_dry_run,
+        orchestrator_min_confidence=cfg.orchestrator_min_confidence,
+        enable_intelligent_gateway=cfg.enable_intelligent_gateway,
+        skip_parity_gate=cfg.skip_parity_gate,
+        smart_routing=cfg.smart_routing,
+        primary_broker=cfg.primary_broker,
     )

@@ -41,10 +41,24 @@ docs/_build/
 frontend/node_modules/
 
 # Data files (mount as volumes instead)
+data/lake/**/*.parquet
+data/lake/**/*.duckdb
 market_data/**/*.parquet
 market_data/**/*.duckdb
 market_data/**/*.sqlite
 logs/
+artifacts/
+context/
+docs/
+tests/
+web/
+frontend/
+.cursor/
+.claude/
+.agent/
+.kilo/
+canvases/
+*.canvas.tsx
 
 # Environment files (use secrets management)
 .env

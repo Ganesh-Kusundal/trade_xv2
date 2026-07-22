@@ -396,3 +396,35 @@ def open_session(
 
 # Public aliases
 connect = open_session
+
+
+def _session_recording_enabled() -> bool:
+    import os
+
+    val = os.environ.get("TRADEX_SESSION_RECORD", "").strip().lower()
+    return val in ("1", "true", "yes", "on")
+
+
+def _maybe_start_session_recorder(
+    session: Any, event_bus: Any = None, session_id: str | None = None
+) -> Any:
+    if not _session_recording_enabled() or event_bus is None:
+        return None
+    try:
+        from infrastructure.observability.session_recorder import (
+            SessionRecorder,
+            resolve_session_recording_dir,
+        )
+
+        sid = session_id or getattr(session, "session_id", "session")
+        recorder = SessionRecorder(
+            event_bus,
+            session_id=sid,
+            output_dir=resolve_session_recording_dir(),
+        )
+        recorder.start()
+        if session is not None:
+            setattr(session, "_session_recorder", recorder)
+        return recorder
+    except Exception:
+        return None

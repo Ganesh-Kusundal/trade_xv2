@@ -12,7 +12,6 @@ timezone-aware instant must combine them with :data:`domain.constants.IST`.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, time, timedelta, timezone
 
 # NSE/BSE equity + F&O regular continuous trading session (IST, naive).
@@ -21,13 +20,16 @@ NSE_EQUITY_CLOSE: time = time(15, 30)
 
 _IST = timezone(timedelta(hours=5, minutes=30))
 
+# CI / paper fill test override flag (domain code cannot call os.getenv/os.environ directly).
+FORCE_MARKET_OPEN: bool = False
+
 
 def is_nse_market_open(now: datetime | None = None) -> bool:
     """True during NSE cash session (09:15–15:30 IST, Mon–Fri).
 
-    ``FORCE_MARKET_OPEN=1`` overrides for CI / paper fill tests.
+    ``FORCE_MARKET_OPEN=True`` overrides for CI / paper fill tests.
     """
-    if os.environ.get("FORCE_MARKET_OPEN") == "1":
+    if FORCE_MARKET_OPEN:
         return True
     now = now or datetime.now(tz=_IST)
     if now.tzinfo is None:

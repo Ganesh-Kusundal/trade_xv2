@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from brokers.common.util import enum_value
+def _enum_value(val: Any) -> str:
+    return getattr(val, "value", str(val)) if val is not None else ""
+
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from domain.ports.protocols import ExecutionProvider, OrderResult
 from infrastructure.resilience.transport_errors import order_result_from_response
@@ -59,7 +61,7 @@ class GatewayExecutionProvider(ExecutionProvider):
             if request.trigger_price is not None:
                 kwargs["trigger_price"] = request.trigger_price
             if request.order_type is not None:
-                kwargs["order_type"] = enum_value(request.order_type)
+                kwargs["order_type"] = _enum_value(request.order_type)
             return order_result_from_response(
                 self._gateway.modify_order(request.order_id, **kwargs)
             )

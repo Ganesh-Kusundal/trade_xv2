@@ -13,12 +13,13 @@ from runtime.execution_config import resolve_execution_target_kind
 from runtime.paper_session import build_paper_session
 
 
-def test_execution_target_defaults_to_paper() -> None:
+def test_execution_target_defaults_to_paper(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TRADEX_EXECUTION_TARGET", raising=False)
     assert resolve_execution_target_kind() is ExecutionTargetKind.PAPER
 
 
 def test_live_execution_target_rejected() -> None:
-    with pytest.raises(RuntimeError, match="Live execution is disabled"):
+    with pytest.raises(RuntimeError, match="ADR-0013"):
         resolve_execution_target_kind(ExecutionTargetKind.LIVE)
 
 
@@ -26,6 +27,13 @@ def test_paper_session_uses_oms_capital_not_gateway() -> None:
     session = build_paper_session(initial_capital=50_000)
     balance = session.trading_context.risk_manager.capital_provider.get_available_balance()
     assert balance == Decimal("50000")
+
+
+def test_paper_session_risk_and_context_share_position_manager() -> None:
+    """R1: RiskManager must observe the same book as TradingContext (D-04)."""
+    session = build_paper_session(initial_capital=100_000)
+    ctx = session.trading_context
+    assert ctx.risk_manager._position_manager is ctx.position_manager
 
 
 def test_paper_fill_uses_quote_fn_price() -> None:

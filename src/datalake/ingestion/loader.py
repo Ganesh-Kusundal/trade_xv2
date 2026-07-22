@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import pandas as pd
 import pyarrow as pa
@@ -22,8 +22,14 @@ from datalake.core.io import atomic_parquet_write
 from datalake.core.paths import symbol_partition_path
 from datalake.core.schema import enforce_canonical_schema
 from datalake.core.symbols import normalize_symbol_for_storage
-from datalake.exchange_registry import get_active_exchange_code
+from datalake.exchange_registry import (
+    COMPLETENESS_OK_FRACTION,
+    expected_candles_per_day,
+    get_active_exchange_code,
+    trading_days_between,
+)
 from datalake.ingestion.broker_selection import _TIMEFRAME_ALIASES, select_historical_source
+from domain.ports.historical_fetch import HistoricalFetchPort
 from infrastructure.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
@@ -146,8 +152,6 @@ class HistoricalDataLoader:
 
         # Validate intraday completeness
         if timeframe in ("1m", "5m", "15m", "30m"):
-            from datalake.core.nse_calendar import COMPLETENESS_OK_FRACTION
-
             completeness = self._check_intraday_completeness(df, timeframe)
             if completeness < COMPLETENESS_OK_FRACTION:
                 logger.warning(
@@ -231,6 +235,13 @@ class HistoricalDataLoader:
             reader = csv.DictReader(f)
             symbols = [row["symbol"] for row in reader]
 
+        from config.indices import is_index
+        from datalake.ingestion.sync_manifest import add_symbol_to_manifest
+
+        for sym in symbols:
+            asset = "indices" if is_index(sym) else "equities"
+            add_symbol_to_manifest(str(self._root), sym, asset)
+
         def _download_one(sym: str) -> dict:
             logger.info("Downloading %s...", sym)
             return self.download_symbol(
@@ -258,29 +269,92 @@ class HistoricalDataLoader:
         )
         return results
 
-    def repair_missing(
+    def detect_internal_gap_ranges(
+        self, symbol: str, timeframe: str = "1m"
+    ) -> list[tuple[date, date]]:
+        """Return contiguous missing **trading-day** ranges within on-disk history."""
+        symbol = normalize_symbol_for_storage(symbol)
+        path = self._parquet_path(symbol, timeframe)
+        if not path.exists():
+            return []
+        try:
+            df = pd.read_parquet(path)
+        except Exception:
+            return []
+        if df.empty:
+            return []
+        ts = pd.to_datetime(df["timestamp"])
+        dates_with_data = set(ts.dt.date)
+        start = min(dates_with_data)
+        end = max(dates_with_data)
+        trading_days = trading_days_between(start, end)
+        ranges: list[tuple[date, date]] = []
+        i = 0
+        while i < len(trading_days):
+            d = trading_days[i]
+            if d in dates_with_data:
+                i += 1
+                continue
+            gap_start = d
+            while i < len(trading_days) and trading_days[i] not in dates_with_data:
+                i += 1
+            ranges.append((gap_start, trading_days[i - 1]))
+        return ranges
+
+    def _repair_internal_gaps(
         self,
         symbol: str,
-        gateway: Any = None,
-        timeframe: str = "1m",
+        gateway: Any,
+        timeframe: str,
         *,
-        exchange: str | None = None,
-        gateways: dict[str, Any] | None = None,
-        fetch_fn: Callable[[str, str, str, int], pd.DataFrame] | None = None,
+        exchange: str | None,
+        gateways: dict[str, Any] | None,
+        fetch_fn: HistoricalFetchPort | None,
     ) -> int:
-        """Download only missing data for a symbol -- the standard
-        auto-detect-and-sync entry point: compares on-disk state against
-        the broker, fetches only the missing window, and merges it in
-        (see :meth:`_write_parquet`) rather than replacing the file.
+        """Phase B: fill holes between first and last on-disk trading days."""
+        ranges = self.detect_internal_gap_ranges(symbol, timeframe)
+        if not ranges:
+            return 0
+        total = 0
+        today = datetime.now().date()
+        for gap_start, gap_end in ranges:
+            range_days = (gap_end - gap_start).days + 1
+            lookback_days = (today - gap_start).days + 2
+            logger.info(
+                "%s: repairing internal gap %s..%s (%d trading days)",
+                symbol,
+                gap_start,
+                gap_end,
+                range_days,
+            )
+            rows = self.download_symbol(
+                symbol,
+                gateway,
+                timeframe=timeframe,
+                exchange=exchange,
+                gateways=gateways,
+                fetch_fn=fetch_fn,
+                lookback_days=lookback_days,
+            )["rows"]
+            if rows == 0:
+                raise RuntimeError(
+                    f"{symbol}: internal gap {gap_start}..{gap_end} "
+                    "detected but no broker returned data"
+                )
+            total += rows
+        return total
 
-        See :meth:`download_symbol` for the *fetch_fn* / *gateway* vs
-        *gateways* contract, and *exchange* (e.g. ``"INDEX"`` for NIFTY on
-        Dhan -- defaults to the active exchange's code when omitted).
-
-        Uses actual candle count comparison, not just last date,
-        to detect gaps within the date range.
-        """
-        symbol = normalize_symbol_for_storage(symbol)
+    def _repair_tail_gap(
+        self,
+        symbol: str,
+        gateway: Any,
+        timeframe: str,
+        *,
+        exchange: str | None,
+        gateways: dict[str, Any] | None,
+        fetch_fn: HistoricalFetchPort | None,
+    ) -> int:
+        """Phase A: fill tail gap from last on-disk bar through today."""
         existing_path = self._parquet_path(symbol, timeframe)
         if not existing_path.exists():
             return self.download_symbol(
@@ -292,6 +366,38 @@ class HistoricalDataLoader:
                 gateways=gateways,
                 fetch_fn=fetch_fn,
             )["rows"]
+
+        # Catalog fast path: when last_date is clearly before today, skip
+        # reading the full parquet file just to learn the same last_date.
+        if self._catalog is not None:
+            row = self._catalog.get_symbol(symbol)
+            if row and row.get("last_date") is not None:
+                last_date_from_catalog = pd.Timestamp(row["last_date"])
+                today = datetime.now().date()
+                if last_date_from_catalog.date() < today:
+                    days_missing = (today - last_date_from_catalog.date()).days
+                    lookback_days = max(days_missing, 1) + 2
+                    logger.info(
+                        "%s: catalog last_date=%s, downloading %d missing days (fast path)",
+                        symbol,
+                        last_date_from_catalog.date(),
+                        max(days_missing, 1),
+                    )
+                    rows = self.download_symbol(
+                        symbol,
+                        gateway,
+                        timeframe=timeframe,
+                        exchange=exchange,
+                        gateways=gateways,
+                        fetch_fn=fetch_fn,
+                        lookback_days=lookback_days,
+                    )["rows"]
+                    if rows == 0:
+                        raise RuntimeError(
+                            f"{symbol}: gap of {max(days_missing, 1)}d detected "
+                            "but no broker returned data"
+                        )
+                    return rows
 
         try:
             existing = pd.read_parquet(existing_path)
@@ -320,22 +426,10 @@ class HistoricalDataLoader:
         ts = pd.to_datetime(existing["timestamp"])
         last_date = ts.max()
         today = datetime.now().date()
-        # Calendar-date diff, not raw elapsed hours: a plain
-        # `(datetime.now() - last_date).days` floors, so e.g. a 40h gap
-        # (last close Mon 15:30 -> Wed 07:40) reads as "1 day old" and
-        # silently skips a fully-missed trading day in between.
         days_missing = (today - last_date.date()).days
 
-        # Check for incomplete last day (also covers "today, market still
-        # open, so far only a partial day is on disk" -- re-syncing here
-        # is what lets a mid-day run catch up to the latest candle).
         incomplete_day = False
         if timeframe in ("1m", "5m", "15m", "30m"):
-            from datalake.core.nse_calendar import (
-                COMPLETENESS_OK_FRACTION,
-                expected_candles_per_day,
-            )
-
             last_day_candles = (ts.dt.date == last_date.date()).sum()
             expected_last_day = expected_candles_per_day(timeframe)
             if last_day_candles < expected_last_day * COMPLETENESS_OK_FRACTION:
@@ -348,12 +442,11 @@ class HistoricalDataLoader:
                 )
 
         if days_missing <= 0 and not incomplete_day:
-            logger.info("%s: no gaps detected", symbol)
+            logger.info("%s: tail up to date", symbol)
             return 0
 
-        # +2 days buffer for weekends/holidays sitting inside the gap.
         lookback_days = max(days_missing, 1) + 2
-        logger.info("%s: downloading %d missing days", symbol, max(days_missing, 1))
+        logger.info("%s: downloading %d missing tail days", symbol, max(days_missing, 1))
         rows = self.download_symbol(
             symbol,
             gateway,
@@ -364,14 +457,55 @@ class HistoricalDataLoader:
             lookback_days=lookback_days,
         )["rows"]
         if rows == 0:
-            # A gap was detected (we're past the days_missing<=0 check above),
-            # so an empty fetch means every broker failed or rejected this
-            # symbol -- not "nothing new". Raising surfaces it through the
-            # caller's existing batch_execute(on_error=...) channel instead of
-            # silently folding it into "already up to date" (which is how
-            # GSPL/JBCHEPHARM's total fetch failures went unnoticed).
             raise RuntimeError(
                 f"{symbol}: gap of {max(days_missing, 1)}d detected but no broker returned data"
+            )
+        return rows
+
+    def repair_missing(
+        self,
+        symbol: str,
+        gateway: Any = None,
+        timeframe: str = "1m",
+        *,
+        exchange: str | None = None,
+        gateways: dict[str, Any] | None = None,
+        fetch_fn: HistoricalFetchPort | None = None,
+        repair_scope: Literal["tail", "internal", "all"] = "all",
+    ) -> int:
+        """Download only missing data for a symbol -- the standard
+        auto-detect-and-sync entry point: compares on-disk state against
+        the broker, fetches only the missing window, and merges it in
+        (see :meth:`_write_parquet`) rather than replacing the file.
+
+        Invoked by :func:`datalake.ingestion.auto_sync.sync_all` and
+        :meth:`datalake.DataLake.sync`. See :meth:`download_symbol` for the
+        *fetch_fn* / *gateway* contract (:class:`domain.ports.historical_fetch.HistoricalFetchPort`).
+
+        ``repair_scope``:
+        - ``"tail"``: Phase A only (last bar → today) — daily sync.
+        - ``"internal"``: Phase B only (mid-history holes) — slow backfill job.
+        - ``"all"``: both phases.
+        """
+        symbol = normalize_symbol_for_storage(symbol)
+        rows = 0
+        if repair_scope in ("tail", "all"):
+            rows += self._repair_tail_gap(
+                symbol,
+                gateway,
+                timeframe,
+                exchange=exchange,
+                gateways=gateways,
+                fetch_fn=fetch_fn,
+            )
+        if repair_scope in ("internal", "all"):
+            rows += self._repair_internal_gaps(
+                symbol,
+                gateway,
+                timeframe,
+                exchange=exchange,
+                gateways=gateways,
+                fetch_fn=fetch_fn,
             )
         return rows
 
@@ -538,9 +672,6 @@ class HistoricalDataLoader:
         """
         if df.empty or "timestamp" not in df.columns:
             return 0.0
-
-        # Expected candles per day — shared calendar formula (single source).
-        from datalake.core.nse_calendar import expected_candles_per_day
 
         expected_per_day = expected_candles_per_day(timeframe)
 

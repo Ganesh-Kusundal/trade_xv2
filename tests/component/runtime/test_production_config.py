@@ -46,6 +46,12 @@ def test_runtime_rejects_skip_parity_gate(prod_env, monkeypatch):
         validate_production_config(surface="runtime")
 
 
+def test_runtime_rejects_live_target_in_production(prod_env, monkeypatch):
+    monkeypatch.setenv("TRADEX_EXECUTION_TARGET", "live")
+    with pytest.raises(RuntimeError, match="ADR-0013"):
+        validate_production_config(surface="runtime")
+
+
 def test_is_production_environment_false_in_dev(monkeypatch):
     monkeypatch.setenv("TRADEX_ENV", "development")
     assert is_production_environment() is False
