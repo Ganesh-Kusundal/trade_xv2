@@ -61,7 +61,7 @@
 > scaffolded; they describe a planned interface, not existing source.
 
 - React 18 function components + hooks. State via hooks; data via `src/api` + generated
-  client (`scripts/gen_openapi.py` → `src/api/generated.ts`). Do not hand-edit generated
+  client (`scripts/generate_openapi.py` → `src/api/generated.ts`). Do not hand-edit generated
   types. Regenerate with `npm run api:generate`.
 - Typed models in `web/src/types.ts`; reusable UI in `web/src/components`; feature hooks
   in `web/src/hooks`.

@@ -57,12 +57,10 @@ def _wire_market_session(
 
     from domain.session import Session
     from infrastructure.adapter_factory import create_data_adapter
-    from interface.api.routers import market as market_router
-    from interface.api.routers.live import market as live_market
+    from interface.api.session_state import set_session
 
     session = Session(create_data_adapter(gateway, broker_id=str(broker_name)))
-    market_router.set_session(session)
-    live_market.set_session(session)
+    set_session(session)
     logger.info("Market Session wired (provider=%s)", broker_name)
 
 
@@ -291,19 +289,9 @@ def create_app(
             )
             trading_context = None
 
-    # Register domain runtime hooks for analytics engines
-    from application.execution.oms_backtest_adapter import create_oms_backtest_adapter
-    from application.oms.factory import create_trading_context
-    from domain.runtime_hooks import (
-        create_domain_event,
-        register_domain_event_factory,
-        register_oms_backtest_factory,
-        register_trading_context_factory,
-    )
+    from runtime.kernel import ProcessKernel
 
-    register_oms_backtest_factory(create_oms_backtest_adapter)
-    register_domain_event_factory(create_domain_event)
-    register_trading_context_factory(create_trading_context)
+    ProcessKernel.wire()
 
     # ENG-011: single process OMS book for REST, CLI, and tradex.connect.
     if trading_context is not None:
@@ -437,6 +425,13 @@ def create_app(
     from interface.api.routers.options import router as options_router
 
     app.include_router(options_router, prefix=f"{cfg.api_prefix}/options", tags=["Options"])
+
+    # Historical endpoints (equities / options / futures — ADR-0023)
+    from interface.api.routers.historical import router as historical_router
+
+    app.include_router(
+        historical_router, prefix=f"{cfg.api_prefix}/historical", tags=["Historical"]
+    )
 
     # Replay endpoints
     from interface.api.routers.replay import router as replay_router
