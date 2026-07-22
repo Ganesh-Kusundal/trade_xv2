@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Secret scan (tracked env files)
         run: |
           if git ls-files --error-unmatch .env.local .env.upstox 2>/dev/null; then
@@ -32,7 +32,7 @@ jobs:
             exit 1
           fi
           echo "secret scan OK"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -163,8 +163,8 @@ jobs:
     timeout-minutes: 20
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -181,8 +181,8 @@ jobs:
     timeout-minutes: 20
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -199,8 +199,8 @@ jobs:
     timeout-minutes: 15
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -228,8 +228,8 @@ jobs:
     timeout-minutes: 25
     needs: [lint, pyramid-unit, pyramid-component, pyramid-architecture]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -245,7 +245,7 @@ jobs:
         run: python scripts/audit/capability_report.py --markdown docs/audits/CAPABILITY_COVERAGE_MATRIX.md
       - name: Upload capability matrix
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: capability-matrix
           path: docs/audits/CAPABILITY_COVERAGE_MATRIX.md
@@ -307,19 +307,19 @@ jobs:
           coverage report --include="application/*" --show-missing | tail -1 | awk '{print $NF}' | sed 's/%//' | awk '{if ($1 < 80) exit 1}'
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: junit.xml
       - name: Upload security reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-reports
           path: |
@@ -332,8 +332,8 @@ jobs:
     timeout-minutes: 20
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -358,8 +358,8 @@ jobs:
     timeout-minutes: 30
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main')
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -387,8 +387,8 @@ jobs:
     timeout-minutes: 20
     needs: unit-and-contract
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -420,8 +420,8 @@ jobs:
     timeout-minutes: 15
     needs: unit-and-contract
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -452,8 +452,8 @@ jobs:
     needs: e2e-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -473,7 +473,7 @@ jobs:
         continue-on-error: true
       - name: Upload flaky test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flaky-test-reports
           path: |
@@ -486,8 +486,8 @@ jobs:
     timeout-minutes: 20
     if: env.UPSTOX_INTEGRATION == '1' || vars.UPSTOX_INTEGRATION == '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -503,7 +503,7 @@ jobs:
         continue-on-error: true
       - name: Upload revalidation evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: upstox-revalidation-evidence
           path: docs/audits/UPSTOX_REVALIDATION_EVIDENCE.md
