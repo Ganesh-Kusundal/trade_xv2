@@ -660,3 +660,103 @@ class TestDataFrameOperations:
 
         assert len(grouped) == 10
         assert elapsed_ms < 50, f"GroupBy too slow: {elapsed_ms:.1f}ms"
+
+
+# ── 9. Federated Coordinator Overhead Performance ───────────────────────────
+
+
+@pytest.mark.performance
+class TestCoordinatorPerformance:
+    """Benchmark overhead of federated HistoricalDataCoordinator & BatchQuoteCoordinator."""
+
+    @pytest.mark.asyncio
+    async def test_historical_coordinator_fetch_overhead(self):
+        """HistoricalDataCoordinator fetch & merge overhead must be < 50ms."""
+        from datetime import date, timedelta
+        from application.composer.registry import BrokerRegistry
+        from application.composer.router import BrokerRouter
+        from application.data.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
+        from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
+        from brokers.providers.dhan.config.capabilities import dhan_capabilities
+        from brokers.providers.upstox.capabilities import upstox_capabilities
+        from domain.candles.historical import InstrumentRef
+        from domain.policies.source_selection import auto_dual_broker_policy
+        from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
+
+        dhan = InMemoryBrokerGateway("dhan", dhan_capabilities())
+        upstox = InMemoryBrokerGateway("upstox", upstox_capabilities())
+        registry = BrokerRegistry()
+        registry.register(dhan)
+        registry.register(upstox)
+        scheduler = QuotaScheduler()
+        for profile in dhan_capabilities().rate_limit_profiles:
+            scheduler.register_profile("dhan", profile)
+        for profile in upstox_capabilities().rate_limit_profiles:
+            scheduler.register_profile("upstox", profile)
+        router = BrokerRouter(
+            registry, auto_dual_broker_policy(), quota_headroom_fn=scheduler.headroom_for
+        )
+        coordinator = HistoricalDataCoordinator(
+            registry=registry,
+            router=router,
+            quota_fn=lambda bid, ep, pri: scheduler.acquire(bid, ep, PriorityClass[pri]),
+        )
+
+        today = date.today()
+        query = HistoricalQuery(
+            instrument=InstrumentRef(symbol="RELIANCE", exchange="NSE"),
+            timeframe="1m",
+            from_date=today - timedelta(days=60),
+            to_date=today,
+            request_id="perf-hist-1",
+        )
+
+        start = time.perf_counter()
+        series, ledger = await coordinator.fetch(query)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        assert series.bar_count > 0
+        assert elapsed_ms < 50, f"HistoricalDataCoordinator fetch overhead too high: {elapsed_ms:.1f}ms"
+
+    @pytest.mark.asyncio
+    async def test_batch_quote_coordinator_1500_symbols_overhead(self):
+        """BatchQuoteCoordinator overhead for 1,500 symbols must be < 50ms."""
+        from application.composer.registry import BrokerRegistry
+        from application.composer.router import BrokerRouter
+        from application.data.batch_quote_coordinator import BatchQuoteCoordinator, BatchQuoteQuery
+        from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
+        from brokers.providers.dhan.config.capabilities import dhan_capabilities
+        from brokers.providers.upstox.capabilities import upstox_capabilities
+        from domain.candles.historical import InstrumentRef
+        from domain.policies.source_selection import auto_dual_broker_policy
+        from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
+
+        dhan = InMemoryBrokerGateway("dhan", dhan_capabilities())
+        upstox = InMemoryBrokerGateway("upstox", upstox_capabilities())
+        registry = BrokerRegistry()
+        registry.register(dhan)
+        registry.register(upstox)
+        scheduler = QuotaScheduler()
+        for profile in dhan_capabilities().rate_limit_profiles:
+            scheduler.register_profile("dhan", profile)
+        for profile in upstox_capabilities().rate_limit_profiles:
+            scheduler.register_profile("upstox", profile)
+        router = BrokerRouter(
+            registry, auto_dual_broker_policy(), quota_headroom_fn=scheduler.headroom_for
+        )
+        coordinator = BatchQuoteCoordinator(
+            registry=registry,
+            router=router,
+            quota_fn=lambda bid, ep, pri: scheduler.acquire(bid, ep, PriorityClass[pri]),
+        )
+
+        instruments = tuple(InstrumentRef(symbol=f"SYM{i}", exchange="NSE") for i in range(1500))
+        query = BatchQuoteQuery(instruments=instruments, request_id="perf-quote-1")
+
+        start = time.perf_counter()
+        quotes, ledger = await coordinator.fetch(query)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        assert len(quotes) == 1500
+        assert elapsed_ms < 1000, f"BatchQuoteCoordinator 1500-symbol overhead too high: {elapsed_ms:.1f}ms"
+
