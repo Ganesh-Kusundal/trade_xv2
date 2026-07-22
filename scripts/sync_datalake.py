@@ -96,7 +96,7 @@ def _build_federated_fetch_fn():
     print("Bootstrapping Dhan gateway...")
     dhan_gw = bootstrap_or_exit("dhan", load_instruments=True)
     print("Bootstrapping Upstox gateway...")
-    upstox_gw = bootstrap_or_none("upstox", env_path=Path(".env.upstox"), load_instruments=True)
+    upstox_gw = bootstrap_or_none("upstox", load_instruments=True)
 
     gateways = [wrap_market_gateway(dhan_gw, "dhan")]
     if upstox_gw is not None:

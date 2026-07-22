@@ -56,6 +56,21 @@ def _ensure_session_opener() -> None:
         set_session_opener(open_session)
 
 
+def _ensure_domain_ports_wired() -> None:
+    """Wire domain ports (async runner, audit sink, etc.) if standalone.
+
+    ``BrokerSession.connect()`` is a public entrypoint that bypasses
+    ``runtime.factory.build()`` — without this, async-backed provider
+    features (e.g. Upstox websocket/portfolio streams) silently fail to
+    start with "Async runner not wired". ``wire_domain_port_sinks`` is
+    idempotent, so this is a no-op when the real composition root already
+    ran it.
+    """
+    from runtime.factory import wire_domain_port_sinks
+
+    wire_domain_port_sinks()
+
+
 class BrokerSession:
     """Public, broker-agnostic market-access session (Trading OS).
 
@@ -76,6 +91,7 @@ class BrokerSession:
         **kwargs: Any,
     ) -> None:
         _ensure_session_opener()
+        _ensure_domain_ports_wired()
         self._broker_id = (broker or "paper").lower().strip()
         self._session_state = BrokerSessionState.CREATED
         self._session_state = transition_state(self._session_state, BrokerSessionState.INITIALIZING)
