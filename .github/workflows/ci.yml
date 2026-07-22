@@ -218,6 +218,7 @@ jobs:
           python3 scripts/ci/check_analytics_cross_imports.py
           python3 scripts/ci/check_cli_gateway_references.py
           python3 scripts/ci/check_rest_data_source_contract.py
+          python3 scripts/ci/check_openapi_contract.py
       - name: Architecture layer
         run: PYTHONPATH="${{ github.workspace }}/src" pytest tests/architecture -q --tb=short --durations=10
 

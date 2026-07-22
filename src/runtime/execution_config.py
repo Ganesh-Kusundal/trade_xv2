@@ -94,8 +94,14 @@ def resolve_execution_target_kind(
     return kind
 
 
+def is_live_execution_target() -> bool:
+    """True when the resolved process execution target is LIVE."""
+    return resolve_execution_target_kind() is ExecutionTargetKind.LIVE
+
+
 __all__ = [
     "assert_live_lift_preconditions",
+    "is_live_execution_target",
     "requested_live_execution_target",
     "resolve_execution_target_kind",
 ]

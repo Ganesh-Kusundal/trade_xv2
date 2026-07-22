@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
+    HistoricalRouteConstraint,
     HistoricalWindowConstraint,
-    RateLimitProfile,
     StreamLimitProfile,
 )
 from domain.capabilities.market_surface import (
@@ -15,7 +15,26 @@ from domain.capabilities.market_surface import (
     MarketCoverage,
 )
 from domain.constants.exchanges import CDS, MCX, NFO, NSE
+from domain.historical.contract_state import ContractState
 from domain.instruments.asset_kind import AssetKind
+from brokers.common.rate_limit_config import DHAN_RATE_LIMITS, profiles_from_table
+
+_ACTIVE = frozenset({ContractState.ACTIVE, ContractState.AUTO})
+_DHAN_HISTORICAL_ROUTES: tuple[HistoricalRouteConstraint, ...] = (
+    HistoricalRouteConstraint(AssetKind.EQUITY, NSE, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.INDEX, NSE, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.FUTURES, NFO, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.OPTIONS, NFO, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.FUTURES, MCX, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.OPTIONS, MCX, _ACTIVE),
+    HistoricalRouteConstraint(
+        AssetKind.OPTIONS,
+        NFO,
+        frozenset({ContractState.EXPIRED}),
+        exact_contract=False,
+        rolling_index_options=True,
+    ),
+)
 
 # Dhan's depth-200 WebSocket API supports exactly one instrument per connection.
 # To monitor multiple instruments at 200-level depth, create multiple connections
@@ -53,77 +72,22 @@ def dhan_capabilities() -> BrokerCapabilities:
         supports_super_order=True,
         supports_forever_order=True,
         supports_native_slice_order=True,
-        rate_limit_profiles=(
-            RateLimitProfile(
-                endpoint_class="orders",
-                sustained_rps=10.0,
-                burst_rps=20.0,
-                min_interval_ms=100,
-                cooldown_on_429_s=130,
-                # 250/min and 7000/day (placed+modified+cancelled combined).
-                extra_windows=((250, 60.0), (7000, 86400.0)),
-            ),
-            RateLimitProfile(
-                endpoint_class="quotes",
-                sustained_rps=1.0,
-                burst_rps=2.0,
-                min_interval_ms=1000,
-                cooldown_on_429_s=130,
-            ),
-            RateLimitProfile(
-                endpoint_class="historical",
-                sustained_rps=5.0,
-                burst_rps=10.0,
-                min_interval_ms=200,
-                cooldown_on_429_s=130,
-            ),
-            RateLimitProfile(
-                endpoint_class="option_chain",
-                sustained_rps=5.0,
-                burst_rps=10.0,
-                min_interval_ms=200,
-                cooldown_on_429_s=130,
-            ),
-            RateLimitProfile(
-                endpoint_class="funds",
-                sustained_rps=20.0,
-                burst_rps=40.0,
-                min_interval_ms=50,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="positions",
-                sustained_rps=20.0,
-                burst_rps=40.0,
-                min_interval_ms=50,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="holdings",
-                sustained_rps=20.0,
-                burst_rps=40.0,
-                min_interval_ms=50,
-                cooldown_on_429_s=60,
-            ),
-        ),
+        rate_limit_profiles=profiles_from_table(DHAN_RATE_LIMITS),
         historical_windows=(
             HistoricalWindowConstraint(
                 timeframe="1m",
                 max_lookback_days=3650,
                 max_chunk_days=90,
-                supports_expired_instruments=True,
             ),
             HistoricalWindowConstraint(
                 timeframe="5m",
                 max_lookback_days=3650,
                 max_chunk_days=90,
-                supports_expired_instruments=True,
             ),
             HistoricalWindowConstraint(
                 timeframe="15m",
                 max_lookback_days=3650,
                 max_chunk_days=90,
-                supports_expired_instruments=True,
             ),
             HistoricalWindowConstraint(
                 timeframe="25m",
@@ -141,6 +105,7 @@ def dhan_capabilities() -> BrokerCapabilities:
                 max_chunk_days=365,
             ),
         ),
+        historical_routes=_DHAN_HISTORICAL_ROUTES,
         stream_limits=StreamLimitProfile(
             max_connections=1,
             max_instruments_per_connection=1000,

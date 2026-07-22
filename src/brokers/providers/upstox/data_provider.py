@@ -16,7 +16,6 @@ from domain.entities.options import FutureChain, OptionChain
 from domain.exceptions import QuoteUnavailableError
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import DataProvider, SubscriptionHandle
-from domain.ports.time_service import get_current_clock
 
 
 class _UpstoxSubscriptionHandle(SubscriptionHandle):
@@ -241,6 +240,7 @@ class UpstoxDataProvider(DataProvider):
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
+        levels: int = 5,
     ) -> SubscriptionHandle:
         """Subscribe via gateway.stream(symbol, exchange, mode, on_tick).
 
@@ -281,6 +281,7 @@ class UpstoxDataProvider(DataProvider):
                     handle = stream_depth(
                         symbol,
                         instrument_id.exchange,
+                        levels=levels,
                         on_depth=_on_tick,
                     )
                     return _UpstoxSubscriptionHandle(stop_fn=getattr(handle, "stop", None))
@@ -319,5 +320,4 @@ class UpstoxDataProvider(DataProvider):
             raw_quote,
             instrument_id,
             broker_id=self._broker_id,
-            now=get_current_clock().now(),
         )

@@ -73,7 +73,7 @@ class CliResult:
 
 
 @pytest.fixture()
-def run_cli(tradex_python: str, project_root: Path, tmp_path: Path):
+def run_cli(tradex_python: str, project_root: Path, tmp_path: Path, request: pytest.FixtureRequest):
     """Invoke ``python -m interface.ui.main <argv>`` as a subprocess.
 
     Captures stdout, stderr, and exit code. Uses ``tmp_path`` as the
@@ -103,14 +103,27 @@ def run_cli(tradex_python: str, project_root: Path, tmp_path: Path):
         if env_overrides:
             env.update(env_overrides)
 
-        # Reuse the project's .env.local if present (live_readonly tests
-        # need it); but copy it to tmp so we don't pollute the tree.
-        env_file = project_root / ".env.local"
+        # Offline subprocess tests must not pick up the developer's live
+        # ``.env.local`` (BrokerService resolves an absolute project path).
+        # Live_readonly matrix tests opt in via the cli_endpoint_live marker.
         env_copy = tmp_path / ".env.local"
-        if env_file.exists():
-            shutil.copy(env_file, env_copy)
+        upstox_copy = tmp_path / ".env.upstox"
+        is_live = "cli_endpoint_live" in request.node.keywords
+        if is_live:
+            env_file = project_root / ".env.local"
+            if env_file.exists() and env_file.stat().st_size > 0:
+                shutil.copy(env_file, env_copy)
+            else:
+                env_copy.write_text("")
+            upstox_file = project_root / ".env.upstox"
+            if upstox_file.exists() and upstox_file.stat().st_size > 0:
+                shutil.copy(upstox_file, upstox_copy)
+            env["TRADEX_ENV_FILE"] = str(env_copy)
+            env["TRADEX_UPSTOX_ENV_FILE"] = str(upstox_copy)
         else:
-            env_copy.write_text("")  # touch so create_gateway finds it
+            env["TRADEX_ENV_FILE"] = str(tmp_path / "missing.env.local")
+            env["TRADEX_UPSTOX_ENV_FILE"] = str(tmp_path / "missing.env.upstox")
+            env_copy.write_text("")
 
         # Seed empty state files so read-only commands that open
         # journal/options-sync DuckDB don't fail just because tmp_path

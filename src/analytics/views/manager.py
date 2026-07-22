@@ -15,6 +15,7 @@ from analytics.views.base import BaseViews
 from analytics.views.cache_manager import MATERIALIZED_DIR, VERSION_KEEP_COUNT, CacheManager
 from analytics.views.features import FeatureViews
 from analytics.views.options_views import OptionViews
+from datalake.analytics.contract_views import ContractViews
 from analytics.views.quality import QualityViews
 from analytics.views.query_executor import QueryExecutor
 from analytics.views.scanner import DAILY_LOOKBACK_DAYS, MIN_SYMBOLS_FOR_FULL_DAY, ScannerViews
@@ -73,6 +74,7 @@ class ViewManager:
         self.strategy = StrategyViews()
         self.quality = QualityViews()
         self.options = OptionViews()
+        self.contracts = ContractViews()
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
@@ -190,6 +192,7 @@ class ViewManager:
                 ),
             ),
             ("options", self.options.create_views),
+            ("contracts", self.contracts.create_views),
         ]
 
         for name, creator in layers:

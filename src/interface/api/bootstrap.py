@@ -68,11 +68,17 @@ def initialize_api_services(
         from application.composer.factory import create_composers_from_infra
 
         risk_manager = trading_context.risk_manager if trading_context else None
+        order_manager = trading_context.order_manager if trading_context else None
         market_data_composer, execution_composer = create_composers_from_infra(
             infra=broker_infra,
             risk_manager=risk_manager,
+            order_manager=order_manager,
         )
-        logger.info("Composers created with risk_manager=%s", "yes" if risk_manager else "no")
+        logger.info(
+            "Composers created with risk_manager=%s order_manager=%s",
+            "yes" if risk_manager else "no",
+            "yes" if order_manager else "no",
+        )
 
     services = {
         "datalake_gateway": datalake_gateway,

@@ -20,6 +20,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from infrastructure.correlation import set_current_correlation_id
+from infrastructure.global_exception_handler import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
@@ -362,12 +363,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         if not allowed:
             retry_after = int(self._window)
+            content = ErrorResponse(
+                error_type="rate_limit_exceeded",
+                message="Rate limit exceeded. Try again later.",
+                status_code=429,
+                details={"retry_after": retry_after},
+            ).to_dict()
             return JSONResponse(
                 status_code=429,
-                content={
-                    "detail": "Rate limit exceeded. Try again later.",
-                    "retry_after_seconds": retry_after,
-                },
+                content=content,
                 headers={
                     "Retry-After": str(retry_after),
                     "X-RateLimit-Limit": str(self._max_requests),

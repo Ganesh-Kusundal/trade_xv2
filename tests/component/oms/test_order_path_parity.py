@@ -33,6 +33,7 @@ from application.oms._internal.risk_manager import RiskConfig, RiskManager
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from application.oms.position_manager import PositionManager
 from application.oms.recon_heal_policy import HealMode, resolve_heal_mode, should_auto_repair
+from domain.ports.execution_target import ExecutionTargetKind
 from application.oms.session_bridge import OmsOrderService
 from brokers.providers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain import Order, OrderStatus, OrderType, ProductType, Side
@@ -158,6 +159,7 @@ async def _place_composer(om: OrderManager, risk_manager, submit_counter: dict, 
         quota_scheduler=quota,
         risk_manager=risk_manager,
         order_manager=om,
+        execution_target_kind=ExecutionTargetKind.PAPER,
     )
     req = OrderRequest(
         symbol="RELIANCE",

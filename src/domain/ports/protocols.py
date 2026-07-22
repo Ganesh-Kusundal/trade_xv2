@@ -144,6 +144,7 @@ class DataProvider(Protocol):
         callback: Callable[[InstrumentId, QuoteSnapshot], None],
         *,
         depth: bool = False,
+        levels: int = 5,
     ) -> SubscriptionHandle:
         """Subscribe to live market data."""
         ...

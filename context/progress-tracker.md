@@ -6,6 +6,14 @@
 
 ## Current Phase
 
+- **Phase 4 Domain/Market/Runtime Consolidation CLOSED (2026-07-22):** Date/Time + Market Feed/Tick/Depth audits + M2+ subset (WS-A through WS-J). **Still NO-GO for live money** — ADR-0013 gates unchanged. Verification: 233 targeted remediation tests passed. ADR-0024 (paper/replay hooks). See WS-A–WS-J entries below.
+
+- **Phase 4 WS-A (2026-07-22):** Domain tz enforcement + depth enum completeness — `require_tz_aware()` in `domain/parsing.py`; guards on `MarketTick`/`QuoteSnapshot`/`OptionsBar`/`ContractBar`; deleted dead `TimestampSemantics`; `DepthKind` values aligned to runtime (`DEPTH_5/20/30/200`); `EventType.DEPTH_30`; `MarketDepth.depth_type` typed as `DepthKind`; `instrument` refs on `Quote`/`MarketDepth`. Tests: `test_time_guards.py`, `test_market_entities_tz_enforcement.py`, `test_depth_kind_enum.py`, bar tz tests.
+
+- **Phase 4 WS-I (2026-07-22):** Single error envelope — `HTTPException` handler in `global_exception_handler.py` wraps into `{"error": {...}}`; rate-limit middleware aligned; no router call-site migration. Tests: `test_error_envelope_consistency.py`.
+
+- **Phase 4 WS-J follow-up (2026-07-22):** `check_openapi_contract.py` wired into `.github/workflows/ci.yml` static architecture step (runs alongside `check_rest_data_source_contract.py`).
+
 - **Phase 4 WS-J (2026-07-22):** OpenAPI generation + CI contract — `scripts/generate_openapi.py` (`python -m scripts.generate_openapi`) builds FastAPI via lightweight bootstrap (no live broker); committed `web/openapi.json` (89 paths); `scripts/ci/check_openapi_contract.py` regenerates and diffs; `code-standards.md` references new script. Fix: `_wire_market_session` uses shared `session_state.set_session`. Tests: `test_openapi_contract.py` (5 passed).
 
 - **Phase 4 WS-F (2026-07-22):**** Depth product snapshot + subscribe levels + tick bridge — frozen `DepthSnapshot` + `MarketDepth.snapshot()`; `DataProvider.subscribe(..., levels=5)` routed through `BrokerDataProvider`/`UpstoxDataProvider` → `stream_depth(levels=...)`; TICK payload carries `sequence`/`session_id` (Dhan/Upstox publish + `market_tick_from_event`). Tests: `test_depth_snapshot.py`, `test_data_provider_subscribe_levels.py`, `test_market_tick_from_event_sequence.py`.
@@ -1491,6 +1499,8 @@ Recorded in `audit/MASTER_COMPLEXITY_AUDIT.md` Appendix C (corrected 2026-07-19)
 - **Context 9:** Glossary aliases, error taxonomy, test pyramid docs, FLOWS scheduler/cache ownership, legacy SPI deprecation note.
 
 **Tests:** unit/architecture/component/integration additions under `tests/unit/brokers/`, `tests/component/brokers/`, `tests/integration/brokers/upstox/regression/`.
+
+**Follow-up close-out (2026-07-22):** CLI offline matrix green — subprocess tests isolate live creds via `TRADEX_ENV_FILE` / `TRADEX_UPSTOX_ENV_FILE`; `options-sync` skips broker bootstrap when catalog gate yields 0 groups; `gate_options_sync_entries` empty-catalog behavior aligned with module contract (skip, not sync-all); OpenAPI CI wired in `.github/workflows/ci.yml`; architecture suite 674 passed.
 
 **Follow-up close-out (same day):**
 - `TOKEN_EXPIRED` / `TOKEN_REFRESHED` published from Dhan HTTP refresh + Upstox `try_refresh_on_401` + Dhan `broadcast_token`

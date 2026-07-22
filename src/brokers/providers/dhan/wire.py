@@ -18,6 +18,7 @@ from brokers.providers.dhan.config.capabilities import DHAN_DEPTH_200_MAX_INSTRU
 from brokers.providers.dhan.streaming.connection import DhanConnection
 from domain.entities import (
     Balance,
+    DepthKind,
     MarketDepth,
     OrderResponse,
     Quote,
@@ -278,7 +279,14 @@ class DhanWireAdapter(BaseWireAdapter, BrokerAdapter):
                     )
                     for a in ladder.get("asks", [])
                 ]
-                on_depth(MarketDepth(symbol=symbol, bids=bids, asks=asks, depth_type="DEPTH_5"))
+                on_depth(
+                    MarketDepth(
+                        symbol=symbol,
+                        bids=bids,
+                        asks=asks,
+                        depth_type=DepthKind.DEPTH_5,
+                    )
+                )
 
             self.stream(symbol, exchange, mode="FULL", on_tick=None)
             feed = self._conn.market_feed
@@ -331,6 +339,10 @@ class DhanWireAdapter(BaseWireAdapter, BrokerAdapter):
         from_str = from_date or str(from_d)
         tf = timeframe.upper() if timeframe else "1D"
         return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, tf)
+
+    def get_expired_options_data(self, **kwargs: Any) -> Any:
+        """Rolling expired index options (NFO OPTIDX)."""
+        return self.extended.data.get_expired_options_data(**kwargs)
 
     def option_chain(
         self,

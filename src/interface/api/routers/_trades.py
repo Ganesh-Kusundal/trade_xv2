@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from domain.enums import OrderStatus
 from domain.ports.time_service import get_current_clock
+from interface.api.auth import require_auth
 from interface.api.deps import get_order_manager, get_position_manager
 from interface.api.schemas import TradeResponse, TradesResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("", response_model=TradesResponse)

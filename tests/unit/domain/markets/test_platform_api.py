@@ -140,7 +140,8 @@ class FakeDataProvider:
 
         return FutureChain(underlying=underlying.underlying, exchange=underlying.exchange)
 
-    def subscribe(self, instrument_id, callback, *, depth=False):
+    def subscribe(self, instrument_id, callback, *, depth=False, levels: int = 5):
+        del depth, levels
         class _S:
             is_active = True
 

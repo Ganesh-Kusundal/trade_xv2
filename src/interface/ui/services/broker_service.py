@@ -51,8 +51,18 @@ logger = logging.getLogger(__name__)
 
 
 # Legacy — kept for backward compatibility; new code should use
-# ``broker_registry.resolve_env_path()``.
-_ENV_PATH = Path(__file__).resolve().parents[4] / ".env.local"
+# ``broker_registry.resolve_env_path()``. Subprocess CLI tests set
+# ``TRADEX_ENV_FILE`` to an isolated non-existent path.
+_DEFAULT_ENV_PATH = Path(__file__).resolve().parents[4] / ".env.local"
+# Tests monkeypatch this symbol; runtime resolution prefers TRADEX_ENV_FILE when set.
+_ENV_PATH = _DEFAULT_ENV_PATH
+
+
+def _resolve_dhan_env_path() -> Path:
+    override = os.environ.get("TRADEX_ENV_FILE")
+    if override:
+        return Path(override)
+    return _ENV_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -306,7 +316,8 @@ class BrokerService:
         except Exception:
             self._paper = None
 
-        if _ENV_PATH.exists():
+        dhan_env_path = _resolve_dhan_env_path()
+        if dhan_env_path.exists() and dhan_env_path.stat().st_size > 0:
             try:
                 # B7: OMS risk_manager first (capital gate for live orders).
                 oms_risk_manager, oms_capital_provider = self._build_oms_risk_manager()
@@ -314,7 +325,7 @@ class BrokerService:
                 # Production path: bootstrap = create + automatic auth probe
                 result = bootstrap_gateway(
                     BrokerId.DHAN,
-                    env_path=_ENV_PATH,
+                    env_path=dhan_env_path,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
                     risk_manager=oms_risk_manager,
@@ -373,7 +384,7 @@ class BrokerService:
         if self._gateway is None:
             # M5: When live bootstrap failed and live intent was detected,
             # fail explicitly — do NOT silently substitute a mock broker.
-            if _ENV_PATH.exists():
+            if dhan_env_path.exists() and dhan_env_path.stat().st_size > 0:
                 self._live_actionable = False
                 logger.warning(
                     "Dhan bootstrap failed with live intent — mock broker created for "
@@ -383,8 +394,17 @@ class BrokerService:
             self._mock = create_seeded_mock_broker(BrokerId.DHAN)
 
         # Upstox — same automatic auth bootstrap
-        upstox_env_path = resolve_env_path(BrokerId.UPSTOX)
-        if upstox_env_path is not None and upstox_env_path.exists():
+        upstox_override = os.environ.get("TRADEX_UPSTOX_ENV_FILE")
+        upstox_env_path = (
+            Path(upstox_override)
+            if upstox_override
+            else resolve_env_path(BrokerId.UPSTOX)
+        )
+        if (
+            upstox_env_path is not None
+            and upstox_env_path.exists()
+            and upstox_env_path.stat().st_size > 0
+        ):
             try:
                 result = bootstrap_gateway(
                     BrokerId.UPSTOX,

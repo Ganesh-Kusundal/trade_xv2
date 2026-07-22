@@ -19,6 +19,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
+def require_tz_aware(value: datetime, message: str) -> None:
+    """Raise ``ValueError`` if *value* is a naive (tz-unaware) datetime."""
+    if value.tzinfo is None:
+        raise ValueError(message)
+
+
 def parse_optional_str(value: Any) -> str | None:
     """Convert value to string, returning None for None or empty string.
 

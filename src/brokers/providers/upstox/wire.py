@@ -145,6 +145,20 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter, BrokerAdapter):
     ) -> pd.DataFrame:
         return self._data_gw.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
 
+    def get_expired_option_expiries(self, instrument_key: str) -> list[str]:
+        return self.extended.get_expired_option_expiries(instrument_key)
+
+    def get_expired_historical_candles(
+        self,
+        expired_instrument_key: str,
+        interval: str,
+        from_date,
+        to_date,
+    ) -> dict[str, Any]:
+        return self.extended.get_expired_historical_candles(
+            expired_instrument_key, interval, from_date, to_date
+        )
+
     def option_chain(
         self,
         underlying: str,

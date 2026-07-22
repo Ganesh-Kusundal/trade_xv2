@@ -20,6 +20,8 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any
 
+from domain.parsing import require_tz_aware
+
 EVENT_ID_HEX_LENGTH = 16
 
 
@@ -42,12 +44,12 @@ class DomainEvent:
     sequence_number: int = 0
 
     def __post_init__(self) -> None:
-        if self.timestamp.tzinfo is None:
-            raise ValueError(
-                f"DomainEvent requires timezone-aware timestamps. "
-                f"Got naive datetime: {self.timestamp}. "
-                f"Use DomainEvent.now() factory or provide tzinfo explicitly."
-            )
+        require_tz_aware(
+            self.timestamp,
+            f"DomainEvent requires timezone-aware timestamps. "
+            f"Got naive datetime: {self.timestamp}. "
+            f"Use DomainEvent.now() factory or provide tzinfo explicitly.",
+        )
         # Defensive copy: freeze a fresh dict, not a view over the caller's
         # mutable one, so mutating the caller's dict after construction
         # cannot leak into the event's payload.
@@ -97,6 +99,7 @@ class EventType(str, Enum):
     DEPTH = "DEPTH"
     QUOTE = "QUOTE"
     DEPTH_20 = "DEPTH_20"
+    DEPTH_30 = "DEPTH_30"
     DEPTH_200 = "DEPTH_200"
     INDEX_QUOTE = "INDEX_QUOTE"
     OPTION_CHAIN = "OPTION_CHAIN"

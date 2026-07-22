@@ -244,3 +244,19 @@ class UpstoxExtendedCapabilities:
     def get_ip(self) -> dict[str, str]:
         """Get configured IP addresses."""
         return self._broker.static_ip.get_static_ip()
+
+    # ── Expired instruments (Plus plan) ───────────────────────────────
+
+    def get_expired_option_expiries(self, instrument_key: str) -> list[str]:
+        return self._broker.expired_instruments_client.get_expiries(instrument_key)
+
+    def get_expired_historical_candles(
+        self,
+        expired_instrument_key: str,
+        interval: str,
+        from_date,
+        to_date,
+    ) -> dict[str, Any]:
+        return self._broker.expired_instruments_client.get_historical_candle(
+            expired_instrument_key, interval, to_date, from_date
+        )

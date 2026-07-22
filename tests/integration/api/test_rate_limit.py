@@ -111,8 +111,8 @@ class TestRateLimitMiddleware:
         resp = client.get("/test")
         assert resp.status_code == 429
         data = resp.json()
-        assert "detail" in data
-        assert "retry_after_seconds" in data
+        assert data["error"]["type"] == "rate_limit_exceeded"
+        assert data["error"]["details"]["retry_after"] == 60
         assert resp.headers["Retry-After"] == "60"
         assert resp.headers["X-RateLimit-Limit"] == "1"
         assert resp.headers["X-RateLimit-Remaining"] == "0"

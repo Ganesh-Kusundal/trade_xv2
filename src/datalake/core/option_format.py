@@ -83,6 +83,88 @@ def make_option_symbol(
     return f"{underlying}_{expiry_kind}_{int(expiry_code)}_{int(strike_offset)}_{ot}"
 
 
+def strike_offset_to_dhan_strike(offset: int) -> str:
+    """Map lake strike_offset (-10..+10) to Dhan rolling API strike string."""
+    if offset == 0:
+        return "ATM"
+    if offset > 0:
+        return f"ATM+{offset}"
+    return f"ATM{offset}"
+
+
+def lake_to_dhan_expiry_code(lake_code: int) -> int:
+    """Lake expiry_code 1/2 maps directly to Dhan rolling API (1=nearest, 2=next).
+
+    Do not subtract 1 — Dhan rejects ``0`` (often omitted as falsy in payloads).
+    """
+    return int(lake_code)
+
+
+def _parse_dhan_timestamps(values: list) -> pd.Series:
+    s = pd.Series(values)
+    if pd.api.types.is_numeric_dtype(s):
+        mx = float(s.max()) if len(s) else 0.0
+        unit = "ms" if mx > 1e12 else "s"
+        ts = pd.to_datetime(s, unit=unit, utc=True)
+    else:
+        ts = pd.to_datetime(s, utc=True)
+    return ts.dt.tz_convert(_get_exchange_tz()).dt.tz_localize(None)
+
+
+def convert_from_dhan_rolling(
+    side_data: dict,
+    *,
+    underlying: str,
+    expiry_kind: str,
+    expiry_code: int,
+    strike_offset: int,
+    option_type: str,
+    interval_min: int = 5,
+) -> pd.DataFrame:
+    """Convert Dhan rolling-option CE/PE array payload to canonical rows."""
+    if not side_data or not side_data.get("timestamp"):
+        return pd.DataFrame(columns=CANONICAL_COLUMNS)
+
+    n = len(side_data["timestamp"])
+    timestamps = _parse_dhan_timestamps(side_data["timestamp"])
+
+    def _col(name: str, default: float = 0.0) -> list:
+        arr = side_data.get(name)
+        if arr is None or len(arr) != n:
+            return [default] * n
+        return list(arr)
+
+    ot = "CALL" if str(option_type).upper() in ("CALL", "CE") else "PUT"
+    symbol = make_option_symbol(underlying, expiry_kind, expiry_code, strike_offset, ot)
+    first_ts_ms = int(pd.Timestamp(timestamps.iloc[0]).timestamp() * 1000)
+    expiry_date = map_expiry_code_to_date(underlying, expiry_kind, int(expiry_code), first_ts_ms)
+
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "symbol": [symbol] * n,
+            "underlying": underlying,
+            "exchange": _get_exchange_code(),
+            "open": _col("open"),
+            "high": _col("high"),
+            "low": _col("low"),
+            "close": _col("close"),
+            "volume": [int(x or 0) for x in _col("volume", 0.0)],
+            "oi": [int(x or 0) for x in _col("oi", 0.0)],
+            "iv": _col("iv", float("nan")),
+            "spot": _col("spot"),
+            "strike": _col("strike", float("nan")),
+            "strike_offset": int(strike_offset),
+            "option_type": ot,
+            "expiry_kind": expiry_kind,
+            "expiry_code": int(expiry_code),
+            "interval_min": int(interval_min),
+            "expiry_date": expiry_date,
+        }
+    )
+    return df[[c for c in CANONICAL_COLUMNS if c in df.columns]]
+
+
 def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
     """Convert Trade_J format to TradeXV2 canonical.
 

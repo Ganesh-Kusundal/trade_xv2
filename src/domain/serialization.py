@@ -11,16 +11,34 @@ adapter functions directly.
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 from domain.entities.options import (
+    FutureChain,
+    FutureContract,
     OptionChain,
     OptionLeg,
     OptionStrike,
 )
 from domain.parsing import parse_decimal as _decimal_or_none
 from domain.parsing import parse_int as _parse_int_or_none
+from domain.parsing import parse_timestamp as _parse_timestamp
+
+
+def _chain_fetched_at(data: dict | None) -> datetime:
+    """Resolve chain ingress timestamp — preserve payload value or stamp now."""
+    from domain.ports.time_service import get_current_clock
+
+    if data and data.get("fetched_at") is not None:
+        raw = data["fetched_at"]
+        if isinstance(raw, datetime):
+            return raw
+        parsed = _parse_timestamp(raw)
+        if parsed is not None:
+            return parsed
+    return get_current_clock().now()
 
 
 def option_leg_from_dict(data: dict | None) -> OptionLeg:
@@ -67,7 +85,12 @@ def option_strike_from_dict(data: dict) -> OptionStrike:
 def option_chain_from_dict(data: dict | None) -> OptionChain:
     """Parse a full option chain from a broker-neutral dict."""
     if not data:
-        return OptionChain(underlying="", exchange="", expiry="")
+        return OptionChain(
+            underlying="",
+            exchange="",
+            expiry="",
+            fetched_at=_chain_fetched_at(data),
+        )
     strikes = tuple(
         option_strike_from_dict(row) for row in data.get("strikes", []) if isinstance(row, dict)
     )
@@ -77,4 +100,29 @@ def option_chain_from_dict(data: dict | None) -> OptionChain:
         expiry=str(data.get("expiry", "")),
         strikes=strikes,
         spot=_decimal_or_none(data.get("spot")),
+        fetched_at=_chain_fetched_at(data),
+    )
+
+
+def future_chain_from_dict(data: dict | None) -> FutureChain:
+    """Parse a full futures chain from a broker-neutral dict."""
+    if not data:
+        return FutureChain(
+            underlying="",
+            exchange="",
+            fetched_at=_chain_fetched_at(data),
+        )
+    contracts = tuple(
+        FutureContract.from_dict(row)
+        for row in data.get("contracts", [])
+        if isinstance(row, dict)
+    )
+    expiries_raw = data.get("expiries", [])
+    expiries = tuple(str(e) for e in expiries_raw) if isinstance(expiries_raw, list) else ()
+    return FutureChain(
+        underlying=str(data.get("underlying", "")),
+        exchange=str(data.get("exchange", "")),
+        expiries=expiries,
+        contracts=contracts,
+        fetched_at=_chain_fetched_at(data),
     )

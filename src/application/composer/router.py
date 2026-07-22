@@ -84,6 +84,17 @@ class BrokerRouter:
                 if missing:
                     rejected[bid] = f"missing_policy_features:{','.join(missing)}"
                     continue
+            if request.route_lane is not None:
+                caps = self._registry.get_capabilities(bid).capabilities
+                if not caps.can_serve_lane(
+                    request.route_lane,
+                    entitlements=request.entitlements or None,
+                ):
+                    rejected[bid] = (
+                        f"lane_ineligible:{request.route_lane.asset_kind.value}:"
+                        f"{request.route_lane.exchange}:{request.route_lane.contract_state.value}"
+                    )
+                    continue
             capable.append(bid)
 
         # 2. Filter by health
@@ -194,7 +205,11 @@ class BrokerRouter:
     # excludes GET_QUOTE — a single-symbol lookup keeps fallback-only semantics;
     # only the explicit batch path splits work across brokers.
     _FEDERATABLE_OPERATIONS = frozenset(
-        {OperationKind.GET_HISTORICAL_BARS, OperationKind.GET_QUOTES_BATCH}
+        {
+            OperationKind.GET_HISTORICAL_BARS,
+            OperationKind.GET_QUOTES_BATCH,
+            OperationKind.GET_CONTRACT_HISTORICAL,
+        }
     )
 
     def _maybe_parallel(
@@ -221,6 +236,10 @@ class BrokerRouter:
         }:
             return "orders"
         if operation == OperationKind.GET_HISTORICAL_BARS:
+            return "historical"
+        if operation == OperationKind.GET_OPTIONS_HISTORICAL:
+            return "options_historical"
+        if operation == OperationKind.GET_CONTRACT_HISTORICAL:
             return "historical"
         if operation in {OperationKind.FETCH_OPTION_CHAIN}:
             return "option_chain"

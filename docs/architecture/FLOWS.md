@@ -126,6 +126,33 @@ changed mid-process.
 `docs/architecture/e2e-spec/08-time-parity-and-environments.md` §3 and the C3 acceptance test
 (`tests/unit/.../test_live_parity_gate*`, landed via commit `7bb0a4ec`).
 
+## §12 — Historical Multi-Asset
+
+Source: `docs/architecture/adr/0023-contract-centric-historical-data.md`.
+
+```
+API /historical/{equities|options|futures}
+  → ContractResolver (InstrumentId identity)
+  → BrokerRouter (lane: asset, exchange, contract_state, timeframe, lookback, entitlement)
+  → QuotaScheduler → DhanAdapter | UpstoxAdapter
+  → Normalizer → Validator → Merger → ProvenanceLedger
+  → ContractLake (contracts/{options|futures}/candles/…) | derived rolling DuckDB views
+```
+
+**Invariant:** Rolling ATM±N is never canonical storage; exact `InstrumentId` is. Dhan
+rolling expired options is NFO index only; Upstox exact expired contracts require Plus
+entitlement. Fail-closed unless `allow_partial=true`; watermarks do not advance on degraded
+fetch.
+
+Expected Behavior Contract:
+
+| | |
+|---|---|
+| Inputs | Separate equity / option / future requests with `exchange`, `underlying`, `expiry`, `timeframe`, `contract_state` |
+| Outputs | Sorted unique bars + coverage, gaps, broker provenance, route decision, contract metadata |
+| Timing | Chunk sizes and concurrency from authoritative `RateLimitProfile` only |
+| Failure modes | Invalid selector (422), entitlement absent (403), capability mismatch (422), all sources unavailable (503); empty broker response is not success |
+
 ---
 
 ## Broker API scheduling & cache ownership

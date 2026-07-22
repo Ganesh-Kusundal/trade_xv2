@@ -94,11 +94,11 @@ class OptionsGreeksPrecomputer:
                 expiry_code,
                 EXTRACT(EPOCH FROM (CAST(expiry_date AS TIMESTAMP) - timestamp)) / 86400.0
                     AS days_to_expiry
-            FROM read_parquet('data/lake/options/chains/expiry=*/underlying=*/data.parquet')
+            FROM read_parquet('data/lake/options/candles/underlying=*/**/data.parquet', hive_partitioning=true)
             WHERE iv IS NOT NULL AND iv > 0
               AND spot IS NOT NULL AND spot > 0
               AND timestamp >= (SELECT MAX(timestamp) - INTERVAL '{self.lookback_days} days'
-                                FROM read_parquet('data/lake/options/chains/expiry=*/underlying=*/data.parquet'))
+                                FROM read_parquet('data/lake/options/candles/underlying=*/**/data.parquet', hive_partitioning=true))
         ),
         with_t AS (
             SELECT *,

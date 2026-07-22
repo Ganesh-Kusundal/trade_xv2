@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
+    HistoricalRouteConstraint,
     HistoricalWindowConstraint,
-    RateLimitProfile,
     StreamLimitProfile,
 )
 from domain.capabilities.market_surface import (
@@ -15,7 +15,32 @@ from domain.capabilities.market_surface import (
     MarketCoverage,
 )
 from domain.constants.exchanges import CDS, MCX, NFO, NSE
+from domain.historical.contract_state import ContractState
 from domain.instruments.asset_kind import AssetKind
+from brokers.common.rate_limit_config import UPSTOX_RATE_LIMITS, profiles_from_table
+
+_ACTIVE = frozenset({ContractState.ACTIVE, ContractState.AUTO})
+_EXPIRED = frozenset({ContractState.EXPIRED, ContractState.AUTO})
+_UPSTOX_HISTORICAL_ROUTES: tuple[HistoricalRouteConstraint, ...] = (
+    HistoricalRouteConstraint(AssetKind.EQUITY, NSE, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.INDEX, NSE, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.FUTURES, NFO, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.OPTIONS, NFO, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.FUTURES, MCX, _ACTIVE),
+    HistoricalRouteConstraint(AssetKind.OPTIONS, MCX, _ACTIVE),
+    HistoricalRouteConstraint(
+        AssetKind.OPTIONS, NFO, _EXPIRED, requires_entitlement="upstox_plus"
+    ),
+    HistoricalRouteConstraint(
+        AssetKind.FUTURES, NFO, _EXPIRED, requires_entitlement="upstox_plus"
+    ),
+    HistoricalRouteConstraint(
+        AssetKind.OPTIONS, MCX, _EXPIRED, requires_entitlement="upstox_plus"
+    ),
+    HistoricalRouteConstraint(
+        AssetKind.FUTURES, MCX, _EXPIRED, requires_entitlement="upstox_plus"
+    ),
+)
 
 
 def upstox_capabilities() -> BrokerCapabilities:
@@ -41,60 +66,7 @@ def upstox_capabilities() -> BrokerCapabilities:
         supports_super_order=False,
         supports_forever_order=True,
         supports_native_slice_order=True,  # slice_adapter / place-order slice flag
-        rate_limit_profiles=(
-            RateLimitProfile(
-                endpoint_class="orders",
-                sustained_rps=10.0,
-                burst_rps=20.0,
-                min_interval_ms=100,
-                cooldown_on_429_s=60,
-                # 500/min and 2000/30min rolling caps (regular, non-SEBI-algo tier).
-                extra_windows=((500, 60.0), (2000, 1800.0)),
-            ),
-            RateLimitProfile(
-                # Official "Other Standard APIs" (quotes) ≈ 50/s; stay under with headroom.
-                endpoint_class="quotes",
-                sustained_rps=25.0,
-                burst_rps=50.0,
-                min_interval_ms=40,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="historical",
-                sustained_rps=5.0,
-                burst_rps=10.0,
-                min_interval_ms=200,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="option_chain",
-                sustained_rps=5.0,
-                burst_rps=10.0,
-                min_interval_ms=200,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="funds",
-                sustained_rps=5.0,
-                burst_rps=10.0,
-                min_interval_ms=200,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="positions",
-                sustained_rps=5.0,
-                burst_rps=10.0,
-                min_interval_ms=200,
-                cooldown_on_429_s=60,
-            ),
-            RateLimitProfile(
-                endpoint_class="holdings",
-                sustained_rps=2.0,
-                burst_rps=5.0,
-                min_interval_ms=500,
-                cooldown_on_429_s=60,
-            ),
-        ),
+        rate_limit_profiles=profiles_from_table(UPSTOX_RATE_LIMITS),
         historical_windows=(
             HistoricalWindowConstraint(
                 timeframe="1m",
@@ -147,6 +119,7 @@ def upstox_capabilities() -> BrokerCapabilities:
                 max_chunk_days=730,
             ),
         ),
+        historical_routes=_UPSTOX_HISTORICAL_ROUTES,
         stream_limits=StreamLimitProfile(
             max_connections=2,
             max_instruments_per_connection=5000,

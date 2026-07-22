@@ -28,6 +28,7 @@ from datalake.core.symbols import (
     normalize_symbol_for_storage,
     symbol_to_path,
 )
+from domain.constants.market import IST
 from domain.entities import MarketDepth, Quote
 from domain.market_enums import ExchangeId
 from domain.capabilities.broker_capabilities import (
@@ -37,6 +38,12 @@ from domain.capabilities.broker_capabilities import (
 from domain.ports.broker_adapter import BrokerAdapter
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_filter_ts_to_lake_naive_ist(ts: pd.Timestamp) -> pd.Timestamp:
+    """Convert API epoch filter (naive UTC) to naive IST for lake comparison."""
+    aware = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+    return aware.tz_convert(IST).tz_localize(None)
 
 
 class DataLakeGateway(BrokerAdapter):
@@ -193,12 +200,69 @@ class DataLakeGateway(BrokerAdapter):
             return None
         ts = pd.to_datetime(df["timestamp"])
         if from_ts is not None:
+            from_ist = _utc_filter_ts_to_lake_naive_ist(from_ts)
+            df = df.loc[ts >= from_ist].copy()
+            ts = pd.to_datetime(df["timestamp"])
+        if to_ts is not None:
+            to_ist = _utc_filter_ts_to_lake_naive_ist(to_ts)
+            df = df.loc[ts <= to_ist].copy()
+        if limit is not None and limit > 0:
+            df = df.tail(limit)
+        return df.reset_index(drop=True)
+
+    def query_contract_candles(
+        self,
+        instrument: InstrumentId,
+        timeframe: str,
+        *,
+        asset_class: str = "option",
+        from_ts: pd.Timestamp | None = None,
+        to_ts: pd.Timestamp | None = None,
+    ) -> pd.DataFrame | None:
+        """Read contract-centric OHLCV from ``contracts/{options|futures}/candles/``."""
+        from domain.instruments.instrument_id import InstrumentId as _Iid
+
+        if not isinstance(instrument, _Iid):
+            instrument = _Iid.parse(str(instrument))
+        expiry = instrument.expiry.isoformat() if instrument.expiry else None
+        if not expiry:
+            return None
+        from datalake.core.paths import (
+            contract_future_partition_path,
+            contract_option_partition_path,
+        )
+
+        if asset_class == "future":
+            path = contract_future_partition_path(
+                str(self._root),
+                instrument.exchange,
+                instrument.underlying,
+                expiry,
+                timeframe,
+            )
+        else:
+            path = contract_option_partition_path(
+                str(self._root),
+                instrument.exchange,
+                instrument.underlying,
+                expiry,
+                timeframe,
+            )
+        if not path.exists():
+            return None
+        try:
+            df = pd.read_parquet(path)
+        except Exception as exc:
+            logger.error("Failed to read contract parquet %s: %s", path, exc)
+            return None
+        if df.empty:
+            return None
+        ts = pd.to_datetime(df["timestamp"])
+        if from_ts is not None:
             df = df.loc[ts >= from_ts].copy()
             ts = pd.to_datetime(df["timestamp"])
         if to_ts is not None:
             df = df.loc[ts <= to_ts].copy()
-        if limit is not None and limit > 0:
-            df = df.tail(limit)
         return df.reset_index(drop=True)
 
     def quote(self, symbol: str, exchange: str = ExchangeId.NSE) -> Quote:
@@ -231,9 +295,16 @@ class DataLakeGateway(BrokerAdapter):
         return Decimal(str(df.iloc[-1]["close"]))
 
     def depth(self, symbol: str, exchange: str = ExchangeId.NSE) -> MarketDepth:
-        from domain.entities import MarketDepth as _MarketDepth
+        from domain.candles.historical import InstrumentRef
+        from domain.entities import DepthKind, MarketDepth as _MarketDepth
+        from domain.ports.time_service import get_current_clock
 
-        return _MarketDepth(symbol=symbol)
+        return _MarketDepth(
+            symbol=symbol,
+            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
+            depth_type=DepthKind.DEPTH_5,
+            timestamp=get_current_clock().now(),
+        )
 
     def option_chain(
         self,
@@ -241,48 +312,59 @@ class DataLakeGateway(BrokerAdapter):
         exchange: str = ExchangeId.NSE,
         expiry: str | None = None,
     ) -> dict:
-        """Load option chain from lake parquet when present (TOS-P6-002).
-
-        Looks under ``{root}/options/chains/expiry=*/underlying={u}/data.parquet``.
-        Returns empty calls/puts when no files exist (not a hard failure).
-        """
+        """Load option chain from ``options/candles/`` parquet when present."""
 
         underlying = normalize_symbol_for_storage(underlying)
-        root = self._root
-        chains_root = root / "options" / "chains"
+        candles_root = self._root / "options" / "candles" / f"underlying={underlying}"
         calls: list[dict] = []
         puts: list[dict] = []
         resolved_expiry = expiry
         try:
-            if chains_root.exists():
-                pattern = (
-                    f"expiry={expiry}/underlying={underlying}/data.parquet"
-                    if expiry
-                    else f"expiry=*/underlying={underlying}/data.parquet"
-                )
-                files = sorted(chains_root.glob(pattern))
-                if files and expiry is None:
-                    # Prefer latest expiry directory name.
-                    resolved_expiry = files[-1].parts[-3].split("=", 1)[-1]
-                for path in files[-3:]:  # cap reads
-                    try:
-                        import pandas as pd
+            if candles_root.exists():
+                import pandas as pd
 
+                pattern = "**/data.parquet"
+                files = sorted(candles_root.glob(pattern))
+                if not files:
+                    return {
+                        "underlying": underlying,
+                        "exchange": exchange,
+                        "calls": calls,
+                        "puts": puts,
+                        "expiry": resolved_expiry,
+                    }
+                frames: list[pd.DataFrame] = []
+                for path in files:
+                    try:
                         df = pd.read_parquet(path)
-                        if df is None or df.empty:
-                            continue
-                        side_col = "option_type" if "option_type" in df.columns else "type"
-                        for _, row in df.iterrows():
-                            rec = {str(k): (None if pd.isna(v) else v) for k, v in row.items()}
-                            ot = str(rec.get(side_col, "")).upper()
-                            if ot in ("CE", "CALL", "C"):
-                                calls.append(rec)
-                            elif ot in ("PE", "PUT", "P"):
-                                puts.append(rec)
-                            else:
-                                calls.append(rec)
+                        if df is not None and not df.empty:
+                            frames.append(df)
                     except Exception:
                         continue
+                if not frames:
+                    return {
+                        "underlying": underlying,
+                        "exchange": exchange,
+                        "calls": calls,
+                        "puts": puts,
+                        "expiry": resolved_expiry,
+                    }
+                df = pd.concat(frames, ignore_index=True)
+                if expiry:
+                    df = df[df["expiry_date"].astype(str) == str(expiry)]
+                elif "expiry_date" in df.columns:
+                    resolved_expiry = str(df["expiry_date"].astype(str).max())
+                    df = df[df["expiry_date"].astype(str) == resolved_expiry]
+                df = df.sort_values("timestamp").groupby(
+                    ["symbol", "strike", "option_type"], as_index=False
+                ).last()
+                for _, row in df.iterrows():
+                    rec = {str(k): (None if pd.isna(v) else v) for k, v in row.items()}
+                    ot = str(rec.get("option_type", "")).upper()
+                    if ot in ("CE", "CALL", "C"):
+                        calls.append(rec)
+                    elif ot in ("PE", "PUT", "P"):
+                        puts.append(rec)
         except Exception:
             pass
         return {

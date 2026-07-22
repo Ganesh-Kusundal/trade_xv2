@@ -80,6 +80,7 @@ paper = "brokers.providers.paper"
 # and CALENDAR (TradingCalendar instance). See datalake/exchange_registry.py
 # for the composition-root discovery code.
 nse = "plugins.exchanges.nse"
+mcx = "plugins.exchanges.mcx"
 
 # Single-root packaging: all library code lives under src/.
 # Layout (Clean Architecture):
@@ -458,6 +459,11 @@ ignore_imports = [
     # Datalake federation fetch wiring (R8/R16) — builds HistoricalFetchPort at boot.
     "application.data.sync_fetch_strategy -> infrastructure.adapters.market_data_gateway_adapter",
     "application.data.sync_fetch_strategy -> infrastructure.gateway.factory",
+    "application.data.contract_sync_fetch_strategy -> infrastructure.adapters.market_data_gateway_adapter",
+    "application.data.contract_sync_fetch_strategy -> infrastructure.gateway.factory",
+    "application.data.options_sync_fetch_strategy -> infrastructure.adapters.market_data_gateway_adapter",
+    "application.data.options_sync_fetch_strategy -> infrastructure.gateway.factory",
+    "application.data.options_historical_coordinator -> infrastructure.batch_executor",
 ]
 
 [[tool.importlinter.contracts]]

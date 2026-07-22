@@ -15,6 +15,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from domain.candles.historical import HistoricalSeries, InstrumentRef
+from domain.constants.market import IST
 from domain.instruments.timeframes import normalize_timeframe
 from interface.api.auth import require_auth
 from interface.api.candle_mapper import series_to_api_candles
@@ -94,7 +95,7 @@ async def get_candles(
     - X-Data-Stale: true/false
     - X-Data-Last-Update: date of most recent candle
     - X-Data-Days-Old: age in days
-    - X-Data-Freshness: ISO timestamp of most recent candle
+    - X-Data-Freshness: ISO timestamp of most recent candle (IST, +05:30)
     - X-Data-Type: historical
     """
     from fastapi.responses import JSONResponse
@@ -133,9 +134,9 @@ async def get_candles(
         candles = series_to_api_candles(series, limit=limit)
 
         latest_timestamp = None
-        if candles:
-            latest_ts_ms = candles[-1].t
-            latest_timestamp = pd.Timestamp(latest_ts_ms, unit="ms").isoformat()
+        if not df.empty:
+            latest_lake_ts = pd.to_datetime(df["timestamp"]).max()
+            latest_timestamp = latest_lake_ts.tz_localize(IST).isoformat()
 
         response = JSONResponse(
             content={
@@ -309,7 +310,7 @@ async def get_quote(symbol: str, exchange: str = Query("NSE", description="Excha
         response.headers["X-Cache-TTL"] = str(max_age)
         response.headers["X-Data-Type"] = "quote"
 
-        freshness_ts = pd.Timestamp(ts_ms, unit="ms").isoformat()
+        freshness_ts = pd.Timestamp(ts_ms, unit="ms", tz="UTC").tz_convert(IST).isoformat()
         response.headers["X-Data-Freshness"] = freshness_ts
 
         return response

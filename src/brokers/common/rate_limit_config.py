@@ -16,12 +16,14 @@ from domain.capabilities.broker_capabilities import RateLimitProfile
 # Logical buckets consumed by create_rate_limiter / MultiBucketRateLimiter.
 # Values are (sustained_rps, burst_rps, min_interval_ms, cooldown_on_429_s).
 
-DHAN_RATE_LIMITS: dict[str, dict[str, float]] = {
+DHAN_RATE_LIMITS: dict[str, dict[str, float | tuple[tuple[int, float], ...]]] = {
     "orders": {
-        "sustained_rps": 25.0,
-        "burst_rps": 50.0,
-        "min_interval_ms": 40,
+        "sustained_rps": 10.0,
+        "burst_rps": 20.0,
+        "min_interval_ms": 100,
         "cooldown_on_429_s": 130,
+        # 250/min and 7000/day (placed+modified+cancelled combined).
+        "extra_windows": ((250, 60.0), (7000, 86400.0)),
     },
     "quotes": {
         "sustained_rps": 10.0,
@@ -35,6 +37,18 @@ DHAN_RATE_LIMITS: dict[str, dict[str, float]] = {
         "min_interval_ms": 200,
         "cooldown_on_429_s": 130,
     },
+    "options_historical": {
+        "sustained_rps": 2.0,
+        "burst_rps": 3.0,
+        "min_interval_ms": 500,
+        "cooldown_on_429_s": 130,
+    },
+    "expired_historical": {
+        "sustained_rps": 5.0,
+        "burst_rps": 10.0,
+        "min_interval_ms": 200,
+        "cooldown_on_429_s": 60,
+    },
     "admin": {
         "sustained_rps": 10.0,
         "burst_rps": 20.0,
@@ -43,12 +57,14 @@ DHAN_RATE_LIMITS: dict[str, dict[str, float]] = {
     },
 }
 
-UPSTOX_RATE_LIMITS: dict[str, dict[str, float]] = {
+UPSTOX_RATE_LIMITS: dict[str, dict[str, float | tuple[tuple[int, float], ...]]] = {
     "orders": {
         "sustained_rps": 10.0,
         "burst_rps": 20.0,
         "min_interval_ms": 100,
         "cooldown_on_429_s": 60,
+        # 500/min and 2000/30min rolling caps (regular, non-SEBI-algo tier).
+        "extra_windows": ((500, 60.0), (2000, 1800.0)),
     },
     "quotes": {
         "sustained_rps": 25.0,
@@ -86,6 +102,18 @@ UPSTOX_RATE_LIMITS: dict[str, dict[str, float]] = {
         "min_interval_ms": 500,
         "cooldown_on_429_s": 60,
     },
+    "options_historical": {
+        "sustained_rps": 5.0,
+        "burst_rps": 10.0,
+        "min_interval_ms": 200,
+        "cooldown_on_429_s": 60,
+    },
+    "expired_historical": {
+        "sustained_rps": 5.0,
+        "burst_rps": 10.0,
+        "min_interval_ms": 200,
+        "cooldown_on_429_s": 60,
+    },
 }
 
 PAPER_RATE_LIMITS: dict[str, dict[str, float]] = {
@@ -110,17 +138,22 @@ PAPER_RATE_LIMITS: dict[str, dict[str, float]] = {
 }
 
 
-def profiles_from_table(table: dict[str, dict[str, float]]) -> tuple[RateLimitProfile, ...]:
+def profiles_from_table(
+    table: dict[str, dict[str, float | tuple[tuple[int, float], ...]]],
+) -> tuple[RateLimitProfile, ...]:
     """Build RateLimitProfile tuple from a provider rate-limit table."""
     profiles: list[RateLimitProfile] = []
     for endpoint_class, cfg in table.items():
+        extra_raw = cfg.get("extra_windows", ())
+        extra = tuple(extra_raw) if extra_raw else ()
         profiles.append(
             RateLimitProfile(
                 endpoint_class=endpoint_class,
-                sustained_rps=float(cfg["sustained_rps"]),
-                burst_rps=float(cfg["burst_rps"]),
-                min_interval_ms=int(cfg["min_interval_ms"]),
-                cooldown_on_429_s=float(cfg["cooldown_on_429_s"]),
+                sustained_rps=float(cfg["sustained_rps"]),  # type: ignore[arg-type]
+                burst_rps=float(cfg["burst_rps"]),  # type: ignore[arg-type]
+                min_interval_ms=int(cfg["min_interval_ms"]),  # type: ignore[arg-type]
+                cooldown_on_429_s=float(cfg["cooldown_on_429_s"]),  # type: ignore[arg-type]
+                extra_windows=extra,
             )
         )
     return tuple(profiles)

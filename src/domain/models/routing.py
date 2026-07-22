@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
+from domain.historical.route_lane import HistoricalRouteLane
+
 # ---------------------------------------------------------------------------
 # Operation kinds
 # ---------------------------------------------------------------------------
@@ -38,6 +40,8 @@ class OperationKind(str, Enum):
     OPEN_MARKET_STREAM = "open_market_stream"
     OPEN_ORDER_STREAM = "open_order_stream"
     FETCH_OPTION_CHAIN = "fetch_option_chain"
+    GET_OPTIONS_HISTORICAL = "get_options_historical"
+    GET_CONTRACT_HISTORICAL = "get_contract_historical"
     FETCH_NEWS = "fetch_news"
     FETCH_FUNDAMENTALS = "fetch_fundamentals"
     FETCH_MARKET_INTELLIGENCE = "fetch_market_intelligence"
@@ -63,6 +67,8 @@ class OperationKind(str, Enum):
             OperationKind.GET_HISTORICAL_BARS,
             OperationKind.OPEN_MARKET_STREAM,
             OperationKind.FETCH_OPTION_CHAIN,
+            OperationKind.GET_OPTIONS_HISTORICAL,
+            OperationKind.GET_CONTRACT_HISTORICAL,
         }
 
     def is_enrichment(self) -> bool:
@@ -96,6 +102,8 @@ class RoutingRequest:
     trace_id: str
     instrument: str | None = None
     required_features: frozenset[str] = field(default_factory=frozenset)
+    route_lane: HistoricalRouteLane | None = None
+    entitlements: frozenset[str] = field(default_factory=frozenset)
     user_mode: str = "auto"
 
 

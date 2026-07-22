@@ -11,8 +11,10 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from domain.entities import DepthLevel, MarketDepth, Quote
+from domain.entities import DepthKind, DepthLevel, MarketDepth, Quote
 from domain.events import DomainEvent
+from domain.candles.historical import InstrumentRef
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,7 @@ class MarketFeedPublisher:
             self._event_bus.publish(
                 DomainEvent.now(
                     "TICK",
-                    {"quote": q},
+                    {"quote": q, "sequence": seq},
                     symbol=q.symbol,
                     source="DhanMarketFeed",
                     correlation_id=correlation_id,
@@ -157,7 +159,14 @@ class MarketFeedPublisher:
                     asks[0].price,
                 )
                 return
-            md = MarketDepth(bids=bids, asks=asks)
+            md = MarketDepth(
+                symbol=symbol,
+                instrument=InstrumentRef(symbol=symbol, exchange=""),
+                bids=bids,
+                asks=asks,
+                depth_type=DepthKind.DEPTH_5,
+                timestamp=get_current_clock().now(),
+            )
             self._event_bus.publish(
                 DomainEvent.now(
                     "DEPTH",

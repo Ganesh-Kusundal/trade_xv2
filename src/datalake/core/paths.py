@@ -56,6 +56,80 @@ PARTITION_TIMEFRAME: str = "timeframe"
 PARTITION_SYMBOL: str = "symbol"
 PARTITION_EXPIRY: str = "expiry"
 PARTITION_UNDERLYING: str = "underlying"
+PARTITION_EXPIRY_KIND: str = "expiry_kind"
+PARTITION_EXPIRY_CODE: str = "expiry_code"
+PARTITION_CONTRACT_STATE: str = "contract_state"
+
+
+def contract_option_partition_path(
+    root: str,
+    exchange: str,
+    underlying: str,
+    expiry: str,
+    timeframe: str,
+) -> Path:
+    """Contract-centric option OHLCV path (ADR-0023)."""
+    from datalake.core.symbols import normalize_symbol_for_storage
+
+    u = normalize_symbol_for_storage(underlying)
+    ex = normalize_symbol_for_storage(exchange)
+    return (
+        Path(root)
+        / "contracts"
+        / "options"
+        / "candles"
+        / f"exchange={ex}"
+        / f"underlying={u}"
+        / f"expiry={expiry}"
+        / f"timeframe={timeframe}"
+        / "data.parquet"
+    )
+
+
+def contract_future_partition_path(
+    root: str,
+    exchange: str,
+    underlying: str,
+    expiry: str,
+    timeframe: str,
+) -> Path:
+    """Contract-centric future OHLCV path (ADR-0023)."""
+    from datalake.core.symbols import normalize_symbol_for_storage
+
+    u = normalize_symbol_for_storage(underlying)
+    ex = normalize_symbol_for_storage(exchange)
+    return (
+        Path(root)
+        / "contracts"
+        / "futures"
+        / "candles"
+        / f"exchange={ex}"
+        / f"underlying={u}"
+        / f"expiry={expiry}"
+        / f"timeframe={timeframe}"
+        / "data.parquet"
+    )
+
+
+def option_candle_partition_path(
+    root: str,
+    underlying: str,
+    expiry_kind: str,
+    expiry_code: int,
+) -> Path:
+    """Canonical path for rolling options OHLCV parquet (``options/candles/``)."""
+    from datalake.core.symbols import normalize_symbol_for_storage
+
+    u = normalize_symbol_for_storage(underlying)
+    return (
+        Path(root)
+        / "options"
+        / "candles"
+        / f"underlying={u}"
+        / f"expiry_kind={expiry_kind}"
+        / f"expiry_code={int(expiry_code)}"
+        / "data.parquet"
+    )
 
 
 def symbol_partition_path(

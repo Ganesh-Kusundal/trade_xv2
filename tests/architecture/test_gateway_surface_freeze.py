@@ -49,6 +49,7 @@ _DHAN_PUBLIC = frozenset(
         "stream_order",
         "unstream",
         "unstream_order",
+        "get_expired_options_data",
     }
 )
 
@@ -87,6 +88,8 @@ _UPSTOX_PUBLIC = frozenset(
         "stream_order",
         "trades",
         "unstream",
+        "get_expired_historical_candles",
+        "get_expired_option_expiries",
     }
 )
 

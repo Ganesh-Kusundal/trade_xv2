@@ -66,6 +66,11 @@ def main() -> int:
         help="Tail + internal gap repair (slowest)",
     )
     parser.set_defaults(repair_scope="tail")
+    parser.add_argument(
+        "--with-options",
+        action="store_true",
+        help="After equity/index sync, run federated options sync (NIFTY/BANKNIFTY)",
+    )
     args = parser.parse_args()
 
     from runtime import datalake_sync
@@ -131,7 +136,23 @@ def main() -> int:
                     for row in result.get("sample", [])[:5]:
                         print(f"    {row}")
 
-    return 0 if report.ok else 1
+    if not report.ok:
+        return 1
+    if args.with_options:
+        return _run_options_sync()
+    return 0
+
+
+def _run_options_sync() -> int:
+    from runtime.options_sync import run_federated_options_sync
+
+    print("\nOptions sync (Dhan federation)...")
+    summary = run_federated_options_sync(print_fn=print)
+    print(
+        f"  Options: {summary['files_created']} created, "
+        f"{summary['files_merged']} merged, {summary['new_rows']:,} new rows"
+    )
+    return 0
 
 
 if __name__ == "__main__":

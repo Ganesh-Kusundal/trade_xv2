@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from application.composer.execution import ExecutionComposer
 from application.oms.order_manager import OrderResult
+from domain.orders.requests import OrderRequest
+from domain.enums import OrderType, ProductType, Side
+from domain.ports.execution_target import ExecutionTargetKind
+
+
+@pytest.fixture(autouse=True)
+def _wire_runtime_async_bridge():
+    from runtime.composition import wire_domain_port_sinks
+
+    wire_domain_port_sinks()
 
 
 class TestExecutionComposerKillSwitch:
@@ -81,14 +92,21 @@ class TestExecutionComposerKillSwitch:
             quota_scheduler=mock_quota_scheduler,
             risk_manager=mock_risk_manager,
             order_manager=mock_order_manager,
+            execution_target_kind=ExecutionTargetKind.PAPER,
         )
 
     @pytest.mark.asyncio
     async def test_place_order_delegates_to_oms(self, composer: ExecutionComposer) -> None:
-        request = MagicMock()
-        request.symbol = "RELIANCE"
-        request.side = "BUY"
-        request.quantity = 10
+        request = OrderRequest(
+            symbol="RELIANCE",
+            exchange="NSE",
+            transaction_type=Side.BUY,
+            quantity=10,
+            price=Decimal("0"),
+            order_type=OrderType.MARKET,
+            product_type=ProductType.INTRADAY,
+            correlation_id="composer:test:place",
+        )
 
         result = await composer.place_order(request)
 
@@ -113,6 +131,7 @@ class TestExecutionComposerKillSwitch:
             quota_scheduler=mock_quota_scheduler,
             risk_manager=mock_risk_manager,
             order_manager=om,
+            execution_target_kind=ExecutionTargetKind.PAPER,
         )
 
         result = await composer.cancel_order("order-123")
@@ -139,6 +158,7 @@ class TestExecutionComposerKillSwitch:
             quota_scheduler=mock_quota_scheduler,
             risk_manager=mock_risk_manager,
             order_manager=om,
+            execution_target_kind=ExecutionTargetKind.PAPER,
         )
         request = MagicMock()
         request.order_id = "order-123"

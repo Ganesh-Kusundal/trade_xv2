@@ -17,7 +17,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from domain.exceptions import (
@@ -211,6 +211,33 @@ async def tradexv2_exception_handler(
     )
 
 
+async def http_exception_handler(
+    request: Request,
+    exc: HTTPException,
+) -> JSONResponse:
+    """Handler for FastAPI HTTPException — consistent error envelope."""
+
+    error_response = ErrorResponse(
+        error_type="http_error",
+        message=str(exc.detail),
+        status_code=exc.status_code,
+    )
+
+    _exceptions_total.inc()
+    _exceptions_by_status.inc()
+
+    content = error_response.to_dict()
+    correlation_id = get_current_correlation_id()
+    if correlation_id:
+        content["correlation_id"] = correlation_id
+
+    return JSONResponse(
+        status_code=error_response.status_code,
+        content=content,
+        headers=getattr(exc, "headers", None) or {},
+    )
+
+
 async def generic_exception_handler(
     request: Request,
     exc: Exception,
@@ -260,6 +287,10 @@ def setup_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(
         TradeXV2Error,
         tradexv2_exception_handler,
+    )
+    app.add_exception_handler(
+        HTTPException,
+        http_exception_handler,
     )
     app.add_exception_handler(
         Exception,

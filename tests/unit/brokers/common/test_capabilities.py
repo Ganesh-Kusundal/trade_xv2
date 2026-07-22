@@ -1,5 +1,6 @@
 """Golden tests for BrokerCapabilities snapshots and query API."""
 
+from brokers.common.rate_limit_config import DHAN_RATE_LIMITS, profiles_from_table
 from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from brokers.providers.upstox.capabilities import upstox_capabilities
 
@@ -26,6 +27,12 @@ class TestDhanCapabilities:
         profile = caps.limit_for("orders")
         assert profile is not None
         assert profile.sustained_rps == 10.0
+        assert profile.extra_windows == ((250, 60.0), (7000, 86400.0))
+
+    def test_extra_windows_round_trip_through_profiles_from_table(self):
+        profiles = profiles_from_table(DHAN_RATE_LIMITS)
+        orders = next(p for p in profiles if p.endpoint_class == "orders")
+        assert orders.extra_windows == ((250, 60.0), (7000, 86400.0))
 
 
 class TestUpstoxCapabilities:
@@ -48,6 +55,12 @@ class TestUpstoxCapabilities:
         window = caps.historical_window_for("1m")
         assert window is not None
         assert window.max_lookback_days == 30
+
+    def test_orders_extra_windows(self):
+        caps = upstox_capabilities()
+        profile = caps.limit_for("orders")
+        assert profile is not None
+        assert profile.extra_windows == ((500, 60.0), (2000, 1800.0))
 
     def test_can_serve_historical_respects_window(self):
         caps = upstox_capabilities()

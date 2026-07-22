@@ -30,6 +30,26 @@ _APPROVED_EDGES: frozenset[tuple[str, str]] = frozenset(
             "application.data.sync_fetch_strategy",
             "infrastructure.gateway.factory",
         ),
+        (
+            "application.data.contract_sync_fetch_strategy",
+            "infrastructure.adapters.market_data_gateway_adapter",
+        ),
+        (
+            "application.data.contract_sync_fetch_strategy",
+            "infrastructure.gateway.factory",
+        ),
+        (
+            "application.data.options_sync_fetch_strategy",
+            "infrastructure.adapters.market_data_gateway_adapter",
+        ),
+        (
+            "application.data.options_sync_fetch_strategy",
+            "infrastructure.gateway.factory",
+        ),
+        (
+            "application.data.options_historical_coordinator",
+            "infrastructure.batch_executor",
+        ),
     }
 )
 

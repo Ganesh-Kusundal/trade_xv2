@@ -49,7 +49,7 @@ def test_subscribe_depth_true_routes_through_stream_depth():
     iid = InstrumentId(exchange="NSE", underlying="RELIANCE")
 
     received = []
-    provider.subscribe(iid, lambda i, payload: received.append(payload), depth=True)
+    provider.subscribe(iid, lambda i, payload: received.append(payload), depth=True, levels=5)
 
     assert gw.stream_depth_calls == [{"symbol": "RELIANCE", "exchange": "NSE", "levels": 5}]
     assert gw.stream_calls == []

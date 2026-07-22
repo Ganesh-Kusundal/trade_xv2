@@ -158,9 +158,10 @@ class PaperDataProvider(DataProvider):
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
+        levels: int = 5,
     ) -> SubscriptionHandle:
         """Paper subscribe: deliver one snapshot so Instrument state updates."""
-        del depth  # paper has no separate depth stream
+        del depth, levels  # paper has no separate depth stream
         handle = _PaperSubscriptionHandle()
         try:
             quote = self.get_quote(instrument_id)

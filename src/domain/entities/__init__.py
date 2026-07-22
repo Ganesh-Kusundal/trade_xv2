@@ -11,7 +11,7 @@ The individual sub-modules are::
     domain.entities.trade      — Trade
     domain.entities.position   — Position, Holding, PositionState, POSITION_STATE_TRANSITIONS
     domain.entities.account    — Balance, FundLimits (alias)
-    domain.entities.market     — Quote, MarketDepth, DepthLevel, DepthKind, MarketTick, QuoteSnapshot
+    domain.entities.market     — Quote, MarketDepth, DepthLevel, DepthKind, DepthSnapshot, MarketTick, QuoteSnapshot
     domain.entities.options    — OptionChain, OptionStrike, OptionLeg, FutureChain, FutureContract, OptionContract
     domain.entities.instrument — Instrument
     domain.entities.alerts     — ConditionalAlert, ConditionalAlertRequest, MarketIntelligenceSnapshot, PnlExitPolicy, PnlExitResult
@@ -41,6 +41,7 @@ from domain.entities.instrument_record import Instrument, InstrumentRecord
 from domain.entities.market import (
     DepthKind,
     DepthLevel,
+    DepthSnapshot,
     MarketDepth,
     MarketTick,
     Quote,
@@ -85,6 +86,7 @@ __all__ = [
     "ConditionalAlertRequest",
     "DepthKind",
     "DepthLevel",
+    "DepthSnapshot",
     "FieldMapping",
     "FundLimits",
     "FutureChain",

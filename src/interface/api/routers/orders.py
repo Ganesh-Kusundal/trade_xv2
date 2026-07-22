@@ -1,13 +1,11 @@
 """Orders endpoints (orders, trades, orderbook)."""
 
-import asyncio
 import logging
-import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from domain.enums import (
     OrderStatus,
@@ -16,9 +14,10 @@ from domain.enums import (
     Side,
 )
 from domain.orders.requests import OrderRequest as DomainOrderRequest
-from domain.ports.async_bridge import run_coro_sync
 from infrastructure.observability.tracing import trace_operation
 from interface.api.auth import require_auth
+from interface.api.order_idempotency import IDEMPOTENCY_HEADER, resolve_api_correlation_id
+from interface.api.order_mapping import map_api_order_type, map_api_product_type
 from interface.api.deps import (
     enforce_live_order_authority,
     get_execution_composer,
@@ -144,6 +143,7 @@ def _api_to_domain_order_request(
     side: Side,
     order_type: OrderType,
     product_type: ProductType,
+    correlation_id: str,
 ) -> DomainOrderRequest:
     """Map API schema → domain OrderRequest for ExecutionComposer."""
     price = Decimal(str(req.price)) if req.price else Decimal("0")
@@ -159,7 +159,7 @@ def _api_to_domain_order_request(
         trigger_price=trigger,
         order_type=order_type,
         product_type=product_type,
-        correlation_id=req.correlation_id or f"api:{uuid.uuid4().hex[:12]}",
+        correlation_id=correlation_id,
     )
 
 
@@ -168,20 +168,33 @@ def _api_to_domain_order_request(
 async def place_order(
     req: OrderRequest,
     composer: Any = Depends(get_execution_composer),
+    x_idempotency_key: Annotated[str | None, Header(alias=IDEMPOTENCY_HEADER)] = None,
 ):
     """Place a new order via process ExecutionComposer + OMS spine.
 
     Path: API → live authority gate → ExecutionComposer → OMS → broker.
     Broker is resolved from server ``TRADEX_PRIMARY_BROKER`` / trading config
     (not from client input). Uses the process session wired at startup (ADR-0020).
+
+    Idempotency: supply ``correlation_id`` in the body or ``X-Idempotency-Key`` header.
     """
     broker = _resolve_api_broker()
 
     try:
+        correlation_id = resolve_api_correlation_id(req.correlation_id, x_idempotency_key)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    try:
         side = Side(req.transaction_type.upper())
-        order_type = OrderType(req.order_type.upper())
+        order_type = OrderType(map_api_order_type(req.order_type))
         product_type = (
-            ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY
+            ProductType(map_api_product_type(req.product_type))
+            if req.product_type
+            else ProductType.INTRADAY
         )
     except ValueError as exc:
         raise HTTPException(
@@ -195,15 +208,19 @@ async def place_order(
             "symbol": req.symbol,
             "exchange": req.exchange or "NSE",
             "side": req.transaction_type.upper(),
-            "order_type": req.order_type.upper(),
+            "order_type": order_type.value,
             "quantity": req.quantity,
             "price": req.price or "0",
-            "product_type": (req.product_type or product_type.value).upper(),
+            "product_type": product_type.value,
         },
     )
 
     domain_req = _api_to_domain_order_request(
-        req, side=side, order_type=order_type, product_type=product_type
+        req,
+        side=side,
+        order_type=order_type,
+        product_type=product_type,
+        correlation_id=correlation_id,
     )
 
     try:
@@ -244,18 +261,19 @@ async def modify_order(
     composer: Any = Depends(get_execution_composer),
     om=Depends(get_order_manager),
 ):
-    """Modify an existing order through the OMS singleton.
+    """Modify an existing order via ExecutionComposer.
 
-    Phase 2: routes modify through the shared OrderManager (single owner of
-    order state + idempotency) but uses the ExecutionComposer only as the
-    transport (broker routing/quota). The OMS kill-switch guards the mutation.
+    404 is checked via OMS lookup; mutation routes directly through the composer
+    (single OMS spine inside ExecutionComposer).
     """
 
     try:
         Side(req.transaction_type.upper())
-        order_type = OrderType(req.order_type.upper())
+        order_type = OrderType(map_api_order_type(req.order_type))
         product_type = (
-            ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY
+            ProductType(map_api_product_type(req.product_type))
+            if req.product_type
+            else ProductType.INTRADAY
         )
     except ValueError as exc:
         raise HTTPException(
@@ -281,10 +299,10 @@ async def modify_order(
             "symbol": req.symbol,
             "exchange": req.exchange or existing.exchange,
             "side": req.transaction_type.upper(),
-            "order_type": req.order_type.upper(),
+            "order_type": order_type.value,
             "quantity": req.quantity,
             "price": req.price or (float(existing.price) if existing.price else "0"),
-            "product_type": (req.product_type or existing.product_type.value).upper(),
+            "product_type": product_type.value,
         },
     )
 
@@ -298,18 +316,23 @@ async def modify_order(
         product_type=product_type,
     )
 
-    def modify_fn(r: ModifyOrderRequest) -> Any:
-        return run_coro_sync(composer.modify_order(r))
-
-    result = await asyncio.to_thread(om.modify_order, modify_req, modify_fn=modify_fn)
-
-    if not result.success:
+    try:
+        response = await composer.modify_order(modify_req)
+    except Exception as exc:
+        logger.exception("modify_order failed via ExecutionComposer")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order modification rejected",
+            detail=str(exc),
+        ) from exc
+
+    if not response.success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=response.message or "Order modification rejected",
         )
 
-    order = result.order or existing
+    order = om.get_order(order_id) or existing
+    status_val = getattr(getattr(response, "status", None), "value", None) or order.status.value
     return OrderResponse(
         order_id=order.order_id,
         symbol=order.symbol,
@@ -318,7 +341,7 @@ async def modify_order(
         order_type=order.order_type.value,
         quantity=order.quantity,
         price=float(order.price) if order.price else None,
-        status=order.status.value,
+        status=status_val,
     )
 
 
@@ -329,10 +352,10 @@ async def cancel_order(
     composer: Any = Depends(get_execution_composer),
     om=Depends(get_order_manager),
 ):
-    """Cancel a pending order through the OMS singleton.
+    """Cancel a pending order via ExecutionComposer.
 
-    Only works for orders in PENDING or TRIGGER_PENDING status. Routes through
-    the shared OrderManager (kill-switch guarded) using the composer as transport.
+    404 is checked via OMS lookup; cancellation routes directly through the
+    composer (single OMS spine inside ExecutionComposer).
     """
 
     existing = om.get_order(order_id)
@@ -344,19 +367,23 @@ async def cancel_order(
 
     enforce_live_order_authority(mutation_action="cancel")
 
-    def cancel_fn(oid: str) -> bool:
-        response = run_coro_sync(composer.cancel_order(oid))
-        return bool(getattr(response, "success", False))
-
-    result = await asyncio.to_thread(om.cancel_order, order_id, cancel_fn=cancel_fn)
-
-    if not result.success:
+    try:
+        response = await composer.cancel_order(order_id)
+    except Exception as exc:
+        logger.exception("cancel_order failed via ExecutionComposer")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order cancellation rejected",
+            detail=str(exc),
+        ) from exc
+
+    if not response.success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=response.message or "Order cancellation rejected",
         )
 
-    order = result.order or existing
+    order = om.get_order(order_id) or existing
+    status_val = getattr(getattr(response, "status", None), "value", None) or order.status.value
     return OrderResponse(
         order_id=order.order_id,
         symbol=order.symbol,
@@ -365,5 +392,5 @@ async def cancel_order(
         order_type=order.order_type.value,
         quantity=order.quantity,
         price=float(order.price) if order.price else None,
-        status=order.status.value,
+        status=status_val,
     )

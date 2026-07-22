@@ -47,10 +47,10 @@ def build_federated_fetch_fn(
     from domain.ports.async_bridge import run_coro_sync
     from infrastructure.adapters.market_data_gateway_adapter import wrap_market_gateway
     from infrastructure.gateway.factory import require_gateway
-    from runtime.composition import wire_domain_port_sinks
+    from runtime.kernel import ProcessKernel
     from runtime.event_loop import ensure_runtime_loop_running
 
-    wire_domain_port_sinks()
+    ProcessKernel.wire()
 
     # Without this, every worker thread's run_coro_sync() call below falls
     # back to spinning up and tearing down its own ephemeral event loop per

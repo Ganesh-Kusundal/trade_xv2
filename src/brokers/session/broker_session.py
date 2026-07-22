@@ -66,9 +66,9 @@ def _ensure_domain_ports_wired() -> None:
     idempotent, so this is a no-op when the real composition root already
     ran it.
     """
-    from runtime.composition import wire_domain_port_sinks
+    from runtime.kernel import ProcessKernel
 
-    wire_domain_port_sinks()
+    ProcessKernel.wire()
 
 
 class BrokerSession:

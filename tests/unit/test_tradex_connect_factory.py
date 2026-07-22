@@ -97,8 +97,17 @@ def test_connect_dhan_trade_with_process_oms():
     with patch("infrastructure.gateway.factory._create_transport_gateway", return_value=mock_gw):
         import brokers.providers.dhan  # noqa: F401
         from application.oms import has_oms_context
+        from infrastructure.bootstrap import build_event_bus
+        from infrastructure.event_bus.processed_trade_repository import (
+            ProcessedTradeRepository,
+        )
 
-        oms_svc = build_oms_service(mock_ep, broker_id="paper")
+        oms_svc = build_oms_service(
+            mock_ep,
+            broker_id="paper",
+            event_bus=build_event_bus(),
+            processed_trade_repository=ProcessedTradeRepository(),
+        )
 
         class _Ctx:
             order_manager = oms_svc.order_manager

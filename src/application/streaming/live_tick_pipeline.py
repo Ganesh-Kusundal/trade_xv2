@@ -47,6 +47,8 @@ def market_tick_from_event(event: DomainEvent) -> MarketTick | None:
     """
     payload = dict(event.payload)
     quote = payload.get("quote")
+    sequence = _coerce_optional_int(payload.get("sequence"))
+    session_id = str(payload.get("session_id") or "")
 
     if isinstance(quote, Quote):
         symbol = (quote.symbol or event.symbol or "").strip()
@@ -78,8 +80,16 @@ def market_tick_from_event(event: DomainEvent) -> MarketTick | None:
         event_time=event_time,
         provenance=DataProvenance.now(broker_id, "eventbus.tick"),
         volume=volume,
+        sequence=sequence,
         broker_id=broker_id,
+        session_id=session_id,
     )
+
+
+def _coerce_optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 def _coerce_event_time(ts: datetime | None) -> datetime:

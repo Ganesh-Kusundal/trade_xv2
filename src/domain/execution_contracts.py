@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from domain.enums import OrderType, ProductType
 from domain.enums import Side
+from domain.parsing import require_tz_aware
 
 if TYPE_CHECKING:
     from domain.ports.time_service import ClockPort
@@ -54,8 +55,10 @@ class OrderIntent:
             raise ValueError("execution intent identifiers are required")
         if self.quantity <= 0:
             raise ValueError("execution intent quantity must be positive")
-        if self.created_at.tzinfo is None:
-            raise ValueError("execution intent timestamp must be timezone-aware")
+        require_tz_aware(
+            self.created_at,
+            "execution intent timestamp must be timezone-aware",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +75,11 @@ class SubmissionOutcome:
     def __post_init__(self) -> None:
         if not self.intent_id:
             raise ValueError("submission outcome intent_id is required")
-        if self.observed_at is not None and self.observed_at.tzinfo is None:
-            raise ValueError("submission outcome timestamp must be timezone-aware")
+        if self.observed_at is not None:
+            require_tz_aware(
+                self.observed_at,
+                "submission outcome timestamp must be timezone-aware",
+            )
         if self.state is SubmissionState.ACCEPTED and not self.broker_order_id:
             raise ValueError("accepted submission requires broker_order_id")
 
@@ -138,8 +144,10 @@ class LedgerFillRecord:
             raise ValueError("ledger fill identifiers are required")
         if self.quantity <= 0:
             raise ValueError("ledger fill quantity must be positive")
-        if self.event_time.tzinfo is None:
-            raise ValueError("ledger fill event_time must be timezone-aware")
+        require_tz_aware(
+            self.event_time,
+            "ledger fill event_time must be timezone-aware",
+        )
 
 
 # Preferred name for durable ledger command (TOS-P1-002)

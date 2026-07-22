@@ -17,9 +17,22 @@ def _clear_risk_fail_open(monkeypatch):
     monkeypatch.delenv("RISK_FAIL_OPEN", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _block_live_env_bootstrap(monkeypatch, tmp_path):
+    """Prevent .env.local from triggering full Dhan bootstrap in factory tests."""
+    monkeypatch.setattr(
+        "interface.ui.services.broker_service._ENV_PATH",
+        tmp_path / "missing.env.local",
+    )
+    monkeypatch.setattr(
+        "interface.ui.services.broker_registry.resolve_env_path",
+        lambda _broker_id: None,
+    )
+
+
 def test_build_for_api_wires_real_broker_service_with_composition_bus():
     """API bootstrap uses create_api_event_bus and real BrokerService."""
-    runtime = build_for_api(skip_parity_gate=True)
+    runtime = build_for_api(skip_parity_gate=True, wire_orchestrator=False)
     try:
         assert runtime.broker_service is not None
         assert runtime.event_bus is not None
@@ -46,7 +59,7 @@ def test_build_for_api_uses_composition_module():
         "runtime.composition.create_api_event_bus",
         wraps=real_create,
     ) as create_bus:
-        runtime = build_for_api(skip_parity_gate=True)
+        runtime = build_for_api(skip_parity_gate=True, wire_orchestrator=False)
         try:
             create_bus.assert_called_once()
             assert runtime.event_bus is runtime.broker_service._event_bus

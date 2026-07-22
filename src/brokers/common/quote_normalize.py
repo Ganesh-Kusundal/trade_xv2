@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.quote_timestamp import parse_quote_exchange_time
 from domain.candles.historical import InstrumentRef
 from domain.entities.market import QuoteSnapshot
 from domain.instruments.instrument_id import InstrumentId
@@ -76,7 +77,9 @@ def normalize_broker_quote(
     now: datetime | None = None,
 ) -> QuoteSnapshot:
     """Map broker-native quote payloads to ``QuoteSnapshot``."""
-    event_time = now or get_current_clock().now()
+    fetched_at = now or get_current_clock().now()
+    provider_timestamp = parse_quote_exchange_time(raw_quote, fetched_at)
+    event_time = provider_timestamp or fetched_at
     if isinstance(raw_quote, dict):
         ohlc = raw_quote.get("ohlc") or {}
         ltp = _decimal(raw_quote.get("last_price", raw_quote.get("ltp", 0)))
@@ -114,7 +117,8 @@ def normalize_broker_quote(
         event_time=event_time,
         provenance=DataProvenance(
             source=SourceIdentity(broker_id=broker_id),
-            fetched_at=event_time,
+            fetched_at=fetched_at,
+            provider_timestamp=provider_timestamp,
             request_id="",
             confidence=ProvenanceConfidence.AUTHORITATIVE,
         ),

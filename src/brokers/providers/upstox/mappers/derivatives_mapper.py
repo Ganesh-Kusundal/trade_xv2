@@ -13,11 +13,13 @@ from decimal import Decimal
 from typing import Any
 
 from domain.entities import (
+    DepthKind,
     DepthLevel,
     MarketDepth,
     Order,
     OrderResponse,
 )
+from domain.ports.time_service import get_current_clock
 from domain.orders.requests import OrderRequest
 from domain.enums import (
     OrderStatus,
@@ -281,6 +283,8 @@ def to_market_depth(payload: Any) -> MarketDepth:
     return MarketDepth(
         bids=_to_levels(bids),
         asks=_to_levels(asks),
+        depth_type=DepthKind.DEPTH_5,
+        timestamp=get_current_clock().now(),
     )
 
 

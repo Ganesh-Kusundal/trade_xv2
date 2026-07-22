@@ -156,12 +156,16 @@ def sync_all(
     loader = HistoricalDataLoader(root=root, catalog=catalog)
 
     from datalake.ingestion.sync_manifest import resolve_sync_work
+    from datalake.ingestion.catalog_sync_scope import (
+        gate_equity_sync_entries,
+        list_catalog_symbols,
+    )
 
     delisted = load_delisted(root)
-    work_keys = [
-        f"{entry.symbol}|{entry.asset}"
-        for entry in resolve_sync_work(root, assets=assets, delisted=delisted)
-    ]
+    manifest_work = resolve_sync_work(root, assets=assets, delisted=delisted)
+    catalog_symbols = list_catalog_symbols(root, timeframe=timeframe)
+    work_entries, _skipped = gate_equity_sync_entries(manifest_work, catalog_symbols)
+    work_keys = [f"{entry.symbol}|{entry.asset}" for entry in work_entries]
     if limit:
         work_keys = work_keys[:limit]
 

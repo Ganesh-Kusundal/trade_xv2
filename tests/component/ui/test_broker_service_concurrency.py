@@ -10,9 +10,12 @@ positions in sync.
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from decimal import Decimal
 
 from brokers.providers.paper.paper_gateway import PaperGateway
 from domain import Order, Trade
+from domain.enums import Side
+from domain.orders.requests import OrderRequest
 
 
 @dataclass
@@ -52,7 +55,9 @@ class TestMockBrokerConcurrency:
         broker = _make_broker()
 
         def place():
-            return broker.place_order("RELIANCE", "NSE", "BUY", 1)
+            return broker.place_order(
+                OrderRequest("RELIANCE", "NSE", Side.BUY, 1, price=Decimal("100"))
+            )
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(place) for _ in range(100)]
@@ -66,7 +71,9 @@ class TestMockBrokerConcurrency:
         broker = _make_broker()
 
         def place():
-            return broker.place_order("RELIANCE", "NSE", "BUY", 1)
+            return broker.place_order(
+                OrderRequest("RELIANCE", "NSE", Side.BUY, 1, price=Decimal("100"))
+            )
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(place) for _ in range(20)]
@@ -81,12 +88,12 @@ class TestMockBrokerConcurrency:
 
     def test_positions_reflect_fills(self):
         broker = _make_broker()
-        broker.place_order("RELIANCE", "NSE", "BUY", 10)
+        broker.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100")))
         positions_after_first = broker.positions()
         reliance_1 = [p for p in positions_after_first if p.symbol == "RELIANCE"]
         assert len(reliance_1) >= 1
 
-        broker.place_order("RELIANCE", "NSE", "BUY", 10)
+        broker.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100")))
         positions_after_second = broker.positions()
         reliance_2 = [p for p in positions_after_second if p.symbol == "RELIANCE"]
         assert len(reliance_2) >= 1

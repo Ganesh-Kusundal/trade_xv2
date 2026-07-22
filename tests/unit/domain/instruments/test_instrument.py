@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -35,13 +35,14 @@ def _clear_provider_ambient():
 def _make_quote(
     symbol="RELIANCE", exchange="NSE", ltp=Decimal("2450"), bid=Decimal("2449"), ask=Decimal("2451")
 ):
+    now = datetime.now(tz=timezone.utc)
     return QuoteSnapshot(
         instrument=InstrumentRef(symbol=symbol, exchange=exchange),
         ltp=ltp,
-        event_time=datetime.now(),
+        event_time=now,
         provenance=DataProvenance(
             source=SourceIdentity(broker_id="mock"),
-            fetched_at=datetime.now(),
+            fetched_at=now,
             request_id="test",
             confidence=ProvenanceConfidence.AUTHORITATIVE,
         ),

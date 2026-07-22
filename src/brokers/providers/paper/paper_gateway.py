@@ -268,10 +268,17 @@ class PaperGateway(BaseWireAdapter, BrokerAdapter):
 
     def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         d = self._market_data.get_depth(symbol, exchange)
+        from domain.candles.historical import InstrumentRef
+        from domain.entities import DepthKind
+        from domain.ports.time_service import get_current_clock
+
         return MarketDepth(
             symbol=symbol,
+            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
             bids=list(d.bids),
             asks=list(d.asks),
+            depth_type=DepthKind.DEPTH_5,
+            timestamp=get_current_clock().now(),
         )
 
     def option_chain(

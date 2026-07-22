@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from domain.candles.historical import InstrumentRef
-from domain.entities.market import MarketDepth, MarketTick, Quote
+from domain.entities.market import DepthSnapshot, MarketDepth, MarketTick, Quote
 from domain.entities.options import FutureChain, FutureContract, OptionChain
 from domain.provenance import DataProvenance
 
@@ -54,8 +54,9 @@ def test_future_chain_to_dict_strips_tokens() -> None:
 def test_market_depth_snapshot() -> None:
     depth = MarketDepth(symbol="RELIANCE")
     snap = depth.snapshot()
-    assert snap["symbol"] == "RELIANCE"
-    assert "security_id" not in snap
+    assert isinstance(snap, DepthSnapshot)
+    assert snap.instrument.symbol == "RELIANCE"
+    assert "security_id" not in snap.snapshot()
 
 
 @pytest.mark.unit

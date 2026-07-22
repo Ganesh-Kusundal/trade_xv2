@@ -1,4 +1,4 @@
-"""CLI command for syncing option data from Trade_J DuckDB to TradeXV2 Parquet."""
+"""CLI command for syncing option data from broker federation to TradeXV2 Parquet."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 
 from rich.console import Console
 
-from datalake.ingestion.sync_options import sync_options
+from runtime.options_sync import run_federated_options_sync
 
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_options_sync(args: list[str], console: Console) -> None:
-    """Sync option data from Trade_J DuckDB into TradeXV2 Parquet.
+    """Sync option data from Dhan/Upstox federation into TradeXV2 Parquet.
 
     Usage: tradex options sync [--dry-run]
     """
@@ -25,17 +25,14 @@ def run_options_sync(args: list[str], console: Console) -> None:
 
     if dry_run:
         console.print("[yellow]DRY-RUN: not writing to disk[/yellow]")
-
-    console.print("[dim]Syncing option data from Trade_J DuckDB → TradeXV2...[/dim]")
-
-    try:
-        summary = sync_options()
-    except Exception as exc:
-        console.print(f"[red]Sync failed: {exc}[/red]")
         return
 
-    if dry_run:
-        console.print("[green]DRY-RUN complete. No data written.[/green]")
+    console.print("[dim]Syncing option data from broker federation → TradeXV2...[/dim]")
+
+    try:
+        summary = run_federated_options_sync(print_fn=console.print)
+    except Exception as exc:
+        console.print(f"[red]Sync failed: {exc}[/red]")
         return
 
     console.print(

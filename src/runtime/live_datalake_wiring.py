@@ -27,18 +27,24 @@ def _publish_tick(event_bus: Any, tick) -> None:
     )
     from runtime.tick_authority import record_tick_publish
 
+    payload: dict[str, object] = {
+        "quote": quote,
+        "exchange": tick.instrument.exchange,
+        "ltp": tick.ltp,
+        "volume": tick.volume,
+        "timestamp": tick.event_time,
+    }
+    if tick.sequence is not None:
+        payload["sequence"] = tick.sequence
+    if tick.session_id:
+        payload["session_id"] = tick.session_id
+
     event_bus.publish(
         DomainEvent(
             event_type=EventType.TICK,
             symbol=tick.instrument.symbol,
             source=tick.broker_id or "stream",
-            payload={
-                "quote": quote,
-                "exchange": tick.instrument.exchange,
-                "ltp": tick.ltp,
-                "volume": tick.volume,
-                "timestamp": tick.event_time,
-            },
+            payload=payload,
         )
     )
     record_tick_publish()

@@ -20,6 +20,7 @@ from domain.candles._helpers import (
     coerce_decimal,
     coerce_event_time,
 )
+from domain.parsing import require_tz_aware
 from domain.candles._indicators import SeriesIndicators
 from domain.market_enums import ExchangeId
 from domain.provenance import DataProvenance, ProvenanceConfidence
@@ -72,11 +73,11 @@ class HistoricalBar:
         # downstream instead of being converted). Every construction
         # path must explicitly tag a timezone -- fail fast here instead
         # of writing mislabeled candles to the datalake.
-        if self.event_time.tzinfo is None:
-            raise ValueError(
-                f"HistoricalBar.event_time must be timezone-aware, got naive "
-                f"{self.event_time!r} for {self.instrument}"
-            )
+        require_tz_aware(
+            self.event_time,
+            f"HistoricalBar.event_time must be timezone-aware, got naive "
+            f"{self.event_time!r} for {self.instrument}",
+        )
 
     @property
     def symbol(self) -> str:

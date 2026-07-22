@@ -10,6 +10,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from brokers.providers.paper.paper_gateway import PaperGateway as MockBroker
+from domain.enums import Side
+from domain.orders.requests import OrderRequest
 from interface.ui.services.broker_service import BrokerService
 from interface.ui.services.cli_broker_facade import CliBrokerFacade
 from tests.conftest import build_test_trading_context
@@ -30,7 +32,7 @@ def test_oms_service_reads_from_trading_context() -> None:
     broker = MockBroker(trading_context=ctx)
     service = _make_service(gateway=broker, trading_context=ctx)
 
-    broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
+    broker.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("2500")))
 
     orders = service.get_orders()
     assert len(orders) == 1
@@ -45,7 +47,7 @@ def test_oms_service_cancel_order_via_context() -> None:
     broker = MockBroker(trading_context=ctx)
     service = _make_service(gateway=broker, trading_context=ctx)
 
-    broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
+    broker.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("2500")))
     order = ctx.order_manager.get_orders()[0]
 
     # Filled order cannot be cancelled.
@@ -57,5 +59,5 @@ def test_oms_service_gateway_fallback() -> None:
     broker = MockBroker(trading_context=ctx)
     service = _make_service(gateway=broker, trading_context=ctx)
 
-    broker.place_order("RELIANCE", "NSE", "BUY", 5, price=Decimal("2500"))
+    broker.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 5, price=Decimal("2500")))
     assert len(service.get_orders()) == 1

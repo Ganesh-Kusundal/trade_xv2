@@ -218,7 +218,9 @@ class HistoricalDataService:
                         "volume": int(getattr(c, "volume", 0)),
                     }
                 )
-            df = pd.DataFrame(rows)
+            from datalake.ingestion.normalize import ensure_timestamp_dtype
+
+            df = ensure_timestamp_dtype(pd.DataFrame(rows))
             table = pa.Table.from_pandas(df, preserve_index=False)
             atomic_parquet_write(path, table, compression="snappy")
         except Exception as exc:

@@ -234,10 +234,12 @@ class StreamingGateway:
 
     def _translate_tick_to_depth(self, payload: dict[str, Any], symbol: str) -> MarketDepth:
         """Translate raw depth tick payload to MarketDepth domain model."""
-        from datetime import datetime, timezone
         from decimal import Decimal
 
+        from brokers.common.quote_timestamp import parse_quote_exchange_time
         from domain.entities import DepthLevel
+        from domain.entities.market import DepthKind
+        from domain.ports.time_service import get_current_clock
 
         raw_bids = payload.get("depth", {}).get("bids", [])
         raw_asks = payload.get("depth", {}).get("asks", [])
@@ -260,14 +262,16 @@ class StreamingGateway:
         ]
 
         depth_len = max(len(bids), len(asks))
-        depth_type = "DEPTH_30" if depth_len > 20 else "DEPTH_5"
+        depth_kind = DepthKind.DEPTH_30 if depth_len > 20 else DepthKind.DEPTH_5
+        fetched_at = get_current_clock().now()
+        broker_ts = parse_quote_exchange_time(payload, fetched_at)
 
         return MarketDepth(
             symbol=symbol,
             bids=bids,
             asks=asks,
-            timestamp=datetime.now(timezone.utc),
-            depth_type=depth_type,
+            timestamp=broker_ts or fetched_at,
+            depth_type=depth_kind,
         )
 
     def _translate_tick_to_quote(self, raw: dict[str, Any]) -> Quote | dict[str, Any]:

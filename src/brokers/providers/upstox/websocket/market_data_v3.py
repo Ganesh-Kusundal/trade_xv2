@@ -103,6 +103,7 @@ class UpstoxMarketDataV3Multiplexer:
         self.published_ticks = 0
         self.dropped_ticks = 0
         self.dropped_bus_ticks = 0
+        self._tick_sequences: dict[str, int] = {}
         self._degrade_every_n_drops = max(1, degrade_every_n_drops)
         self._socket: Any = None
         self._listeners: list[TickListener] = []
@@ -497,10 +498,12 @@ class UpstoxMarketDataV3Multiplexer:
             self._record_tick_drop(frame, "translation_failed")
             return
         try:
+            seq = self._tick_sequences.get(quote.symbol, 0) + 1
+            self._tick_sequences[quote.symbol] = seq
             self._event_bus.publish(
                 DomainEvent.now(
                     "TICK",
-                    {"quote": quote},
+                    {"quote": quote, "sequence": seq},
                     symbol=quote.symbol,
                     source="UpstoxMarketDataV3",
                 )

@@ -67,6 +67,11 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
         optional_keys=("ltp", "timestamp"),
         notes="DEPTH_20 carries a 20-level order-book snapshot.",
     ),
+    EventType.DEPTH_30: EventPayload(
+        required_keys=("bids", "asks"),
+        optional_keys=("ltp", "timestamp"),
+        notes="DEPTH_30 carries a 30-level order-book snapshot (Upstox).",
+    ),
     EventType.DEPTH_200: EventPayload(
         required_keys=("bids", "asks"),
         optional_keys=("ltp", "timestamp"),

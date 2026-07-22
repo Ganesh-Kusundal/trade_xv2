@@ -393,6 +393,40 @@ def get_live_broker_name() -> str:
     return str(getattr(svc, "active_broker_name", "unknown"))
 
 
+def enforce_extended_order_spine_policy() -> None:
+    """Block extended order mutations that bypass place_order_spine (audit R6).
+
+    ponytail: until extended orders route through the unified OMS spine, block
+    under ADR-0012 paper default and in production/staging always.
+    """
+    from config.schema import AppConfig
+    from runtime.execution_config import is_live_execution_target
+
+    if not is_live_execution_target():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Extended order mutations disabled under ADR-0012 paper-only "
+                "execution boundary"
+            ),
+        )
+
+    cfg = AppConfig.from_env()
+    if cfg.is_production_or_staging():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Extended order mutations disabled in production until routed "
+                "through unified OMS spine (IdempotencyGuard + place_order_spine)"
+            ),
+        )
+
+
+def require_extended_order_spine_allowed() -> None:
+    """FastAPI dependency wrapper for extended order mutation routes."""
+    enforce_extended_order_spine_policy()
+
+
 _trade_journal_instance: Any = None
 
 

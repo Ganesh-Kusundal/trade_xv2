@@ -261,6 +261,53 @@ def datalake_sync(
         raise SystemExit(1)
 
 
+@datalake.command("parity-contracts")
+@click.option("--exchange", default="NFO")
+@click.option("--underlying", default="NIFTY")
+@click.option("--expiry", required=True, help="YYYY-MM-DD")
+@click.option("--timeframe", default="5m")
+def datalake_parity_contracts(exchange: str, underlying: str, expiry: str, timeframe: str) -> None:
+    """Compare shadow vs production contract-lake partitions."""
+    from datalake.ingestion.contract_parity import compare_contract_shadow_parity
+
+    result = compare_contract_shadow_parity(
+        exchange=exchange,
+        underlying=underlying,
+        expiry=expiry,
+        timeframe=timeframe,
+    )
+    click.echo(result)
+
+
+@datalake.command("sync-contracts")
+@click.option("--shadow/--no-shadow", default=False, help="Write under contracts_shadow/ (parity mode)")
+def datalake_sync_contracts(shadow: bool) -> None:
+    """Federated contract-centric options/futures historical sync."""
+    import os
+
+    if shadow:
+        os.environ["TRADEX_CONTRACT_LAKE_SHADOW"] = "1"
+    from runtime.contract_historical_sync import run_federated_contract_sync
+
+    summary = run_federated_contract_sync()
+    click.echo(summary)
+
+
+@datalake.command("sync-options")
+@click.option(
+    "--skip-view-refresh", is_flag=True, help="Skip rematerializing option analytics views."
+)
+def datalake_sync_options(skip_view_refresh: bool) -> None:
+    """Sync NIFTY/BANKNIFTY rolling options history (Dhan federation)."""
+    from runtime.options_sync import run_federated_options_sync
+
+    summary = run_federated_options_sync(
+        print_fn=click.echo,
+        refresh_views=not skip_view_refresh,
+    )
+    click.echo(json.dumps(summary, indent=2, default=str))
+
+
 @tradex.group()
 def support() -> None:
     """Support/resistance levels (read-only datalake query)."""

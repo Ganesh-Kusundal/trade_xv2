@@ -183,27 +183,12 @@ def _best_bid_ask(raw_depth: Any) -> tuple[Decimal | None, Decimal | None]:
     )
 
 
+from brokers.common.quote_timestamp import parse_quote_exchange_time
+
+
 def _parse_quote_exchange_time(data: dict, now: datetime) -> datetime:
     """Prefer exchange time from the SDK frame; fall back to *now*."""
-    for key in ("last_traded_time", "exchange_timestamp", "LTT", "timestamp"):
-        ts_raw = data.get(key)
-        if ts_raw is None or ts_raw == "":
-            continue
-        if isinstance(ts_raw, datetime):
-            return ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=now.tzinfo)
-        try:
-            if isinstance(ts_raw, int | float):
-                if ts_raw <= 0:
-                    continue
-                if ts_raw > 1e11:
-                    return datetime.fromtimestamp(ts_raw / 1000, tz=now.tzinfo)
-                return datetime.fromtimestamp(ts_raw, tz=now.tzinfo)
-            if isinstance(ts_raw, str) and ts_raw.strip():
-                parsed = datetime.fromisoformat(ts_raw)
-                return parsed if parsed.tzinfo else parsed.replace(tzinfo=now.tzinfo)
-        except (ValueError, OSError, OverflowError):
-            continue
-    return now
+    return parse_quote_exchange_time(data, now) or now
 
 
 def _transform_quote(data: dict, resolver: Any = None) -> dict:

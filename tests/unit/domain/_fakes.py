@@ -169,7 +169,8 @@ class FakeProvider:
     def get_future_chain(self, underlying):
         return FutureChain(underlying=underlying.underlying, exchange=underlying.exchange)
 
-    def subscribe(self, instrument_id, callback: Callable, *, depth: bool = False):
+    def subscribe(self, instrument_id, callback: Callable, *, depth: bool = False, levels: int = 5):
+        del depth, levels
         self._callbacks[(instrument_id.underlying, instrument_id.exchange)] = callback
         return _ProviderSubscription()
 

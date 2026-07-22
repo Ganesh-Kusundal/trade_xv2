@@ -1,0 +1,12 @@
+{
+  "gate": "ADR-0013-3",
+  "status": "green",
+  "iso_week": "2026-W30",
+  "timestamp_utc": "2026-07-22T08:18:11.719003+00:00",
+  "tests_collected": 201,
+  "required_consecutive_weeks": 4,
+  "workflow": "local",
+  "run_id": "",
+  "sha": "",
+  "ref": ""
+}

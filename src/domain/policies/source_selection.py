@@ -105,6 +105,11 @@ class SourceSelectionPolicy:
         if kind == OperationKind.GET_HISTORICAL_BARS:
             return self.historical
         if kind in {
+            OperationKind.GET_OPTIONS_HISTORICAL,
+            OperationKind.GET_CONTRACT_HISTORICAL,
+        }:
+            return self.historical
+        if kind in {
             OperationKind.OPEN_MARKET_STREAM,
             OperationKind.GET_QUOTE,
             OperationKind.GET_QUOTES_BATCH,

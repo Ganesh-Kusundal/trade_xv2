@@ -8,20 +8,17 @@ from decimal import Decimal
 from enum import Enum
 
 from domain.candles.historical import InstrumentRef
+from domain.parsing import require_tz_aware
 from domain.provenance import DataProvenance
 
 
 class DepthKind(str, Enum):
-    """Describes the source and depth level of market depth data.
+    """Describes the source and depth level of market depth data."""
 
-    REST_5   — 5-level depth from REST API (standard across all brokers).
-    WS_20    — 20-level depth from WebSocket (Dhan-specific).
-    WS_200   — 200-level depth from WebSocket (Dhan-specific, premium tier).
-    """
-
-    REST_5 = "REST_5"
-    WS_20 = "WS_20"
-    WS_200 = "WS_200"
+    DEPTH_5 = "DEPTH_5"
+    DEPTH_20 = "DEPTH_20"
+    DEPTH_30 = "DEPTH_30"
+    DEPTH_200 = "DEPTH_200"
 
 
 @dataclass(slots=True, frozen=True)
@@ -42,16 +39,24 @@ class MarketDepth:
     """
 
     symbol: str = ""
+    instrument: InstrumentRef | None = None
     bids: list[DepthLevel] | None = None
     asks: list[DepthLevel] | None = None
     timestamp: datetime | None = None
-    depth_type: str = "DEPTH_5"  # DEPTH_5, DEPTH_20, DEPTH_200
+    depth_type: DepthKind = DepthKind.DEPTH_5
 
     def __post_init__(self) -> None:
         if self.bids is None:
             self.bids = []
         if self.asks is None:
             self.asks = []
+        if not isinstance(self.depth_type, DepthKind):
+            self.depth_type = DepthKind(str(self.depth_type))
+        if self.timestamp is not None:
+            require_tz_aware(
+                self.timestamp,
+                f"MarketDepth.timestamp must be timezone-aware, got naive {self.timestamp!r}",
+            )
 
     # ── Accessors ──────────────────────────────────────────────────
 
@@ -152,24 +157,80 @@ class MarketDepth:
         ask = self.asks[n] if n < len(self.asks) else None
         return (bid, ask)
 
-    def snapshot(self) -> dict:
-        """JSON-serializable snapshot of current depth state."""
-        return {
-            "symbol": self.symbol,
-            "best_bid": str(self.best_bid.price) if self.best_bid else None,
-            "best_ask": str(self.best_ask.price) if self.best_ask else None,
-            "spread": str(self.spread()) if self.spread() else None,
-            "mid_price": str(self.mid_price()) if self.mid_price() else None,
-            "bid_volume": self.bid_volume,
-            "ask_volume": self.ask_volume,
-            "levels": len(self.bids),
-            "depth_type": self.depth_type,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-        }
+    def snapshot(
+        self,
+        provenance: DataProvenance | None = None,
+        *,
+        exchange: str = "",
+        instrument: InstrumentRef | None = None,
+    ) -> DepthSnapshot:
+        """Bridge: wire ``MarketDepth`` → product ``DepthSnapshot``."""
+        from domain.ports.time_service import get_current_clock
+
+        prov = provenance or DataProvenance.now("bridge", "depth-to-snapshot")
+        inst = instrument or self.instrument or InstrumentRef(symbol=self.symbol, exchange=exchange)
+        return DepthSnapshot(
+            instrument=inst,
+            depth_type=self.depth_type,
+            timestamp=self.timestamp or get_current_clock().now(),
+            bids=tuple(self.bids),
+            asks=tuple(self.asks),
+            provenance=prov,
+        )
 
     def supports_levels(self, n: int) -> bool:
         """True if both sides have at least n levels."""
         return len(self.bids) >= n and len(self.asks) >= n
+
+
+@dataclass(slots=True, frozen=True)
+class DepthSnapshot:
+    """Product-facing depth with provenance — sole type above the wire boundary."""
+
+    instrument: InstrumentRef
+    depth_type: DepthKind
+    timestamp: datetime
+    bids: tuple[DepthLevel, ...]
+    asks: tuple[DepthLevel, ...]
+    provenance: DataProvenance | None = None
+
+    def __post_init__(self) -> None:
+        require_tz_aware(
+            self.timestamp,
+            f"DepthSnapshot.timestamp must be timezone-aware, got naive {self.timestamp!r}",
+        )
+        if not isinstance(self.depth_type, DepthKind):
+            object.__setattr__(self, "depth_type", DepthKind(str(self.depth_type)))
+
+    @property
+    def best_bid(self) -> DepthLevel | None:
+        return self.bids[0] if self.bids else None
+
+    @property
+    def best_ask(self) -> DepthLevel | None:
+        return self.asks[0] if self.asks else None
+
+    def spread(self) -> Decimal | None:
+        bb = self.best_bid
+        ba = self.best_ask
+        if bb is not None and ba is not None:
+            return ba.price - bb.price
+        return None
+
+    def snapshot(self) -> dict:
+        """JSON-serializable dict."""
+        return {
+            "instrument": str(self.instrument),
+            "best_bid": str(self.best_bid.price) if self.best_bid else None,
+            "best_ask": str(self.best_ask.price) if self.best_ask else None,
+            "spread": str(self.spread()) if self.spread() else None,
+            "bid_volume": sum(level.quantity for level in self.bids),
+            "ask_volume": sum(level.quantity for level in self.asks),
+            "levels": len(self.bids),
+            "depth_type": self.depth_type.value,
+            "timestamp": self.timestamp.isoformat(),
+            "source": str(self.provenance.source) if self.provenance else None,
+        }
 
 
 @dataclass(slots=True, frozen=True)
@@ -182,6 +243,7 @@ class Quote:
     """
 
     symbol: str
+    instrument: InstrumentRef | None = None
     ltp: Decimal = Decimal("0")
     open: Decimal = Decimal("0")
     high: Decimal = Decimal("0")
@@ -193,6 +255,13 @@ class Quote:
     bid: Decimal | None = None
     ask: Decimal | None = None
     timestamp: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if self.timestamp is not None:
+            require_tz_aware(
+                self.timestamp,
+                f"Quote.timestamp must be timezone-aware, got naive {self.timestamp!r}",
+            )
 
     # ── Derived computations ───────────────────────────────────────
 
@@ -320,6 +389,12 @@ class MarketTick:
     broker_id: str = ""
     session_id: str = ""
 
+    def __post_init__(self) -> None:
+        require_tz_aware(
+            self.event_time,
+            f"MarketTick.event_time must be timezone-aware, got naive {self.event_time!r}",
+        )
+
 
 @dataclass(slots=True, frozen=True)
 class QuoteSnapshot:
@@ -344,6 +419,12 @@ class QuoteSnapshot:
     oi: int = 0  # open interest — populated for derivatives, 0 for equity
     bid: Decimal | None = None
     ask: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        require_tz_aware(
+            self.event_time,
+            f"QuoteSnapshot.event_time must be timezone-aware, got naive {self.event_time!r}",
+        )
 
     # ── Derived computations ───────────────────────────────────────
 

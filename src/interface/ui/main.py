@@ -261,7 +261,7 @@ def _run_cli() -> None:
             ("news", "Market news"),
             ("journal", "Trade journal (record, close, list, summary)"),
             ("views", "DuckDB analytics view management"),
-            ("options-sync", "Sync option data from Trade_J DuckDB (daily cron)"),
+            ("options-sync", "Sync option data from broker federation (daily cron)"),
         ]
         for cmd, desc in cmds:
             console.print(f"  [cyan]{cmd:<25}[/cyan] {desc}")
@@ -283,7 +283,7 @@ def _run_cli() -> None:
         sys.exit(1)
 
     # Commands that don't need a broker gateway
-    _NO_GATEWAY_CMDS = {"help", "journal", "views", "validate"}
+    _NO_GATEWAY_CMDS = {"help", "journal", "views", "validate", "options-sync"}
 
     # Read-only market-data: skip trading_context (OMS event-log replay).
     # Handlers use market_gateway / platform_bridge instead.

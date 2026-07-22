@@ -117,7 +117,9 @@ class DataFrameDataProvider:
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
+        levels: int = 5,
     ) -> SubscriptionHandle:
+        del instrument_id, callback, depth, levels
         return _NullSubscription()
 
     def unsubscribe(self, subscription: SubscriptionHandle) -> None:

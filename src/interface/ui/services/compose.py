@@ -10,6 +10,8 @@ from pathlib import Path
 
 from runtime.api_compose import build_for_api
 from runtime.factory import Runtime, build
+from runtime.interface_compose import wire_interface_compose
+from runtime.kernel import ProcessKernel
 
 
 def build_runtime(
@@ -41,12 +43,5 @@ def build_runtime(
 __all__ = ["Runtime", "build_for_api", "build_runtime"]
 
 
-def _ensure_wired() -> None:
-    from runtime.factory import wire_domain_port_sinks
-    from runtime.interface_compose import wire_interface_compose
-
-    wire_domain_port_sinks()
-    wire_interface_compose()
-
-
-_ensure_wired()
+ProcessKernel.wire()
+wire_interface_compose()

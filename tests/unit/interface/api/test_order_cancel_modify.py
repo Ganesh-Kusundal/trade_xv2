@@ -1,20 +1,12 @@
-"""P0.1 — cancel/modify endpoints must call the broker, not create phantom coroutines.
+"""P0.1 — OMS cancel/modify callback behavior + API route architecture ratchet.
 
-The bug: ``cancel_fn`` and ``modify_fn`` in ``orders.py`` were ``async def`` but
-the OMS lifecycle calls them synchronously. The returned coroutine is truthy,
-so the broker call was silently skipped (phantom cancel) or its result ignored
-(broken modify).
-
-The fix makes the callbacks sync (using ``run_coro_sync`` inside a worker thread) and
-wraps the OMS call with ``asyncio.to_thread``, matching the pattern in
-``application/composer/execution.py``.
+API routes now call ExecutionComposer directly (single OMS spine). OMS-level
+callback tests below remain valid for OrderManager lifecycle semantics.
 """
 
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -39,10 +31,6 @@ def _make_order(order_id: str = "ORD-1", status: OrderStatus = OrderStatus.OPEN)
     )
 
 
-def _broker_response(success: bool = True):
-    return SimpleNamespace(success=success, message="ok" if success else "rejected")
-
-
 @pytest.fixture()
 def om():
     return OrderManager()
@@ -53,12 +41,7 @@ def om():
 # ---------------------------------------------------------------------------
 
 class TestCallbacksAreSyncBySource:
-    """Read the orders.py source and verify cancel_fn/modify_fn are sync def.
-
-    This is a lightweight, unbreakable regression test: it parses the source
-    text of the endpoint module rather than importing it (which would fail
-    under the sync trace_operation wrapper in the test environment).
-    """
+    """Routes must call ExecutionComposer directly — no OM wrapper callbacks."""
 
     @pytest.fixture(autouse=True)
     def _load_source(self):
@@ -66,19 +49,13 @@ class TestCallbacksAreSyncBySource:
         src = Path(__file__).resolve().parents[4] / "src" / "interface" / "api" / "routers" / "orders.py"
         self.source = src.read_text()
 
-    def test_cancel_fn_is_not_async(self):
-        assert "async def cancel_fn" not in self.source, (
-            "cancel_fn must not be async — OMS lifecycle calls it synchronously"
-        )
-        assert "def cancel_fn" in self.source
-        assert "run_coro_sync" in self.source
+    def test_cancel_routes_through_composer_not_om_wrapper(self):
+        assert "await composer.cancel_order" in self.source
+        assert "om.cancel_order(" not in self.source
 
-    def test_modify_fn_is_not_async(self):
-        assert "async def modify_fn" not in self.source, (
-            "modify_fn must not be async — OMS lifecycle calls it synchronously"
-        )
-        assert "def modify_fn" in self.source
-        assert "run_coro_sync" in self.source
+    def test_modify_routes_through_composer_not_om_wrapper(self):
+        assert "await composer.modify_order" in self.source
+        assert "om.modify_order(" not in self.source
 
 
 # ---------------------------------------------------------------------------
@@ -175,98 +152,3 @@ class TestOMSModifyCallbackExecuted:
         )
         assert not result.success
         assert "rejected by broker" in (result.error or "")
-
-
-# ---------------------------------------------------------------------------
-# End-to-end: async composer → sync callback → OMS → broker actually called
-# ---------------------------------------------------------------------------
-
-class TestAsyncComposerViaSyncCallback:
-    """Simulate the exact flow: an async composer method wrapped in a sync
-    callback using run_coro_sync — matching the fix in orders.py.
-    """
-
-    def test_cancel_with_async_composer(self, om):
-        om.upsert_order(_make_order("E2E-C1"))
-
-        mock_composer = MagicMock()
-        mock_composer.cancel_order = AsyncMock(return_value=_broker_response(True))
-
-        def cancel_fn(oid: str) -> bool:
-            response = asyncio.run(mock_composer.cancel_order(oid))
-            return bool(getattr(response, "success", False))
-
-        result = om.cancel_order("E2E-C1", cancel_fn=cancel_fn)
-        assert result.success
-        mock_composer.cancel_order.assert_awaited_once_with("E2E-C1")
-
-    def test_modify_with_async_composer(self, om):
-        om.upsert_order(_make_order("E2E-M1"))
-
-        mock_composer = MagicMock()
-        mock_composer.modify_order = AsyncMock(return_value=_broker_response(True))
-
-        def modify_fn(req) -> SimpleNamespace:
-            return asyncio.run(mock_composer.modify_order(req))
-
-        result = om.modify_order(
-            SimpleNamespace(
-                order_id="E2E-M1",
-                quantity=5,
-                price=2500,
-                order_type=None,
-                product_type=None,
-            ),
-            modify_fn=modify_fn,
-        )
-        assert result.success
-        mock_composer.modify_order.assert_awaited_once()
-
-    def test_cancel_with_async_composer_via_thread(self, om):
-        """Full simulation: asyncio.to_thread → om.cancel_order → sync callback
-        → asyncio.run(composer.cancel_order). This mirrors the exact code path
-        in the fixed orders.py endpoint.
-        """
-        om.upsert_order(_make_order("E2E-C2"))
-
-        mock_composer = MagicMock()
-        mock_composer.cancel_order = AsyncMock(return_value=_broker_response(True))
-
-        def cancel_fn(oid: str) -> bool:
-            response = asyncio.run(mock_composer.cancel_order(oid))
-            return bool(getattr(response, "success", False))
-
-        result = asyncio.run(
-            asyncio.to_thread(om.cancel_order, "E2E-C2", cancel_fn=cancel_fn)
-        )
-        assert result.success
-        mock_composer.cancel_order.assert_awaited_once_with("E2E-C2")
-
-    def test_modify_with_async_composer_via_thread(self, om):
-        """Full simulation: asyncio.to_thread → om.modify_order → sync callback
-        → asyncio.run(composer.modify_order). This mirrors the exact code path
-        in the fixed orders.py endpoint.
-        """
-        om.upsert_order(_make_order("E2E-M2"))
-
-        mock_composer = MagicMock()
-        mock_composer.modify_order = AsyncMock(return_value=_broker_response(True))
-
-        def modify_fn(req) -> SimpleNamespace:
-            return asyncio.run(mock_composer.modify_order(req))
-
-        result = asyncio.run(
-            asyncio.to_thread(
-                om.modify_order,
-                SimpleNamespace(
-                    order_id="E2E-M2",
-                    quantity=5,
-                    price=2500,
-                    order_type=None,
-                    product_type=None,
-                ),
-                modify_fn=modify_fn,
-            )
-        )
-        assert result.success
-        mock_composer.modify_order.assert_awaited_once()

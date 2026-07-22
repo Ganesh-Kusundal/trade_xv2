@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -106,6 +107,7 @@ class OptionChain:
     expiry: str
     strikes: tuple[OptionStrike, ...] = ()
     spot: Decimal | None = None
+    fetched_at: datetime | None = None
 
     @classmethod
     def from_dict(cls, data: dict | None) -> OptionChain:
@@ -114,13 +116,16 @@ class OptionChain:
         return option_chain_from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "underlying": self.underlying,
             "exchange": self.exchange,
             "expiry": self.expiry,
             "strikes": [row.to_dict() for row in self.strikes],
             "spot": self.spot,
         }
+        if self.fetched_at is not None:
+            out["fetched_at"] = self.fetched_at.isoformat()
+        return out
 
 
 @dataclass(slots=True, frozen=True)
@@ -165,29 +170,21 @@ class FutureChain:
     exchange: str
     expiries: tuple[str, ...] = ()
     contracts: tuple[FutureContract, ...] = ()
+    fetched_at: datetime | None = None
 
     @classmethod
     def from_dict(cls, data: dict | None) -> FutureChain:
-        if not data:
-            return cls(underlying="", exchange="")
-        contracts = tuple(
-            FutureContract.from_dict(row)
-            for row in data.get("contracts", [])
-            if isinstance(row, dict)
-        )
-        expiries_raw = data.get("expiries", [])
-        expiries = tuple(str(e) for e in expiries_raw) if isinstance(expiries_raw, list) else ()
-        return cls(
-            underlying=str(data.get("underlying", "")),
-            exchange=str(data.get("exchange", "")),
-            expiries=expiries,
-            contracts=contracts,
-        )
+        from domain.serialization import future_chain_from_dict
+
+        return future_chain_from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "underlying": self.underlying,
             "exchange": self.exchange,
             "expiries": list(self.expiries),
             "contracts": [c.to_dict() for c in self.contracts],
         }
+        if self.fetched_at is not None:
+            out["fetched_at"] = self.fetched_at.isoformat()
+        return out

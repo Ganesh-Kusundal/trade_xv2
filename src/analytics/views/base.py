@@ -31,8 +31,20 @@ class BaseViews:
     def create_views(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create all base market views."""
         self._create_candles_1m(conn)
+        self._create_legacy_aliases(conn)
         self._create_daily_summary(conn)
         self._create_latest_candle(conn)
+
+    def _create_legacy_aliases(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Fix stale catalog views that still point at old market_data/ paths."""
+        conn.execute("CREATE OR REPLACE VIEW all_candles AS SELECT * FROM v_candles_1m")
+        conn.execute(
+            "CREATE OR REPLACE VIEW daily_summary AS SELECT * FROM v_daily_summary"
+        )
+        conn.execute(
+            "CREATE OR REPLACE VIEW latest_candles AS SELECT * FROM v_latest_candle"
+        )
+        logger.debug("Created legacy aliases (all_candles, daily_summary, latest_candles)")
 
     def _resolve_layout(self) -> tuple[str, str] | None:
         """Return (glob_pattern, layout_name) for the first layout that has files."""

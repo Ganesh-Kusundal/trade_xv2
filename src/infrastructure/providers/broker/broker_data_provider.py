@@ -162,6 +162,7 @@ class BrokerDataProvider:
         callback: Callable[[InstrumentId, Any], None],
         *,
         depth: bool = False,
+        levels: int = 5,
     ) -> SubscriptionHandle:
         """Subscribe to live market data via gateway.stream() / gateway.stream_depth().
 
@@ -178,7 +179,7 @@ class BrokerDataProvider:
             handle = self._gateway.stream_depth(
                 symbol=instrument_id.underlying,
                 exchange=instrument_id.exchange,
-                levels=5,
+                levels=levels,
                 on_depth=_on_depth,
             )
             return _BrokerSubscription(handle, instrument_id)

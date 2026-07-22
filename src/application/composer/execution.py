@@ -12,8 +12,9 @@ import logging
 from typing import Any
 
 from domain.entities import Order, OrderResponse, Position, Trade
-from domain.orders.requests import ModifyOrderRequest, OrderRequest
 from domain.enums import OrderStatus
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
+from domain.ports.execution_target import ExecutionTargetKind
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class ExecutionComposer:
         quota_scheduler: Any,  # QuotaScheduler — injected at composition root
         risk_manager: Any,  # Mandatory kill-switch + risk guard (fail-closed)
         order_manager: Any | None = None,  # Optional OMS spine for place/cancel/modify
+        execution_target_kind: ExecutionTargetKind | None = None,
     ) -> None:
         if risk_manager is None:
             raise ValueError(
@@ -55,11 +57,17 @@ class ExecutionComposer:
                 "ExecutionComposer requires order_manager (OMS spine). "
                 "Wire OrderManager from TradingContext / composition root."
             )
+        if execution_target_kind is None:
+            raise ValueError(
+                "ExecutionComposer requires execution_target_kind. "
+                "Inject from composition root via resolve_execution_target_kind()."
+            )
         self._registry = registry
         self._router = router
         self._quota_scheduler = quota_scheduler
         self._risk_manager = risk_manager
         self._order_manager = order_manager
+        self._execution_target_kind = execution_target_kind
 
     async def place_order(
         self,
@@ -277,15 +285,15 @@ class ExecutionComposer:
         from application.execution.fill_source import CallableExecutionTarget
         from application.execution.spine import place_order_spine
         from application.oms.order_manager import OmsOrderCommand, OrderResult
-        from domain.ports.execution_target import ExecutionTargetKind
+        from application.ports import run_coro_sync
 
         cmd = self._to_oms_command(request)
 
         def submit_fn(oms_cmd: OmsOrderCommand) -> Order:
-            resp = asyncio.run(gateway.place_order(request, quota=quota))
+            resp = run_coro_sync(gateway.place_order(request, quota=quota))
             return self._broker_order_from_response(resp, oms_cmd)
 
-        target = CallableExecutionTarget(submit_fn, kind=ExecutionTargetKind.LIVE)
+        target = CallableExecutionTarget(submit_fn, kind=self._execution_target_kind)
         result: OrderResult = await asyncio.to_thread(
             place_order_spine, self._order_manager, cmd, target
         )
@@ -299,10 +307,11 @@ class ExecutionComposer:
         broker_id: str,
     ) -> OrderResponse:
         from application.oms.order_manager import OrderResult
+        from application.ports import run_coro_sync
 
         def cancel_fn(oid: str) -> bool:
-            resp = asyncio.run(gateway.cancel_order(oid, quota=quota))
-            return bool(getattr(resp, "success", True))
+            resp = run_coro_sync(gateway.cancel_order(oid, quota=quota))
+            return bool(getattr(resp, "success", False))
 
         result: OrderResult = await asyncio.to_thread(
             self._order_manager.cancel_order, order_id, cancel_fn
@@ -317,9 +326,10 @@ class ExecutionComposer:
         broker_id: str,
     ) -> OrderResponse:
         from application.oms.order_manager import OrderResult
+        from application.ports import run_coro_sync
 
         def modify_fn(req: ModifyOrderRequest) -> OrderResponse:
-            return asyncio.run(gateway.modify_order(req, quota=quota))
+            return run_coro_sync(gateway.modify_order(req, quota=quota))
 
         result: OrderResult = await asyncio.to_thread(
             self._order_manager.modify_order, request, modify_fn

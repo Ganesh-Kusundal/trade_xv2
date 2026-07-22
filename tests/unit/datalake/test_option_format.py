@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 import pyarrow.parquet as pq
 
 from datalake.core.option_format import (
     CANONICAL_COLUMNS,
     convert_format,
+    convert_from_dhan_rolling,
     make_option_symbol,
     map_expiry_code_to_date,
+    strike_offset_to_dhan_strike,
 )
 from datalake.core.schema import ARROW_SCHEMA
-from datalake.ingestion.sync_options import _get_watermark, sync_options
+from datalake.ingestion.options_sync_manifest import OptionsSyncManifestEntry, write_options_sync_manifest
+from datalake.ingestion.sync_options import _get_watermark_date, sync_options
 
 # ============================================================
 # Tests for option_format module
@@ -199,195 +202,181 @@ class TestConvertFormat:
         assert required.issubset(set(CANONICAL_COLUMNS))
 
 
-# ============================================================
-# Tests for sync_options (with tmp DuckDB)
-# ============================================================
+class TestConvertFromDhanRolling:
+    def test_strike_mapping(self) -> None:
+        assert strike_offset_to_dhan_strike(0) == "ATM"
+        assert strike_offset_to_dhan_strike(2) == "ATM+2"
+        assert strike_offset_to_dhan_strike(-3) == "ATM-3"
 
-
-def _make_trade_j_duckdb(path: Path, rows: list[dict]) -> None:
-    """Create a synthetic Trade_J DuckDB with rolling_option_bars data."""
-    c = duckdb.connect(str(path))
-    c.execute("""
-        CREATE TABLE rolling_option_bars (
-            underlying VARCHAR, expiry_kind VARCHAR, expiry_code INTEGER,
-            strike_offset INTEGER, option_type VARCHAR, interval_min INTEGER,
-            bar_time_ms BIGINT, open_paisa BIGINT, high_paisa BIGINT,
-            low_paisa BIGINT, close_paisa BIGINT, volume BIGINT,
-            iv DOUBLE, oi BIGINT, spot_paisa BIGINT, strike_paisa BIGINT,
-            ingested_at_ms BIGINT
+    def test_basic_conversion(self) -> None:
+        side = {
+            "timestamp": [1772496000],
+            "open": [100.0],
+            "high": [105.0],
+            "low": [95.0],
+            "close": [102.0],
+            "volume": [1000],
+            "oi": [5000],
+            "iv": [15.0],
+            "spot": [23600.0],
+            "strike": [23500.0],
+        }
+        out = convert_from_dhan_rolling(
+            side,
+            underlying="NIFTY",
+            expiry_kind="WEEK",
+            expiry_code=1,
+            strike_offset=-2,
+            option_type="CALL",
+            interval_min=5,
         )
-    """)
-    if rows:
-        df = pd.DataFrame(rows)
-        for col in ("underlying", "expiry_kind", "option_type"):
-            df[col] = df[col].astype(object)
-        c.register("rows_df", df)
-        c.execute("INSERT INTO rolling_option_bars SELECT * FROM rows_df")
-    c.close()
+        assert len(out) == 1
+        assert out["symbol"].iloc[0] == "NIFTY_WEEK_1_-2_CALL"
+        assert out["close"].iloc[0] == 102.0
+        assert set(CANONICAL_COLUMNS).issubset(set(out.columns))
 
 
-def _insert_option_rows(conn: duckdb.DuckDBPyConnection, rows: list[dict]) -> None:
-    """Insert rows into rolling_option_bars with DuckDB-safe dtypes."""
-    if not rows:
-        return
-    df = pd.DataFrame(rows)
-    for col in ("underlying", "expiry_kind", "option_type"):
-        df[col] = df[col].astype(object)
-    conn.register("rows_df", df)
-    conn.execute("INSERT INTO rolling_option_bars SELECT * FROM rows_df")
-    conn.unregister("rows_df")
+def _sample_options_df(ts: str, close: float = 102.0) -> pd.DataFrame:
+    ts_val = pd.Timestamp(ts)
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": ts_val,
+                "symbol": "NIFTY_WEEK_1_-2_CALL",
+                "underlying": "NIFTY",
+                "exchange": "NSE",
+                "open": close - 2.0,
+                "high": close + 5.0,
+                "low": close - 5.0,
+                "close": close,
+                "volume": 1000,
+                "oi": 5000,
+                "iv": 15.0,
+                "spot": 23600.0,
+                "strike": 23500.0,
+                "strike_offset": -2,
+                "option_type": "CALL",
+                "expiry_kind": "WEEK",
+                "expiry_code": 1,
+                "interval_min": 5,
+                "expiry_date": "2026-03-05",
+            }
+        ]
+    )
 
 
-def _make_option_row(
-    underlying: str, ek: str, ec: int, so: int, ot: str, bar_time_ms: int, price_paisa: int = 10000
-) -> dict:
-    return {
-        "underlying": underlying,
-        "expiry_kind": ek,
-        "expiry_code": ec,
-        "strike_offset": so,
-        "option_type": ot,
-        "interval_min": 5,
-        "bar_time_ms": bar_time_ms,
-        "open_paisa": price_paisa,
-        "high_paisa": price_paisa + 500,
-        "low_paisa": price_paisa - 500,
-        "close_paisa": price_paisa + 100,
-        "volume": 1000,
-        "iv": 15.0,
-        "oi": 5000,
-        "spot_paisa": 2360000,
-        "strike_paisa": 2350000,
-        "ingested_at_ms": bar_time_ms,
-    }
+def _setup_manifest(lake_root: Path) -> None:
+    write_options_sync_manifest(
+        str(lake_root),
+        [OptionsSyncManifestEntry("NIFTY", "WEEK", 1)],
+    )
 
 
 class TestSyncOptions:
     def test_first_run_creates_files(self, tmp_path: Path) -> None:
-        tj_path = tmp_path / "tj.duckdb"
+        lake_root = tmp_path / "lake"
         tgt_path = tmp_path / "options"
-        rows = [
-            _make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000),
-            _make_option_row("NIFTY", "WEEK", 1, -2, "PUT", 1772496000000),
-        ]
-        _make_trade_j_duckdb(tj_path, rows)
+        _setup_manifest(lake_root)
 
-        summary = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
+        summary = sync_options(
+            lambda *a: _sample_options_df("2026-03-02 09:15:00"),
+            target_root=tgt_path,
+            lake_root=str(lake_root),
+        )
 
         assert summary["files_created"] == 1
-        assert summary["files_merged"] == 0
-        assert summary["new_rows"] == 2
-        out_file = (
+        assert summary["new_rows"] == 1
+        assert (
             tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
-        )
-        assert out_file.exists()
+        ).exists()
 
     def test_written_file_uses_canonical_timestamp_unit(self, tmp_path: Path) -> None:
-        """convert_format() parses bar_time_ms with unit="ms", producing
-        datetime64[ms] -- regression guard that sync_options() casts to
-        the canonical `us` (matching equities/indices) before writing,
-        instead of writing whatever unit convert_format happened to produce."""
-        tj_path = tmp_path / "tj.duckdb"
+        lake_root = tmp_path / "lake"
         tgt_path = tmp_path / "options"
-        rows = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)]
-        _make_trade_j_duckdb(tj_path, rows)
-
-        sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
-
+        _setup_manifest(lake_root)
+        sync_options(
+            lambda *a: _sample_options_df("2026-03-02 09:15:00"),
+            target_root=tgt_path,
+            lake_root=str(lake_root),
+        )
         out_file = (
             tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
         )
-        written_type = pq.read_schema(out_file).field("timestamp").type
-        assert written_type == ARROW_SCHEMA.field("timestamp").type
+        assert pq.read_schema(out_file).field("timestamp").type == ARROW_SCHEMA.field(
+            "timestamp"
+        ).type
 
     def test_idempotent_second_run(self, tmp_path: Path) -> None:
-        tj_path = tmp_path / "tj.duckdb"
+        lake_root = tmp_path / "lake"
         tgt_path = tmp_path / "options"
-        rows = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)]
-        _make_trade_j_duckdb(tj_path, rows)
+        _setup_manifest(lake_root)
+        calls = {"n": 0}
 
-        # First run creates the file
-        s1 = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
-        assert s1["files_created"] == 1
-        assert s1["new_rows"] == 1
+        def fetch_fn(*a):
+            calls["n"] += 1
+            return _sample_options_df("2026-03-02 09:15:00") if calls["n"] == 1 else pd.DataFrame(
+                columns=CANONICAL_COLUMNS
+            )
 
-        # Second run is a no-op (no new data)
-        s2 = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
+        sync_options(fetch_fn, target_root=tgt_path, lake_root=str(lake_root))
+        s2 = sync_options(fetch_fn, target_root=tgt_path, lake_root=str(lake_root))
         assert s2["new_rows"] == 0
-        assert s2["files_merged"] == 0
-        assert s2["files_created"] == 0
 
     def test_dedup_on_merge(self, tmp_path: Path) -> None:
-        """Adding a row with later timestamp but same (symbol, that_bar) — keeps last.
-
-        Note: the watermark is a strict `>`, so a row with the exact same
-        bar_time_ms as the existing watermark is considered "already synced"
-        and is NOT picked up. This test uses a later timestamp to exercise
-        the merge+dedup path, then verifies dedup-on-same-key.
-        """
-        tj_path = tmp_path / "tj.duckdb"
+        lake_root = tmp_path / "lake"
         tgt_path = tmp_path / "options"
-        # First insert
-        rows1 = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000, price_paisa=10000)]
-        _make_trade_j_duckdb(tj_path, rows1)
-        sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
+        _setup_manifest(lake_root)
+        calls = {"n": 0}
 
-        # Add a new bar (later timestamp), then a duplicate of that new bar
-        c = duckdb.connect(str(tj_path))
-        rows2 = [
-            _make_option_row(
-                "NIFTY", "WEEK", 1, -2, "CALL", 1772496900000, price_paisa=20000
-            ),  # +15min
-            # Duplicate of the new bar (same bar_time_ms, same symbol)
-            _make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496900000, price_paisa=99999),
-        ]
-        _insert_option_rows(c, rows2)
-        c.close()
+        def fetch_fn(*a):
+            calls["n"] += 1
+            return _sample_options_df(
+                "2026-03-02 09:15:00", close=999.0 if calls["n"] > 1 else 100.0
+            )
 
-        s = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
-        assert s["new_rows"] == 2  # both new rows picked up
-        # After dedup (keep=last), the file should have 2 distinct rows
-        # (original at t=1772496000000 + one at t=1772496900000 after dedup)
-        out_file = (
+        sync_options(fetch_fn, target_root=tgt_path, lake_root=str(lake_root))
+        sync_options(fetch_fn, target_root=tgt_path, lake_root=str(lake_root))
+        df_out = pd.read_parquet(
             tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
         )
-        df_out = pd.read_parquet(out_file)
-        assert len(df_out) == 2  # deduped from 3 to 2
-        # Verify the kept one is the last (price_paisa=99999 → close=999.99)
-        kept = df_out[df_out["close"] > 900]
-        assert len(kept) == 1  # only the last duplicate was kept
+        assert len(df_out) == 1
+        assert df_out["close"].iloc[0] == 999.0
 
     def test_incremental_adds_new_rows(self, tmp_path: Path) -> None:
-        tj_path = tmp_path / "tj.duckdb"
+        lake_root = tmp_path / "lake"
         tgt_path = tmp_path / "options"
-        rows1 = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)]
-        _make_trade_j_duckdb(tj_path, rows1)
-        sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
+        _setup_manifest(lake_root)
+        calls = {"n": 0}
 
-        # Add a new row with later timestamp
-        c = duckdb.connect(str(tj_path))
-        rows2 = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496900000)]  # +15 min
-        _insert_option_rows(c, rows2)
-        c.close()
+        def fetch_fn(*a):
+            calls["n"] += 1
+            ts = "2026-03-02 09:15:00" if calls["n"] == 1 else "2026-03-02 09:30:00"
+            return _sample_options_df(ts)
 
-        s = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
+        sync_options(fetch_fn, target_root=tgt_path, lake_root=str(lake_root))
+        s = sync_options(fetch_fn, target_root=tgt_path, lake_root=str(lake_root))
         assert s["new_rows"] == 1
-        out_file = (
-            tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        assert (
+            len(
+                pd.read_parquet(
+                    tgt_path
+                    / "underlying=NIFTY"
+                    / "expiry_kind=WEEK"
+                    / "expiry_code=1"
+                    / "data.parquet"
+                )
+            )
+            == 2
         )
-        df_out = pd.read_parquet(out_file)
-        assert len(df_out) == 2  # 1 original + 1 new
 
-    def test_watermark_zero_when_no_file(self, tmp_path: Path) -> None:
-        assert _get_watermark(tmp_path / "nope.parquet", duckdb.connect(":memory:")) == 0
+    def test_watermark_none_when_no_file(self, tmp_path: Path) -> None:
+        assert _get_watermark_date(tmp_path / "nope.parquet") is None
 
-    def test_connection_closed_on_success(self, tmp_path: Path) -> None:
-        """Verify src connection is closed after sync (no leak)."""
-        tj_path = tmp_path / "tj.duckdb"
+    def test_skips_when_up_to_date(self, tmp_path: Path) -> None:
+        lake_root = tmp_path / "lake"
         tgt_path = tmp_path / "options"
-        _make_trade_j_duckdb(
-            tj_path, [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)]
-        )
-        sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
-        # No assertion — just verifying it doesn't hang
-        assert True
+        _setup_manifest(lake_root)
+        today_df = _sample_options_df(f"{date.today()} 09:15:00")
+        sync_options(lambda *a: today_df, target_root=tgt_path, lake_root=str(lake_root))
+        s = sync_options(lambda *a: today_df, target_root=tgt_path, lake_root=str(lake_root))
+        assert s["new_rows"] == 0

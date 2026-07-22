@@ -21,7 +21,11 @@ _CAPABILITY_METHOD_MAP: dict[str, tuple[str, ...]] = {
     "supports_modify_order": ("modify_order",),
     "supports_historical_data": ("history", "get_historical"),
     "supports_intraday_history": ("history", "get_historical"),
-    "supports_expired_options_history": ("history", "get_historical"),
+    "supports_expired_options_history": (
+        "get_expired_options_data",
+        "get_expired_historical_candles",
+        "get_expired_option_expiries",
+    ),
     "supports_live_market_data": ("quote", "ltp"),
     "supports_depth": ("depth", "stream_depth"),
     "supports_depth_20_ws": ("stream_depth",),

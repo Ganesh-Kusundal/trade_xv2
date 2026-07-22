@@ -39,7 +39,7 @@ from domain.market_enums import ExchangeId
 from domain.universe import Session as DomainSession
 from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
 from runtime.broker_discovery import discover_broker_plugins
-from runtime.wire_runtime_hooks import wire_runtime_hooks
+from runtime.kernel import ProcessKernel
 
 # ── Extracted responsibility modules ──────────────────────────────────
 # These keep the composition root focused. The private ``_`` aliases below
@@ -101,7 +101,7 @@ def open_session(
     # trading-context factories so replay & backtest engines route through
     # the shared OMS kernel (zero-parity) instead of silently falling
     # back to PURE_SIM when a trading_context is supplied.
-    wire_runtime_hooks()
+    ProcessKernel.wire()
     broker_id = (broker or "paper").lower().strip()
     plugin = get_broker_plugin(broker_id)
     trace_id = uuid.uuid4().hex[:16]
@@ -281,20 +281,9 @@ def open_session(
                 gw = runtime.gateway
             runtime._tradex_session_delegate = True
         elif executor is not None:
-            from application.oms.session_bridge import build_oms_service
-
             processed_trades = None
-            if event_bus is None:
-                from infrastructure.bootstrap import build_event_bus
-                from infrastructure.event_bus.processed_trade_repository import (
-                    ProcessedTradeRepository,
-                )
-
-                event_bus = build_event_bus()
-                processed_trades = ProcessedTradeRepository()
-
             try:
-                oms = build_oms_service(
+                oms = ProcessKernel.build_connect_oms(
                     executor,
                     event_bus=event_bus,
                     broker_id=broker_id,

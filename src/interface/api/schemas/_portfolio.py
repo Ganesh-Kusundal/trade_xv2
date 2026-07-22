@@ -47,7 +47,10 @@ class OrderRequest(BaseModel):
         None, ge=0.01, le=1000000, description="Trigger price for SL/SL-M orders"
     )
     product_type: str = Field("INTRADAY", description="INTRADAY, DELIVERY, MARGIN, CO, BO")
-    correlation_id: str | None = Field(None, description="Optional correlation ID for tracing")
+    correlation_id: str | None = Field(
+        None,
+        description="Client-supplied idempotency key (required unless X-Idempotency-Key header set)",
+    )
 
     @field_validator("transaction_type")
     @classmethod

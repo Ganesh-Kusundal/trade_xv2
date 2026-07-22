@@ -264,9 +264,9 @@ def build_from_broker_service(
 
     opts = options or BuildOptions()
 
-    from runtime.composition import wire_domain_port_sinks
+    from runtime.kernel import ProcessKernel
 
-    wire_domain_port_sinks()
+    ProcessKernel.wire()
     validate_production_config(surface="runtime")
 
     event_bus_for_sink = getattr(broker_service, "_event_bus", None)
@@ -445,7 +445,7 @@ class MultiStrategyRuntime:
 # Composition helpers — canonical impl in runtime.composition; prefer runtime.kernel
 # ---------------------------------------------------------------------------
 
-from runtime.composition import create_api_event_bus, wire_domain_port_sinks
+from runtime.composition import create_api_event_bus
 
 
 

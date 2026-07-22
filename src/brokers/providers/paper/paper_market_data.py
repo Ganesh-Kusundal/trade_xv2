@@ -74,4 +74,15 @@ class PaperMarketData:
             )
             for i in range(5)
         ]
-        return MarketDepth(bids=bids, asks=asks)
+        from domain.candles.historical import InstrumentRef
+        from domain.entities import DepthKind
+        from domain.ports.time_service import get_current_clock
+
+        return MarketDepth(
+            symbol=symbol,
+            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
+            bids=bids,
+            asks=asks,
+            depth_type=DepthKind.DEPTH_5,
+            timestamp=get_current_clock().now(),
+        )

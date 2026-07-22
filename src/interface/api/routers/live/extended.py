@@ -21,6 +21,7 @@ from interface.api.deps import (
     get_event_bus,
     get_live_broker_name,
     get_risk_manager,
+    require_extended_order_spine_allowed,
     require_live_broker,
 )
 from interface.api.routers.live.headers import apply_live_headers
@@ -112,7 +113,7 @@ async def live_profile(response: Response = None, gw: Any = Depends(require_live
     return serialize_value(_extended(gw).get_user_profile())
 
 
-@router.post("/orders/super")
+@router.post("/orders/super", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_super_order(
     payload: dict[str, Any] = Body(...),
     response: Response = None,
@@ -128,7 +129,7 @@ async def live_super_order(
     return serialize_value(result.response)
 
 
-@router.post("/orders/forever")
+@router.post("/orders/forever", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_forever_order(
     payload: dict[str, Any] = Body(...),
     response: Response = None,
@@ -144,7 +145,7 @@ async def live_forever_order(
     return serialize_value(result.response)
 
 
-@router.post("/alerts/trigger")
+@router.post("/alerts/trigger", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_trigger(
     payload: dict[str, Any] = Body(...),
     response: Response = None,
@@ -205,7 +206,7 @@ async def live_margin(
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Margin not supported")
 
 
-@router.post("/orders/exit-all")
+@router.post("/orders/exit-all", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_exit_all(response: Response = None, gw: Any = Depends(require_live_broker)) -> Any:
     apply_live_headers(response, get_live_broker_name())
     svc = _get_extended_order_service()
@@ -324,7 +325,7 @@ async def live_set_ip(
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="IP management not supported")
 
 
-@router.post("/orders/gtt")
+@router.post("/orders/gtt", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_gtt(
     payload: dict[str, Any] = Body(...),
     response: Response = None,
@@ -340,7 +341,7 @@ async def live_gtt(
     return serialize_value(result.response)
 
 
-@router.post("/orders/cover")
+@router.post("/orders/cover", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_cover(
     payload: dict[str, Any] = Body(...),
     response: Response = None,
@@ -356,7 +357,7 @@ async def live_cover(
     return serialize_value(result.response)
 
 
-@router.post("/orders/slice")
+@router.post("/orders/slice", dependencies=[Depends(require_extended_order_spine_allowed)])
 async def live_slice(
     payload: dict[str, Any] = Body(...),
     response: Response = None,

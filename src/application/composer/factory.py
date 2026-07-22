@@ -338,8 +338,13 @@ def _build_composers(
     risk_manager: Any | None,
     order_manager: Any,
     gateways_for_backfill: list[Any] | None,
+    execution_target_kind: Any | None = None,
 ) -> tuple[MarketDataComposer, ExecutionComposer]:
     """Shared wiring: build composers + backfill + gap reconcile."""
+    if execution_target_kind is None:
+        from runtime.execution_config import resolve_execution_target_kind
+
+        execution_target_kind = resolve_execution_target_kind()
     market_data = MarketDataComposer(
         historical_coordinator=historical_coordinator,
         batch_quote_coordinator=batch_quote_coordinator,
@@ -351,6 +356,7 @@ def _build_composers(
         quota_scheduler=quota_scheduler,
         risk_manager=risk_manager,
         order_manager=order_manager,
+        execution_target_kind=execution_target_kind,
     )
     gap_reconciler = _build_gap_reconciler(
         historical_coordinator,

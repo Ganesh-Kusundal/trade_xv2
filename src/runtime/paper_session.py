@@ -73,9 +73,9 @@ def build_paper_session(
     events_dir: Path | None = None,
 ) -> PaperSession:
     """Compose TradingContext + PAPER target + ExecutionEngine + OmsBacktestAdapter."""
-    from runtime.composition import wire_domain_port_sinks
+    from runtime.kernel import ProcessKernel
 
-    wire_domain_port_sinks()
+    ProcessKernel.wire()
     capital = Decimal(str(initial_capital or PAPER_INITIAL_CAPITAL))
     kind = resolve_execution_target_kind(execution_kind or ExecutionTargetKind.PAPER)
 

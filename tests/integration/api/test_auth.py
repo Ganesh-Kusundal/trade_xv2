@@ -104,3 +104,14 @@ class TestAuthEnabled:
 
         response = client.post("/api/v1/orders", json={})
         assert response.status_code == 401
+
+    def test_orders_trades_require_auth(self):
+        """Trades sub-router must inherit explicit auth (audit C3)."""
+        app = create_app(config=APIConfig(auth_mode="api_key", api_key="test-secret-key-123"))
+        client = TestClient(app)
+
+        response = client.get("/api/v1/orders/trades")
+        assert response.status_code == 401
+
+        response = client.get("/api/v1/orders/tradebook")
+        assert response.status_code == 401

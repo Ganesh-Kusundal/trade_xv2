@@ -14,7 +14,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from domain.capabilities.historical_routing import (
+    HistoricalRouteConstraint,
+    can_serve_historical_lane,
+)
 from domain.capabilities.market_surface import MarketCoverage
+from domain.historical.route_lane import HistoricalRouteLane
 from domain.instruments.asset_kind import AssetKind
 
 # ---------------------------------------------------------------------------
@@ -152,6 +157,7 @@ class BrokerCapabilities:
     # -- Parameterized limits --
     rate_limit_profiles: tuple[RateLimitProfile, ...] = field(default_factory=tuple)
     historical_windows: tuple[HistoricalWindowConstraint, ...] = field(default_factory=tuple)
+    historical_routes: tuple[HistoricalRouteConstraint, ...] = field(default_factory=tuple)
     stream_limits: StreamLimitProfile | None = None
 
     # -- Classification --
@@ -207,6 +213,24 @@ class BrokerCapabilities:
             return False
         return lookback_days <= constraint.max_lookback_days
 
+    def can_serve_lane(
+        self,
+        lane: HistoricalRouteLane,
+        *,
+        entitlements: frozenset[str] | None = None,
+    ) -> bool:
+        """Return True if this broker can serve the full historical route lane."""
+        if self.historical_routes:
+            return can_serve_historical_lane(
+                supports_historical_data=self.supports_historical_data,
+                historical_routes=self.historical_routes,
+                historical_windows=self.historical_windows,
+                lane=lane,
+                entitlements=entitlements,
+            )
+        # ponytail: legacy coarse check until all brokers declare historical_routes
+        return self.can_serve_historical(lane.timeframe, lane.lookback_days)
+
     def serves(self, asset_kind: AssetKind | str, exchange: str) -> bool:
         """Return True if this broker serves the given (asset_kind, exchange) lane.
 
@@ -255,6 +279,7 @@ class CapabilityDescriptor:
 __all__ = [
     "BrokerCapabilities",
     "CapabilityDescriptor",
+    "HistoricalRouteConstraint",
     "HistoricalWindowConstraint",
     "MarketCoverage",
     "RateLimitProfile",
