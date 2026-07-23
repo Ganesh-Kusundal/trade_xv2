@@ -18,7 +18,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from plugins.brokers.common.constants import DEFAULT_TOKEN_TTL_SECONDS, UPSTOX_COOLDOWN_SECONDS
 from plugins.brokers.common.jwt_expiry import JwtExpiry
+from plugins.brokers.common.token_lifecycle import TokenBroadcast
 from plugins.brokers.common.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
 from plugins.brokers.upstox.config import UpstoxConfig
 
@@ -164,6 +166,7 @@ class UpstoxTokenManager:
             "upstox",
             state_path=config.cooldown_path,
         )
+        self._broadcast = TokenBroadcast()
         self._memory = ""
         # Hydrate from store/env without minting
         snap = self._store.load()
@@ -171,6 +174,10 @@ class UpstoxTokenManager:
             self._memory = snap.access_token
         elif config.access_token and _access_token_usable(config.access_token):
             self._memory = config.access_token
+
+    def register_receiver(self, receiver: Callable[[str], None]) -> Callable[[str], None]:
+        """Notified with the new token whenever a mint (refresh or TOTP) succeeds."""
+        return self._broadcast.register(receiver)
 
     def ensure_token(self, *, force_refresh: bool = False) -> str:
         """Probe-before-mint. force_refresh == broker_rejected (401)."""
@@ -183,19 +190,39 @@ class UpstoxTokenManager:
             # Do not reuse env token after broker rejection — it was just rejected
         else:
             if self._memory and _access_token_usable(self._memory):
-                return self._memory
-            snap = self._store.load()
-            if snap and _access_token_usable(snap.access_token, snap.expires_at):
-                self._memory = snap.access_token
-                return snap.access_token
-            env_tok = (self._config.access_token or "").strip()
-            if env_tok and _access_token_usable(env_tok):
-                exp = JwtExpiry.parse_expiry_epoch(env_tok)
-                expires_at = exp if exp > 0 else time.time() + 86400
-                self._store.save(access_token=env_tok, refresh_token="", expires_at=expires_at)
-                self._memory = env_tok
-                return env_tok
-            saved_refresh = (snap.refresh_token if snap else "") or self._config.refresh_token
+                # Proactive refresh: check if token is about to expire
+                jwt_exp = JwtExpiry.parse_expiry_epoch(self._memory)
+                if jwt_exp > 0:
+                    buffer = self._config.refresh_buffer_seconds
+                    if jwt_exp - time.time() <= buffer:
+                        force_refresh = True  # Trigger proactive refresh
+                    else:
+                        return self._memory  # Token still valid, not about to expire
+                else:
+                    return self._memory  # No JWT expiry, trust usability check
+            else:
+                snap = self._store.load()
+                if snap and _access_token_usable(snap.access_token, snap.expires_at):
+                    self._memory = snap.access_token
+                    # Check if stored token is about to expire
+                    jwt_exp = JwtExpiry.parse_expiry_epoch(snap.access_token)
+                    if jwt_exp > 0:
+                        buffer = self._config.refresh_buffer_seconds
+                        if jwt_exp - time.time() <= buffer:
+                            force_refresh = True  # Trigger proactive refresh
+                        else:
+                            return snap.access_token  # Token still valid
+                    else:
+                        return snap.access_token  # No JWT expiry
+                else:
+                    env_tok = (self._config.access_token or "").strip()
+                    if env_tok and _access_token_usable(env_tok):
+                        exp = JwtExpiry.parse_expiry_epoch(env_tok)
+                        expires_at = exp if exp > 0 else time.time() + DEFAULT_TOKEN_TTL_SECONDS
+                        self._store.save(access_token=env_tok, refresh_token="", expires_at=expires_at)
+                        self._memory = env_tok
+                        return env_tok
+                    saved_refresh = (snap.refresh_token if snap else "") or self._config.refresh_token
 
         refresh = saved_refresh or self._config.refresh_token
         if refresh:
@@ -207,7 +234,7 @@ class UpstoxTokenManager:
                 return self._persist_minted(
                     access,
                     refresh_token=str(payload.get("refresh_token") or refresh),
-                    expires_in=float(payload.get("expires_in", 86400)),
+                    expires_in=float(payload.get("expires_in", DEFAULT_TOKEN_TTL_SECONDS)),
                 )
             except Exception:
                 if not self._config.has_totp:
@@ -229,7 +256,7 @@ class UpstoxTokenManager:
                 self._cooldown.record_rate_limited()
                 raise TotpRateLimitError(
                     str(exc),
-                    remaining_seconds=self._cooldown.remaining_cooldown_seconds() or 600.0,
+                    remaining_seconds=self._cooldown.remaining_cooldown_seconds() or UPSTOX_COOLDOWN_SECONDS,
                 ) from exc
             raise
         access = str(payload.get("access_token", ""))
@@ -255,6 +282,7 @@ class UpstoxTokenManager:
         )
         self._memory = access
         self._config.access_token = access
+        self._broadcast.broadcast(access)
         return access
 
     def _totp_generate(self) -> dict[str, Any]:

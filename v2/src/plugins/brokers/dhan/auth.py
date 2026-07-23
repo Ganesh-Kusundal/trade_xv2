@@ -17,7 +17,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from plugins.brokers.common.constants import DHAN_COOLDOWN_SECONDS
 from plugins.brokers.common.jwt_expiry import JwtExpiry
+from plugins.brokers.common.token_lifecycle import TokenBroadcast
 from plugins.brokers.common.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
 from plugins.brokers.dhan.config import DhanConfig
 
@@ -149,7 +151,7 @@ class DhanTotpClient:
             self._cooldown.record_rate_limited()
             raise TotpRateLimitError(
                 f"Dhan token rate limit: {message}",
-                remaining_seconds=self._cooldown.remaining_cooldown_seconds() or 120.0,
+                remaining_seconds=self._cooldown.remaining_cooldown_seconds() or DHAN_COOLDOWN_SECONDS,
             )
         if body.get("status") == "error":
             return None
@@ -176,11 +178,16 @@ class DhanTokenManager:
         self._config = config
         self._store = store or DhanTokenStore(config.token_path)
         self._totp = totp or DhanTotpClient(config)
+        self._broadcast = TokenBroadcast()
         self._memory = ""
         if self._store.is_valid():
             self._memory = self._store.load() or ""
         elif config.access_token and _token_usable(config.access_token):
             self._memory = config.access_token
+
+    def register_receiver(self, receiver: Callable[[str], None]) -> Callable[[str], None]:
+        """Notified with the new token whenever ensure_token() mints one."""
+        return self._broadcast.register(receiver)
 
     def ensure_token(self, *, force_refresh: bool = False) -> str:
         if force_refresh:
@@ -188,12 +195,30 @@ class DhanTokenManager:
             self._config.access_token = ""
             self._store.invalidate()
         elif self._memory and _token_usable(self._memory):
-            return self._memory
+            # Proactive refresh: check if token is about to expire
+            jwt_exp = JwtExpiry.parse_expiry_epoch(self._memory)
+            if jwt_exp > 0:
+                buffer = self._config.refresh_buffer_seconds
+                if jwt_exp - time.time() <= buffer:
+                    force_refresh = True  # Trigger proactive refresh
+                else:
+                    return self._memory  # Token still valid, not about to expire
+            else:
+                return self._memory  # No JWT expiry, trust usability check
         elif self._store.is_valid():
             token = self._store.load()
             if token:
                 self._memory = token
-                return token
+                # Check if stored token is about to expire
+                jwt_exp = JwtExpiry.parse_expiry_epoch(token)
+                if jwt_exp > 0:
+                    buffer = self._config.refresh_buffer_seconds
+                    if jwt_exp - time.time() <= buffer:
+                        force_refresh = True  # Trigger proactive refresh
+                    else:
+                        return token  # Token still valid
+                else:
+                    return token  # No JWT expiry
         elif self._config.access_token and _token_usable(self._config.access_token):
             self._memory = self._config.access_token
             return self._memory
@@ -207,6 +232,7 @@ class DhanTokenManager:
                 self._store.save(token, expires_at=expires_at)
                 self._memory = token
                 self._config.access_token = token
+                self._broadcast.broadcast(token)
                 return token
             if force_refresh:
                 raise RuntimeError("Dhan force refresh failed: TOTP unavailable or rejected")

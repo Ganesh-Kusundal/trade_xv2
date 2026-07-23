@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 from domain.commands import PlaceOrderCommand
 from domain.entities import Account, Position, Quote
+from domain.ports.types import BrokerSnapshot
 from domain.value_objects import InstrumentId, OrderId
 
 
@@ -58,19 +59,24 @@ class AdapterTestHarness:
     def test_get_positions(self) -> list[Position]:
         positions = self.adapter.get_positions()
         assert isinstance(positions, list)
+        assert all(isinstance(p, Position) for p in positions), (
+            "get_positions() must not leak raw wire dicts"
+        )
         return positions
 
     def test_get_funds(self) -> Account:
         account = self.adapter.get_funds()
-        assert isinstance(account, Account)
+        assert isinstance(account, Account), "get_funds() must not return a raw dict"
         return account
 
     def test_mass_status(self) -> Any:
         snap = self.adapter.mass_status()
-        assert snap is not None
+        assert isinstance(snap, BrokerSnapshot), "mass_status() must not return a raw dict"
         return snap
 
     def test_capabilities(self) -> Any:
         caps = self.adapter.capabilities()
         assert caps is not None
+        declared = getattr(caps, "supported_asset_classes", None)
+        assert declared, "broker must declare at least one supported_asset_classes"
         return caps

@@ -1,4 +1,4 @@
-"""Runtime — frozen composition-root handle."""
+"""Runtime — composition-root handle."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from infrastructure.component.lifecycle import LifecycleManager
 from infrastructure.message_bus.bus import MessageBus
 
 
-@dataclass(frozen=True)
+@dataclass
 class Runtime:
     bus: MessageBus
     cache: TradingCache

@@ -4,18 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import Any
 
+from domain.enums import ComponentState
 from shared.errors import LifecycleError
-
-
-class ComponentState(Enum):
-    UNINITIALIZED = auto()
-    INITIALIZED = auto()
-    RUNNING = auto()
-    STOPPED = auto()
-    ERROR = auto()
 
 
 # Valid transitions: from -> frozenset of allowed next states

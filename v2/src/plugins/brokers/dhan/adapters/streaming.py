@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import json
+import logging
+import threading
 from collections.abc import Callable
 from typing import Any
 
-from domain.entities import Order, Quote
+from domain.entities import MarketDepth, Order, Quote
 from domain.value_objects import InstrumentId
+from plugins.brokers.common.ws_reconnect import ReconnectConfig, WsReconnectManager
 from plugins.brokers.dhan.wire import DhanWire
+from shared.errors import MappingError
+
+logger = logging.getLogger(__name__)
 
 OnQuote = Callable[[Quote], None]
 OnOrder = Callable[[Order], None]
+OnDepth = Callable[[MarketDepth], None]
 WsFactory = Callable[[str], Any]
 
 
@@ -26,6 +33,7 @@ class DhanStreamingAdapter:
         token_provider: Callable[[], str] | None = None,
         client_id: str = "",
         ws_factory: WsFactory | None = None,
+        reconnect_config: ReconnectConfig | None = None,
     ) -> None:
         self._wire = wire
         self._ws_url = ws_url
@@ -34,25 +42,58 @@ class DhanStreamingAdapter:
         self._ws_factory = ws_factory
         self._quote_subs: dict[str, OnQuote | None] = {}
         self._order_cb: OnOrder | None = None
+        self._depth_subs: dict[str, OnDepth | None] = {}
+        self._last_depth: dict[str, MarketDepth] = {}
         self._ws: Any | None = None
+        self._reconnect_manager = WsReconnectManager(reconnect_config)
+
+    def stream_depth(
+        self, instrument_id: InstrumentId, on_depth: OnDepth | None = None
+    ) -> MarketDepth | None:
+        """Subscribe to 20/200-level depth for *instrument_id*.
+
+        Dhan's quote feed packet already carries ``depth.{buy,sell}``, so the
+        same WS subscription serves both quote and depth. Returns the most
+        recently cached depth (or ``None`` until the first packet arrives).
+        """
+        self._depth_subs[instrument_id.value] = on_depth
+        self._ensure_ws()
+        if self._ws is not None and hasattr(self._ws, "send"):
+            sec = self._wire.security_id(instrument_id)
+            segment = self._wire.get_segment(instrument_id)
+            self._ws.send(
+                json.dumps(
+                    {
+                        "RequestCode": 15,
+                        "InstrumentCount": 1,
+                        "InstrumentList": [{"ExchangeSegment": segment, "SecurityId": sec}],
+                    }
+                )
+            )
+        return self._last_depth.get(instrument_id.value)
 
     def stream(self, instrument_id: InstrumentId, on_quote: OnQuote | None = None) -> None:
         self._quote_subs[instrument_id.value] = on_quote
         self._ensure_ws()
         if self._ws is not None and hasattr(self._ws, "send"):
             sec = self._wire.security_id(instrument_id)
+            segment = self._wire.get_segment(instrument_id)
             self._ws.send(
                 json.dumps(
                     {
                         "RequestCode": 15,
                         "InstrumentCount": 1,
-                        "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": sec}],
+                        "InstrumentList": [{"ExchangeSegment": segment, "SecurityId": sec}],
                     }
                 )
             )
 
     def unstream(self, instrument_id: InstrumentId) -> None:
         self._quote_subs.pop(instrument_id.value, None)
+
+    def unstream_depth(self, instrument_id: InstrumentId) -> None:
+        self._depth_subs.pop(instrument_id.value, None)
+        self._last_depth.pop(instrument_id.value, None)
 
     def stream_order(self, on_order: OnOrder | None = None) -> None:
         self._order_cb = on_order
@@ -62,13 +103,22 @@ class DhanStreamingAdapter:
         """Test/ingress hook — decode venue payload into callbacks."""
         if "orderId" in payload or payload.get("type") == "order":
             if self._order_cb is not None:
-                self._order_cb(self._wire.to_order(payload))
+                try:
+                    self._order_cb(self._wire.to_order(payload))
+                except MappingError as exc:
+                    logger.warning("dhan_order_update_unmapped: %s", exc)
             return
         iid_raw = payload.get("instrument_id") or payload.get("symbol")
         if iid_raw and iid_raw in self._quote_subs:
             cb = self._quote_subs[iid_raw]
             if cb is not None:
-                cb(self._wire.to_quote(payload, instrument_id=InstrumentId(value=str(iid_raw))))
+                cb(self._wire.to_quote(payload, instrument_id=InstrumentId.parse(str(iid_raw))))
+        if iid_raw and iid_raw in self._depth_subs:
+            depth_cb = self._depth_subs[iid_raw]
+            depth = self._wire.to_depth(payload, instrument_id=InstrumentId.parse(str(iid_raw)))
+            self._last_depth[iid_raw] = depth
+            if depth_cb is not None:
+                depth_cb(depth)
 
     def close(self) -> None:
         if self._ws is not None and hasattr(self._ws, "close"):
@@ -80,3 +130,50 @@ class DhanStreamingAdapter:
             return
         url = f"{self._ws_url}?version=2&token={self._token_provider()}&clientId={self._client_id}"
         self._ws = self._ws_factory(url)
+        self._reconnect_manager.on_connect()
+
+    def _handle_ws_close(self, close_code: int = 0, close_msg: str = "") -> None:
+        self._reconnect_manager.on_close()
+        self._ws = None
+        thread = threading.Thread(target=self._do_reconnect, daemon=True)
+        thread.start()
+
+    def _do_reconnect(self) -> None:
+        self._reconnect_manager.on_disconnect(
+            reconnect_fn=self._ensure_ws,
+            replay_fn=self._replay_subscriptions,
+        )
+
+    def _replay_subscriptions(self) -> None:
+        for instrument_id_str in self._quote_subs:
+            self._send_subscribe(InstrumentId.parse(instrument_id_str))
+        for instrument_id_str in self._depth_subs:
+            self._send_subscribe(InstrumentId.parse(instrument_id_str))
+        if self._order_cb is not None:
+            self._send_order_subscribe()
+
+    def _send_subscribe(self, instrument_id: InstrumentId) -> None:
+        if self._ws is not None and hasattr(self._ws, "send"):
+            sec = self._wire.security_id(instrument_id)
+            segment = self._wire.get_segment(instrument_id)
+            self._ws.send(
+                json.dumps(
+                    {
+                        "RequestCode": 15,
+                        "InstrumentCount": 1,
+                        "InstrumentList": [{"ExchangeSegment": segment, "SecurityId": sec}],
+                    }
+                )
+            )
+
+    def _send_order_subscribe(self) -> None:
+        if self._ws is not None and hasattr(self._ws, "send"):
+            self._ws.send(
+                json.dumps(
+                    {
+                        "RequestCode": 15,
+                        "InstrumentCount": 0,
+                        "InstrumentList": [],
+                    }
+                )
+            )

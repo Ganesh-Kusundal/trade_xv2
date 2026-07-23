@@ -11,8 +11,21 @@ _FORBIDDEN = ("application", "infrastructure", "runtime", "interface", "plugins"
 
 
 def _imported_roots(tree: ast.AST) -> set[str]:
+    """Extract top-level package names from import statements, excluding TYPE_CHECKING blocks."""
+    tc_imports: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If):
+            test = node.test
+            if (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+                isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+            ):
+                for child in ast.walk(node):
+                    if isinstance(child, (ast.Import, ast.ImportFrom)):
+                        tc_imports.add(id(child))
     roots: set[str] = set()
     for node in ast.walk(tree):
+        if id(node) in tc_imports:
+            continue
         if isinstance(node, ast.Import):
             for alias in node.names:
                 roots.add(alias.name.split(".", 1)[0])

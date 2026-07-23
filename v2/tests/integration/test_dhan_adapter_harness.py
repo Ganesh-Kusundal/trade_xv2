@@ -38,16 +38,26 @@ class FakeTransport:
 
 
 def _quote_fixture() -> dict:
-    # ponytail: native-like Dhan quote shape, not a live payload dump
+    # G4: Dhan returns depth in nested depth.buy/depth.sell arrays from /marketfeed/quote
     return {
         "data": {
-            "2885": {
-                "bid": 2499.5,
-                "ask": 2500.5,
-                "bid_qty": 100,
-                "ask_qty": 80,
-                "ltp": 2500.0,
-                "last_trade_time": "2024-01-15T10:00:00+05:30",
+            "NSE_EQ": {
+                "2885": {
+                    "last_price": 2500.0,
+                    "ohlc": {"open": 2490.0, "high": 2510.0, "low": 2485.0, "close": 2495.0},
+                    "volume": 100000,
+                    "depth": {
+                        "buy": [
+                            {"price": 2499.5, "quantity": 100, "orders": 5},
+                            {"price": 2499.0, "quantity": 200, "orders": 8},
+                        ],
+                        "sell": [
+                            {"price": 2500.5, "quantity": 80, "orders": 3},
+                            {"price": 2501.0, "quantity": 150, "orders": 6},
+                        ],
+                    },
+                    "last_trade_time": "2024-01-15T10:00:00+05:30",
+                }
             }
         }
     }
@@ -68,8 +78,9 @@ def _place_ack_fixture() -> dict:
 def test_dhan_adapter_harness_quote_and_place_order() -> None:
     transport = FakeTransport(
         {
-            ("GET", "/marketfeed/quote"): _quote_fixture(),
+            ("POST", "/marketfeed/quote"): _quote_fixture(),
             ("POST", "/orders"): _place_ack_fixture(),
+            ("GET", "/orders"): {"data": []},
             ("GET", "/positions"): {"data": []},
             ("GET", "/fundlimit"): {"data": {"availabelBalance": 500000}},
         }
@@ -77,7 +88,7 @@ def test_dhan_adapter_harness_quote_and_place_order() -> None:
     from plugins.brokers.dhan.config import DhanConfig
 
     gateway = DhanGateway(
-        config=DhanConfig(access_token="dhan-static"),
+        config=DhanConfig(access_token="dhan-static", allow_live_orders=True),
         transport=transport,
     )
     harness = AdapterTestHarness(adapter=gateway)
@@ -85,7 +96,10 @@ def test_dhan_adapter_harness_quote_and_place_order() -> None:
     gateway.connect()
     assert gateway.authenticate() is True
 
-    instrument_id = InstrumentId(value="NSE:RELIANCE")
+    # Register RELIANCE security ID for testing
+    gateway.connection.wire.register_security(InstrumentId.parse("NSE:RELIANCE"), "2885")
+
+    instrument_id = InstrumentId.parse("NSE:RELIANCE")
     quote = harness.test_get_quote(instrument_id)
     assert quote.bid.value == Decimal("2499.5")
     assert quote.ask.value == Decimal("2500.5")
@@ -105,6 +119,11 @@ def test_dhan_adapter_harness_quote_and_place_order() -> None:
     order = gateway.get_order(order_id)
     assert order.status.name == "SUBMITTED"
 
+    harness.test_get_positions()
+    harness.test_get_funds()
+    harness.test_mass_status()
+    harness.test_capabilities()
+
     received: list = []
     gateway.stream(instrument_id, on_quote=received.append)
     gateway.connection.streaming.feed_raw(
@@ -123,6 +142,6 @@ def test_dhan_adapter_harness_quote_and_place_order() -> None:
     )
     assert len(received) == 1
 
-    assert any(c[0] == "GET" and "quote" in c[1] for c in transport.calls)
+    assert any(c[0] == "POST" and "quote" in c[1] for c in transport.calls)
     assert any(c[0] == "POST" and "order" in c[1].lower() for c in transport.calls)
     gateway.close()

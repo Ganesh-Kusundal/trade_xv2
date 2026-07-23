@@ -8,18 +8,7 @@ from domain.commands import PlaceOrderCommand
 from domain.entities import Order
 from domain.value_objects import CorrelationId, OrderId
 
-try:
-    from application.risk.context import RiskCheckResult as RiskCheckResult
-except ImportError:  # C2 not landed
-    from dataclasses import dataclass
-    from decimal import Decimal
-
-    @dataclass(frozen=True, slots=True)
-    class RiskCheckResult:  # type: ignore[no-redef]
-        approved: bool
-        reason: str | None = None
-        max_quantity: Decimal | None = None
-        max_notional: Decimal | None = None
+from application.risk.context import RiskCheckResult
 
 
 @runtime_checkable

@@ -1,0 +1,400 @@
+// TradeXV2 v2 — Broker CLASS diagram
+// Source skill: system-modeler + graphviz
+// Evidence: src/plugins/brokers/**, src/runtime/**, src/domain/ports/**
+// Layout: rankdir=TB, record-shaped classes (fields | methods),
+//         UML-ish arrows: implements / extends / depends-on / owns.
+// Legend:
+//   solid black  → implements Protocol / interface
+//   solid blue   → composes / owns (HAS-A)
+//   dashed gray  → depends-on (uses type)
+//   solid green  → extends (subclass)
+digraph broker_classes {
+  rankdir=TB;
+  nodesep=0.5;
+  ranksep=0.7;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=9, shape=record, style=filled, fillcolor="#f5f5f5", color="#333333"];
+  edge [fontname="Helvetica", fontsize=8];
+
+  // =====================================================================
+  // DOMAIN LAYER — ports & contracts (broker-agnostic)
+  // =====================================================================
+  subgraph cluster_domain {
+    label="domain — ports & contracts (broker-agnostic)";
+    style=filled; fillcolor="#eef7ee"; color="#3a7d3a";
+    fontname="Helvetica"; fontsize=11;
+
+    BrokerAdapter [
+      label="{BrokerAdapter  «Protocol, runtime_checkable»|
+        + submit_order(cmd: PlaceOrderCommand) → OrderId\l
+        + cancel_order(order_id: OrderId) → None\l
+        + modify_order(order_id, cmd) → None\l
+        + get_order(order_id) → Order\l
+        + get_orderbook() → list[Order]\l
+        + get_positions() → list[Position]\l
+        + get_funds() → Account\l
+        + mass_status() → BrokerSnapshot\l
+      }", fillcolor="#d7ecd7"];
+
+    BaseTransport [
+      label="{BaseTransport  «Protocol»|
+        + get(path, **kw) → Any\l
+        + post(path, **kw) → Any\l
+        + put(path, **kw) → Any\l
+        + delete(path, **kw) → Any\l
+      }", fillcolor="#d7ecd7"];
+
+    FillSource [
+      label="{FillSource  «Protocol»|
+        + submit(cmd) → Order\l
+        + cancel(order_id) → None\l
+      }", fillcolor="#d7ecd7"];
+
+    ConnectionLiveness [
+      label="{ConnectionLiveness|
+        + connect() → None\l
+        + authenticate() → bool\l
+        + disconnect() → None\l
+        + is_connected: bool\l
+        + is_authenticated: bool\l
+      }", fillcolor="#d7ecd7"];
+
+    BrokerCapabilities [
+      label="{BrokerCapabilities  «@dataclass frozen»|
+        + supports_market_order: bool\l
+        + supports_limit_order: bool\l
+        + supports_stop_order: bool\l
+        + supports_modify: bool\l
+        + supports_cancel: bool\l
+        + supported_asset_classes: frozenset\l
+        + max_order_quantity: Quantity\l
+        + max_order_value: Price\l
+      }", fillcolor="#d7ecd7"];
+  }
+
+  // =====================================================================
+  // RUNTIME — composition root
+  // =====================================================================
+  subgraph cluster_runtime {
+    label="runtime — composition root";
+    style=filled; fillcolor="#eef2fb"; color="#3a5ca8";
+    fontname="Helvetica"; fontsize=11;
+
+    BrokerFactory [
+      label="{build_broker_adapter|\l
+        resolve BrokerId → gateway\l
+        merge env credentials\l
+        isinstance(BrokerAdapter) guard\l
+      }", shape=box3d, fillcolor="#d6e0f5"];
+
+    Discovery [
+      label="{discover_brokers|\l
+        entry_points('tradex.brokers')\l
+        fallback explicit imports\l
+      }", fillcolor="#d6e0f5"];
+
+    Registry [
+      label="{registry|
+        _PLUGINS: dict[BrokerId, plugin]\l
+        + register_broker_plugin()\l
+        + get_plugin()\l
+        + list_plugins()\l
+      }", shape=cylinder, fillcolor="#d6e0f5"];
+
+    ExecTarget [
+      label="{resolve_fill_source|\l
+        BACKTEST → SimulatedFillSource\l
+        PAPER    → PaperFillSource\l
+        LIVE     → BrokerFillSource\l
+        REPLAY   → ReplayFillSource\l
+      }", shape=diamond, fillcolor="#d6e0f5"];
+
+    BrokerFillSource [
+      label="{BrokerFillSource|
+        - adapter: BrokerAdapter\l
+        + submit(cmd) → Order\l
+        + cancel(order_id) → None\l
+      }", fillcolor="#d6e0f5"];
+  }
+
+  // =====================================================================
+  // GATEWAYS — BrokerAdapter facades
+  // =====================================================================
+  subgraph cluster_gateways {
+    label="plugins.brokers.*.gateway — BrokerAdapter facades";
+    style=filled; fillcolor="#fbf6ea"; color="#a8862f";
+    fontname="Helvetica"; fontsize=11;
+
+    PaperGateway [
+      label="{PaperGateway|
+        - connection: PaperConnection\l
+        + extensions: BrokerExtensions\l
+        + capabilities() → BrokerCapabilities\l
+        + submit_order / place_order / cancel_order\l
+        + get_order / get_orderbook / get_positions\l
+        + get_funds / get_balance / get_holdings\l
+        + get_quote / get_ltp / get_depth / get_history\l
+        + load_instruments / search / mass_status\l
+      }", fillcolor="#f5ecd0"];
+
+    DhanGateway [
+      label="{DhanGateway|
+        - connection: DhanConnection\l
+        + extensions: BrokerExtensions\l
+        + extension(ext_type) → T\l
+        + capabilities() → BrokerCapabilities\l
+        + submit_order / place_order / cancel_order / modify_order\l
+        + get_order / get_orderbook / get_positions\l
+        + get_funds / get_balance / get_holdings\l
+        + get_quote / ltp / depth / history\l
+        + stream / unstream / stream_order\l
+        + load_instruments / search / mass_status\l
+      }", fillcolor="#f5ecd0"];
+
+    UpstoxGateway [
+      label="{UpstoxGateway|
+        - connection: UpstoxConnection\l
+        + extensions: BrokerExtensions\l
+        + capabilities() → BrokerCapabilities\l
+        + submit_order / place_order / cancel_order / modify_order\l
+        + get_order / get_orderbook / get_positions\l
+        + get_funds / get_balance / get_holdings\l
+        + get_quote / ltp / depth / history\l
+        + stream / unstream / stream_order\l
+        + load_instruments / search / mass_status\l
+      }", fillcolor="#f5ecd0"];
+  }
+
+  // =====================================================================
+  // CONNECTIONS — own auth, transport, sub-adapters
+  // =====================================================================
+  subgraph cluster_conn {
+    label="plugins.brokers.*.connection — own auth + transport + sub-adapters";
+    style=filled; fillcolor="#f7eef7"; color="#8a3a8a";
+    fontname="Helvetica"; fontsize=11;
+
+    PaperConnection [
+      label="{PaperConnection|
+        + is_connected: bool\l
+        + orders / market_data / portfolio\l
+        + instruments / streaming\l
+        + connect / close / mass_status\l
+      }", fillcolor="#ecd7ec"];
+
+    DhanConnection [
+      label="{DhanConnection : ConnectionLiveness|
+        + config: DhanConfig\l
+        + wire: DhanWire\l
+        - _tokens: DhanTokenManager\l
+        - _limiter: MultiBucketRateLimiter\l
+        + transport: BaseTransport\l
+        + orders: DhanOrdersAdapter\l
+        + market_data: DhanMarketDataAdapter\l
+        + portfolio: DhanPortfolioAdapter\l
+        + instruments: DhanInstrumentAdapter\l
+        + streaming: DhanStreamingAdapter\l
+        + connect / authenticate / disconnect\l
+        + _reauth_on_401 / mass_status\l
+      }", fillcolor="#ecd7ec"];
+
+    UpstoxConnection [
+      label="{UpstoxConnection : ConnectionLiveness|
+        + config: UpstoxConfig\l
+        + wire: UpstoxWire\l
+        - _tokens: UpstoxTokenManager\l
+        - _limiter: MultiBucketRateLimiter\l
+        + transport: BaseTransport\l
+        + orders / market_data / portfolio\l
+        + instruments / streaming\l
+        + connect / authenticate / disconnect\l
+        + _reauth_on_401 / mass_status\l
+      }", fillcolor="#ecd7ec"];
+  }
+
+  // =====================================================================
+  // ADAPTERS — 5-way split per broker
+  // =====================================================================
+  subgraph cluster_adapters {
+    label="plugins.brokers.*.adapters — 5-way split (orders/market_data/portfolio/instruments/streaming)";
+    style=filled; fillcolor="#eef6f9"; color="#3a7d99";
+    fontname="Helvetica"; fontsize=11;
+
+    DhanOrdersAdapter [
+      label="{DhanOrdersAdapter|
+        - _transport: BaseTransport\l
+        - _wire: DhanWire\l
+        - _cache: dict[str, Order]\l
+        + place_order / cancel_order / modify_order\l
+        + get_order / get_orderbook\l
+      }", fillcolor="#d5e9f2"];
+
+    DhanMarketDataAdapter [
+      label="{DhanMarketDataAdapter|
+        + get_quote / get_ltp / get_depth\l
+        + get_history\l
+        + get_batch_ltp / get_batch_quote\l
+      }", fillcolor="#d5e9f2"];
+
+    DhanStreamingAdapter [
+      label="{DhanStreamingAdapter|
+        - _quote_subs / _depth_subs / _order_cb\l
+        - _ws / _reconnect_manager\l
+        + stream / unstream / stream_depth\l
+        + stream_order / feed_raw / close\l
+        + _ensure_ws / _replay_subscriptions\l
+      }", fillcolor="#d5e9f2"];
+
+    DhanPortfolioAdapter [
+      label="{DhanPortfolioAdapter|
+        + get_positions / get_holdings / get_funds\l
+      }", fillcolor="#d5e9f2"];
+
+    DhanInstrumentAdapter [
+      label="{DhanInstrumentAdapter|
+        + load_instruments / search\l
+      }", fillcolor="#d5e9f2"];
+
+    DhanWire [
+      label="{DhanWire|
+        - _resolver: InMemoryInstrumentResolver\l
+        + security_id / get_segment / get_instrument_type\l
+        + from_place_command / to_order_id\l
+        + to_quote / to_ltp / to_depth / to_order\l
+        + to_position / to_account\l
+      }", fillcolor="#d5e9f2"];
+  }
+
+  // =====================================================================
+  // COMMON — shared plumbing
+  // =====================================================================
+  subgraph cluster_common {
+    label="plugins.brokers.common — shared transport & resilience plumbing";
+    style=filled; fillcolor="#f2f2f2"; color="#666666";
+    fontname="Helvetica"; fontsize=11;
+
+    HttpTransport [
+      label="{HttpTransport : BaseTransport|
+        - _limiter: MultiBucketRateLimiter\l
+        - _token_provider: Callable\l
+        - _client: HttpClient (wrapped)\l
+        - _on_auth_failure: Callable\l
+        + get / post / put / delete\l
+        + _request (rate → token → circuit → retry → HTTP)\l
+      }", fillcolor="#e4e4e4"];
+
+    MultiBucketRateLimiter [
+      label="{MultiBucketRateLimiter|
+        + acquire(bucket, timeout) → bool\l
+        + trigger_cooldown(bucket)\l
+      }", fillcolor="#e4e4e4"];
+
+    CircuitBreakerHttpClient [
+      label="{CircuitBreakerHttpClient|
+        + request(method, url, ...) → (status, body)\l
+      }", fillcolor="#e4e4e4"];
+
+    RetryableHttpClient [
+      label="{RetryableHttpClient|
+        + request(..., is_write: bool) → (status, body)\l
+      }", fillcolor="#e4e4e4"];
+
+    TokenManager [
+      label="{Dhan/UpstoxTokenManager|
+        - _store: TokenStore\l
+        - _totp: TotpClient\l
+        - _broadcast: TokenBroadcast\l
+        + ensure_token(force_refresh=False) → str\l
+        + current() → str\l
+        + register_receiver(fn)\l
+      }", fillcolor="#e4e4e4"];
+
+    WsReconnectManager [
+      label="{WsReconnectManager|
+        + on_connect / on_close / on_disconnect\l
+        + reconnect + replay subs\l
+      }", fillcolor="#e4e4e4"];
+
+    BrokerExtensions [
+      label="{BrokerExtensions|
+        - _extensions: list[Any]\l
+        + register(ext) → ext\l
+        + get(ext_type) → T\l
+        + names() → list[str]\l
+      }", fillcolor="#e4e4e4"];
+  }
+
+  // =====================================================================
+  // EXTERNAL VENUES
+  // =====================================================================
+  subgraph cluster_external {
+    label="external venues";
+    style=filled; fillcolor="#fdeaea"; color="#b03030";
+    fontname="Helvetica"; fontsize=11;
+    DhanREST  [label="Dhan REST", shape=cylinder, fillcolor="#f6d5d5"];
+    DhanWS    [label="Dhan WS\nwss://api-feed.dhan.co", shape=cylinder, fillcolor="#f6d5d5"];
+    UpstoxREST[shape=cylinder, fillcolor="#f6d5d5"];
+    UpstoxWS  [shape=cylinder, fillcolor="#f6d5d5"];
+  }
+
+  // =====================================================================
+  // IMPLEMENTS (solid black)
+  // =====================================================================
+  PaperGateway  -> BrokerAdapter [label="implements", color=black];
+  DhanGateway   -> BrokerAdapter [label="implements", color=black];
+  UpstoxGateway -> BrokerAdapter [label="implements", color=black];
+  HttpTransport -> BaseTransport [label="implements", color=black];
+  BrokerFillSource -> FillSource [label="implements", color=black];
+  DhanConnection -> ConnectionLiveness [label="extends", color=green];
+  UpstoxConnection -> ConnectionLiveness [label="extends", color=green];
+
+  // =====================================================================
+  // COMPOSITION (solid blue — HAS-A)
+  // =====================================================================
+  BrokerFactory -> Discovery [label="calls", color="#3a5ca8"];
+  Discovery     -> Registry  [label="registers into", color="#3a5ca8"];
+  BrokerFactory -> PaperGateway  [label="constructs", color="#3a5ca8"];
+  BrokerFactory -> DhanGateway   [label="constructs", color="#3a5ca8"];
+  BrokerFactory -> UpstoxGateway [label="constructs", color="#3a5ca8"];
+  ExecTarget    -> BrokerFillSource [label="creates", color="#3a5ca8"];
+  BrokerFillSource -> BrokerAdapter [label="depends-on", color=gray, style=dashed];
+
+  PaperGateway  -> PaperConnection  [label="owns", color="#3a5ca8"];
+  DhanGateway   -> DhanConnection   [label="owns", color="#3a5ca8"];
+  UpstoxGateway -> UpstoxConnection [label="owns", color="#3a5ca8"];
+  DhanGateway   -> BrokerExtensions [label="owns", color="#3a5ca8"];
+
+  DhanConnection -> DhanOrdersAdapter    [label="owns", color="#3a5ca8"];
+  DhanConnection -> DhanMarketDataAdapter[label="owns", color="#3a5ca8"];
+  DhanConnection -> DhanStreamingAdapter [label="owns", color="#3a5ca8"];
+  DhanConnection -> DhanPortfolioAdapter [label="owns", color="#3a5ca8"];
+  DhanConnection -> DhanInstrumentAdapter[label="owns", color="#3a5ca8"];
+  DhanConnection -> DhanWire             [label="owns", color="#3a5ca8"];
+  DhanConnection -> TokenManager         [label="owns", color="#3a5ca8"];
+  DhanConnection -> MultiBucketRateLimiter[label="owns", color="#3a5ca8"];
+
+  // =====================================================================
+  // DEPENDS-ON (dashed gray)
+  // =====================================================================
+  DhanOrdersAdapter     -> DhanWire       [label="uses", color=gray, style=dashed];
+  DhanMarketDataAdapter -> DhanWire       [label="uses", color=gray, style=dashed];
+  DhanStreamingAdapter  -> DhanWire       [label="uses", color=gray, style=dashed];
+  DhanStreamingAdapter  -> WsReconnectManager[label="uses", color=gray, style=dashed];
+  DhanOrdersAdapter     -> BaseTransport  [label="uses", color=gray, style=dashed];
+  DhanMarketDataAdapter -> BaseTransport  [label="uses", color=gray, style=dashed];
+
+  // =====================================================================
+  // TRANSPORT DECORATOR STACK
+  // =====================================================================
+  HttpTransport -> CircuitBreakerHttpClient [label="wraps", color="#666666"];
+  HttpTransport -> RetryableHttpClient    [label="wraps", color="#666666"];
+  HttpTransport -> MultiBucketRateLimiter [label="acquire bucket", color="#666666"];
+  HttpTransport -> TokenManager           [label="token_provider", color="#666666"];
+
+  // =====================================================================
+  // NETWORK I/O (dashed red REST / dotted purple WS)
+  // =====================================================================
+  HttpTransport -> DhanREST   [label="HTTPS", color="#b03030", style=dashed];
+  HttpTransport -> UpstoxREST [label="HTTPS", color="#b03030", style=dashed];
+  DhanStreamingAdapter   -> DhanWS    [label="WS feed", color="#7a3aa8", style=dotted];
+  UpstoxGateway -> UpstoxWS [label="WS feed", color="#7a3aa8", style=dotted];
+}

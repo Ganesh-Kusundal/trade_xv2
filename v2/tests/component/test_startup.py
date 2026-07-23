@@ -35,7 +35,7 @@ def test_boot_succeeds_and_freezes_environment() -> None:
     booted = boot(rt)
     assert booted.environment_frozen is True
     assert booted.environment is Environment.PAPER
-    assert rt.environment_frozen is False  # original untouched (frozen replace)
+    assert rt.environment_frozen is False  # original untouched (replace copies)
 
 
 def test_boot_aborts_when_risk_missing() -> None:

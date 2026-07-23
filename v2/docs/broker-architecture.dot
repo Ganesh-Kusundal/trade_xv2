@@ -1,0 +1,149 @@
+// TradeXV2 v2 — Broker plugin architecture (component / dependency view)
+// Source skill: system-modeler + graphviz
+// Evidence: src/plugins/brokers/**, src/runtime/**, src/domain/ports/broker_adapter.py
+// Layout: rankdir=TB (dense layered dependency graph, Canvas-friendly)
+// Edge legend:
+//   solid black  = implements / satisfies protocol
+//   solid blue   = constructs / owns (composition)
+//   solid green  = delegates (in-process call)
+//   dashed red   = network I/O (HTTP REST)
+//   dotted purple= streaming (WebSocket)
+digraph broker_architecture {
+  rankdir=TB;
+  nodesep=0.4;
+  ranksep=0.7;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=10, style=filled, fillcolor="#f5f5f5"];
+  edge [fontname="Helvetica", fontsize=8];
+
+  // ---------- Domain layer (ports / contracts) ----------
+  subgraph cluster_domain {
+    label="domain — ports & contracts (broker-agnostic)";
+    style=filled; fillcolor="#eef7ee"; color="#3a7d3a";
+    port_adapter   [label="BrokerAdapter\n(Protocol, runtime_checkable)\nsubmit/cancel/modify/get_*\nmass_status", shape=component, fillcolor="#d7ecd7"];
+    port_transport [label="BaseTransport\n(Protocol)\nget/post/put/delete", shape=component, fillcolor="#d7ecd7"];
+    d_broker_id    [label="BrokerId enum\nPAPER / DHAN / UPSTOX", shape=note, fillcolor="#d7ecd7"];
+    d_snapshot     [label="BrokerSnapshot\norders+positions+account", shape=note, fillcolor="#d7ecd7"];
+    d_cmd          [label="PlaceOrderCommand\nOrder / Position / Account\nQuote / Bar / MarketDepth", shape=note, fillcolor="#d7ecd7"];
+  }
+
+  // ---------- Runtime composition root ----------
+  subgraph cluster_runtime {
+    label="runtime — composition root (only place brokers are constructed)";
+    style=filled; fillcolor="#eef2fb"; color="#3a5ca8";
+    r_factory   [label="build_broker_adapter()\nbroker_factory.py\nresolves BrokerId → gateway\n+ Protocol isinstance guard", shape=box3d, fillcolor="#d6e0f5"];
+    r_discovery [label="discover_brokers()\ndiscovery.py\nentry-points + fallback import", fillcolor="#d6e0f5"];
+    r_registry  [label="registry.py\n_PLUGINS: dict[BrokerId, plugin]", shape=cylinder, fillcolor="#d6e0f5"];
+    r_exectgt   [label="resolve_fill_source()\nexecution_target.py\nEnvironment → FillSource", shape=diamond, fillcolor="#d6e0f5"];
+    r_brokerfs  [label="BrokerFillSource (LIVE)\nPaperFillSource (PAPER)\nfill_sources.py", fillcolor="#d6e0f5"];
+  }
+
+  // ---------- Gateways (BrokerAdapter facades) ----------
+  subgraph cluster_gateways {
+    label="plugins.brokers.*.gateway — BrokerAdapter facade (thin)";
+    style=filled; fillcolor="#fbf6ea"; color="#a8862f";
+    g_paper  [label="PaperGateway\n+ PAPER_CAPABILITIES\nno network I/O", fillcolor="#f5ecd0"];
+    g_dhan   [label="DhanGateway\n+ DHAN_CAPABILITIES\n+ BrokerExtensions\n(Depth20/Depth200)", fillcolor="#f5ecd0"];
+    g_upstox [label="UpstoxGateway\n+ UPSTOX_CAPABILITIES", fillcolor="#f5ecd0"];
+  }
+
+  // ---------- Connections (own auth + transport + sub-adapters) ----------
+  subgraph cluster_conn {
+    label="plugins.brokers.*.connection — owns auth, transport, sub-adapters (ConnectionLiveness)";
+    style=filled; fillcolor="#f7eef7"; color="#8a3a8a";
+    c_paper  [label="PaperConnection\nin-memory sim", fillcolor="#ecd7ec"];
+    c_dhan   [label="DhanConnection", fillcolor="#ecd7ec"];
+    c_upstox [label="UpstoxConnection", fillcolor="#ecd7ec"];
+  }
+
+  // ---------- Sub-adapters (per broker, same 5-way split) ----------
+  subgraph cluster_adapters {
+    label="plugins.brokers.*.adapters — orders / market_data / portfolio / instruments / streaming (+ wire mapper)";
+    style=filled; fillcolor="#eef6f9"; color="#3a7d99";
+    a_dhan   [label="Dhan adapters\norders · market_data · portfolio\ninstruments · streaming\n+ DhanWire (native↔domain)", fillcolor="#d5e9f2"];
+    a_upstox [label="Upstox adapters\norders · market_data · portfolio\ninstruments · streaming\n+ UpstoxWire", fillcolor="#d5e9f2"];
+    a_paper  [label="Paper adapters\norders · market_data\nportfolio · instruments · streaming", fillcolor="#d5e9f2"];
+  }
+
+  // ---------- Common infrastructure (shared broker plumbing) ----------
+  subgraph cluster_common {
+    label="plugins.brokers.common — shared transport & resilience plumbing";
+    style=filled; fillcolor="#f2f2f2"; color="#666666";
+    cm_http    [label="HttpTransport\nRequests/Urllib client\ntoken_provider + on_auth_failure", fillcolor="#e4e4e4"];
+    cm_rate    [label="MultiBucketRateLimiter\nDHAN/UPSTOX rate tables\nbucket-per-path", fillcolor="#e4e4e4"];
+    cm_cb      [label="CircuitBreakerHttpClient", fillcolor="#e4e4e4"];
+    cm_retry   [label="RetryableHttpClient\nwrite-safety aware", fillcolor="#e4e4e4"];
+    cm_token   [label="Dhan/UpstoxTokenManager\nstore→env→TOTP\nJwtExpiry + TotpCooldown", fillcolor="#e4e4e4"];
+    cm_ws      [label="WsReconnectManager\nReconnectConfig + replay subs", fillcolor="#e4e4e4"];
+    cm_ext     [label="BrokerExtensions\ncapability registry seam", fillcolor="#e4e4e4"];
+  }
+
+  // ---------- External venues ----------
+  subgraph cluster_external {
+    label="external venues";
+    style=filled; fillcolor="#fdeaea"; color="#b03030";
+    x_dhan_rest   [label="Dhan REST\n/orders /marketfeed /charts", shape=cylinder, fillcolor="#f6d5d5"];
+    x_dhan_ws     [label="Dhan WS\nwss://api-feed.dhan.co", shape=cylinder, fillcolor="#f6d5d5"];
+    x_upstox_rest [label="Upstox REST", shape=cylinder, fillcolor="#f6d5d5"];
+    x_upstox_ws   [label="Upstox WS", shape=cylinder, fillcolor="#f6d5d5"];
+  }
+
+  // ===== implements protocol (solid black) =====
+  g_paper  -> port_adapter [label="implements", color=black];
+  g_dhan   -> port_adapter [label="implements", color=black];
+  g_upstox -> port_adapter [label="implements", color=black];
+  cm_http  -> port_transport [label="implements", color=black];
+
+  // ===== composition root wiring (solid blue) =====
+  r_discovery -> r_registry [label="register plugins", color="#3a5ca8"];
+  r_factory   -> r_discovery [label="calls", color="#3a5ca8"];
+  r_factory   -> d_broker_id [label="switch on", color="#3a5ca8", style=dashed];
+  r_factory   -> g_paper  [label="constructs", color="#3a5ca8"];
+  r_factory   -> g_dhan   [label="constructs", color="#3a5ca8"];
+  r_factory   -> g_upstox [label="constructs", color="#3a5ca8"];
+  r_factory   -> port_adapter [label="isinstance guard", color="#3a5ca8", style=dashed];
+  r_exectgt   -> r_brokerfs [label="creates", color="#3a5ca8"];
+  r_brokerfs  -> port_adapter [label="delegates submit/cancel", color="#2e8b57"];
+
+  // ===== gateway owns connection (solid blue) =====
+  g_paper  -> c_paper  [label="owns", color="#3a5ca8"];
+  g_dhan   -> c_dhan   [label="owns", color="#3a5ca8"];
+  g_upstox -> c_upstox [label="owns", color="#3a5ca8"];
+  g_dhan   -> cm_ext   [label="Depth20/200", color="#3a5ca8"];
+
+  // ===== connection owns adapters + infra (solid blue) =====
+  c_paper  -> a_paper  [label="owns", color="#3a5ca8"];
+  c_dhan   -> a_dhan   [label="owns", color="#3a5ca8"];
+  c_upstox -> a_upstox [label="owns", color="#3a5ca8"];
+  c_dhan   -> cm_http  [label="builds", color="#3a5ca8"];
+  c_upstox -> cm_http  [label="builds", color="#3a5ca8"];
+  c_dhan   -> cm_token [label="builds", color="#3a5ca8"];
+  c_upstox -> cm_token [label="builds", color="#3a5ca8"];
+  c_dhan   -> cm_rate  [label="limiter_from_table", color="#3a5ca8"];
+  c_upstox -> cm_rate  [label="limiter_from_table", color="#3a5ca8"];
+
+  // ===== gateway delegates to connection (green) =====
+  g_dhan   -> c_dhan   [style=invis];
+
+  // ===== adapters use common transport (green delegate) =====
+  a_dhan   -> cm_http [label="get/post", color="#2e8b57"];
+  a_upstox -> cm_http [label="get/post", color="#2e8b57"];
+  a_dhan   -> cm_ws   [label="reconnect", color="#2e8b57"];
+  a_upstox -> cm_ws   [label="reconnect", color="#2e8b57"];
+
+  // ===== transport internal decorators =====
+  cm_http -> cm_cb    [label="wraps", color="#666666"];
+  cm_http -> cm_retry [label="wraps", color="#666666"];
+  cm_http -> cm_rate  [label="acquire bucket", color="#666666"];
+  cm_http -> cm_token [label="token_provider", color="#666666"];
+
+  // ===== network I/O (dashed red REST / dotted purple WS) =====
+  cm_http -> x_dhan_rest   [label="HTTPS REST", color="#b03030", style=dashed];
+  cm_http -> x_upstox_rest [label="HTTPS REST", color="#b03030", style=dashed];
+  a_dhan   -> x_dhan_ws    [label="WS feed", color="#7a3aa8", style=dotted];
+  a_upstox -> x_upstox_ws  [label="WS feed", color="#7a3aa8", style=dotted];
+
+  // ===== domain type usage (light) =====
+  port_adapter -> d_cmd      [label="consumes", color=gray, style=dotted];
+  port_adapter -> d_snapshot [label="returns", color=gray, style=dotted];
+}

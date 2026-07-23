@@ -10,7 +10,7 @@ from domain.value_objects import InstrumentId, Price, Quantity
 
 def test_set_get_quote_cache_then_read() -> None:
     cache = TradingCache()
-    iid = InstrumentId(value="NSE:RELIANCE")
+    iid = InstrumentId.parse("NSE:RELIANCE")
     quote = Quote(
         instrument_id=iid,
         bid=Price(value=Decimal("2500.00")),
@@ -29,7 +29,7 @@ def test_set_get_quote_cache_then_read() -> None:
 
 def test_snapshot_includes_orders_positions_quotes() -> None:
     cache = TradingCache()
-    iid = InstrumentId(value="NSE:TCS")
+    iid = InstrumentId.parse("NSE:TCS")
     quote = Quote(
         instrument_id=iid,
         bid=Price(value=Decimal("1")),

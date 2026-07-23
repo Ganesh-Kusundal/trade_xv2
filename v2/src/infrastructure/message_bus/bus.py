@@ -113,7 +113,7 @@ class MessageBus:
         """Stop the message bus."""
         self._stopped = True
 
-    def replay(self, start: int, end: int) -> None:
+    def replay(self, start: datetime | None = None, end: datetime | None = None) -> None:
         """Replay messages from the log within the given timestamp range."""
         if self._message_log is None:
             return

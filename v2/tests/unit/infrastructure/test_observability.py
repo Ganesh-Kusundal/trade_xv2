@@ -1,5 +1,6 @@
 """Observability: Metrics, Audit, Health — combined test suite."""
 
+from domain.enums import ComponentState
 from infrastructure.observability.audit import AuditSink
 from infrastructure.observability.health import ComponentHealth, HealthRegistry
 from infrastructure.observability.metrics import Metrics
@@ -94,7 +95,7 @@ def test_health_registry_update_and_get() -> None:
     reg = HealthRegistry()
     h = ComponentHealth(
         component_id="message_bus",
-        state="RUNNING",
+        state=ComponentState.RUNNING,
         metrics={"queue_depth": 0},
     )
     reg.update(h)
@@ -103,8 +104,8 @@ def test_health_registry_update_and_get() -> None:
 
 def test_health_registry_all() -> None:
     reg = HealthRegistry()
-    reg.update(ComponentHealth(component_id="a", state="RUNNING"))
-    reg.update(ComponentHealth(component_id="b", state="ERROR"))
+    reg.update(ComponentHealth(component_id="a", state=ComponentState.RUNNING))
+    reg.update(ComponentHealth(component_id="b", state=ComponentState.ERROR))
     assert len(reg.all()) == 2
     states = {h.state for h in reg.all()}
     assert states == {"RUNNING", "ERROR"}

@@ -38,7 +38,7 @@ from domain.value_objects import (
 def _order(status: OrderStatus = OrderStatus.PENDING) -> Order:
     return Order(
         order_id=OrderId(value="o1"),
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal("10")),
@@ -51,7 +51,7 @@ def _order(status: OrderStatus = OrderStatus.PENDING) -> Order:
 
 def _position() -> Position:
     return Position(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         quantity=Quantity(value=Decimal("10")),
         avg_price=Price(value=Decimal("2500")),
         realized_pnl=Money(amount=Decimal("500"), currency="INR"),
@@ -63,7 +63,7 @@ def _trade() -> Trade:
     return Trade(
         trade_id="t1",
         order_id=OrderId(value="o1"),
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         price=Price(value=Decimal("2500")),
         quantity=Quantity(value=Decimal("10")),
         side=OrderSide.BUY,
@@ -73,7 +73,7 @@ def _trade() -> Trade:
 
 def _instrument() -> Instrument:
     return Instrument(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         symbol="RELIANCE",
         exchange=ExchangeId.NSE,
         asset_class=AssetClass.EQUITY,
@@ -84,13 +84,13 @@ def _instrument() -> Instrument:
 
 def _instrument_option() -> Instrument:
     return Instrument(
-        instrument_id=InstrumentId(value="NSE:RELIANCE2500CE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE2500CE"),
         symbol="RELIANCE2500CE",
         exchange=ExchangeId.NSE,
         asset_class=AssetClass.DERIVATIVE,
         currency="INR",
         instrument_type=InstrumentType.OPTION,
-        underlying_id=InstrumentId(value="NSE:RELIANCE"),
+        underlying_id=InstrumentId.parse("NSE:RELIANCE"),
         strike=Decimal("2500"),
         expiry=datetime(2025, 12, 31),
         option_type="CALL",
@@ -191,7 +191,7 @@ class TestPositionFrozen:
 
     def test_position_fields(self) -> None:
         pos = _position()
-        assert pos.instrument_id == InstrumentId(value="NSE:RELIANCE")
+        assert pos.instrument_id == InstrumentId.parse("NSE:RELIANCE")
         assert pos.quantity == Quantity(value=Decimal("10"))
         assert pos.avg_price == Price(value=Decimal("2500"))
 
@@ -231,7 +231,7 @@ class TestInstrumentFrozen:
 
     def test_option_instrument(self) -> None:
         inst = _instrument_option()
-        assert inst.underlying_id == InstrumentId(value="NSE:RELIANCE")
+        assert inst.underlying_id == InstrumentId.parse("NSE:RELIANCE")
         assert inst.strike == Decimal("2500")
         assert inst.expiry == datetime(2025, 12, 31)
         assert inst.option_type == "CALL"

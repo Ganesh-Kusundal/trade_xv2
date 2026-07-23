@@ -24,6 +24,9 @@ class DhanConfig:
         default_factory=lambda: _REPO_RUNTIME / "dhan-totp-cooldown.json"
     )
     token_ttl_seconds: float = 24 * 3600
+    refresh_buffer_seconds: float = 300  # 5 minutes before expiry, trigger proactive refresh
+    # Safety gate — live order placement refused unless explicitly enabled
+    allow_live_orders: bool = False
 
     @classmethod
     def from_env(cls) -> DhanConfig:
@@ -46,6 +49,8 @@ class DhanConfig:
                     "DHAN_COOLDOWN_PATH", str(_REPO_RUNTIME / "dhan-totp-cooldown.json")
                 )
             ),
+            allow_live_orders=os.environ.get("DHAN_ALLOW_LIVE_ORDERS", "").strip().lower()
+            in {"1", "true", "yes", "on"},
         )
 
     @property

@@ -1,5 +1,5 @@
 environment: BACKTEST
-broker: paper
+broker: PAPER
 
 components:
   risk:

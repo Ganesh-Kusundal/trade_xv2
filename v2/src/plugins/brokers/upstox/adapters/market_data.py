@@ -15,6 +15,16 @@ if TYPE_CHECKING:
 
 
 class UpstoxMarketDataAdapter:
+    # Upstox /historical-candle only supports this restricted interval set
+    # (per live API: UDAPI1020 — "Interval accepts one of
+    # (1minute,30minute,day,week,month)"). Anything else 400s at the broker.
+    _INTERVAL_MAP = {
+        "1": "1minute", "1m": "1minute", "1M": "1minute",
+        "30": "30minute", "30m": "30minute", "30M": "30minute",
+        "day": "day", "d": "day", "DAY": "day",
+        "week": "week", "month": "month",
+    }
+
     def __init__(self, transport: BaseTransport, wire: UpstoxWire) -> None:
         self._transport = transport
         self._wire = wire
@@ -42,8 +52,14 @@ class UpstoxMarketDataAdapter:
         end: datetime,
     ) -> list[Bar]:
         key = self._wire.instrument_key(instrument_id)
+        interval = self._INTERVAL_MAP.get(timeframe.value)
+        if interval is None:
+            raise ValueError(
+                f"Unsupported Upstox history interval {timeframe.value!r}. "
+                f"Supported: {sorted(self._INTERVAL_MAP.values())}"
+            )
         native = self._transport.get(
-            f"/historical-candle/{key}/{timeframe.value}/{end.date()}/{start.date()}"
+            f"/historical-candle/{key}/{interval}/{end.date()}/{start.date()}"
         )
         rows = native.get("data", {}).get("candles", []) if isinstance(native, dict) else []
         bars: list[Bar] = []

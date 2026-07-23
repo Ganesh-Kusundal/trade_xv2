@@ -8,13 +8,25 @@ from typing import Any
 
 from domain.commands import PlaceOrderCommand
 from domain.entities import Account, Bar, Instrument, MarketDepth, Order, Position, Quote
-from domain.enums import ExchangeId
+from domain.enums import AssetClass, ExchangeId
+from domain.ports.types import BrokerSnapshot
 from domain.value_objects import InstrumentId, OrderId, Price, TimeFrame
 from plugins.brokers.common.capabilities import BrokerCapabilities
+from plugins.brokers.common.extensions import BrokerExtensions
 from plugins.brokers.common.transport import BaseTransport
 from plugins.brokers.dhan.auth import DhanTokenManager
 from plugins.brokers.dhan.config import DhanConfig
 from plugins.brokers.dhan.connection import DhanConnection
+from plugins.brokers.dhan.extensions import DhanDepth20Extension, DhanDepth200Extension
+
+DHAN_CAPABILITIES = BrokerCapabilities(
+    supports_market_order=True,
+    supports_limit_order=True,
+    supports_stop_order=True,
+    supports_modify=True,
+    supports_cancel=True,
+    supported_asset_classes=frozenset({AssetClass.EQUITY, AssetClass.DERIVATIVE}),
+)
 
 
 class DhanGateway:
@@ -23,12 +35,22 @@ class DhanGateway:
         config: DhanConfig | None = None,
         transport: BaseTransport | None = None,
         token_manager: DhanTokenManager | None = None,
+        ws_factory: Callable[[str], Any] | None = None,
     ) -> None:
         self.connection = DhanConnection(
             config=config,
             transport=transport,
             token_manager=token_manager,
+            ws_factory=ws_factory,
         )
+        self.extensions = BrokerExtensions(
+            DhanDepth20Extension(_streaming=self.connection.streaming),
+            DhanDepth200Extension(_streaming=self.connection.streaming),
+        )
+
+    def extension(self, ext_type: type) -> Any:
+        """Look up a Dhan-specific capability (super orders, EDIS, ...) by type."""
+        return self.extensions.get(ext_type)
 
     def connect(self) -> None:
         self.connection.connect()
@@ -61,6 +83,11 @@ class DhanGateway:
         return self.connection.market_data.get_history(instrument_id, timeframe, start, end)
 
     def place_order(self, command: PlaceOrderCommand) -> OrderId:
+        if not self.connection.config.allow_live_orders:
+            raise RuntimeError(
+                "Live orders disabled; set DhanConfig.allow_live_orders=True "
+                "(env DHAN_ALLOW_LIVE_ORDERS=true) to enable"
+            )
         return self.connection.orders.place_order(command)
 
     def submit_order(self, command: PlaceOrderCommand) -> OrderId:
@@ -109,18 +136,8 @@ class DhanGateway:
     def stream_order(self, on_order: Callable[[Order], None] | None = None) -> None:
         self.connection.streaming.stream_order(on_order)
 
-    def mass_status(self) -> dict[str, Any]:
+    def mass_status(self) -> BrokerSnapshot:
         return self.connection.mass_status()
 
     def capabilities(self) -> BrokerCapabilities:
-        return BrokerCapabilities(
-            supports_market_orders=True,
-            supports_limit_orders=True,
-            supports_stop_orders=True,
-            supports_modify=True,
-            supports_websocket=True,
-            supports_option_chain=True,
-            supports_future_chain=True,
-            max_orders_per_second=10,
-            supported_exchanges=frozenset({ExchangeId.NSE, ExchangeId.BSE}),
-        )
+        return DHAN_CAPABILITIES

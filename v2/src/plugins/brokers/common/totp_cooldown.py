@@ -13,10 +13,12 @@ import time
 from pathlib import Path
 from typing import ClassVar
 
-DEFAULT_COOLDOWN_SECONDS = 120.0
+from plugins.brokers.common.constants import DHAN_COOLDOWN_SECONDS, UPSTOX_COOLDOWN_SECONDS
+
+DEFAULT_COOLDOWN_SECONDS = DHAN_COOLDOWN_SECONDS
 BROKER_COOLDOWN_SECONDS: dict[str, float] = {
-    "dhan": 120.0,
-    "upstox": 600.0,
+    "dhan": DHAN_COOLDOWN_SECONDS,
+    "upstox": UPSTOX_COOLDOWN_SECONDS,
 }
 
 # v2/.../common/totp_cooldown.py → parents[5] = repo root (shared with src runtime/)

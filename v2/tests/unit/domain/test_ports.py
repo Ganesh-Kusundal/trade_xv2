@@ -85,6 +85,9 @@ class _FakeDataAdapter:
 
 @dataclass
 class _FakeBrokerAdapter:
+    def connect(self) -> None: ...
+    def authenticate(self) -> bool: ...
+    def close(self) -> None: ...
     def submit_order(self, command: PlaceOrderCommand) -> OrderId: ...
     def cancel_order(self, order_id: OrderId) -> None: ...
     def modify_order(self, order_id: OrderId, command: PlaceOrderCommand) -> None: ...
@@ -93,11 +96,28 @@ class _FakeBrokerAdapter:
 
     def get_orderbook(self) -> list[Order]: ...
     def get_positions(self) -> list[Position]: ...
+    def get_holdings(self) -> list[Position]: ...
     def get_funds(self) -> Account:
         raise NotImplementedError
 
     def mass_status(self) -> BrokerSnapshot:
         raise NotImplementedError
+
+    def get_quote(self, instrument_id: InstrumentId) -> Quote:
+        raise NotImplementedError
+
+    def ltp(self, instrument_id: InstrumentId) -> Price:
+        raise NotImplementedError
+
+    def depth(self, instrument_id: InstrumentId) -> Any:
+        raise NotImplementedError
+
+    def history(self, instrument_id: InstrumentId, timeframe: TimeFrame, start: Any, end: Any) -> list[Bar]:
+        raise NotImplementedError
+
+    def load_instruments(self) -> None: ...
+    def search(self, query: str) -> list[Instrument]: ...
+    def capabilities(self) -> Any: ...
 
 
 @dataclass
@@ -127,8 +147,8 @@ class _FakeRiskModel:
         raise NotImplementedError
 
 
-# RiskCheckResult is already a domain message; re-import for clarity.
-from domain.messages import RiskCheckResult as RiskCheckResult  # noqa: E402
+# RiskCheckResult lives in application.risk.context; re-import for clarity.
+from application.risk.context import RiskCheckResult as RiskCheckResult  # noqa: E402
 
 
 @dataclass

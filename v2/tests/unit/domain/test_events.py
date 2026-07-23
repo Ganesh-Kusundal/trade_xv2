@@ -44,7 +44,7 @@ def test_order_events_immutable() -> None:
         correlation_id=cid.value,
         source=None,
         order_id=OrderId(value="o1"),
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         quantity=Quantity(value=Decimal("10")),
     )
@@ -53,7 +53,7 @@ def test_order_events_immutable() -> None:
         correlation_id=cid.value,
         source=None,
         order_id=OrderId(value="o1"),
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         filled_qty=Quantity(value=Decimal("10")),
         avg_price=Price(value=Decimal("2500")),
@@ -83,7 +83,7 @@ def test_portfolio_and_risk_events_immutable() -> None:
         timestamp=datetime.now(UTC),
         correlation_id=None,
         source=None,
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         quantity=Quantity(value=Decimal("10")),
         avg_price=Price(value=Decimal("2500")),
         realized_pnl=Money(amount=Decimal("0"), currency="INR"),
@@ -95,7 +95,7 @@ def test_portfolio_and_risk_events_immutable() -> None:
         source=None,
         level=RiskLevel.CRITICAL,
         reason="max_loss",
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
     )
     with pytest.raises(Exception):
         pos.quantity = Quantity(value=Decimal("0"))  # type: ignore[misc]

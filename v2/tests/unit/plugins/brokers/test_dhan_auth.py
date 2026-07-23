@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from plugins.brokers.common.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
-from plugins.brokers.dhan.auth import DhanTokenStore, DhanTotpClient
+from plugins.brokers.dhan.auth import DhanTokenManager, DhanTokenStore, DhanTotpClient
 from plugins.brokers.dhan.config import DhanConfig
 
 
@@ -62,3 +62,28 @@ def test_totp_rate_limit_message_raises(tmp_path: Path) -> None:
     client = DhanTotpClient(cfg, http_post=fake_post, cooldown=TotpCooldownGuard("dhan", 60.0, tmp_path / "cd.json"))
     with pytest.raises(TotpRateLimitError):
         client.generate()
+
+
+def test_ensure_token_mint_broadcasts_to_registered_receivers(tmp_path: Path) -> None:
+    cfg = DhanConfig(
+        client_id="CID",
+        pin="1234",
+        totp_secret="JBSWY3DPEHPK3PXP",
+        access_token="",
+        token_path=tmp_path / "t.json",
+        cooldown_path=tmp_path / "cd.json",
+    )
+
+    def fake_post(url: str, data: dict[str, Any], timeout: float) -> dict[str, Any]:
+        return {"status": "success", "data": {"accessToken": "MINTED-TOK"}}
+
+    totp = DhanTotpClient(cfg, http_post=fake_post, cooldown=TotpCooldownGuard("dhan", 1.0, tmp_path / "cd.json"))
+    manager = DhanTokenManager(cfg, totp=totp)
+
+    received: list[str] = []
+    manager.register_receiver(received.append)
+
+    token = manager.ensure_token()
+
+    assert token == "MINTED-TOK"
+    assert received == ["MINTED-TOK"]

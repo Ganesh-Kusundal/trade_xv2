@@ -1,5 +1,5 @@
 environment: LIVE
-broker: dhan
+broker: DHAN
 
 components:
   risk:

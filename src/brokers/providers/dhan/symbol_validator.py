@@ -276,8 +276,11 @@ class DhanSymbolValidator:
             if opt_type is not None:
                 if inst.option_type is None:
                     continue
-                inst_opt_type = "CALL" if inst.option_type == OptionType.CALL else "PUT"
-                if inst_opt_type != opt_type:
+                # parse_fo_symbol emits the Dhan "CE"/"PE" code, so compare
+                # against the same vocabulary -- not "CALL"/"PUT", which never
+                # matched and rejected every valid option symbol.
+                inst_opt_code = "CE" if inst.option_type == OptionType.CALL else "PE"
+                if inst_opt_code != opt_type:
                     continue
 
             # Check expiry month and day

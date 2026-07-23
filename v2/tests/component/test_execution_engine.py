@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from uuid import uuid4
 
@@ -14,7 +15,7 @@ from domain.value_objects import CorrelationId, InstrumentId, OrderId, Price, Qu
 
 def _cmd(cid: CorrelationId | None = None, qty: str = "10") -> PlaceOrderCommand:
     return PlaceOrderCommand(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal(qty)),
@@ -41,9 +42,9 @@ class RecordingFillSource:
             status=OrderStatus.PENDING,
             correlation_id=command.correlation_id,
         )
-        order.transition_to(OrderStatus.SUBMITTED)
-        order.transition_to(OrderStatus.FILLED)
-        order.filled_quantity = command.quantity
+        order = order.transition_to(OrderStatus.SUBMITTED)
+        order = order.transition_to(OrderStatus.FILLED)
+        order = replace(order, filled_quantity=command.quantity)
         return order
 
     def cancel(self, order_id: OrderId) -> None:

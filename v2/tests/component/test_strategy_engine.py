@@ -16,7 +16,7 @@ from infrastructure.message_bus.bus import MessageBus
 def _bar(close: str = "2500") -> Bar:
     c = Price(value=Decimal(close))
     return Bar(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         open=c,
         high=c,
         low=c,

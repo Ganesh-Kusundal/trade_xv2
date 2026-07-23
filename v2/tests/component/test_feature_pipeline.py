@@ -15,7 +15,7 @@ from infrastructure.message_bus.bus import MessageBus
 def _bar(close: str, ts: datetime | None = None) -> Bar:
     c = Price(value=Decimal(close))
     return Bar(
-        instrument_id=InstrumentId(value="NSE:TEST"),
+        instrument_id=InstrumentId.parse("NSE:TEST"),
         open=c,
         high=c,
         low=c,
@@ -48,7 +48,7 @@ class _Probe:
     def on_event(self, event: object) -> None:
         return None
 
-    def on_bar(self, bar: Bar) -> None:
+    def on_bar(self, bar: Bar, features: dict[str, float] | None = None) -> None:
         # Features must already be computed when strategy runs.
         self.features_at_bar.append(dict(self._pipeline.last_features))
 

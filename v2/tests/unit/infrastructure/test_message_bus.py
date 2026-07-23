@@ -1,17 +1,17 @@
-"""TDD tests for MessageBus, MessageRouter, and MessageLog infrastructure."""
+"""TDD tests for MessageBus and MessageLog infrastructure."""
 
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Iterator
 
 import pytest
 
-from domain.messages import Message
+from domain.events import Message
 from domain.value_objects import InstrumentId, StrategyId, AccountId, Timestamp
 from infrastructure.message_bus.bus import MessageBus, MessageBusMetrics
-from infrastructure.message_bus.router import MessageRouter
 from infrastructure.message_bus.log import MessageLog, InMemoryMessageLog
 
 
@@ -39,7 +39,7 @@ class TestMessageBus:
         received: list[SampleMessage] = []
         
         bus.subscribe(SampleMessage, received.append)
-        msg = SampleMessage(timestamp=1000, value=42)
+        msg = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=42)
         bus.publish(msg)
         
         assert received == [msg]
@@ -55,7 +55,7 @@ class TestMessageBus:
         sub = bus.subscribe(SampleMessage, received.append)
         bus.unsubscribe(sub)
         
-        bus.publish(SampleMessage(timestamp=1000, value=1))
+        bus.publish(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1))
         assert received == []
         assert bus.metrics.messages_published == 1
         assert bus.metrics.messages_delivered == 0
@@ -69,7 +69,7 @@ class TestMessageBus:
         bus.subscribe(SampleMessage, received1.append)
         bus.subscribe(SampleMessage, received2.append)
         
-        msg = SampleMessage(timestamp=1000, value=99)
+        msg = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=99)
         bus.publish(msg)
         
         assert received1 == [msg]
@@ -85,8 +85,8 @@ class TestMessageBus:
         bus.subscribe(SampleMessage, test_received.append)
         bus.subscribe(AnotherMessage, another_received.append)
         
-        test_msg = SampleMessage(timestamp=1000, value=1)
-        another_msg = AnotherMessage(timestamp=2000, data="hello")
+        test_msg = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1)
+        another_msg = AnotherMessage(timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), data="hello")
         
         bus.publish(test_msg)
         bus.publish(another_msg)
@@ -102,11 +102,11 @@ class TestMessageBus:
             raise ValueError("test error")
         
         bus.subscribe(SampleMessage, failing_handler)
-        bus.publish(SampleMessage(timestamp=1000, value=1))
+        bus.publish(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1))
         
         assert len(bus.dead_letters) == 1
         dl = bus.dead_letters[0]
-        assert dl.original_message == SampleMessage(timestamp=1000, value=1)
+        assert dl.original_message == SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1)
         assert "test error" in dl.error
         assert bus.metrics.messages_failed == 1
         assert bus.metrics.dlq_count == 1
@@ -122,11 +122,11 @@ class TestMessageBus:
         bus.subscribe(SampleMessage, handler)
         
         # Publish successful messages
-        bus.publish(SampleMessage(timestamp=1000, value=1))
-        bus.publish(SampleMessage(timestamp=2000, value=2))
+        bus.publish(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1))
+        bus.publish(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), value=2))
         
         # Publish failing message
-        bus.publish(SampleMessage(timestamp=3000, value=-1))
+        bus.publish(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 2, tzinfo=UTC), value=-1))
         
         assert bus.metrics.messages_published == 3
         assert bus.metrics.messages_delivered == 2
@@ -139,67 +139,10 @@ class TestMessageBus:
         received: list[SampleMessage] = []
         
         bus.subscribe(SampleMessage, received.append)
-        bus.publish(SampleMessage(timestamp=1000, value=1))
+        bus.publish(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1))
         
         # Latency should be non-negative
         assert bus.metrics.avg_latency_ns >= 0
-
-
-class TestMessageRouter:
-    """Test MessageRouter functionality."""
-
-    def test_route_with_instrument_filter(self) -> None:
-        """Test routing with instrument filter."""
-        router = MessageRouter()
-        received: list[SampleMessage] = []
-        
-        builder = router.route(SampleMessage, instrument=InstrumentId("AAPL"))
-        builder.to(received.append)
-        
-        # Publish matching message
-        msg = SampleMessage(timestamp=1000, value=1, instrument_id=InstrumentId("AAPL"))
-        router.publish(msg)
-        
-        assert received == [msg]
-
-    def test_route_with_strategy_filter(self) -> None:
-        """Test routing with strategy filter."""
-        router = MessageRouter()
-        received: list[SampleMessage] = []
-        
-        builder = router.route(SampleMessage, strategy=StrategyId("momentum"))
-        builder.to(received.append)
-        
-        msg = SampleMessage(timestamp=1000, value=1, strategy_id=StrategyId("momentum"))
-        router.publish(msg)
-        
-        assert received == [msg]
-
-    def test_wire_shorthand(self) -> None:
-        """Test wire as shorthand for route().to()."""
-        router = MessageRouter()
-        received: list[SampleMessage] = []
-        
-        router.wire(SampleMessage, received.append, instrument=InstrumentId("AAPL"))
-        
-        msg = SampleMessage(timestamp=1000, value=1, instrument_id=InstrumentId("AAPL"))
-        router.publish(msg)
-        
-        assert received == [msg]
-
-    def test_route_filters_mismatched_instruments(self) -> None:
-        """Test that route filters out messages with wrong instrument."""
-        router = MessageRouter()
-        received: list[SampleMessage] = []
-        
-        builder = router.route(SampleMessage, instrument=InstrumentId("AAPL"))
-        builder.to(received.append)
-        
-        # Publish message with different instrument
-        msg = SampleMessage(timestamp=1000, value=1, instrument_id=InstrumentId("GOOGL"))
-        router.publish(msg)
-        
-        assert received == []
 
 
 class TestMessageLog:
@@ -209,21 +152,21 @@ class TestMessageLog:
         """Test appending and reading messages."""
         log = InMemoryMessageLog()
         
-        msg1 = SampleMessage(timestamp=1000, value=1)
-        msg2 = SampleMessage(timestamp=2000, value=2)
+        msg1 = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1)
+        msg2 = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), value=2)
         
         log.append(msg1)
         log.append(msg2)
         
-        messages = list(log.read(start=0, end=3000))
+        messages = list(log.read(start=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), end=datetime(2024, 6, 1, 12, 0, 2, tzinfo=UTC)))
         assert messages == [msg1, msg2]
 
     def test_read_session(self) -> None:
         """Test reading messages by session ID."""
         log = InMemoryMessageLog()
         
-        msg1 = SampleMessage(timestamp=1000, value=1, session_id="session-1")
-        msg2 = SampleMessage(timestamp=2000, value=2, session_id="session-2")
+        msg1 = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1, session_id="session-1")
+        msg2 = SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), value=2, session_id="session-2")
         
         log.append(msg1)
         log.append(msg2)
@@ -235,11 +178,11 @@ class TestMessageLog:
         """Test clearing the log."""
         log = InMemoryMessageLog()
         
-        log.append(SampleMessage(timestamp=1000, value=1))
-        log.append(SampleMessage(timestamp=2000, value=2))
+        log.append(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), value=1))
+        log.append(SampleMessage(timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), value=2))
         
         log.clear()
-        messages = list(log.read(start=0, end=3000))
+        messages = list(log.read(start=datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC), end=datetime(2024, 6, 1, 12, 0, 2, tzinfo=UTC)))
         assert messages == []
 
 

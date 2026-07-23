@@ -2,41 +2,50 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
-from domain.enums import ExchangeId
+from domain.enums import AssetClass
+from domain.value_objects import Price, Quantity
 from plugins.brokers.common.capabilities import BrokerCapabilities
 
 
 def test_capabilities_frozen() -> None:
     caps = BrokerCapabilities(
-        supports_market_orders=True,
-        supports_limit_orders=True,
-        supports_stop_orders=False,
-        supports_modify=True,
-        supports_websocket=True,
-        supports_option_chain=True,
-        supports_future_chain=False,
-        max_orders_per_second=10,
-        supported_exchanges=frozenset({ExchangeId.NSE, ExchangeId.BSE}),
+        supported_asset_classes=frozenset({AssetClass.EQUITY}),
     )
     with pytest.raises(Exception):
-        caps.supports_market_orders = False  # type: ignore[misc]
+        caps.supports_market_order = False  # type: ignore[misc]
 
 
-def test_capabilities_fields() -> None:
+def test_capabilities_defaults() -> None:
     caps = BrokerCapabilities(
-        supports_market_orders=True,
-        supports_limit_orders=True,
-        supports_stop_orders=True,
-        supports_modify=False,
-        supports_websocket=False,
-        supports_option_chain=False,
-        supports_future_chain=True,
-        max_orders_per_second=5,
-        supported_exchanges=frozenset({ExchangeId.MCX}),
+        supported_asset_classes=frozenset({AssetClass.EQUITY}),
     )
-    assert caps.supports_market_orders is True
-    assert caps.supports_modify is False
-    assert caps.max_orders_per_second == 5
-    assert caps.supported_exchanges == frozenset({ExchangeId.MCX})
+    assert caps.supports_market_order is True
+    assert caps.supports_limit_order is True
+    assert caps.supports_stop_order is False
+    assert caps.supports_modify is True
+    assert caps.supports_cancel is True
+    assert caps.max_order_quantity is None
+    assert caps.max_order_value is None
+
+
+def test_capabilities_custom() -> None:
+    caps = BrokerCapabilities(
+        supports_market_order=False,
+        supports_limit_order=True,
+        supports_stop_order=True,
+        supports_modify=False,
+        supports_cancel=False,
+        supported_asset_classes=frozenset({AssetClass.DERIVATIVE, AssetClass.COMMODITY}),
+        max_order_quantity=Quantity(Decimal("500")),
+        max_order_value=Price(Decimal("50000")),
+    )
+    assert caps.supports_market_order is False
+    assert caps.supports_stop_order is True
+    assert caps.supports_cancel is False
+    assert caps.supported_asset_classes == frozenset({AssetClass.DERIVATIVE, AssetClass.COMMODITY})
+    assert caps.max_order_quantity == Quantity(Decimal("500"))
+    assert caps.max_order_value == Price(Decimal("50000"))

@@ -1,7 +1,8 @@
-"""Paper orders — immediate fill at mid (market) or limit price."""
+"""Paper orders — immediate fill (configurable) at mid or limit price."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -10,6 +11,7 @@ from domain.commands import PlaceOrderCommand
 from domain.entities import Order, Position
 from domain.enums import OrderSide, OrderStatus, OrderType
 from domain.value_objects import Money, OrderId, Price, Quantity
+from plugins.brokers.common.constants import DEFAULT_FILL_PRICE
 
 if TYPE_CHECKING:
     from plugins.brokers.paper.connection import PaperConnection
@@ -21,11 +23,7 @@ class PaperOrdersAdapter:
 
     def place_order(self, command: PlaceOrderCommand) -> OrderId:
         self._conn.require_connected()
-        quote = self._conn.quotes.get(command.instrument_id)
-        if quote is None:
-            raise KeyError(f"no quote seeded for {command.instrument_id.value}")
 
-        fill_price = self._fill_price(command, quote)
         order_id = OrderId(value=f"paper-{uuid4().hex[:12]}")
         order = Order(
             order_id=order_id,
@@ -38,11 +36,15 @@ class PaperOrdersAdapter:
             status=OrderStatus.PENDING,
             correlation_id=command.correlation_id,
         )
-        order.transition_to(OrderStatus.SUBMITTED)
-        order.transition_to(OrderStatus.FILLED)
-        order.filled_quantity = command.quantity
-        self._conn.orders[order_id.value] = self._conn.wire.to_order(order)
-        self._apply_fill(command.side, command.instrument_id, command.quantity, fill_price)
+        order = order.transition_to(OrderStatus.SUBMITTED)
+
+        if self._conn.auto_fill:
+            order = order.transition_to(OrderStatus.FILLED)
+            fill_price = self._fill_price(command)
+            order = replace(order, filled_quantity=command.quantity)
+            self._apply_fill(command.side, command.instrument_id, command.quantity, fill_price)
+
+        self._conn.orders[order_id.value] = order
         return order_id
 
     def cancel_order(self, order_id: OrderId) -> None:
@@ -50,7 +52,18 @@ class PaperOrdersAdapter:
         order = self._conn.orders.get(order_id.value)
         if order is None:
             raise KeyError(f"unknown order {order_id.value}")
-        order.transition_to(OrderStatus.CANCELLED)
+        if order.status in (OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED):
+            raise ValueError(f"cannot cancel order in {order.status.value} status")
+        self._conn.orders[order_id.value] = order.transition_to(OrderStatus.CANCELLED)
+
+    def modify_order(self, order_id: OrderId, command: PlaceOrderCommand) -> None:
+        self._conn.require_connected()
+        order = self._conn.orders.get(order_id.value)
+        if order is None:
+            raise KeyError(f"unknown order {order_id.value}")
+        self._conn.orders[order_id.value] = replace(
+            order, price=command.price, quantity=command.quantity
+        )
 
     def get_order(self, order_id: OrderId) -> Order:
         order = self._conn.orders.get(order_id.value)
@@ -61,17 +74,19 @@ class PaperOrdersAdapter:
     def get_orderbook(self) -> list[Order]:
         return list(self._conn.orders.values())
 
-    @staticmethod
-    def _fill_price(command: PlaceOrderCommand, quote) -> Price:
+    def _fill_price(self, command: PlaceOrderCommand) -> Price:
         if command.order_type == OrderType.LIMIT and command.price is not None:
             return command.price
-        mid = (quote.bid.value + quote.ask.value) / Decimal("2")
-        return Price(value=mid)
+        quote = self._conn.quotes.get(command.instrument_id)
+        if quote is not None:
+            mid = (quote.bid.value + quote.ask.value) / Decimal("2")
+            return Price(value=mid)
+        return Price(value=DEFAULT_FILL_PRICE)
 
     def _apply_fill(
         self,
         side: OrderSide,
-        instrument_id,
+        instrument_id: InstrumentId,
         qty: Quantity,
         price: Price,
     ) -> None:
@@ -101,12 +116,14 @@ class PaperOrdersAdapter:
             del self._conn.positions[instrument_id]
             return
 
-        # same-direction add → VWAP; reduce/flip keeps prior avg unless flipped
         if (pos.quantity.value > 0) == (delta > 0):
             avg = (
                 abs(pos.quantity.value) * pos.avg_price.value + abs(delta) * price.value
             ) / abs(new_qty)
-            pos.avg_price = Price(value=avg)
+            new_pos = replace(pos, avg_price=Price(value=avg), quantity=Quantity(value=new_qty))
         elif (pos.quantity.value > 0) != (new_qty > 0):
-            pos.avg_price = price
-        pos.quantity = Quantity(value=new_qty)
+            new_pos = replace(pos, avg_price=price, quantity=Quantity(value=new_qty))
+        else:
+            new_pos = replace(pos, quantity=Quantity(value=new_qty))
+        self._conn.positions[instrument_id] = new_pos
+

@@ -73,6 +73,7 @@ def test_upstox_adapter_harness_quote_and_place_order() -> None:
         {
             ("GET", "/market-quote/quotes"): _quote_fixture(),
             ("POST", "/order/place"): _place_ack_fixture(),
+            ("GET", "/order/retrieve-all"): {"data": []},
             ("GET", "/portfolio/short-term-positions"): {"data": []},
             ("GET", "/user/get-funds-and-margin"): {
                 "data": {"equity": {"available_margin": 100000}}
@@ -83,18 +84,23 @@ def test_upstox_adapter_harness_quote_and_place_order() -> None:
     harness = AdapterTestHarness(adapter=gateway)
     harness.test_connect()
     gateway.connect()
+    # Clear any stored tokens to ensure clean state
+    gateway.connection._tokens._store.invalidate()
     assert gateway.authenticate() is False  # no token configured — fail closed
 
     from plugins.brokers.upstox.config import UpstoxConfig
 
     gateway = UpstoxGateway(
-        config=UpstoxConfig(access_token="static-tok"),
+        config=UpstoxConfig(access_token="static-tok", allow_live_orders=True),
         transport=transport,
     )
     gateway.connect()
     assert gateway.authenticate() is True
 
-    instrument_id = InstrumentId(value="NSE:RELIANCE")
+    # Register RELIANCE instrument key for testing
+    gateway.connection.wire.register_key(InstrumentId.parse("NSE:RELIANCE"), "NSE_EQ:RELIANCE")
+
+    instrument_id = InstrumentId.parse("NSE:RELIANCE")
     quote = gateway.get_quote(instrument_id)
     assert quote.bid.value == Decimal("2499.5")
     assert quote.ask.value == Decimal("2500.5")
@@ -112,6 +118,11 @@ def test_upstox_adapter_harness_quote_and_place_order() -> None:
     assert order_id.value == "UPX-ORD-99"
     funds = gateway.get_funds()
     assert funds.balance.amount == Decimal("100000")
+
+    harness.test_get_positions()
+    harness.test_get_funds()
+    harness.test_mass_status()
+    harness.test_capabilities()
 
     assert any(c[0] == "GET" and "quote" in c[1] for c in transport.calls)
     assert any(c[0] == "POST" and "order" in c[1] for c in transport.calls)

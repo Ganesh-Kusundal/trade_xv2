@@ -62,11 +62,12 @@ def test_broker_id_values() -> None:
 
 
 def test_exchange_id_values() -> None:
-    assert {e.name for e in ExchangeId} == {"NSE", "BSE", "MCX"}
+    assert {e.name for e in ExchangeId} == {"NSE", "BSE", "MCX", "NFO", "BFO", "CDS", "BCD", "IDX"}
 
 
 def test_asset_class_and_instrument_type() -> None:
-    assert {a.name for a in AssetClass} == {"EQUITY", "DERIVATIVE", "COMMODITY", "CURRENCY"}
+    # G10: Added INDEX to AssetClass for index instruments
+    assert {a.name for a in AssetClass} == {"EQUITY", "DERIVATIVE", "COMMODITY", "CURRENCY", "INDEX"}
     assert {t.name for t in InstrumentType} == {"EQUITY", "FUTURE", "OPTION", "INDEX"}
 
 

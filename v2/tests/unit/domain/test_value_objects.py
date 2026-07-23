@@ -23,7 +23,7 @@ from domain.value_objects import (
 # ── Immutability ──────────────────────────────────────────────────────
 
 def test_ids_are_frozen() -> None:
-    iid = InstrumentId(value="NSE:RELIANCE")
+    iid = InstrumentId.parse("NSE:RELIANCE")
     with pytest.raises(Exception):
         iid.value = "NSE:TCS"  # type: ignore[misc]
 
@@ -102,8 +102,8 @@ def test_money_rejects_currency_mismatch() -> None:
 # ── Equality & hashing ──────────────────────────────────────────────
 
 def test_id_equality() -> None:
-    assert InstrumentId("NSE:RELIANCE") == InstrumentId("NSE:RELIANCE")
-    assert InstrumentId("NSE:RELIANCE") != InstrumentId("NSE:TCS")
+    assert InstrumentId.parse("NSE:RELIANCE") == InstrumentId.parse("NSE:RELIANCE")
+    assert InstrumentId.parse("NSE:RELIANCE") != InstrumentId.parse("NSE:TCS")
 
 
 def test_money_equality() -> None:
@@ -137,7 +137,7 @@ def test_timestamp_equality() -> None:
 
 def test_value_objects_are_hashable() -> None:
     s = {
-        InstrumentId("A"),
+        InstrumentId.parse("NSE:A"),
         OrderId("1"),
         AccountId("A"),
         StrategyId("S"),
@@ -153,15 +153,15 @@ def test_value_objects_are_hashable() -> None:
 
 
 def test_value_objects_in_dict_keys() -> None:
-    d = {InstrumentId("A"): 1, Price(Decimal("1")): 2}
-    assert d[InstrumentId("A")] == 1
+    d = {InstrumentId.parse("NSE:A"): 1, Price(Decimal("1")): 2}
+    assert d[InstrumentId.parse("NSE:A")] == 1
     assert d[Price(Decimal("1"))] == 2
 
 
 # ── String representation ───────────────────────────────────────────
 
 def test_instrument_id_str() -> None:
-    assert str(InstrumentId("NSE:RELIANCE")) == "InstrumentId(value='NSE:RELIANCE')"
+    assert str(InstrumentId.parse("NSE:RELIANCE")) == "NSE:RELIANCE"
 
 
 def test_money_str() -> None:

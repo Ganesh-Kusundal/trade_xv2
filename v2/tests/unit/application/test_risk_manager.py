@@ -15,7 +15,7 @@ from domain.value_objects import CorrelationId, InstrumentId, Price, Quantity
 
 def _cmd(qty: str = "10") -> PlaceOrderCommand:
     return PlaceOrderCommand(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal(qty)),

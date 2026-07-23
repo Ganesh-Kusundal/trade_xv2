@@ -30,6 +30,8 @@ class UpstoxConfig:
     )
     # OAuth proactive refresh only — TOTP must never mint early (src allow_proactive=False)
     refresh_buffer_seconds: float = 30 * 60
+    # Safety gate — live order placement refused unless explicitly enabled
+    allow_live_orders: bool = False
 
     @classmethod
     def from_env(cls) -> UpstoxConfig:
@@ -59,6 +61,8 @@ class UpstoxConfig:
                     "UPSTOX_COOLDOWN_PATH", str(_REPO_RUNTIME / "upstox-totp-cooldown.json")
                 )
             ),
+            allow_live_orders=os.environ.get("UPSTOX_ALLOW_LIVE_ORDERS", "").strip().lower()
+            in {"1", "true", "yes", "on"},
         )
 
     @property

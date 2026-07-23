@@ -139,3 +139,49 @@ def test_get_depth_success(fake_client, resolver):
     assert depth.asks[0].price == Decimal("2451.0")
     assert depth.asks[0].quantity == 150
     assert depth.asks[0].orders == 4
+
+
+def test_get_depth_snapshot_is_timezone_aware(fake_client, resolver):
+    fake_client.set_response(
+        "POST",
+        "/marketfeed/quote",
+        {
+            "data": {
+                "NSE_EQ": {
+                    "2885": {
+                        "last_price": 2450.0,
+                        "depth": {"buy": [], "sell": []},
+                    }
+                }
+            }
+        },
+    )
+    adapter = MarketDataAdapter(fake_client, resolver)
+    depth = adapter.get_depth("RELIANCE", "NSE")
+    assert depth.timestamp is not None
+    assert depth.timestamp.tzinfo is not None
+
+
+# ── Missing-entry guards: a rate-limited/empty response must raise a clear
+#    ValueError with context, not a raw KeyError (mirrors get_ltp). ──────────
+
+
+def test_get_quote_missing_entry_raises_valueerror(fake_client, resolver):
+    fake_client.set_response("POST", "/marketfeed/quote", {"data": {"NSE_EQ": {}}})
+    adapter = MarketDataAdapter(fake_client, resolver)
+    with pytest.raises(ValueError):
+        adapter.get_quote("RELIANCE", "NSE")
+
+
+def test_get_depth_missing_entry_raises_valueerror(fake_client, resolver):
+    fake_client.set_response("POST", "/marketfeed/quote", {"data": {"NSE_EQ": {}}})
+    adapter = MarketDataAdapter(fake_client, resolver)
+    with pytest.raises(ValueError):
+        adapter.get_depth("RELIANCE", "NSE")
+
+
+def test_get_ohlc_missing_entry_raises_valueerror(fake_client, resolver):
+    fake_client.set_response("POST", "/marketfeed/ohlc", {"data": {"NSE_EQ": {}}})
+    adapter = MarketDataAdapter(fake_client, resolver)
+    with pytest.raises(ValueError):
+        adapter.get_ohlc("RELIANCE", "NSE")

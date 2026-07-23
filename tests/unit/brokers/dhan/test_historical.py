@@ -226,3 +226,38 @@ def test_parse_dataframe(fake_client, resolver):
         "exchange",
         "timeframe",
     ]
+
+
+def test_parse_daily_bad_date_coerces_to_nat(fake_client, resolver):
+    """A single unparseable ``date`` value must not abort the whole frame;
+    it should coerce to NaT while good rows parse normally."""
+    fake_client.set_response(
+        "POST",
+        "/charts/historical",
+        {
+            "data": [
+                {
+                    "date": "2026-01-02",
+                    "open": 2440,
+                    "high": 2460,
+                    "low": 2435,
+                    "close": 2455,
+                    "volume": 1000000,
+                },
+                {
+                    "date": "not-a-date",
+                    "open": 2455,
+                    "high": 2475,
+                    "low": 2450,
+                    "close": 2470,
+                    "volume": 1200000,
+                },
+            ]
+        },
+    )
+    adapter = HistoricalAdapter(fake_client, resolver)
+    df = adapter.get_historical("RELIANCE", "NSE", "2026-01-01", "2026-01-31", timeframe="1D")
+
+    assert len(df) == 2
+    assert df["timestamp"].iloc[1] is pd.NaT
+    assert df["timestamp"].iloc[0].tzinfo is not None

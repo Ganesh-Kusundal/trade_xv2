@@ -8,6 +8,7 @@ import pytest
 
 from plugins.brokers.common.rate_limit import MultiBucketRateLimiter, RateLimitConfig
 from plugins.brokers.common.transport import HttpTransport, RateLimitExceeded
+from shared.errors import AuthenticationError, BrokerError, NetworkError, RateLimitError
 
 
 class _FakeClient:
@@ -55,6 +56,49 @@ def test_429_raises_and_reduces_rate() -> None:
     with pytest.raises(RateLimitExceeded):
         transport.post("/orders", json={})
     assert limiter.get_bucket("orders").rate < 10.0
+
+
+def _transport(client: _FakeClient, bucket: str = "quotes") -> HttpTransport:
+    limiter = MultiBucketRateLimiter({bucket: RateLimitConfig(rate_per_second=100.0, capacity=5)})
+    return HttpTransport(
+        base_url="https://example.test",
+        limiter=limiter,
+        token_provider=lambda: "tok",
+        client=client,
+        bucket_for_path=lambda path, method: bucket,
+    )
+
+
+def test_429_is_a_rate_limit_error() -> None:
+    client = _FakeClient()
+    client.status = 429
+    with pytest.raises(RateLimitError):
+        _transport(client).get("/quote")
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_401_403_are_authentication_errors(status: int) -> None:
+    client = _FakeClient()
+    client.status = status
+    client.body = {"error": "denied"}
+    with pytest.raises(AuthenticationError):
+        _transport(client).get("/quote")
+
+
+def test_5xx_is_a_network_error() -> None:
+    client = _FakeClient()
+    client.status = 503
+    client.body = {"error": "unavailable"}
+    with pytest.raises(NetworkError):
+        _transport(client).get("/quote")
+
+
+def test_other_4xx_is_a_broker_error() -> None:
+    client = _FakeClient()
+    client.status = 422
+    client.body = {"error": "unprocessable"}
+    with pytest.raises(BrokerError):
+        _transport(client).get("/quote")
 
 
 def test_post_uses_orders_bucket_by_default() -> None:

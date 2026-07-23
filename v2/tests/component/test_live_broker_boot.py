@@ -9,7 +9,7 @@ import pytest
 
 from config.schema import AppConfig, Environment
 from domain.commands import PlaceOrderCommand
-from domain.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from domain.enums import BrokerId, OrderSide, OrderStatus, OrderType, TimeInForce
 from domain.value_objects import CorrelationId, InstrumentId, OrderId, Quantity
 from runtime.factory import RuntimeFactory
 from runtime.startup import boot
@@ -39,7 +39,7 @@ class _LiveFakeGateway:
 
         o = Order(
             order_id=order_id,
-            instrument_id=InstrumentId(value="NSE:RELIANCE"),
+            instrument_id=InstrumentId.parse("NSE:RELIANCE"),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Quantity(value=Decimal("1")),
@@ -48,7 +48,7 @@ class _LiveFakeGateway:
             status=OrderStatus.PENDING,
             correlation_id=CorrelationId(value=uuid4()),
         )
-        o.transition_to(OrderStatus.SUBMITTED)
+        o = o.transition_to(OrderStatus.SUBMITTED)
         return o
 
     def cancel_order(self, order_id: OrderId) -> None:
@@ -56,21 +56,21 @@ class _LiveFakeGateway:
 
 
 def test_live_boot_requires_authenticate() -> None:
-    cfg = AppConfig(environment=Environment.LIVE, broker="dhan")
+    cfg = AppConfig(environment=Environment.LIVE, broker=BrokerId.DHAN)
     rt = RuntimeFactory.build(cfg, broker_adapter=_LiveFakeGateway(auth_ok=False))
     with pytest.raises(LifecycleError, match="authenticate"):
         boot(rt)
 
 
 def test_live_boot_and_submit_returns_submitted() -> None:
-    cfg = AppConfig(environment=Environment.LIVE, broker="dhan")
+    cfg = AppConfig(environment=Environment.LIVE, broker=BrokerId.DHAN)
     gw = _LiveFakeGateway(auth_ok=True)
     rt = RuntimeFactory.build(cfg, broker_adapter=gw)
     rt = boot(rt)
     assert rt.environment_frozen
     assert gw.connected and gw.loaded
     cmd = PlaceOrderCommand(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.MARKET,
         quantity=Quantity(value=Decimal("1")),

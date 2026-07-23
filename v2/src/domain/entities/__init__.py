@@ -140,6 +140,8 @@ class Instrument:
     strike: Decimal | None = None
     expiry: datetime | None = None
     option_type: OptionType | None = None
+    lot_size: Decimal | None = None
+    tick_size: Decimal | None = None
 
 
 @dataclass

@@ -40,7 +40,7 @@ def _position_manager() -> tuple[PositionManager, TradingCache]:
 
 
 def _iid(sym: str = "RELIANCE") -> InstrumentId:
-    return InstrumentId(value=f"NSE:{sym}")
+    return InstrumentId.parse(f"NSE:{sym}")
 
 
 def _oid(val: str = "o1") -> OrderId:

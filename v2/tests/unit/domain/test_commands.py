@@ -13,7 +13,7 @@ from domain.value_objects import CorrelationId, InstrumentId, OrderId, Price, Qu
 def test_place_order_requires_correlation_id() -> None:
     with pytest.raises((TypeError, ValueError)):
         PlaceOrderCommand(  # type: ignore[call-arg]
-            instrument_id=InstrumentId(value="NSE:RELIANCE"),
+            instrument_id=InstrumentId.parse("NSE:RELIANCE"),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Quantity(value=Decimal("1")),
@@ -25,7 +25,7 @@ def test_place_order_requires_correlation_id() -> None:
 def test_place_order_rejects_none_correlation_id() -> None:
     with pytest.raises((TypeError, ValueError)):
         PlaceOrderCommand(
-            instrument_id=InstrumentId(value="NSE:RELIANCE"),
+            instrument_id=InstrumentId.parse("NSE:RELIANCE"),
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Quantity(value=Decimal("1")),
@@ -37,7 +37,7 @@ def test_place_order_rejects_none_correlation_id() -> None:
 
 def test_place_order_with_correlation_id() -> None:
     cmd = PlaceOrderCommand(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal("10")),

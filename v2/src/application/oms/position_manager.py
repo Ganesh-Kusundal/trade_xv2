@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from application.oms.trading_cache import TradingCache
-from domain.entities import Position, Trade
+from domain.entities import Order, Position, Trade
 from domain.enums import OrderSide
 from domain.value_objects import Money, Price, Quantity
 
@@ -16,6 +17,18 @@ _CURRENCY = "INR"
 class PositionManager:
     def __init__(self, cache: TradingCache) -> None:
         self._cache = cache
+
+    def apply(self, order: Order) -> Position:
+        trade = Trade(
+            trade_id=order.order_id.value,
+            order_id=order.order_id,
+            instrument_id=order.instrument_id,
+            price=order.price or Price(value=Decimal("0")),
+            quantity=order.filled_quantity,
+            side=order.side,
+            timestamp=datetime.now(UTC),
+        )
+        return self.apply_trade(trade)
 
     def apply_trade(self, trade: Trade) -> Position:
         existing = self._cache.get_position(trade.instrument_id)

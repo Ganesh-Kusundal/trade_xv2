@@ -25,7 +25,7 @@ from plugins.brokers.paper.wire import PaperWire
 from plugins.brokers.registry import get_plugin, list_plugins
 from tests.integration.adapter_harness import AdapterTestHarness
 
-_INSTR = InstrumentId(value="NSE:RELIANCE")
+_INSTR = InstrumentId.parse("NSE:RELIANCE")
 
 
 def _seed_quote(gateway: PaperGateway) -> Quote:
@@ -37,7 +37,7 @@ def _seed_quote(gateway: PaperGateway) -> Quote:
         ask_size=Quantity(value=Decimal("100")),
         timestamp=datetime.now(UTC),
     )
-    gateway.connection.set_quote(quote)
+    gateway.connection.set_quote(_INSTR, Decimal("2499"), Decimal("2501"))
     return quote
 
 
@@ -128,7 +128,7 @@ def test_cancel_rejects_filled_order(gateway: PaperGateway) -> None:
 
 
 def test_get_quote_without_seed_raises(gateway: PaperGateway) -> None:
-    missing = InstrumentId(value="NSE:UNKNOWN")
+    missing = InstrumentId.parse("NSE:UNKNOWN")
     with pytest.raises(KeyError):
         gateway.get_quote(missing)
 

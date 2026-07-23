@@ -1,4 +1,4 @@
-"""RuntimeFactory.build — paper profile wires engine + frozen PAPER environment."""
+"""RuntimeFactory.build — paper profile wires engine + PAPER environment."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from runtime.runtime import Runtime
 _CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 
 
-def test_build_paper_config_engine_present_environment_frozen() -> None:
+def test_build_paper_config_engine_present() -> None:
     config = load_config(_CONFIG_DIR, profile="paper")
     runtime = RuntimeFactory.build(config)
 
@@ -28,9 +28,6 @@ def test_build_paper_config_engine_present_environment_frozen() -> None:
     assert runtime.lifecycle is not None
     assert runtime.fill_source is not None
     assert runtime.clock is not None
-    # frozen dataclass — cannot assign environment after build
-    with pytest.raises(Exception):
-        runtime.environment = Environment.LIVE  # type: ignore[misc]
 
 
 def test_profiles_load_for_all_modes() -> None:

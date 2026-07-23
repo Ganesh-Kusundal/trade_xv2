@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Iterable
 
 from application.analytics.feature_pipeline import FeaturePipeline
@@ -13,6 +13,7 @@ from domain.entities import Bar
 from domain.enums import Environment
 from domain.events import OrderFilled
 from domain.ports import Strategy
+from domain.value_objects import Timestamp
 
 
 @dataclass
@@ -110,14 +111,28 @@ class BacktestEngine:
             },
         )
 
-    def _advance_to(self, when: datetime) -> None:
+    def _advance_to(self, when: datetime | Timestamp) -> None:
         setter = getattr(self._clock, "set", None)
         if callable(setter):
             setter(when)
             return
         now = self._clock.now()
-        delta = when - now
-        if delta.total_seconds() > 0:
+        # Convert to comparable types
+        if isinstance(when, Timestamp):
+            when_ns = when.value
+        elif isinstance(when, datetime):
+            when_ns = int(when.timestamp() * 1_000_000_000)
+        else:
+            raise TypeError(f"Unsupported type: {type(when)}")
+
+        if isinstance(now, Timestamp):
+            now_ns = now.value
+        else:
+            now_ns = int(now.timestamp() * 1_000_000_000)
+
+        delta_ns = when_ns - now_ns
+        if delta_ns > 0:
+            delta = timedelta(seconds=delta_ns / 1_000_000_000)
             self._clock.advance(delta)
 
 

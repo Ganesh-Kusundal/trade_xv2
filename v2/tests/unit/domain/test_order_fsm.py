@@ -13,7 +13,7 @@ from domain.value_objects import CorrelationId, InstrumentId, OrderId, Price, Qu
 def _order(status: OrderStatus = OrderStatus.PENDING) -> Order:
     return Order(
         order_id=OrderId(value="o1"),
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal("10")),

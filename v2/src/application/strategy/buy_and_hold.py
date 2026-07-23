@@ -45,7 +45,7 @@ class BuyAndHold:
     def on_event(self, event: Message) -> None:
         return None
 
-    def on_bar(self, bar: Bar) -> None:
+    def on_bar(self, bar: Bar, features: dict[str, float] | None = None) -> None:
         if self._bought:
             return
         self._bought = True

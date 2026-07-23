@@ -1,6 +1,5 @@
-"""Strategy application package."""
+"""Application strategy layer."""
 
-from application.strategy.buy_and_hold import BuyAndHold
 from application.strategy.strategy_engine import StrategyEngine
 
-__all__ = ["BuyAndHold", "StrategyEngine"]
+__all__ = ["StrategyEngine"]

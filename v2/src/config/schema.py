@@ -2,20 +2,9 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
-
-class Environment(str, Enum):
-    REPLAY = "REPLAY"
-    BACKTEST = "BACKTEST"
-    PAPER = "PAPER"
-    LIVE = "LIVE"
-
-
-BrokerId = Literal["dhan", "upstox", "paper"]
+from domain.enums import BrokerId, Environment
 
 
 class MessageBusConfig(BaseModel):
@@ -75,7 +64,7 @@ class UpstoxBrokerConfig(BaseModel):
 
 class AppConfig(BaseModel):
     environment: Environment = Environment.PAPER
-    broker: BrokerId = "paper"
+    broker: BrokerId = BrokerId.PAPER
     components: ComponentsConfig = Field(default_factory=ComponentsConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)

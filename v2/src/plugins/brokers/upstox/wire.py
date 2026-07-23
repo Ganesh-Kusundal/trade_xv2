@@ -9,7 +9,7 @@ from uuid import UUID, uuid5, NAMESPACE_URL
 
 from domain.commands import PlaceOrderCommand
 from domain.entities import Account, DepthLevel, MarketDepth, Order, Position, Quote
-from domain.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from domain.enums import OrderSide, OrderStatus, OrderType, ProductType, TimeInForce
 from domain.value_objects import (
     AccountId,
     CorrelationId,
@@ -19,11 +19,29 @@ from domain.value_objects import (
     Price,
     Quantity,
 )
+from plugins.brokers.common.instruments import InMemoryInstrumentResolver
 from plugins.brokers.common.quote_normalize import normalize_quote
 from plugins.brokers.common.wire import BaseWireAdapter
+from shared.errors import MappingError
 
-_INSTRUMENT_KEYS: dict[str, str] = {
-    "NSE:RELIANCE": "NSE_EQ:RELIANCE",
+_UPSTOX_SEGMENT: dict[str, str] = {
+    "NSE": "NSE_EQ",
+    "NFO": "NSE_FO",
+    "BFO": "BSE_FO",
+    "MCX": "MCX_FO",
+    "BSE": "BSE_EQ",
+    "CDS": "NCD_FO",
+    "BCD": "BCD_FO",
+    "IDX": "NSE_INDEX",
+}
+
+# Upstox has no distinct "MARGIN" product beyond MTF — ProductType.MARGIN is
+# intentionally unmapped here and raises from_place_command() if used.
+_PRODUCT_TYPE_UPSTOX: dict[ProductType, str] = {
+    ProductType.INTRADAY: "I",
+    ProductType.DELIVERY: "D",
+    ProductType.MTF: "MTF",
+    ProductType.COVER_ORDER: "CO",
 }
 
 _STATUS: dict[str, OrderStatus] = {
@@ -32,6 +50,10 @@ _STATUS: dict[str, OrderStatus] = {
     "rejected": OrderStatus.REJECTED,
     "cancelled": OrderStatus.CANCELLED,
     "trigger pending": OrderStatus.SUBMITTED,
+    "after_market_order_req_received": OrderStatus.SUBMITTED,
+    "queued": OrderStatus.SUBMITTED,
+    "pending": OrderStatus.PENDING,
+    "expired": OrderStatus.CANCELLED,
 }
 
 
@@ -44,18 +66,98 @@ def _corr(raw: object) -> CorrelationId:
 
 
 class UpstoxWire:
+    def __init__(self) -> None:
+        from plugins.brokers.common.index_map import index_upstox_key, is_index
+
+        def _upstox_index_fallback(iid: InstrumentId) -> dict | None:
+            sym = iid.underlying
+            if is_index(sym):
+                key = index_upstox_key(sym)
+                if key:
+                    return {"instrument_key": key}
+            return None
+
+        self._resolver = InMemoryInstrumentResolver(index_fallback=_upstox_index_fallback)
+
+    def get_segment(self, instrument_id: InstrumentId) -> str:
+        exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else "NSE"
+        return _UPSTOX_SEGMENT.get(exchange, "NSE_EQ")
+
     def instrument_key(self, instrument_id: InstrumentId) -> str:
-        if instrument_id.value in _INSTRUMENT_KEYS:
-            return _INSTRUMENT_KEYS[instrument_id.value]
-        if ":" in instrument_id.value and instrument_id.value.startswith("NSE_"):
-            return instrument_id.value
+        try:
+            return self._resolver.resolve_ref(instrument_id).require("instrument_key")
+        except KeyError:
+            pass
+        # Bare index symbols (NIFTY, BANKNIFTY, ...) and IDX-prefixed forms
+        # resolve via the shared index map — mirrors DhanWire.get_index_entry.
+        from plugins.brokers.common.index_map import index_upstox_key, is_index
+
+        exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else ""
+        symbol = instrument_id.value.split(":", 1)[1] if ":" in instrument_id.value else instrument_id.value
+        if exchange in ("IDX", "INDEX") or is_index(symbol):
+            key = index_upstox_key(symbol)
+            if key is not None:
+                return key
+        # No NSE:-prefix passthrough here: returning the canonical string itself
+        # as a fake instrument_key would leak an unmapped id straight into an
+        # Upstox API call — the instrument master not being loaded must raise,
+        # not silently produce a wrong-shaped wire id.
         raise KeyError(f"no Upstox instrument_key for {instrument_id.value}")
 
-    def register_key(self, instrument_id: InstrumentId, key: str) -> None:
-        _INSTRUMENT_KEYS[instrument_id.value] = key
+    def register_key(
+        self,
+        instrument_id: InstrumentId,
+        key: str,
+        *,
+        symbol: str | None = None,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        underlying: str | None = None,
+        expiry: str | None = None,
+        strike: Any | None = None,
+        option_type: str | None = None,
+        canonical_symbol: str | None = None,
+    ) -> None:
+        self._resolver.register(
+            instrument_id,
+            {"instrument_key": key},
+            symbol=symbol,
+            exchange=exchange,
+            instrument_type=instrument_type,
+            underlying=underlying,
+            expiry=expiry,
+            strike=strike,
+            option_type=option_type,
+            canonical_symbol=canonical_symbol,
+        )
+
+    def register_bulk(self, rows: list[dict], *, source: str = "bulk") -> None:
+        """Atomic bulk load — see InMemoryInstrumentResolver.load_from_rows."""
+        self._resolver.load_from_rows(rows, source=source)
+
+    def _canon_iid(self, raw_id: str) -> InstrumentId:
+        """Resolve raw Upstox instrument_key to canonical EXCHANGE:SYMBOL InstrumentId.
+
+        Never guesses — a miss means the instrument master isn't loaded or the
+        id is unknown, and callers must see that instead of a fabricated symbol.
+        """
+        canonical = self._resolver.reverse("instrument_key", raw_id)
+        if canonical is not None:
+            return canonical
+        raise MappingError(f"no canonical instrument for Upstox instrument_key={raw_id!r}")
+
+    def response_key(self, instrument_id: InstrumentId) -> str:
+        """Upstox quote/ltp responses are keyed by ``EXCHANGE:SYMBOL`` (colon),
+
+        not by the ``instrument_key`` (``EXCHANGE|ISIN``). Derive it from the
+        canonical InstrumentId so lookups hit the right row.
+        """
+        exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else "NSE"
+        symbol = instrument_id.value.split(":", 1)[1] if ":" in instrument_id.value else instrument_id.value
+        return f"{_UPSTOX_SEGMENT.get(exchange, 'NSE_EQ')}:{symbol}"
 
     def to_quote(self, native: Mapping[str, Any], *, instrument_id: InstrumentId) -> Quote:
-        key = self.instrument_key(instrument_id)
+        key = self.response_key(instrument_id)
         data = native.get("data", native)
         row = data[key] if isinstance(data, Mapping) and key in data else data
         depth = row.get("depth", {}) if isinstance(row, Mapping) else {}
@@ -73,13 +175,13 @@ class UpstoxWire:
         )
 
     def to_ltp(self, native: Mapping[str, Any], *, instrument_id: InstrumentId) -> Price:
-        key = self.instrument_key(instrument_id)
+        key = self.response_key(instrument_id)
         data = native.get("data", native)
         row = data[key] if isinstance(data, Mapping) and key in data else data
         return Price(value=Decimal(str(row.get("last_price", row.get("ltp", 0)))))
 
     def to_depth(self, native: Mapping[str, Any], *, instrument_id: InstrumentId) -> MarketDepth:
-        key = self.instrument_key(instrument_id)
+        key = self.response_key(instrument_id)
         data = native.get("data", native)
         row = data[key] if isinstance(data, Mapping) and key in data else data
         depth = row.get("depth", row)
@@ -105,17 +207,29 @@ class UpstoxWire:
         )
 
     def from_place_command(self, command: PlaceOrderCommand) -> dict[str, Any]:
+        disclosed = getattr(command, "disclosed_quantity", None)
+        market_protection = getattr(command, "market_protection", None)
+        if command.product_type is None:
+            product = "I"
+        elif command.product_type in _PRODUCT_TYPE_UPSTOX:
+            product = _PRODUCT_TYPE_UPSTOX[command.product_type]
+        else:
+            raise ValueError(f"Upstox does not support product_type {command.product_type!r}")
         body: dict[str, Any] = {
             "instrument_token": self.instrument_key(command.instrument_id),
             "transaction_type": BaseWireAdapter.enum_value(command.side),
             "quantity": int(command.quantity.value),
             "order_type": BaseWireAdapter.enum_value(command.order_type),
-            "product": "I",
+            "product": product,
             "validity": BaseWireAdapter.enum_value(command.time_in_force),
+            "disclosed_quantity": int(disclosed.value) if disclosed is not None else 0,
+            "market_protection": int(market_protection) if market_protection is not None else -1,
             "tag": str(command.correlation_id.value),
         }
         if command.price is not None:
             body["price"] = float(command.price.value)
+        if command.trigger_price is not None:
+            body["trigger_price"] = float(command.trigger_price.value)
         return body
 
     def to_order_id(self, native: Mapping[str, Any]) -> OrderId:
@@ -136,7 +250,7 @@ class UpstoxWire:
         price_raw = row.get("price")
         return Order(
             order_id=OrderId(value=str(row.get("order_id"))),
-            instrument_id=InstrumentId(value=str(row.get("instrument_token", row.get("tradingsymbol", "")))),
+            instrument_id=self._canon_iid(str(row.get("instrument_token", row.get("tradingsymbol", "")))),
             side=side,
             order_type=otype,
             quantity=Quantity(value=Decimal(str(row.get("quantity", 0)))),
@@ -154,7 +268,7 @@ class UpstoxWire:
         upnl = Decimal(str(native.get("unrealised", native.get("unrealized_pnl", 0))))
         key = str(native.get("instrument_token", native.get("tradingsymbol", "")))
         return Position(
-            instrument_id=InstrumentId(value=key),
+            instrument_id=self._canon_iid(key),
             quantity=Quantity(value=qty),
             avg_price=Price(value=avg),
             realized_pnl=Money(amount=pnl, currency="INR"),

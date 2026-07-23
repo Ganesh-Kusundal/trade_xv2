@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import TYPE_CHECKING
 
 from domain.commands import PlaceOrderCommand
 from domain.entities import Order
 from domain.enums import OrderStatus
 from domain.value_objects import OrderId
+from plugins.brokers.common.idempotency import IdempotencyCache
 from plugins.brokers.dhan.wire import DhanWire
+from shared.errors import MappingError
 
 if TYPE_CHECKING:
     from plugins.brokers.common.transport import BaseTransport
+
+logger = logging.getLogger(__name__)
 
 
 class DhanOrdersAdapter:
@@ -19,11 +25,35 @@ class DhanOrdersAdapter:
         self._transport = transport
         self._wire = wire
         self._cache: dict[str, Order] = {}
+        self._idempotency = IdempotencyCache()
 
     def place_order(self, command: PlaceOrderCommand) -> OrderId:
-        body = self._wire.from_place_command(command)
-        ack = self._transport.post("/orders", json=body)
-        oid = self._wire.to_order_id(ack)
+        cid = str(command.correlation_id.value)
+        cached = self._idempotency.get(cid)
+        if cached is not None:
+            return OrderId(value=cached)
+        if not self._idempotency.reserve(cid):
+            # Another caller is placing with the same cid — wait for it.
+            for _ in range(50):
+                cached = self._idempotency.get(cid)
+                if cached is not None:
+                    return OrderId(value=cached)
+                time.sleep(0.1)
+        post_sent = False
+        try:
+            body = self._wire.from_place_command(command)
+            ack = self._transport.post("/orders", json=body)
+            post_sent = True
+            oid = self._wire.to_order_id(ack)
+        except Exception:
+            # Only release the reservation when the POST was never sent.
+            # If POST succeeded but parsing raised, the order may exist on the
+            # broker — clearing would allow a duplicate on retry.
+            if not post_sent:
+                self._idempotency.clear_reservation(cid)
+            raise
+        if post_sent:
+            self._idempotency.commit(cid, oid.value)
         order = Order(
             order_id=oid,
             instrument_id=command.instrument_id,
@@ -35,7 +65,7 @@ class DhanOrdersAdapter:
             status=OrderStatus.PENDING,
             correlation_id=command.correlation_id,
         )
-        order.transition_to(OrderStatus.SUBMITTED)
+        order = order.transition_to(OrderStatus.SUBMITTED)
         self._cache[oid.value] = order
         return oid
 
@@ -47,7 +77,7 @@ class DhanOrdersAdapter:
             OrderStatus.CANCELLED,
             OrderStatus.REJECTED,
         ):
-            cached.transition_to(OrderStatus.CANCELLED)
+            self._cache[order_id.value] = cached.transition_to(OrderStatus.CANCELLED)
 
     def modify_order(self, order_id: OrderId, command: PlaceOrderCommand) -> None:
         body = self._wire.from_place_command(command)
@@ -70,4 +100,10 @@ class DhanOrdersAdapter:
     def get_orderbook(self) -> list[Order]:
         data = self._transport.get("/orders")
         rows = data if isinstance(data, list) else data.get("data", [])
-        return [self._wire.to_order(r) for r in rows]
+        orders: list[Order] = []
+        for r in rows:
+            try:
+                orders.append(self._wire.to_order(r))
+            except MappingError as exc:
+                logger.warning("dhan_orderbook_row_unmapped: %s", exc)
+        return orders

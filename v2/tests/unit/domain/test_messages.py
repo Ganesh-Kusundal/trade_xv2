@@ -1,5 +1,6 @@
 """Domain messages are immutable and form a proper hierarchy."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -16,7 +17,7 @@ from domain.enums import (
     SignalDirection,
     TimeInForce,
 )
-from domain.messages import (
+from domain.events import (
     AccountUpdated,
     AutoFlattenOrder,
     BacktestCompleted,
@@ -68,15 +69,8 @@ from domain.value_objects import (
     TimeFrame,
 )
 
-NS = 1_000_000_000  # nanoseconds per second
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _ts() -> int:
-    return 1_700_000_000 * NS
+def _ts() -> datetime:
+    return datetime(2024, 6, 1, 12, 0, tzinfo=UTC)
 
 
 def _cid():
@@ -84,7 +78,7 @@ def _cid():
 
 
 def _inst(s: str = "NSE:RELIANCE") -> InstrumentId:
-    return InstrumentId(value=s)
+    return InstrumentId.parse(s)
 
 
 def _price(v: str = "100.50") -> Price:
@@ -476,11 +470,11 @@ class TestBrokerReconnected:
 
 class TestReplayStarted:
     def test_inherits_message(self) -> None:
-        rs = ReplayStarted(timestamp=_ts(), session_id="sess-1", start_ts=1000, end_ts=2000)
+        rs = ReplayStarted(timestamp=_ts(), session_id="sess-1", start_ts=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), end_ts=datetime(2024, 6, 1, 12, 0, 2, tzinfo=UTC))
         assert isinstance(rs, SystemMessage)
 
     def test_frozen(self) -> None:
-        rs = ReplayStarted(timestamp=_ts(), session_id="sess-1", start_ts=1000, end_ts=2000)
+        rs = ReplayStarted(timestamp=_ts(), session_id="sess-1", start_ts=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC), end_ts=datetime(2024, 6, 1, 12, 0, 2, tzinfo=UTC))
         with pytest.raises(Exception):
             rs.session_id = ""  # type: ignore[misc]
 
@@ -500,14 +494,14 @@ class TestFeatureComputed:
     def test_inherits_message(self) -> None:
         fc = FeatureComputed(
             timestamp=_ts(), instrument_id=_inst(), feature_name="rsi_14",
-            value=_price("65.3"), feature_timestamp=1_700_000_001 * NS,
+            value=_price("65.3"), feature_timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC),
         )
         assert isinstance(fc, SystemMessage)
 
     def test_frozen(self) -> None:
         fc = FeatureComputed(
             timestamp=_ts(), instrument_id=_inst(), feature_name="rsi_14",
-            value=_price("65.3"), feature_timestamp=1_700_000_001 * NS,
+            value=_price("65.3"), feature_timestamp=datetime(2024, 6, 1, 12, 0, 1, tzinfo=UTC),
         )
         with pytest.raises(Exception):
             fc.feature_name = ""  # type: ignore[misc]

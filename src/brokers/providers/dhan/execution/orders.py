@@ -38,8 +38,10 @@ logger = logging.getLogger(__name__)
 def _parse_timestamp(val: object) -> datetime | None:
     """Parse a timestamp from Dhan API response to datetime.
 
-    Dhan returns ISO-8601 strings like '2026-06-30T10:15:30+05:30'.
-    Returns None if the value is missing or unparseable.
+    Accepts ISO-8601 strings like '2026-06-30T10:15:30+05:30' and Dhan's
+    ``DD/MM/YYYY HH:MM:SS`` form (e.g. '30/06/2026 10:15:30'), which some
+    endpoints return for traded times. Returns None if the value is
+    missing or unparseable.
     """
     if val is None or val == "":
         return None
@@ -47,6 +49,10 @@ def _parse_timestamp(val: object) -> datetime | None:
         return val
     try:
         return datetime.fromisoformat(str(val))
+    except (ValueError, TypeError):
+        pass
+    try:
+        return datetime.strptime(str(val), "%d/%m/%Y %H:%M:%S")
     except (ValueError, TypeError):
         return None
 

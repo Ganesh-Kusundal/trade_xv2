@@ -160,9 +160,9 @@ class TestPricingService:
 # ---------------------------------------------------------------------------
 
 class TestInstrumentRegistry:
-    def _make_instrument(self, symbol: str, inst_id: str) -> Instrument:
+    def _make_instrument(self, symbol: str, exchange: str = "NSE") -> Instrument:
         return Instrument(
-            instrument_id=InstrumentId(value=inst_id),
+            instrument_id=InstrumentId.equity(exchange, symbol),
             symbol=symbol,
             exchange=ExchangeId.NSE,
             asset_class=AssetClass.EQUITY,
@@ -172,7 +172,7 @@ class TestInstrumentRegistry:
 
     def test_register_and_lookup(self) -> None:
         registry = InstrumentRegistry()
-        inst = self._make_instrument("RELIANCE", "NSE_EQ_RELIANCE")
+        inst = self._make_instrument("RELIANCE")
         registry.register(inst)
         assert registry.lookup("RELIANCE") == inst
 
@@ -182,17 +182,24 @@ class TestInstrumentRegistry:
 
     def test_register_overwrites(self) -> None:
         registry = InstrumentRegistry()
-        inst1 = self._make_instrument("RELIANCE", "NSE_EQ_RELIANCE")
-        inst2 = self._make_instrument("RELIANCE", "NSE_EQ_RELIANCE_V2")
+        inst1 = self._make_instrument("RELIANCE")
+        inst2 = Instrument(
+            instrument_id=InstrumentId.equity("BSE", "RELIANCE"),
+            symbol="RELIANCE",
+            exchange=ExchangeId.NSE,
+            asset_class=AssetClass.EQUITY,
+            currency="INR",
+            instrument_type=InstrumentType.EQUITY,
+        )
         registry.register(inst1)
         registry.register(inst2)
         assert registry.lookup("RELIANCE") == inst2
 
     def test_instruments_by_exchange(self) -> None:
         registry = InstrumentRegistry()
-        inst_nse = self._make_instrument("RELIANCE", "NSE_EQ_RELIANCE")
+        inst_nse = self._make_instrument("RELIANCE")
         inst_bse = Instrument(
-            instrument_id=InstrumentId(value="BSE_EQ_TCS"),
+            instrument_id=InstrumentId.equity("BSE", "TCS"),
             symbol="TCS",
             exchange=ExchangeId.BSE,
             asset_class=AssetClass.EQUITY,

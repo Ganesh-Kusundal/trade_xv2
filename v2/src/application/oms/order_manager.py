@@ -40,6 +40,9 @@ class OrderManager:
         self._cache.set_order(order)
         return order
 
+    def upsert(self, order: Order) -> None:
+        self._cache.set_order(order)
+
     def get_order(self, order_id: OrderId) -> Order:
         order = self._cache.get_order(order_id)
         if order is None:

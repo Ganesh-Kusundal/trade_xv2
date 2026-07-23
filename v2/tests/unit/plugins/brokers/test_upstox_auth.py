@@ -60,6 +60,29 @@ def test_ensure_token_refresh_when_expired(tmp_path: Path) -> None:
     assert store.load().access_token == "fresh"  # type: ignore[union-attr]
 
 
+def test_ensure_token_refresh_broadcasts_to_registered_receivers(tmp_path: Path) -> None:
+    store = UpstoxTokenStore(tmp_path / "u.json")
+    store.save(access_token="old", refresh_token="refresh-me", expires_at=1.0)
+    cfg = UpstoxConfig(
+        client_id="c",
+        client_secret="s",
+        access_token="",
+        refresh_token="",
+        token_path=tmp_path / "u.json",
+        cooldown_path=tmp_path / "cd.json",
+    )
+
+    def fake_refresh(refresh_token: str) -> dict[str, Any]:
+        return {"access_token": "fresh", "refresh_token": "refresh-me", "expires_in": 86400}
+
+    mgr = UpstoxTokenManager(cfg, refresh_fn=fake_refresh)
+    received: list[str] = []
+    mgr.register_receiver(received.append)
+
+    assert mgr.ensure_token() == "fresh"
+    assert received == ["fresh"]
+
+
 def test_ensure_token_reuses_valid_env_jwt_without_mint(tmp_path: Path) -> None:
     """Probe-before-mint: valid env JWT must not call TOTP."""
     import base64

@@ -17,11 +17,9 @@ class PaperPortfolioAdapter:
         self._conn = connection
 
     def get_positions(self) -> list[Position]:
-        self._conn.require_connected()
-        return [self._conn.wire.to_position(p) for p in self._conn.positions.values()]
+        return list(self._conn.positions.values())
 
     def get_funds(self) -> Account:
-        self._conn.require_connected()
         cash = self._conn.cash
         mtm = Decimal("0")
         for pos in self._conn.positions.values():

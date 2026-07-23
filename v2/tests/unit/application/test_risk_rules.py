@@ -21,7 +21,7 @@ from domain.value_objects import CorrelationId, InstrumentId, Money, Price, Quan
 
 def _cmd(qty: str = "10", side: OrderSide = OrderSide.BUY) -> PlaceOrderCommand:
     return PlaceOrderCommand(
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=side,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal(qty)),
@@ -39,7 +39,7 @@ def _ctx(
     available_margin: str = "1000000",
 ) -> RiskContext:
     zero = Money(amount=Decimal("0"), currency="INR")
-    iid = InstrumentId(value="NSE:RELIANCE")
+    iid = InstrumentId.parse("NSE:RELIANCE")
     positions = {
         iid: Position(
             instrument_id=iid,

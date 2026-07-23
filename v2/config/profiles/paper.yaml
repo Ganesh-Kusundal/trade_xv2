@@ -1,5 +1,5 @@
 environment: PAPER
-broker: dhan
+broker: DHAN
 
 components:
   risk:

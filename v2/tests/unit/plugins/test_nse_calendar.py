@@ -1,28 +1,53 @@
-"""NSE TradingCalendar is_trading_day — weekends off, holidays respected."""
-
-from __future__ import annotations
+"""Tests for NSE trading calendar."""
 
 from datetime import date
 
-from plugins.exchanges.nse.calendar import NSETradingCalendar
+from plugins.exchanges.nse.calendar import NSETradingCalendar, NSE_HOLIDAYS
 
 
-def test_weekday_is_trading_day() -> None:
+def test_weekends_are_non_trading():
     cal = NSETradingCalendar()
-    # 2024-01-15 was a Monday
-    assert cal.is_trading_day(date(2024, 1, 15)) is True
+    # Saturday
+    assert not cal.is_trading_day(date(2024, 1, 27))
+    # Sunday
+    assert not cal.is_trading_day(date(2024, 1, 28))
 
 
-def test_saturday_is_not_trading_day() -> None:
+def test_holidays_are_non_trading():
     cal = NSETradingCalendar()
-    assert cal.is_trading_day(date(2024, 1, 13)) is False
+    for holiday in NSE_HOLIDAYS:
+        assert not cal.is_trading_day(holiday), f"{holiday} should be a holiday"
 
 
-def test_sunday_is_not_trading_day() -> None:
+def test_weekdays_are_trading_days():
     cal = NSETradingCalendar()
-    assert cal.is_trading_day(date(2024, 1, 14)) is False
+    # A known Monday that's not a holiday
+    assert cal.is_trading_day(date(2024, 1, 22))
 
 
-def test_listed_holiday_is_not_trading_day() -> None:
-    cal = NSETradingCalendar(holidays={date(2024, 1, 26)})  # Republic Day
-    assert cal.is_trading_day(date(2024, 1, 26)) is False
+def test_custom_holidays():
+    custom = {date(2024, 6, 15)}
+    cal = NSETradingCalendar(holidays=custom)
+    assert not cal.is_trading_day(date(2024, 6, 15))
+    # Default holidays not included
+    assert cal.is_trading_day(date(2024, 1, 26))
+
+
+def test_2024_key_holidays():
+    cal = NSETradingCalendar()
+    assert not cal.is_trading_day(date(2024, 1, 26))   # Republic Day
+    assert not cal.is_trading_day(date(2024, 3, 29))   # Good Friday
+    assert not cal.is_trading_day(date(2024, 8, 15))   # Independence Day
+    assert not cal.is_trading_day(date(2024, 10, 12))  # Dussehra
+    assert not cal.is_trading_day(date(2024, 11, 1))   # Diwali
+    assert not cal.is_trading_day(date(2024, 12, 25))  # Christmas
+
+
+def test_2025_key_holidays():
+    cal = NSETradingCalendar()
+    assert not cal.is_trading_day(date(2025, 1, 26))   # Republic Day
+    assert not cal.is_trading_day(date(2025, 4, 18))   # Good Friday
+    assert not cal.is_trading_day(date(2025, 8, 15))   # Independence Day
+    assert not cal.is_trading_day(date(2025, 9, 27))   # Dussehra
+    assert not cal.is_trading_day(date(2025, 10, 21))  # Diwali
+    assert not cal.is_trading_day(date(2025, 12, 25))  # Christmas

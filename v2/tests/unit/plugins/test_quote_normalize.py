@@ -11,7 +11,7 @@ from plugins.brokers.common.quote_normalize import normalize_quote
 
 
 def test_normalize_quote_builds_domain_quote() -> None:
-    iid = InstrumentId(value="NSE:RELIANCE")
+    iid = InstrumentId.parse("NSE:RELIANCE")
     ts = datetime(2024, 6, 1, 9, 15, tzinfo=timezone.utc)
     quote = normalize_quote(
         {

@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
-from plugins.brokers.common.rate_limit import UPSTOX_RATE_LIMITS, limiter_from_table
+from domain.ports.types import BrokerSnapshot
+from plugins.brokers.common.circuit_breaker import CircuitBreakerConfig
+from plugins.brokers.common.liveness import ConnectionLiveness
+from plugins.brokers.common.rate_limit import limiter_from_profile
+from plugins.brokers.common.retry import RetryConfig
+from plugins.brokers.common.token_lifecycle import TokenRefreshScheduler
 from plugins.brokers.common.transport import BaseTransport, HttpTransport
 from plugins.brokers.upstox.adapters import (
     UpstoxInstrumentAdapter,
@@ -18,26 +24,50 @@ from plugins.brokers.upstox.config import UpstoxConfig
 from plugins.brokers.upstox.wire import UpstoxWire
 
 
-class UpstoxConnection:
+class UpstoxConnection(ConnectionLiveness):
     def __init__(
         self,
         config: UpstoxConfig | None = None,
         transport: BaseTransport | None = None,
         token_manager: UpstoxTokenManager | None = None,
+        ws_factory: Callable[[str], Any] | None = None,
+        rate_limit_profile: Any | None = None,
     ) -> None:
         self.config = config or UpstoxConfig()
         self.wire = UpstoxWire()
         self._tokens = token_manager or UpstoxTokenManager(self.config)
-        self._limiter = limiter_from_table(UPSTOX_RATE_LIMITS)
+        self._scheduler = TokenRefreshScheduler(
+            "upstox",
+            self._tokens,
+            broadcast=self._tokens._broadcast,
+            interval_seconds=300.0,
+        )
+        # Rate limits sourced from RateLimitProfile when provided;
+        # limiter_from_profile falls back to the UPSTOX table constants otherwise.
+        self._limiter = limiter_from_profile("upstox", rate_limit_profile)
         if transport is not None:
             self.transport = transport
         else:
             self.transport = HttpTransport(
                 base_url=self.config.base_url,
                 limiter=self._limiter,
-                token_provider=self._tokens.current,
+                token_provider=self._tokens.ensure_token,
                 auth_header="Authorization",
                 auth_prefix="Bearer ",
+                circuit_breaker_config=CircuitBreakerConfig(
+                    failure_threshold=5,
+                    recovery_timeout=30.0,
+                    success_threshold=2,
+                ),
+                retry_config=RetryConfig(
+                    max_retries=3,
+                    base_delay=0.5,
+                    max_delay=10.0,
+                    exponential_base=2.0,
+                    jitter=True,
+                    retryable_status=(429, 500, 502, 503, 504),
+                ),
+                on_auth_failure=self._reauth_on_401,
             )
         self.orders = UpstoxOrdersAdapter(self.transport, self.wire)
         self.market_data = UpstoxMarketDataAdapter(self.transport, self.wire)
@@ -46,14 +76,24 @@ class UpstoxConnection:
         self.streaming = UpstoxStreamingAdapter(
             wire=self.wire,
             ws_url=self.config.ws_url,
-            token_provider=self._tokens.current,
+            token_provider=self._tokens.ensure_token,
+            ws_factory=ws_factory,
         )
         self._connected = False
         self._authenticated = False
         self._last_auth_error: Exception | None = None
 
+    def _reauth_on_401(self) -> bool:
+        """Called by HttpTransport on HTTP 401/403. Force-refresh token once."""
+        try:
+            self._tokens.ensure_token(force_refresh=True)
+            return True
+        except Exception:
+            return False
+
     def connect(self) -> None:
         self._connected = True
+        self._scheduler.start()
 
     def authenticate(self) -> bool:
         try:
@@ -85,20 +125,17 @@ class UpstoxConnection:
             return False
 
     def disconnect(self) -> None:
+        self._scheduler.stop()
         self.streaming.close()
         self._connected = False
         self._authenticated = False
 
-    @property
-    def is_connected(self) -> bool:
-        return self._connected and self._authenticated
-
     def load_instruments(self) -> None:
         self.instruments.load_instruments()
 
-    def mass_status(self) -> dict[str, Any]:
-        return {
-            "orders": self.orders.get_orderbook(),
-            "positions": self.portfolio.get_positions(),
-            "account": self.portfolio.get_funds(),
-        }
+    def mass_status(self) -> BrokerSnapshot:
+        return BrokerSnapshot(
+            orders=self.orders.get_orderbook(),
+            positions=self.portfolio.get_positions(),
+            account=self.portfolio.get_funds(),
+        )

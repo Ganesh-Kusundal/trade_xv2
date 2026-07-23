@@ -5,11 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from domain.enums import ComponentState
+
 
 @dataclass
 class ComponentHealth:
     component_id: str
-    state: str
+    state: ComponentState
     metrics: dict[str, Any] = field(default_factory=dict)
     last_error: str | None = None
 

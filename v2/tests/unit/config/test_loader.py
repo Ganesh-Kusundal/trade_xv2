@@ -11,7 +11,7 @@ def test_profile_overlay_changes_environment(tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     profiles = config_dir / "profiles"
     profiles.mkdir(parents=True)
-    (config_dir / "tradex.yaml").write_text("environment: PAPER\nbroker: paper\n")
+    (config_dir / "tradex.yaml").write_text("environment: PAPER\nbroker: PAPER\n")
     (profiles / "replay.yaml").write_text("environment: REPLAY\n")
 
     cfg = load_config(config_dir, profile="replay")
@@ -22,9 +22,9 @@ def test_env_tradex_broker_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyP
     config_dir = tmp_path / "config"
     profiles = config_dir / "profiles"
     profiles.mkdir(parents=True)
-    (config_dir / "tradex.yaml").write_text("environment: PAPER\nbroker: paper\n")
+    (config_dir / "tradex.yaml").write_text("environment: PAPER\nbroker: PAPER\n")
     (profiles / "paper.yaml").write_text("environment: PAPER\n")
 
-    monkeypatch.setenv("TRADEX_BROKER", "dhan")
+    monkeypatch.setenv("TRADEX_BROKER", "DHAN")
     cfg = load_config(config_dir, profile="paper")
-    assert cfg.broker == "dhan"
+    assert cfg.broker == "DHAN"

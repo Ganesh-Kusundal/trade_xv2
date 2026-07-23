@@ -25,7 +25,7 @@ class _GetOrderAdapter(_AckOnlyAdapter):
 
         o = Order(
             order_id=order_id,
-            instrument_id=InstrumentId(value="NSE:X"),
+            instrument_id=InstrumentId.parse("NSE:X"),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Quantity(value=Decimal("1")),
@@ -34,13 +34,13 @@ class _GetOrderAdapter(_AckOnlyAdapter):
             status=OrderStatus.PENDING,
             correlation_id=CorrelationId(value=uuid4()),
         )
-        o.transition_to(OrderStatus.SUBMITTED)
+        o = o.transition_to(OrderStatus.SUBMITTED)
         return o
 
 
 def _cmd() -> PlaceOrderCommand:
     return PlaceOrderCommand(
-        instrument_id=InstrumentId(value="NSE:X"),
+        instrument_id=InstrumentId.parse("NSE:X"),
         side=OrderSide.BUY,
         order_type=OrderType.MARKET,
         quantity=Quantity(value=Decimal("1")),

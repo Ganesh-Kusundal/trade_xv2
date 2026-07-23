@@ -26,7 +26,7 @@ def test_pending_submitted_filled_path() -> None:
     om, cache = _manager()
     order = om.create_pending(
         order_id=OrderId(value="o1"),
-        instrument_id=InstrumentId(value="NSE:RELIANCE"),
+        instrument_id=InstrumentId.parse("NSE:RELIANCE"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Quantity(value=Decimal("10")),
@@ -50,7 +50,7 @@ def test_illegal_transition_via_manager_raises() -> None:
     om, cache = _manager()
     om.create_pending(
         order_id=OrderId(value="o2"),
-        instrument_id=InstrumentId(value="NSE:TCS"),
+        instrument_id=InstrumentId.parse("NSE:TCS"),
         side=OrderSide.BUY,
         order_type=OrderType.MARKET,
         quantity=Quantity(value=Decimal("5")),
@@ -72,7 +72,7 @@ def test_cancel_reject_unknown_from_submitted() -> None:
     ):
         om.create_pending(
             order_id=OrderId(value=oid),
-            instrument_id=InstrumentId(value="NSE:INFY"),
+            instrument_id=InstrumentId.parse("NSE:INFY"),
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity=Quantity(value=Decimal("1")),

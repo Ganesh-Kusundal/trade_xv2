@@ -199,15 +199,20 @@ def _transform_quote(data: dict, resolver: Any = None) -> dict:
     security_id = str(data.get("security_id", ""))
     symbol = _resolve_security_symbol(security_id, resolver)
     bid, ask = _best_bid_ask(data.get("depth"))
+    ltp = Decimal(str(data.get("last_price", data.get("LTP", "0"))))
+    close = Decimal(str(data["close"])) if data.get("close") else None
+    # Match the REST path's net_change semantics: derive day change from the
+    # previous close carried in the frame rather than hardcoding zero.
+    change = ltp - close if close else Decimal("0")
     return {
         "symbol": symbol,
-        "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
+        "ltp": ltp,
         "open": Decimal(str(data["open"])) if data.get("open") else None,
         "high": Decimal(str(data["high"])) if data.get("high") else None,
         "low": Decimal(str(data["low"])) if data.get("low") else None,
-        "close": Decimal(str(data["close"])) if data.get("close") else None,
+        "close": close,
         "volume": int(data.get("volume", 0)),
-        "change": Decimal("0"),
+        "change": change,
         "bid": bid,
         "ask": ask,
         "timestamp": _parse_quote_exchange_time(data, now),

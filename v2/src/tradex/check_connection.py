@@ -15,10 +15,15 @@ from __future__ import annotations
 import argparse
 import sys
 
+from plugins.brokers.common.totp_cooldown import TotpRateLimitError
+from plugins.brokers.dhan import DhanGateway
+from plugins.brokers.dhan.config import DhanConfig
+from plugins.brokers.upstox import UpstoxGateway
+from plugins.brokers.upstox.config import UpstoxConfig
+from shared.env import load_v2_env
+
 
 def main(argv: list[str] | None = None) -> int:
-    from shared.env import load_v2_env
-
     loaded = load_v2_env(override=True)
     parser = argparse.ArgumentParser(description="Check Dhan/Upstox live connectivity")
     parser.add_argument(
@@ -41,14 +46,8 @@ def _check(name: str) -> bool:
     print(f"\n=== {name.upper()} ===")
     try:
         if name == "dhan":
-            from plugins.brokers.dhan import DhanGateway
-            from plugins.brokers.dhan.config import DhanConfig
-
             gw = DhanGateway(config=DhanConfig.from_env())
         else:
-            from plugins.brokers.upstox import UpstoxGateway
-            from plugins.brokers.upstox.config import UpstoxConfig
-
             gw = UpstoxGateway(config=UpstoxConfig.from_env())
 
         print(f"token_path={gw.connection.config.token_path}")
@@ -58,8 +57,6 @@ def _check(name: str) -> bool:
         print(f"authenticate={auth_ok}")
         if not auth_ok:
             err = getattr(getattr(gw, "connection", None), "_last_auth_error", None)
-            from plugins.brokers.common.totp_cooldown import TotpRateLimitError
-
             if isinstance(err, TotpRateLimitError):
                 print(
                     f"BLOCKED: TOTP cooldown — retry in {err.remaining_seconds:.0f}s "
@@ -80,8 +77,6 @@ def _check(name: str) -> bool:
         print("PASS")
         return True
     except Exception as exc:
-        from plugins.brokers.common.totp_cooldown import TotpRateLimitError
-
         if isinstance(exc, TotpRateLimitError):
             print(
                 f"BLOCKED: TOTP cooldown — retry in {exc.remaining_seconds:.0f}s "

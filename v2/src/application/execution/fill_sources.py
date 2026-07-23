@@ -5,6 +5,7 @@ Only the fill venue differs; ExecutionEngine code path is identical across modes
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -35,9 +36,9 @@ def _filled_from_command(
         status=OrderStatus.PENDING,
         correlation_id=command.correlation_id,
     )
-    order.transition_to(OrderStatus.SUBMITTED)
-    order.transition_to(OrderStatus.FILLED)
-    order.filled_quantity = command.quantity
+    order = order.transition_to(OrderStatus.SUBMITTED)
+    order = order.transition_to(OrderStatus.FILLED)
+    order = replace(order, filled_quantity=command.quantity)
     # ponytail: stamp avg via price field only; Order has no avg_fill — ceiling = qty parity
     _ = price
     return order
@@ -138,7 +139,7 @@ def _submitted_from_command(
         status=OrderStatus.PENDING,
         correlation_id=command.correlation_id,
     )
-    order.transition_to(OrderStatus.SUBMITTED)
+    order = order.transition_to(OrderStatus.SUBMITTED)
     return order
 
 

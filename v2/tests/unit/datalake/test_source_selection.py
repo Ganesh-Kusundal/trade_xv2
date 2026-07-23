@@ -27,11 +27,11 @@ def test_prefer_local_when_bars_exist(tmp_path: Path) -> None:
         ],
     )
     policy = SourceSelectionPolicy(catalog)
-    kind = policy.select(InstrumentId(value="NSE:RELIANCE"), TimeFrame(value="1d"))
+    kind = policy.select(InstrumentId.parse("NSE:RELIANCE"), TimeFrame(value="1d"))
     assert kind is DataSourceKind.DATALAKE
 
 
 def test_prefer_remote_when_local_empty(tmp_path: Path) -> None:
     policy = SourceSelectionPolicy(DataCatalog(tmp_path))
-    kind = policy.select(InstrumentId(value="NSE:TCS"), TimeFrame(value="1d"))
+    kind = policy.select(InstrumentId.parse("NSE:TCS"), TimeFrame(value="1d"))
     assert kind is DataSourceKind.BROKER_HISTORICAL

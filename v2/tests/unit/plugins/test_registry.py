@@ -66,16 +66,13 @@ def test_fake_transport_satisfies_protocol() -> None:
 
 def test_broker_adapter_port_surface() -> None:
     required = {
-        "connect",
-        "authenticate",
-        "close",
-        "get_quote",
-        "place_order",
+        "submit_order",
         "cancel_order",
+        "modify_order",
+        "get_order",
+        "get_orderbook",
         "get_positions",
         "get_funds",
-        "get_balance",
         "mass_status",
-        "capabilities",
     }
     assert required.issubset(set(BrokerAdapterPort.__protocol_attrs__))

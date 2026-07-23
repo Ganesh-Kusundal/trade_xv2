@@ -31,6 +31,21 @@ class TimeInForce(StrEnum):
     GTC = "GTC"
 
 
+class ProductType(StrEnum):
+    """Broker-agnostic order product vocabulary.
+
+    Per-broker Wire.from_place_command translates these to each broker's
+    own strings (Dhan: CNC/INTRADAY/MARGIN/MTF/CO; Upstox: D/I/MTF/CO) —
+    callers use this enum, never a raw broker-native string.
+    """
+
+    INTRADAY = "INTRADAY"
+    DELIVERY = "DELIVERY"
+    MARGIN = "MARGIN"
+    MTF = "MTF"
+    COVER_ORDER = "COVER_ORDER"
+
+
 class Environment(StrEnum):
     REPLAY = "REPLAY"
     BACKTEST = "BACKTEST"
@@ -55,6 +70,16 @@ class ExchangeId(StrEnum):
     NSE = "NSE"
     BSE = "BSE"
     MCX = "MCX"
+    NFO = "NFO"
+    BFO = "BFO"
+    CDS = "CDS"
+    BCD = "BCD"
+    IDX = "IDX"
+    # Dhan dual-lists some MCX commodity contracts under an NSE-routed
+    # listing with its own distinct security_id (same real contract, two
+    # tradeable listings) — kept as its own exchange so the two canonical
+    # InstrumentIds never collide (see dhan/adapters/instruments.py _SEGMENT_MAP).
+    NSE_COMM = "NSE_COMM"
 
 
 class AssetClass(StrEnum):
@@ -62,6 +87,7 @@ class AssetClass(StrEnum):
     DERIVATIVE = "DERIVATIVE"
     COMMODITY = "COMMODITY"
     CURRENCY = "CURRENCY"
+    INDEX = "INDEX"
 
 
 class InstrumentType(StrEnum):
@@ -69,6 +95,37 @@ class InstrumentType(StrEnum):
     FUTURE = "FUTURE"
     OPTION = "OPTION"
     INDEX = "INDEX"
+
+
+class AssetKind(StrEnum):
+    """Canonical InstrumentId classification — richer than InstrumentType/AssetClass
+    (adds ETF/CURRENCY/COMMODITY/SPOT/BOND), ported from legacy src's proven design.
+    """
+
+    EQUITY = "EQUITY"
+    INDEX = "INDEX"
+    FUTURES = "FUTURES"
+    OPTIONS = "OPTIONS"
+    ETF = "ETF"
+    CURRENCY = "CURRENCY"
+    COMMODITY = "COMMODITY"
+    SPOT = "SPOT"
+    BOND = "BOND"
+
+    @classmethod
+    def parse(cls, value: "str | AssetKind | None") -> "AssetKind | None":
+        if value is None:
+            return None
+        if isinstance(value, AssetKind):
+            return value
+        key = str(value).strip().upper()
+        aliases = {"FUTURE": cls.FUTURES, "OPTION": cls.OPTIONS}
+        if key in aliases:
+            return aliases[key]
+        try:
+            return cls(key)
+        except ValueError:
+            return None
 
 
 class OptionType(StrEnum):

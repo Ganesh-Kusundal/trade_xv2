@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.enums import OrderSide, OrderType, TimeInForce
+from domain.enums import OrderSide, OrderType, ProductType, TimeInForce
 from domain.value_objects import CorrelationId, InstrumentId, OrderId, Price, Quantity
 
 
@@ -17,6 +17,10 @@ class PlaceOrderCommand:
     price: Price | None
     time_in_force: TimeInForce
     correlation_id: CorrelationId
+    product_type: ProductType | None = None
+    trigger_price: Price | None = None
+    disclosed_quantity: Quantity | None = None
+    market_protection: int | None = None
 
     def __post_init__(self) -> None:
         if self.correlation_id is None:

@@ -1,0 +1,76 @@
+// TradeXV2 v2 — Broker order & market-data flow (LIVE, Dhan example)
+// Source skill: flow-visualizer + graphviz
+// Evidence: fill_sources.py, dhan/gateway.py, dhan/adapters/*, common/transport.py, dhan/auth.py
+// Layout: rankdir=TB (branching flow with resilience side-paths)
+// Edge legend: solid = in-process call/return; dashed red = network REST;
+//              dotted purple = WebSocket; orange = failure / recovery path.
+digraph broker_order_flow {
+  rankdir=TB;
+  nodesep=0.45;
+  ranksep=0.55;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=10, shape=box, style="filled,rounded", fillcolor="#eef2fb"];
+  edge [fontname="Helvetica", fontsize=8];
+
+  // ----- order submission spine -----
+  engine   [label="ExecutionEngine\n(mode-agnostic path)", fillcolor="#d6e0f5"];
+  fillsrc  [label="BrokerFillSource.submit(cmd)\nLIVE — never invents FILLED", fillcolor="#d6e0f5"];
+  gateway  [label="DhanGateway.submit_order(cmd)\n→ place_order", fillcolor="#f5ecd0"];
+  conn     [label="DhanConnection.orders", fillcolor="#ecd7ec"];
+  ordadp   [label="DhanOrdersAdapter.place_order\n1. wire.from_place_command\n2. transport.post('/orders')\n3. wire.to_order_id\n4. cache SUBMITTED order", fillcolor="#d5e9f2"];
+  wire_out [label="DhanWire.from_place_command\ndomain cmd → Dhan JSON body\n(securityId, txnType, qty...)", fillcolor="#d5e9f2"];
+
+  // ----- transport + resilience -----
+  transport [label="HttpTransport._request\nbucket = default_bucket_for_path\nis_write_endpoint guard", fillcolor="#e4e4e4"];
+  rate      [label="MultiBucketRateLimiter.acquire\n(orders bucket)", shape=diamond, fillcolor="#e4e4e4"];
+  token     [label="DhanTokenManager.ensure_token\nstore→env→TOTP (probe-before-mint)", fillcolor="#e4e4e4"];
+  cb        [label="CircuitBreaker + Retry\n(429/5xx retryable;\nwrites not blind-retried)", fillcolor="#e4e4e4"];
+  rest      [label="Dhan REST  POST /orders", shape=cylinder, fillcolor="#f6d5d5"];
+
+  // ----- return path -----
+  ack      [label="place ack {orderId}", shape=note, fillcolor="#f6d5d5"];
+  submitted[label="Order(status=SUBMITTED)\nback to ExecutionEngine", fillcolor="#d6e0f5"];
+
+  // ----- failure / recovery -----
+  reauth   [label="on_auth_failure → _reauth_on_401\nensure_token(force_refresh=True)\nretry once", fillcolor="#ffe7cc"];
+  ratefail [label="429 → trigger_cooldown\nRateLimitExceeded", fillcolor="#ffe7cc"];
+
+  // ----- market-data / streaming side paths -----
+  md       [label="DhanMarketDataAdapter\nget_quote/ltp/depth/history", fillcolor="#d5e9f2"];
+  mdrest   [label="Dhan REST /marketfeed/*, /charts/*", shape=cylinder, fillcolor="#f6d5d5"];
+  stream   [label="DhanStreamingAdapter.stream\nRequestCode 15 subscribe", fillcolor="#d5e9f2"];
+  ws       [label="Dhan WS wss://api-feed.dhan.co\n?version=2&token&clientId", shape=cylinder, fillcolor="#f6d5d5"];
+  wsrecon  [label="WsReconnectManager\nreconnect + replay subs", fillcolor="#ffe7cc"];
+  cb_quote [label="on_quote / on_depth callback\nwire.to_quote / to_depth", fillcolor="#d6e0f5"];
+
+  // ===== order spine =====
+  engine   -> fillsrc  [label="submit(command)"];
+  fillsrc  -> gateway  [label="submit_order"];
+  gateway  -> conn     [label="delegate"];
+  conn     -> ordadp   [label="place_order"];
+  ordadp   -> wire_out [label="encode"];
+  ordadp   -> transport[label="post('/orders', json)"];
+  transport-> rate     [label="acquire('orders')"];
+  rate     -> token    [label="ok → token_provider()", color="#2e8b57"];
+  rate     -> ratefail [label="timeout/429", color="#d2691e"];
+  token    -> cb       [label="attach access-token + client-id"];
+  cb       -> rest     [label="HTTPS", color="#b03030", style=dashed];
+  rest     -> ack      [label="200 {orderId}", color="#b03030", style=dashed];
+  ack      -> submitted[label="to_order_id → cache"];
+
+  // ===== auth recovery =====
+  rest     -> reauth   [label="401/403", color="#d2691e", style=dashed];
+  reauth   -> token    [label="refresh + retry", color="#d2691e"];
+
+  // ===== market data pull =====
+  gateway  -> md       [label="get_quote/ltp/history"];
+  md       -> transport[label="post('/marketfeed/*')"];
+  transport-> mdrest   [label="HTTPS (quotes/historical bucket)", color="#b03030", style=dashed];
+
+  // ===== streaming =====
+  gateway  -> stream   [label="stream(instrument)"];
+  stream   -> ws       [label="subscribe", color="#7a3aa8", style=dotted];
+  ws       -> cb_quote [label="tick packet", color="#7a3aa8", style=dotted];
+  ws       -> wsrecon  [label="close/drop", color="#d2691e"];
+  wsrecon  -> ws       [label="re-open + resubscribe", color="#d2691e", style=dotted];
+}

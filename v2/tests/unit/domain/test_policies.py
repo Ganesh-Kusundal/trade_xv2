@@ -70,19 +70,19 @@ class TestSourceSelectionPolicyProtocol:
 class TestSourceSelectionResolutionOrder:
     def test_local_when_available(self) -> None:
         policy = _FakeSourceSelectionPolicy()
-        iid = InstrumentId(value="NSE:RELIANCE")
+        iid = InstrumentId.parse("NSE:RELIANCE")
         tf = TimeFrame(value="1d")
         assert policy.select(iid, tf) is DataSourceKind.DATALAKE
 
     def test_broker_when_not_local(self) -> None:
         policy = _FakeSourceSelectionPolicy()
-        iid = InstrumentId(value="BSE:TCS")
+        iid = InstrumentId.parse("BSE:TCS")
         tf = TimeFrame(value="1d")
         assert policy.select(iid, tf) is DataSourceKind.BROKER_HISTORICAL
 
     def test_federated_fallback(self) -> None:
         policy = _AlwaysFederatedPolicy()
-        iid = InstrumentId(value="MCX:GOLD")
+        iid = InstrumentId.parse("MCX:GOLD")
         tf = TimeFrame(value="1m")
         assert policy.select(iid, tf) is DataSourceKind.FEDERATED
 
@@ -127,12 +127,12 @@ class TestRoutingPolicyProtocol:
 class TestRoutingSelection:
     def test_nse_routes_to_dhan(self) -> None:
         policy = _FakeRoutingPolicy()
-        iid = InstrumentId(value="NSE:RELIANCE")
+        iid = InstrumentId.parse("NSE:RELIANCE")
         assert policy.route(iid) is BrokerId.DHAN
 
     def test_bse_routes_to_upstox(self) -> None:
         policy = _FakeRoutingPolicy()
-        iid = InstrumentId(value="BSE:TCS")
+        iid = InstrumentId.parse("BSE:TCS")
         assert policy.route(iid) is BrokerId.UPSTOX
 
 

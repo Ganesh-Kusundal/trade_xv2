@@ -43,7 +43,7 @@ def _bars(n: int = 3) -> list[Bar]:
         px = Price(value=Decimal(100 + i))
         out.append(
             Bar(
-                instrument_id=InstrumentId(value="NSE:TEST"),
+                instrument_id=InstrumentId.parse("NSE:TEST"),
                 open=px,
                 high=px,
                 low=px,

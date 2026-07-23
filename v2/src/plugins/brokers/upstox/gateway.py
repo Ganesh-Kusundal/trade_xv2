@@ -8,13 +8,24 @@ from typing import Any
 
 from domain.commands import PlaceOrderCommand
 from domain.entities import Account, Bar, Instrument, MarketDepth, Order, Position, Quote
-from domain.enums import ExchangeId
+from domain.enums import AssetClass, ExchangeId
 from domain.value_objects import InstrumentId, OrderId, Price, TimeFrame
 from plugins.brokers.common.capabilities import BrokerCapabilities
+from plugins.brokers.common.extensions import BrokerExtensions
 from plugins.brokers.common.transport import BaseTransport
 from plugins.brokers.upstox.auth import UpstoxTokenManager
 from plugins.brokers.upstox.config import UpstoxConfig
 from plugins.brokers.upstox.connection import UpstoxConnection
+from plugins.brokers.upstox.extensions import UpstoxDepth20Extension, UpstoxDepth200Extension
+
+UPSTOX_CAPABILITIES = BrokerCapabilities(
+    supports_market_order=True,
+    supports_limit_order=True,
+    supports_stop_order=True,
+    supports_modify=True,
+    supports_cancel=True,
+    supported_asset_classes=frozenset({AssetClass.EQUITY, AssetClass.DERIVATIVE}),
+)
 
 
 class UpstoxGateway:
@@ -29,6 +40,14 @@ class UpstoxGateway:
             transport=transport,
             token_manager=token_manager,
         )
+        self.extensions = BrokerExtensions(
+            UpstoxDepth20Extension(_streaming=self.connection.streaming),
+            UpstoxDepth200Extension(_streaming=self.connection.streaming),
+        )
+
+    def extension(self, ext_type: type) -> Any:
+        """Look up an Upstox-specific capability by type."""
+        return self.extensions.get(ext_type)
 
     def connect(self) -> None:
         self.connection.connect()
@@ -61,6 +80,11 @@ class UpstoxGateway:
         return self.connection.market_data.get_history(instrument_id, timeframe, start, end)
 
     def place_order(self, command: PlaceOrderCommand) -> OrderId:
+        if not self.connection.config.allow_live_orders:
+            raise RuntimeError(
+                "Live orders disabled; set UpstoxConfig.allow_live_orders=True "
+                "(env UPSTOX_ALLOW_LIVE_ORDERS=true) to enable"
+            )
         return self.connection.orders.place_order(command)
 
     def submit_order(self, command: PlaceOrderCommand) -> OrderId:
@@ -113,14 +137,4 @@ class UpstoxGateway:
         return self.connection.mass_status()
 
     def capabilities(self) -> BrokerCapabilities:
-        return BrokerCapabilities(
-            supports_market_orders=True,
-            supports_limit_orders=True,
-            supports_stop_orders=True,
-            supports_modify=True,
-            supports_websocket=True,
-            supports_option_chain=True,
-            supports_future_chain=True,
-            max_orders_per_second=10,
-            supported_exchanges=frozenset({ExchangeId.NSE, ExchangeId.BSE}),
-        )
+        return UPSTOX_CAPABILITIES

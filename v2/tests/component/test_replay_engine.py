@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from application.analytics.engines import ReplayEngine
 from infrastructure.message_bus.bus import MessageBus
-from infrastructure.message_bus.message_log import InMemoryMessageLog
+from infrastructure.message_bus.log import InMemoryMessageLog
 
 
 @dataclass(frozen=True)

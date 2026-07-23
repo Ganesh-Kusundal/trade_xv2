@@ -10,11 +10,32 @@ from plugins.brokers.common.wire import BaseWireAdapter
 
 
 def normalize_quote(data: Mapping[str, Any], *, instrument_id: InstrumentId) -> Quote:
+    """Normalize venue quote dict to domain Quote with defensive parsing.
+
+    Handles partial quotes (e.g., market closed) by defaulting missing fields to zero.
+    """
+    def _to_decimal(key: str, default: str = "0") -> Any:
+        """Safely convert dict value to Decimal, returning default on error."""
+        import decimal
+        try:
+            return BaseWireAdapter.to_decimal(data.get(key, default))
+        except (ValueError, TypeError, KeyError, decimal.InvalidOperation):
+            return BaseWireAdapter.to_decimal(default)
+
+    # Safely parse timestamp
+    ts_raw = data.get("timestamp")
+    ts = None
+    if ts_raw is not None:
+        try:
+            ts = BaseWireAdapter.to_datetime(ts_raw)
+        except (ValueError, TypeError):
+            ts = None
+
     return Quote(
         instrument_id=instrument_id,
-        bid=Price(value=BaseWireAdapter.to_decimal(data["bid"])),
-        ask=Price(value=BaseWireAdapter.to_decimal(data["ask"])),
-        bid_size=Quantity(value=BaseWireAdapter.to_decimal(data["bid_size"])),
-        ask_size=Quantity(value=BaseWireAdapter.to_decimal(data["ask_size"])),
-        timestamp=BaseWireAdapter.to_datetime(data["timestamp"]),
+        bid=Price(value=_to_decimal("bid")),
+        ask=Price(value=_to_decimal("ask")),
+        bid_size=Quantity(value=_to_decimal("bid_size")),
+        ask_size=Quantity(value=_to_decimal("ask_size")),
+        timestamp=ts,
     )

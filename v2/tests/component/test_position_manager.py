@@ -13,7 +13,7 @@ from domain.value_objects import InstrumentId, Money, OrderId, Price, Quantity
 def test_buy_fill_creates_position() -> None:
     cache = TradingCache()
     pm = PositionManager(cache)
-    iid = InstrumentId(value="NSE:RELIANCE")
+    iid = InstrumentId.parse("NSE:RELIANCE")
     trade = Trade(
         trade_id="t1",
         order_id=OrderId(value="o1"),
@@ -33,7 +33,7 @@ def test_buy_fill_creates_position() -> None:
 def test_sell_reduces_position_and_realizes_pnl() -> None:
     cache = TradingCache()
     pm = PositionManager(cache)
-    iid = InstrumentId(value="NSE:RELIANCE")
+    iid = InstrumentId.parse("NSE:RELIANCE")
     pm.apply_trade(
         Trade(
             trade_id="t1",

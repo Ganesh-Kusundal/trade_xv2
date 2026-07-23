@@ -107,3 +107,8 @@ name = "Interface does not import infrastructure directly"
 type = "forbidden"
 source_modules = ["interface"]
 forbidden_modules = ["infrastructure", "plugins"]
+
+[[tool.importlinter.contracts]]
+name = "Broker plugins are mutually independent"
+type = "independence"
+modules = ["plugins.brokers.dhan", "plugins.brokers.upstox", "plugins.brokers.paper"]

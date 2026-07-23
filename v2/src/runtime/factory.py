@@ -21,6 +21,7 @@ from domain.value_objects import CorrelationId
 from infrastructure.component.lifecycle import LifecycleManager
 from infrastructure.idempotency import IdempotencyGuard, IdempotencyStatus
 from infrastructure.message_bus import InMemoryMessageLog, MessageBus
+from infrastructure.observability.audit import AuditSink
 from runtime.execution_target import resolve_clock, resolve_fill_source
 from runtime.runtime import Runtime
 
@@ -87,6 +88,7 @@ class RuntimeFactory:
             trading_cache=cache,
             message_bus=bus,
             clock=clock,
+            audit_sink=AuditSink(),
         )
 
         lifecycle = LifecycleManager()

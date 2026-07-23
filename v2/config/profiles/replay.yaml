@@ -1,5 +1,5 @@
 environment: REPLAY
-broker: paper
+broker: PAPER
 
 components:
   risk:

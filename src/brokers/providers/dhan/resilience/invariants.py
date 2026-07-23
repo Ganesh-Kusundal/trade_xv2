@@ -224,8 +224,10 @@ def assert_dhan_payload(payload: dict[str, Any], *, context: str = "") -> None:
 
     Looks for the standard Dhan payload keys (``securityId`` and
     ``exchangeSegment``) and runs the same checks as
-    :func:`assert_dhan_identity`. If either key is missing the call is
-    a no-op — not every Dhan endpoint needs a securityId (e.g.
+    :func:`assert_dhan_identity`. If both keys are present they are
+    checked together; if only ``securityId`` is present it is still
+    validated (with an empty segment). If ``securityId`` is absent the
+    call is a no-op — not every Dhan endpoint needs a securityId (e.g.
     ``/orders/slicing`` may be sent with a basket). Use
     :func:`assert_dhan_identity` directly when you want to require
     both keys.
