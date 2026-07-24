@@ -105,6 +105,11 @@ def _access_token_usable(
     jwt_exp = JwtExpiry.parse_expiry_epoch(token)
     if jwt_exp > 0:
         return jwt_exp > (clock + buffer)
+    # A string that LOOKS like a JWT (3 segments) but can't be
+    # decoded is corrupt — reject it so the manager force-refreshes
+    # instead of trusting a garbage token until the broker rejects it.
+    if JwtExpiry.is_jwt_like(token):
+        return False
     if store_expires_at > 0:
         return store_expires_at > (clock + buffer)
     # Non-JWT static token with no expiry: treat as usable until broker_rejected

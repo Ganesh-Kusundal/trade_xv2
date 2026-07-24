@@ -26,6 +26,17 @@ class JwtExpiry:
             return -1.0
 
     @staticmethod
+    def is_jwt_like(token: str | None) -> bool:
+        """True when the string has the 3-segment header.payload.signature
+        shape of a JWT (even if the payload can't be decoded).
+
+        Used to tell a *corrupt/malformed JWT* apart from a genuine
+        non-JWT static token: the former must be rejected (force a
+        refresh), the latter is trusted until the broker rejects it.
+        """
+        return bool(token) and len(token.split(".")) == 3
+
+    @staticmethod
     def is_valid(jwt: str | None, *, buffer_seconds: float = 0.0) -> bool:
         exp = JwtExpiry.parse_expiry_epoch(jwt)
         if exp < 0:
