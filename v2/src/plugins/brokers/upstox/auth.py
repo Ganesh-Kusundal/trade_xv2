@@ -334,6 +334,35 @@ class UpstoxTokenManager:
         snap = self._store.load()
         return snap.access_token if snap else self._config.access_token
 
+    def is_expiring_soon(self, *, within: float | None = None) -> bool:
+        """True when the current token will exceed the refresh buffer soon.
+
+        Lets the app warn before a mid-session expiry instead of
+        only finding out on the next 401. Mirrors the proactive-refresh
+        check inside ensure_token().
+        """
+        import time
+
+        token = self.current()
+        if not token:
+            return True  # no token -> needs (re)mint now
+        jwt_exp = JwtExpiry.parse_expiry_epoch(token)
+        if jwt_exp <= 0:
+            # No JWT expiry (static token) — trust until broker rejects.
+            return False
+        buffer = self._config.refresh_buffer_seconds if within is None else within
+        return jwt_exp - time.time() <= buffer
+
+    def token_status(self) -> dict[str, object]:
+        """Health snapshot for mass_status() / a liveness probe."""
+        token = self.current()
+        jwt_exp = JwtExpiry.parse_expiry_epoch(token) if token else -1.0
+        return {
+            "has_token": bool(token),
+            "expires_at": jwt_exp if jwt_exp > 0 else None,
+            "expiring_soon": self.is_expiring_soon(),
+        }
+
 
 def _response_error_message(error: Any) -> str:
     if not error:

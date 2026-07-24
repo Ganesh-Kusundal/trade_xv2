@@ -169,5 +169,9 @@ class DhanGateway:
     def mass_status(self) -> BrokerSnapshot:
         return self.connection.mass_status()
 
+    def token_status(self) -> dict[str, object]:
+        """Token health for a liveness probe / warning before mid-session expiry."""
+        return self.connection.token_status()
+
     def capabilities(self) -> BrokerCapabilities:
         return DHAN_CAPABILITIES

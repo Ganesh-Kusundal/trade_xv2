@@ -171,3 +171,7 @@ class DhanConnection(ConnectionLiveness):
             positions=self.portfolio.get_positions(),
             account=self.portfolio.get_funds(),
         )
+
+    def token_status(self) -> dict[str, object]:
+        """Token health for a liveness probe / warning before mid-session expiry."""
+        return self._tokens.token_status()
