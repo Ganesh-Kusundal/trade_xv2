@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from domain.commands import PlaceOrderCommand
 from domain.enums import OrderSide, OrderType, TimeInForce
-from domain.value_objects import InstrumentId, Price, Quantity, CorrelationId
+from domain.value_objects import InstrumentId, Quantity, CorrelationId
 
 from plugins.brokers.dhan.adapters.orders import DhanOrdersAdapter
 from plugins.brokers.dhan.wire import DhanWire

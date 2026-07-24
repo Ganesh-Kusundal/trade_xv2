@@ -20,7 +20,7 @@ from config.schema import AppConfig, Environment, RiskConfig
 from domain.value_objects import CorrelationId
 from infrastructure.component.lifecycle import LifecycleManager
 from infrastructure.idempotency import IdempotencyGuard, IdempotencyStatus
-from infrastructure.message_bus import InMemoryMessageLog, MessageBus
+from infrastructure.message_bus import InMemoryMessageLog, MessageBus, SQLiteMessageLog
 from infrastructure.observability.audit import AuditSink
 from runtime.execution_target import resolve_clock, resolve_fill_source
 from runtime.runtime import Runtime
@@ -59,8 +59,13 @@ class RuntimeFactory:
         from runtime.broker_factory import build_broker_adapter
 
         bus_cfg = config.components.message_bus
-        # ponytail: InMemoryMessageLog until file-backed log lands
-        message_log = InMemoryMessageLog() if bus_cfg.persistent_log else None
+        if bus_cfg.persistent_log:
+            from pathlib import Path
+            db_path = Path(config.components.data.datalake_path) / "message_log.sqlite"
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            message_log = SQLiteMessageLog(db_path)
+        else:
+            message_log = None
         bus = MessageBus(max_queue_size=bus_cfg.max_queue_size, message_log=message_log)
 
         adapter = broker_adapter

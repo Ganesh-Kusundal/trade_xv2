@@ -270,7 +270,6 @@ class DhanTokenManager:
 
     def token_status(self) -> dict[str, object]:
         """Health snapshot for mass_status() / a liveness probe."""
-        import time
 
         token = self.current()
         jwt_exp = JwtExpiry.parse_expiry_epoch(token) if token else -1.0

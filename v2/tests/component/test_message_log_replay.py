@@ -56,5 +56,9 @@ def test_factory_attaches_log_when_persistent_log_enabled() -> None:
     assert cfg.components.message_bus.persistent_log is True
     rt = RuntimeFactory.build(cfg)
     assert rt.bus._message_log is not None  # noqa: SLF001
+    rt.bus._message_log.clear()  # noqa: SLF001 - clear persisted state from prior runs
     rt.bus.publish(LoggedEvent("logged"))
-    assert list(rt.bus._message_log.read()) == [LoggedEvent("logged")]  # noqa: SLF001
+    got = list(rt.bus._message_log.read())  # noqa: SLF001
+    assert len(got) == 1
+    assert got[0].name == "logged"
+    assert got[0].timestamp == LoggedEvent("logged").timestamp

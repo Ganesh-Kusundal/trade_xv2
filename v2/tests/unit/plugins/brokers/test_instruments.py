@@ -41,17 +41,6 @@ def test_reverse_finds_canonical_from_wire_value() -> None:
     assert resolver.reverse("security_id", "no-such-id") is None
 
 
-def test_resolve_never_carries_wire_fields() -> None:
-    resolver = InMemoryInstrumentResolver()
-    iid = InstrumentId.parse("NSE:RELIANCE")
-    resolver.register(iid, {"security_id": "1333"})
-
-    resolved = resolver.resolve(iid)
-    assert resolved.exchange == "NSE"
-    assert resolved.symbol == "RELIANCE"
-    assert not hasattr(resolved, "wire")
-
-
 def test_load_from_rows_bulk_populates_and_reports_stats() -> None:
     resolver = InMemoryInstrumentResolver()
     rows = [

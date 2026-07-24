@@ -324,7 +324,7 @@ def test_market_mode_orders_disabled() -> None:
             with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
                 modify_via_gateway(session, "fake-id", price=Decimal("101"))
 
-            from domain.errors import NotConfiguredError
+            from domain.exceptions import NotConfiguredError
 
             with pytest.raises((RuntimeError, NotConfiguredError), match="ORDERS_DISABLED"):
                 place_via_gateway(session, stock, 1, price=Decimal("100"))

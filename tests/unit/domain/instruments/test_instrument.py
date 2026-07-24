@@ -126,7 +126,7 @@ class TestInstrumentStateNoProvider:
         assert Equity("RELIANCE").is_live is False
 
     def test_refresh_raises_without_provider(self):
-        from domain.errors import NotConfiguredError
+        from domain.exceptions import NotConfiguredError
         from domain.ports.provider_registry import set_default_provider
 
         set_default_provider(None)
@@ -134,7 +134,7 @@ class TestInstrumentStateNoProvider:
             Equity("RELIANCE").refresh()
 
     def test_history_raises_without_provider(self):
-        from domain.errors import NotConfiguredError
+        from domain.exceptions import NotConfiguredError
         from domain.ports.provider_registry import set_default_provider
 
         set_default_provider(None)

@@ -2,33 +2,26 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 
 from application.execution.execution_engine import ExecutionEngine
 from application.execution.fill_sources import PaperFillSource, SimulatedFillSource
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from application.oms.trading_cache import TradingCache
-from application.oms.trading_context import TradingContext
-from application.risk.context import RiskContext
 from application.risk.risk_manager import RiskManager
-from application.risk.rules import OrderSizeRule, PositionLimitRule
+from application.risk.rules import OrderSizeRule
 from domain.commands import PlaceOrderCommand
 from domain.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from domain.value_objects import (
     CorrelationId,
     InstrumentId,
-    Money,
-    OrderId,
     Price,
     Quantity,
 )
 from infrastructure.clock import FakeClock, SystemClock
-from infrastructure.component.base import ComponentState
 from infrastructure.component.lifecycle import LifecycleManager
 from infrastructure.idempotency import IdempotencyGuard, IdempotencyStatus
 from infrastructure.message_bus import MessageBus

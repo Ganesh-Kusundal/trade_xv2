@@ -10,7 +10,6 @@ Gateway-level adapters compose lower-level adapters into focused public APIs:
 - MarketDataGateway: LTP, quote, depth, history, chains, lifecycle
 - OrderGateway: place, cancel, modify, orderbook, trade book
 - StreamingGateway: WebSocket streams, tick parsing, depth streaming
-- PortfolioGateway: funds, positions, holdings
 
 The main UpstoxWireAdapter acts as a thin facade delegating to these adapters.
 
@@ -24,7 +23,6 @@ from brokers.providers.upstox.adapters.historical_adapter import HistoricalAdapt
 from brokers.providers.upstox.adapters.market_data_gateway import MarketDataGateway
 from brokers.providers.upstox.adapters.order_gateway import OrderGateway
 from brokers.providers.upstox.adapters.portfolio_adapter import PortfolioAdapter
-from brokers.providers.upstox.adapters.portfolio_gateway import PortfolioGateway
 from brokers.providers.upstox.adapters.stream_manager import StreamManagerAdapter
 from brokers.providers.upstox.adapters.streaming_gateway import StreamingGateway
 from brokers.providers.upstox.adapters.tick_translator import TickTranslatorAdapter
@@ -34,7 +32,6 @@ __all__ = [
     "MarketDataGateway",
     "OrderGateway",
     "PortfolioAdapter",
-    "PortfolioGateway",
     "StreamManagerAdapter",
     "StreamingGateway",
     "TickTranslatorAdapter",

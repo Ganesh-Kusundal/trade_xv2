@@ -105,7 +105,7 @@ def test_market_mode_connect_without_oms_orders_disabled() -> None:
             with pytest.raises(RuntimeError, match="ORDERS_DISABLED"):
                 place_via_gateway(session, stock, 1, price=Decimal("100"))
             # Instrument path uses NotConfiguredError with ORDERS_DISABLED message
-            from domain.errors import NotConfiguredError
+            from domain.exceptions import NotConfiguredError
 
             with pytest.raises((RuntimeError, NotConfiguredError), match="ORDERS_DISABLED"):
                 place_via_gateway(session, stock, 1, price=Decimal("100"))

@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Iterator
 
-import pytest
 
 from domain.events import Message
-from domain.value_objects import InstrumentId, StrategyId, AccountId, Timestamp
+from domain.value_objects import InstrumentId, StrategyId, AccountId
 from infrastructure.message_bus.bus import MessageBus, MessageBusMetrics
-from infrastructure.message_bus.log import MessageLog, InMemoryMessageLog
+from infrastructure.message_bus.log import InMemoryMessageLog
 
 
 # Test message types with the fields needed for routing

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
 
 from domain.value_objects import InstrumentId
 from plugins.brokers.common.quote_normalize import normalize_quote

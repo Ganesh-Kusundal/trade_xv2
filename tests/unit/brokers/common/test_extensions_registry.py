@@ -2,7 +2,7 @@
 
 import pytest
 
-from domain.errors import UnsupportedExtensionError
+from domain.exceptions import UnsupportedExtensionError
 from domain.extensions.broker_bundle import ExtensionBundle, ExtensionRegistry
 from domain.extensions.news import NewsProvider
 from domain.extensions.super_order import SuperOrderProvider

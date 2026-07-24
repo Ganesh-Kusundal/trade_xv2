@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from domain.entities import Instrument
 from domain.enums import ExchangeId
-from domain.value_objects import InstrumentId
 
 
 class InstrumentRegistry:

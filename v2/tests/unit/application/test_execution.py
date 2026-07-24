@@ -10,7 +10,6 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 
 from application.execution.execution_engine import ExecutionEngine
 from application.execution.fill_sources import (
@@ -23,7 +22,7 @@ from application.execution.order_store import InMemoryOrderStore
 from application.execution.protocols import RiskCheckResult
 from application.risk.risk_manager import RiskManager
 from domain.commands import PlaceOrderCommand
-from domain.entities import Order, Position
+from domain.entities import Order
 from domain.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from domain.events import (
     OrderFilled,

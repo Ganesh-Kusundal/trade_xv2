@@ -124,7 +124,3 @@ def generate_alternate_keys(
             seen.add(k_clean)
             res.append(k_clean)
     return res
-
-
-# Back-compat alias used by older call sites / tests.
-_generate_alternate_keys = generate_alternate_keys

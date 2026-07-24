@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
-import threading
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from plugins.brokers.common.ws_reconnect import ReconnectConfig
 from plugins.brokers.upstox.adapters.streaming import UpstoxStreamingAdapter
@@ -38,7 +36,11 @@ def _make_adapter(
     wire = MagicMock(spec=UpstoxWire)
     wire.instrument_key.return_value = "NSE_EQ|INE001A0001"
     if ws_factory is None:
-        ws_factory = lambda url: FakeWs()
+
+        def _ws_factory(url: str) -> FakeWs:
+            return FakeWs()
+
+        ws_factory = _ws_factory
     return UpstoxStreamingAdapter(
         wire=wire,
         ws_factory=ws_factory,

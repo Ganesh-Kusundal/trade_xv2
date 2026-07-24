@@ -6,7 +6,7 @@ import pytest
 
 from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from domain.capabilities.broker_capabilities import RateLimitProfile
-from domain.errors import QuotaExhaustedError
+from domain.exceptions import QuotaExhaustedError
 
 
 class TestQuotaScheduler:

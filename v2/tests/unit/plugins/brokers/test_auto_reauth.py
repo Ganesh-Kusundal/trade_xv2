@@ -174,7 +174,6 @@ class TestConnectionWiring:
     def test_dhan_connection_uses_ensure_token(self) -> None:
         from plugins.brokers.dhan.connection import DhanConnection
 
-        conn = DhanConnection.__new__(DhanConnection)
         # Verify the method reference is ensure_token, not current
         # We can't fully construct without config, but we can check the source
         import inspect

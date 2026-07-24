@@ -191,7 +191,7 @@ class TestDhanGatewayCancelVerification:
         assert order.order_id == "DHAN-222"
 
     def test_get_order_raises_when_not_found(self, fake_client, resolver) -> None:
-        from domain.errors import OrderError
+        from domain.exceptions import OrderError
         from tests.unit.brokers.dhan.test_gateway_get_order import (
             _make_gateway_with_real_adapter,
         )

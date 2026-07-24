@@ -12,7 +12,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
 
 _SRC = Path(__file__).resolve().parents[2] / "src"
 

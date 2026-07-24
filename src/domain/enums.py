@@ -11,6 +11,8 @@ class OrderType(str, Enum):
     LIMIT = "LIMIT"
     STOP = "STOP"
     STOP_LIMIT = "STOP_LIMIT"
+    STOP_LOSS = "STOP_LOSS"
+    STOP_LOSS_MARKET = "STOP_LOSS_MARKET"
 
 
 class OrderStatus(str, Enum):
@@ -45,28 +47,12 @@ class BrokerId(str, Enum):
     PAPER = "paper"
 
 
-class ExchangeId(str, Enum):
-    NSE = "NSE"
-    BSE = "BSE"
-    MCX = "MCX"
-
 
 class AssetClass(str, Enum):
     EQUITY = "EQUITY"
     DERIVATIVE = "DERIVATIVE"
     COMMODITY = "COMMODITY"
 
-
-class InstrumentType(str, Enum):
-    EQUITY = "EQUITY"
-    FUTURE = "FUTURE"
-    OPTION = "OPTION"
-    INDEX = "INDEX"
-
-
-class OptionType(str, Enum):
-    CALL = "CALL"
-    PUT = "PUT"
 
 
 class SignalDirection(str, Enum):
@@ -95,7 +81,9 @@ Validity = TimeInForce
 class ProductType(str, Enum):
     INTRADAY = "INTRADAY"
     DELIVERY = "DELIVERY"
+    CNC = "CNC"
     MARGIN = "MARGIN"
+    MTF = "MTF"
 
 
 class PositionSide(str, Enum):

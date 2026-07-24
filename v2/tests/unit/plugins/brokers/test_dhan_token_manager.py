@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
 
 from plugins.brokers.dhan.auth import DhanTokenManager, DhanTokenStore, DhanTotpClient
 from plugins.brokers.dhan.config import DhanConfig

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from datalake.gateway import DataLakeGateway
-from domain.errors import (
+from domain.exceptions import (
     UnsupportedGatewayOperationError as UnsupportedGatewayOperation,
 )
 

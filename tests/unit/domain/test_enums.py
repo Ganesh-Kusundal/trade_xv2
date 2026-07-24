@@ -1,7 +1,7 @@
 from src.domain.enums import (
     OrderSide, OrderType, OrderStatus, TimeInForce,
-    Environment, BrokerId, ExchangeId, AssetClass,
-    InstrumentType, OptionType, SignalDirection,
+    Environment, BrokerId, AssetClass,
+    SignalDirection,
     RiskLevel, DriftSeverity
 )
 
@@ -87,16 +87,6 @@ class TestBrokerId:
         assert BrokerId.PAPER == "paper"
 
 
-class TestExchangeId:
-    def test_nse(self):
-        assert ExchangeId.NSE == "NSE"
-
-    def test_bse(self):
-        assert ExchangeId.BSE == "BSE"
-
-    def test_mcx(self):
-        assert ExchangeId.MCX == "MCX"
-
 
 class TestAssetClass:
     def test_equity(self):
@@ -108,27 +98,6 @@ class TestAssetClass:
     def test_commodity(self):
         assert AssetClass.COMMODITY == "COMMODITY"
 
-
-class TestInstrumentType:
-    def test_equity(self):
-        assert InstrumentType.EQUITY == "EQUITY"
-
-    def test_future(self):
-        assert InstrumentType.FUTURE == "FUTURE"
-
-    def test_option(self):
-        assert InstrumentType.OPTION == "OPTION"
-
-    def test_index(self):
-        assert InstrumentType.INDEX == "INDEX"
-
-
-class TestOptionType:
-    def test_call(self):
-        assert OptionType.CALL == "CALL"
-
-    def test_put(self):
-        assert OptionType.PUT == "PUT"
 
 
 class TestSignalDirection:

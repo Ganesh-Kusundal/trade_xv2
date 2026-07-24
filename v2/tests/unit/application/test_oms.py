@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -251,7 +250,7 @@ class TestOrderManager:
     ) -> None:
         om, cache = _order_manager()
         _create_order(om, oid=f"t_{target_status.name}")
-        om.apply_submitted(Oid := _oid(f"t_{target_status.name}"))
+        om.apply_submitted(_oid(f"t_{target_status.name}"))
         result = getattr(om, method_name)(_oid(f"t_{target_status.name}"))
         assert result.status is target_status
         assert cache.get_order(_oid(f"t_{target_status.name}")).status is target_status

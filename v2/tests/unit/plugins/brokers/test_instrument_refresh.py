@@ -12,9 +12,7 @@ Connection ensure_fresh() seam (no live CDN; download is monkeypatched).
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-import pytest
 
 if sys.path.insert(0, "src") or True:  # ensure src importable under uv
     pass
@@ -24,7 +22,6 @@ from plugins.brokers.upstox.wire import UpstoxWire
 from plugins.brokers.dhan.adapters.instruments import DhanInstrumentAdapter
 from plugins.brokers.dhan.connection import DhanConnection
 from plugins.brokers.upstox.adapters.instruments import UpstoxInstrumentAdapter
-from plugins.brokers.upstox.connection import UpstoxConnection
 
 # A minimal valid Dhan CSV (>= MIN_DHAN_INSTRUMENTS = 10000 rows needed
 # to pass the row floor; we use a small but valid single-row file and

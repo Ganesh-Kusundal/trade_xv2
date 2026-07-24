@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 
 from plugins.brokers.common.rate_limit import (
     DHAN_RATE_LIMITS,

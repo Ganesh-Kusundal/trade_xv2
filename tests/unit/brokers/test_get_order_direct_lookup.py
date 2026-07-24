@@ -47,7 +47,7 @@ def test_get_order_calls_direct_adapter(gateway_bundle) -> None:
 def test_get_order_returns_none_when_lookup_fails(gateway_bundle) -> None:
     broker_id, gw, order_lookup, _ = gateway_bundle
     if broker_id == "dhan":
-        from domain.errors import OrderError
+        from domain.exceptions import OrderError
 
         order_lookup.get_order.side_effect = RuntimeError("broker timeout")
         with pytest.raises(OrderError):
@@ -63,7 +63,7 @@ def test_get_order_raises_on_transport_failure(gateway_bundle) -> None:
     broker_id, gw, order_lookup, _ = gateway_bundle
     if broker_id != "dhan":
         pytest.skip("Dhan-only transport error contract")
-    from domain.errors import OrderError
+    from domain.exceptions import OrderError
 
     order_lookup.get_order.side_effect = RuntimeError("broker timeout")
 

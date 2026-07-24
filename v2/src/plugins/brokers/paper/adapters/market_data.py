@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from domain.entities import DepthLevel, MarketDepth, Quote
-from domain.value_objects import InstrumentId, Price, Quantity, TimeFrame
+from domain.value_objects import InstrumentId, Price, TimeFrame
 
 if TYPE_CHECKING:
     from plugins.brokers.paper.connection import PaperConnection

@@ -11,7 +11,7 @@ from domain.enums import (
     OrderSide,
 )
 from domain.entities import Instrument
-from domain.services.fee_calculator import FeeBreakdown, FeeCalculator
+from domain.services.fee_calculator import FeeCalculator
 from domain.services.instrument_registry import InstrumentRegistry
 from domain.services.pricing import PricingService
 from domain.value_objects import InstrumentId

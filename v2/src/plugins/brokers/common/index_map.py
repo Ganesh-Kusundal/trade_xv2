@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from domain.value_objects import InstrumentId
+
 
 @dataclass(frozen=True)
 class _IndexEntry:
@@ -268,6 +270,24 @@ def _normalize(symbol: str) -> str:
 def is_index(symbol: str) -> bool:
     """Check if *symbol* is a known index (case-insensitive)."""
     return _normalize(symbol) in INDEX_SYMBOLS
+
+
+def is_pure_index(instrument_id: "InstrumentId") -> bool:
+    """True only when *instrument_id* is the spot index itself (not a derivative
+    on an index).
+
+    A derivative whose *underlying* happens to be an index (``NFO:NIFTY:...:FUT``,
+    ``BFO:SENSEX``) must NOT be treated as the index — it trades in the F&O
+    segment, not ``IDX_I``. The pure index is identified by: exchange
+    ``IDX``/``INDEX``, or exchange ``NSE``/``BSE`` with an index underlying and
+    no expiry/strike/right qualifier.
+    """
+    exch = instrument_id.exchange
+    if exch in ("IDX", "INDEX"):
+        return True
+    if exch in ("NSE", "BSE") and is_index(instrument_id.underlying):
+        return instrument_id.expiry is None and instrument_id.strike is None and instrument_id.right is None
+    return False
 
 
 def get_index_entry(symbol: str) -> _IndexEntry | None:

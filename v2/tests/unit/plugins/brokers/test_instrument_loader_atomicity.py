@@ -80,8 +80,8 @@ def test_register_still_works_incrementally_after_bulk_load() -> None:
 
 DUPLICATE_CSV = """\
 SEM_TRADING_SYMBOL,SEM_SMST_SECURITY_ID,SEM_EXM_EXCH_ID,SEM_SEGMENT,SEM_INSTRUMENT_NAME,SEM_LOT_UNITS,SEM_TICK_SIZE,SEM_EXPIRY_DATE,SEM_STRIKE_PRICE,SEM_OPTION_TYPE
-RELIANCE-EQ,2885,NSE,E,EQ,1,0.05,,,,
-RELIANCE-EQ,9999,NSE,E,EQ,1,0.05,,,,
+RELIANCE-EQ,2885,NSE,E,EQUITY,1,0.05,,,,
+RELIANCE-EQ,9999,NSE,E,EQUITY,1,0.05,,,,
 """
 
 
@@ -101,7 +101,7 @@ def test_dhan_csv_parse_registers_wire_via_bulk_path() -> None:
     adapter._parse_csv_to_instruments(
         "SEM_TRADING_SYMBOL,SEM_SMST_SECURITY_ID,SEM_EXM_EXCH_ID,SEM_SEGMENT,SEM_INSTRUMENT_NAME,"
         "SEM_LOT_UNITS,SEM_TICK_SIZE,SEM_EXPIRY_DATE,SEM_STRIKE_PRICE,SEM_OPTION_TYPE\n"
-        "RELIANCE-EQ,2885,NSE,E,EQ,1,0.05,,,,\n"
+        "RELIANCE-EQ,2885,NSE,E,EQUITY,1,0.05,,,,\n"
     )
     assert adapter._wire.security_id(InstrumentId.equity("NSE", "RELIANCE")) == "2885"
 

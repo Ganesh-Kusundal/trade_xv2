@@ -66,7 +66,7 @@ class UpstoxOrdersAdapter:
         return oid
 
     def cancel_order(self, order_id: OrderId) -> None:
-        self._transport.delete(f"/order/cancel", params={"order_id": order_id.value})
+        self._transport.delete("/order/cancel", params={"order_id": order_id.value})
         cached = self._cache.get(order_id.value)
         if cached is not None and cached.status not in (
             OrderStatus.FILLED,
@@ -83,7 +83,7 @@ class UpstoxOrdersAdapter:
     def get_order(self, order_id: OrderId) -> Order:
         if order_id.value in self._cache:
             try:
-                native = self._transport.get(f"/order/history", params={"order_id": order_id.value})
+                native = self._transport.get("/order/history", params={"order_id": order_id.value})
                 rows = native.get("data", native) if isinstance(native, dict) else native
                 if isinstance(rows, list) and rows:
                     order = self._wire.to_order(rows[-1])

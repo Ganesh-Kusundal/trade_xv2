@@ -46,7 +46,7 @@ def test_enum_value() -> None:
 
 def test_dhan_security_id_before_load() -> None:
     wire = DhanWire()
-    with pytest.raises(KeyError, match="no Dhan securityId"):
+    with pytest.raises(KeyError, match="no wire ref registered"):
         wire.security_id(InstrumentId.parse("NSE:RELIANCE"))
 
 
@@ -58,14 +58,14 @@ def test_dhan_register_and_lookup() -> None:
 
 def test_upstox_instrument_key_before_load() -> None:
     wire = UpstoxWire()
-    with pytest.raises(KeyError, match="no Upstox instrument_key"):
+    with pytest.raises(KeyError, match="no wire ref registered"):
         wire.instrument_key(InstrumentId.parse("MCX:GOLD"))
 
 
 def test_upstox_instrument_key_unmapped_raises() -> None:
     """An unmapped canonical id must never pass through as a fake instrument_key."""
     wire = UpstoxWire()
-    with pytest.raises(KeyError, match="no Upstox instrument_key"):
+    with pytest.raises(KeyError, match="no wire ref registered"):
         wire.instrument_key(InstrumentId.parse("NSE:RELIANCE"))
 
 

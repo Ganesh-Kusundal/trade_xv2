@@ -77,56 +77,42 @@ _DHAN_SEGMENT: dict[str, str] = {
 
 class DhanWire:
     def __init__(self, client_id: str | None = None) -> None:
-        from plugins.brokers.common.index_map import get_index_entry, is_index
-
-        def _dhan_index_fallback(iid: InstrumentId) -> dict | None:
-            sym = iid.underlying
-            if is_index(sym):
-                e = get_index_entry(sym)
-                if e and e.dhan_security_id:
-                    return {
-                        "security_id": e.dhan_security_id,
-                        "exchange_segment": e.dhan_segment or "IDX_I",
-                    }
-            return None
-
-        self._resolver = InMemoryInstrumentResolver(index_fallback=_dhan_index_fallback)
+        self._resolver = InMemoryInstrumentResolver()
         self.client_id = client_id or ""
 
     def get_segment(self, instrument_id: InstrumentId) -> str:
+        # The spot index itself (not a derivative on an index) resolves via the
+        # shared registry; everything else uses the exchange→segment map.
+        from plugins.brokers.common.index_map import dhan_index_segment, is_pure_index
+
+        if is_pure_index(instrument_id):
+            seg = dhan_index_segment(instrument_id.underlying)
+            if seg:
+                return seg
         exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else "NSE"
-        # Check index map first for INDEX/IDX_I resolution
-        from plugins.brokers.common.index_map import get_index_entry
-        entry = get_index_entry(exchange)
-        if entry is not None:
-            return entry.dhan_segment
         return _DHAN_SEGMENT.get(exchange, "NSE_EQ")
 
     def get_instrument_type(self, instrument_id: InstrumentId) -> str:
         """Return the Dhan instrument type string for history API payloads."""
-        exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else "NSE"
+        exchange = instrument_id.exchange
         if exchange in ("INDEX", "IDX"):
-            return "EQUITY"  # Dhan uses "EQUITY" for index instruments
+            return "EQUITY"  # Dhan uses "EQUITY" for index history
         if exchange in ("NFO", "BFO"):
-            return "OPTIDX"
+            return "FUTIDX" if instrument_id.right == "FUT" else "OPTIDX"
         if exchange in ("MCX", "NSE_COMM"):
             return "FUTCOM"
-        # Check the registered instrument for type info
-        try:
-            ref = self._resolver.resolve_ref(instrument_id)
-            inst_type = ref.get("instrument_type")
-            if inst_type:
-                return str(inst_type)
-        except (KeyError, AttributeError):
-            pass
         return "EQUITY"
 
     def security_id(self, instrument_id: InstrumentId) -> str:
-        try:
-            return self._resolver.resolve_ref(instrument_id).require("security_id")
-        except KeyError:
-            pass
-        raise KeyError(f"no Dhan securityId for {instrument_id.value}")
+        # Only the spot index itself resolves from the shared registry — a
+        # derivative on an index (NFO:NIFTY:…) must hit the instrument master.
+        from plugins.brokers.common.index_map import get_index_entry, is_pure_index
+
+        if is_pure_index(instrument_id):
+            entry = get_index_entry(instrument_id.underlying)
+            if entry is not None and entry.dhan_security_id is not None:
+                return entry.dhan_security_id
+        return self._resolver.resolve_ref(instrument_id).require("security_id")
 
     def register_security(
         self,

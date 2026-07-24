@@ -22,7 +22,7 @@ from domain.capabilities.broker_capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
 )
-from domain.errors import RoutingError
+from domain.exceptions import RoutingError
 from domain.models.routing import BrokerHealthSnapshot, OperationKind, RoutingRequest
 from domain.policies.source_selection import RoutingPolicy, SourceSelectionPolicy
 

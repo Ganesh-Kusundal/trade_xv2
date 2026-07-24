@@ -124,28 +124,6 @@ def test_resolver_equity_vs_option_no_cross_collision() -> None:
     assert r.resolve_ref(fut).require("security_id") == "222"
 
 
-def test_resolver_search_caps_at_limit() -> None:
-    r = InMemoryInstrumentResolver()
-    for i in range(50):
-        iid = InstrumentId.parse(f"NSE:STOCK{i}")
-        r.register(iid, {"security_id": str(i)}, symbol=f"STOCK{i}", exchange="NSE")
-    results = r.search("STOCK", limit=20)
-    assert len(results) == 20
-    assert all(res["symbol"].startswith("STOCK") for res in results)
-
-
-def test_resolver_search_case_insensitive() -> None:
-    r = InMemoryInstrumentResolver()
-    r.register(
-        InstrumentId.parse("NSE:RELIANCE"),
-        {"security_id": "1"},
-        symbol="RELIANCE",
-        exchange="NSE",
-    )
-    assert len(r.search("reliance")) == 1
-    assert len(r.search("REL")) == 1
-
-
 def test_resolver_load_from_rows_alias_fanout() -> None:
     r = InMemoryInstrumentResolver()
     r.load_from_rows(

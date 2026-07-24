@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import pytest
 
 from plugins.brokers.dhan.auth import DhanTokenManager
 from plugins.brokers.dhan.config import DhanConfig

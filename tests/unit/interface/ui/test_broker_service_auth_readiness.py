@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain.errors import BrokerNotReadyError
+from domain.exceptions import BrokerNotReadyError
 from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
 

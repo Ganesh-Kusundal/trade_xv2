@@ -62,7 +62,7 @@ def test_broker_id_values() -> None:
 
 
 def test_exchange_id_values() -> None:
-    assert {e.name for e in ExchangeId} == {"NSE", "BSE", "MCX", "NFO", "BFO", "CDS", "BCD", "IDX"}
+    assert {e.name for e in ExchangeId} == {"NSE", "BSE", "MCX", "NFO", "BFO", "CDS", "BCD", "IDX", "NSE_COMM"}
 
 
 def test_asset_class_and_instrument_type() -> None:

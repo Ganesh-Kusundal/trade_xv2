@@ -8,12 +8,12 @@ from pathlib import Path
 from datalake.catalog import DataCatalog
 
 
-def _bar(ts: str, o: float = 100.0, h: float = 110.0, l: float = 95.0, c: float = 105.0, v: int = 1000) -> dict:
+def _bar(ts: str, o: float = 100.0, h: float = 110.0, low: float = 95.0, c: float = 105.0, v: int = 1000) -> dict:
     return {
         "timestamp": ts,
         "open": o,
         "high": h,
-        "low": l,
+        "low": low,
         "close": c,
         "volume": v,
     }

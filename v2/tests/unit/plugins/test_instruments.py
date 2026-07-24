@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import csv
-import io
 import tempfile
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -35,8 +32,8 @@ def adapter(mock_transport: MagicMock) -> DhanInstrumentAdapter:
 
 SAMPLE_CSV = """\
 SEM_TRADING_SYMBOL,SEM_SMST_SECURITY_ID,SEM_EXM_EXCH_ID,SEM_SEGMENT,SEM_INSTRUMENT_NAME,SEM_LOT_UNITS,SEM_TICK_SIZE,SEM_EXPIRY_DATE,SEM_STRIKE_PRICE,SEM_OPTION_TYPE
-RELIANCE-EQ,2885,NSE,E,EQ,1,0.05,,,, 
-TCS-EQ,1234,NSE,E,EQ,1,0.05,,,, 
+RELIANCE-EQ,2885,NSE,E,EQUITY,1,0.05,,,, 
+TCS-EQ,1234,NSE,E,EQUITY,1,0.05,,,, 
 NIFTY24JULFUT,50000,NSE,D,FUTIDX,50,0.05,2024-07-25,,,
 NIFTY24JUL24000CE,50001,NSE,D,OPTIDX,50,0.05,2024-07-25,24000,CE
 GOLD24JULFUT,60001,MCX,M,FUTCOM,100,1,2024-07-25,,,
@@ -91,7 +88,7 @@ class TestCsvParsing:
         assert nifty_ce.expiry is not None
 
     def test_parse_csv_skips_empty_symbol(self, adapter: DhanInstrumentAdapter) -> None:
-        csv_content = "SEM_TRADING_SYMBOL,SEM_SMST_SECURITY_ID,SEM_EXM_EXCH_ID,SEM_SEGMENT,SEM_INSTRUMENT_NAME,SEM_LOT_UNITS,SEM_TICK_SIZE,SEM_EXPIRY_DATE,SEM_STRIKE_PRICE,SEM_OPTION_TYPE\n,1234,NSE,E,EQ,1,0.05,,,,"
+        csv_content = "SEM_TRADING_SYMBOL,SEM_SMST_SECURITY_ID,SEM_EXM_EXCH_ID,SEM_SEGMENT,SEM_INSTRUMENT_NAME,SEM_LOT_UNITS,SEM_TICK_SIZE,SEM_EXPIRY_DATE,SEM_STRIKE_PRICE,SEM_OPTION_TYPE\n,1234,NSE,E,EQUITY,1,0.05,,,,"
         instruments = adapter._parse_csv_to_instruments(csv_content)
         assert len(instruments) == 0
 
@@ -239,7 +236,7 @@ class TestLoadFromCSV:
         tiny_cache = (
             "SEM_TRADING_SYMBOL,SEM_SMST_SECURITY_ID,SEM_EXM_EXCH_ID,SEM_SEGMENT,"
             "SEM_INSTRUMENT_NAME,SEM_LOT_UNITS,SEM_TICK_SIZE,SEM_EXPIRY_DATE,"
-            "SEM_STRIKE_PRICE,SEM_OPTION_TYPE\nFAKE-EQ,1234,NSE,E,EQ,1,0.05,,,\n"
+            "SEM_STRIKE_PRICE,SEM_OPTION_TYPE\nFAKE-EQ,1234,NSE,E,EQUITY,1,0.05,,,\n"
         )
         today = date.today().isoformat()
         cache_path = tmp_path / f"dhan-instruments-{today}.csv"

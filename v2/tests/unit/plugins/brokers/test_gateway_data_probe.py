@@ -272,7 +272,6 @@ def test_upstox_history_day_hits_historical_candle(
 def test_dhan_connect_returns_without_blocking(tmp_path, monkeypatch) -> None:
     """connect() fires the warm-load in a background thread; the caller
     returns immediately even if the master download would block."""
-    import threading
     import time
 
     from plugins.brokers.dhan.config import DhanConfig

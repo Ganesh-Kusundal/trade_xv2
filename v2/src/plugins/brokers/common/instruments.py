@@ -23,10 +23,9 @@ from __future__ import annotations
 import logging
 import re
 import threading
-from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Any
 
-from domain.symbols import normalize_symbol
 from domain.value_objects import InstrumentId
 from plugins.brokers.common.instruments_keys import generate_alternate_keys
 
@@ -77,23 +76,6 @@ class LoadStats:
     source: str = "manual"
 
 
-@runtime_checkable
-class BrokerInstrumentService(Protocol):
-    """Per-broker instrument master + wire-id mapping — common port."""
-
-    def register(self, instrument_id: InstrumentId, wire: dict[str, Any]) -> None: ...
-
-    def load_from_rows(self, rows: list[dict[str, Any]], *, source: str = "bulk") -> LoadStats: ...
-
-    def resolve_ref(self, instrument_id: InstrumentId) -> BrokerWireRef: ...
-
-    def reverse(self, key: str, value: str) -> InstrumentId | None: ...
-
-    def is_loaded(self) -> bool: ...
-
-    def stats(self) -> LoadStats: ...
-
-
 class InMemoryInstrumentResolver:
     """Generic in-memory instrument master — manual register + bulk load.
 
@@ -102,16 +84,12 @@ class InMemoryInstrumentResolver:
     ~220k-row broker instrument master, instead of scanning every entry.
     """
 
-    def __init__(
-        self,
-        index_fallback: Callable[[InstrumentId], dict | None] | None = None,
-    ) -> None:
+    def __init__(self) -> None:
         self._wire: dict[str, dict[str, Any]] = {}
         self._reverse: dict[str, dict[str, InstrumentId]] = {}
         self._meta: dict[str, ResolvedInstrument] = {}
         self._stats = LoadStats()
         self._lock = threading.Lock()
-        self._index_fallback = index_fallback
 
     # -- alias derivation (shared wheel, zero-parity with legacy) -------
 
@@ -293,10 +271,6 @@ class InMemoryInstrumentResolver:
     def resolve_ref(self, instrument_id: InstrumentId) -> BrokerWireRef:
         wire = self._wire.get(instrument_id.value)
         if wire is None:
-            # Try a normalized alias lookup (e.g. "NIFTY50" vs "NIFTY 50").
-            key = normalize_symbol(instrument_id.value.replace(":", " "))
-            wire = self._wire.get(key)
-        if wire is None:
             # Strip exchange series suffix (e.g. NSE:RELIANCE-EQ -> NSE:RELIANCE).
             if ":" in instrument_id.value:
                 exch, sym = instrument_id.value.split(":", 1)
@@ -304,15 +278,7 @@ class InMemoryInstrumentResolver:
             else:
                 stripped = _strip_symbol_suffix(instrument_id.value)
             wire = self._wire.get(stripped)
-            if wire is None:
-                wire = self._wire.get(normalize_symbol(stripped.replace(":", " ")))
         if wire is None:
-            # Broker-specific index registry fallback — covers bare index
-            # symbols (NIFTY, BANKNIFTY, ...) when the master isn't loaded.
-            if self._index_fallback is not None:
-                fallback_wire = self._index_fallback(instrument_id)
-                if fallback_wire is not None:
-                    return BrokerWireRef(instrument_id=instrument_id, wire=fallback_wire)
             raise KeyError(f"no wire ref registered for {instrument_id.value}")
         return BrokerWireRef(instrument_id=instrument_id, wire=wire)
 

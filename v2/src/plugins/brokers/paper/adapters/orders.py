@@ -10,7 +10,7 @@ from uuid import uuid4
 from domain.commands import PlaceOrderCommand
 from domain.entities import Order, Position
 from domain.enums import OrderSide, OrderStatus, OrderType
-from domain.value_objects import Money, OrderId, Price, Quantity
+from domain.value_objects import InstrumentId, Money, OrderId, Price, Quantity
 from plugins.brokers.common.constants import DEFAULT_FILL_PRICE
 
 if TYPE_CHECKING:

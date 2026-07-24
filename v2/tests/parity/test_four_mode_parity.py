@@ -32,7 +32,6 @@ from domain.commands import PlaceOrderCommand
 from domain.entities import Order
 from domain.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from domain.value_objects import CorrelationId, InstrumentId, OrderId, Price, Quantity
-from infrastructure.clock import FakeClock
 from infrastructure.message_bus import MessageBus
 
 
@@ -215,6 +214,7 @@ def test_replay_determinism_log_to_cache() -> None:
     recorded = {cid: order1}
     engine2, cache2 = _build_engine(ReplayFillSource(recorded_fills=recorded))
     order2 = engine2.submit(cmd)
+    assert order2 is not None and order2.status is OrderStatus.FILLED
 
     # Cache state must be identical
     snap1 = cache1.snapshot()

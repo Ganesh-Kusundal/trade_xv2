@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 
 from plugins.brokers.common.circuit_breaker import CircuitBreakerConfig, CircuitBreakerHttpClient
-from plugins.brokers.common.constants import RATE_REDUCTION_FACTOR, USER_AGENT
+from plugins.brokers.common.constants import USER_AGENT
 from plugins.brokers.common.http_client import HttpClient
 from plugins.brokers.common.metrics import BrokerMetrics, NoOpMetrics
 from plugins.brokers.common.rate_limit import MultiBucketRateLimiter

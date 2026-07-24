@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from domain.commands import PlaceOrderCommand
-from domain.entities import Account, Order, Position
 from domain.enums import (
     OrderSide,
     OrderStatus,

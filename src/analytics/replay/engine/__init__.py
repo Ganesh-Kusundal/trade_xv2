@@ -134,7 +134,7 @@ class ReplayEngine:
         # run() via analytics_parity_scope so the TradingContext is never mutated
         # permanently by a replay.
         if self._oms_adapter is not None and self._portfolio_tracker is None:
-            from analytics.replay.cash_ledger import SimulatedCashLedger
+            from analytics.simulation.cash_ledger import SimulatedCashLedger
 
             self._portfolio_tracker = SimulatedCashLedger(self._config.initial_capital)
 
@@ -264,7 +264,7 @@ class ReplayEngine:
         bar: HistoricalBar,
     ) -> None:
         """Advance RiskManager daily_pnl from session equity (PARITY only)."""
-        from analytics.replay.parity_risk import feed_parity_risk_state
+        from analytics.simulation.parity_risk import feed_parity_risk_state
 
         open_eq = (
             session.equity_curve[0][1] if session.equity_curve else self._config.initial_capital
@@ -339,7 +339,7 @@ class ReplayEngine:
         df = df.sort_values(ts_col).reset_index(drop=True)
 
         # If multi-symbol, group and process each
-        from analytics.replay.cash_ledger import FixedAccountCapitalProvider
+        from analytics.simulation.cash_ledger import FixedAccountCapitalProvider
 
         if self._trading_context is not None:
             cm = self._trading_context.analytics_parity_scope(

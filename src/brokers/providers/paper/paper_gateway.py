@@ -33,6 +33,20 @@ from .paper_orders import PaperOrders
 from .paper_portfolio import PaperPortfolio
 
 
+class _PaperStream:
+    """No-op stream handle for the paper gateway (never connects)."""
+
+    def connect(self) -> None:
+        pass
+
+    def disconnect(self) -> None:
+        pass
+
+    @property
+    def is_connected(self) -> bool:
+        return False
+
+
 class PaperGateway(BaseWireAdapter, BrokerAdapter):
     """Synthetic market-data adapter for tests — NOT authoritative for OMS state.
 
@@ -326,17 +340,6 @@ class PaperGateway(BaseWireAdapter, BrokerAdapter):
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
-        class _PaperStream:
-            def connect(self):
-                pass
-
-            def disconnect(self):
-                pass
-
-            @property
-            def is_connected(self):
-                return False
-
         return _PaperStream()
 
     def stream_depth(
@@ -346,20 +349,7 @@ class PaperGateway(BaseWireAdapter, BrokerAdapter):
         *,
         levels: int = 5,
         on_depth: Callable[[MarketDepth], None] | None = None,
-        depth_type: str | None = None,  # deprecated — use levels instead
     ) -> Any:
-        # ponytail: depth_type accepted for backward compat but ignored by paper simulator.
-        class _PaperStream:
-            def connect(self):
-                pass
-
-            def disconnect(self):
-                pass
-
-            @property
-            def is_connected(self):
-                return False
-
         return _PaperStream()
 
     def unstream(
@@ -371,17 +361,6 @@ class PaperGateway(BaseWireAdapter, BrokerAdapter):
         pass  # Paper streams are noop
 
     def stream_order(self, on_order: Any | None = None) -> Any:
-        class _PaperStream:
-            def connect(self):
-                pass
-
-            def disconnect(self):
-                pass
-
-            @property
-            def is_connected(self):
-                return False
-
         return _PaperStream()
 
     # =======================================================================

@@ -1,15 +1,16 @@
-"""Domain ports — Protocols only; no I/O implementations."""
+"""Domain ports — Protocols only; no I/O implementations.
+
+NOTE: this package previously imported several port modules that were never
+created (event_bus, fill_source, idempotency_guard, portfolio_model,
+risk_model, data_adapter). Those imports were dead — nothing in src defines
+or references them — so they have been dropped. Only the port modules that
+actually exist on disk are re-exported here.
+"""
 
 from __future__ import annotations
 
 from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.clock import Clock
-from domain.ports.data_adapter import DataAdapter
-from domain.ports.event_bus import EventBusPort
-from domain.ports.fill_source import FillSource
-from domain.ports.idempotency_guard import IdempotencyGuard
-from domain.ports.portfolio_model import PortfolioModel
-from domain.ports.risk_model import RiskModel
 from domain.ports.strategy import Strategy
 from domain.ports.types import (
     BrokerSnapshot,
@@ -26,20 +27,11 @@ from domain.ports.types import (
 
 # Backward-compatible aliases for existing codebase references.
 BrokerAdapterPort = BrokerAdapter
-DataCatalogPort = DataAdapter
-FillSourcePort = FillSource
-RiskEnginePort = RiskModel
 
 __all__ = [
-    # New spec names
+    # Spec names
     "BrokerAdapter",
     "Clock",
-    "DataAdapter",
-    "EventBusPort",
-    "FillSource",
-    "IdempotencyGuard",
-    "PortfolioModel",
-    "RiskModel",
     "Strategy",
     # Supporting types
     "BrokerSnapshot",
@@ -54,7 +46,4 @@ __all__ = [
     "Subscription",
     # Backward-compatible aliases
     "BrokerAdapterPort",
-    "DataCatalogPort",
-    "FillSourcePort",
-    "RiskEnginePort",
 ]

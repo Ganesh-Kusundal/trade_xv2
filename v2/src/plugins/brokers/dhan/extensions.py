@@ -10,7 +10,7 @@ These are plain objects looked up via ``gateway.extension(DhanDepth20Extension)`
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Callable
 
 from domain.entities import MarketDepth
 from domain.value_objects import InstrumentId

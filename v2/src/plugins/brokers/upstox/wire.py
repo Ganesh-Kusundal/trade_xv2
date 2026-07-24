@@ -67,42 +67,30 @@ def _corr(raw: object) -> CorrelationId:
 
 class UpstoxWire:
     def __init__(self) -> None:
-        from plugins.brokers.common.index_map import index_upstox_key, is_index
-
-        def _upstox_index_fallback(iid: InstrumentId) -> dict | None:
-            sym = iid.underlying
-            if is_index(sym):
-                key = index_upstox_key(sym)
-                if key:
-                    return {"instrument_key": key}
-            return None
-
-        self._resolver = InMemoryInstrumentResolver(index_fallback=_upstox_index_fallback)
+        self._resolver = InMemoryInstrumentResolver()
 
     def get_segment(self, instrument_id: InstrumentId) -> str:
+        # The spot index itself (not a derivative on an index) resolves via the
+        # shared registry; everything else uses the exchange→segment map.
+        from plugins.brokers.common.index_map import is_pure_index, upstox_index_segment
+
+        if is_pure_index(instrument_id):
+            seg = upstox_index_segment(instrument_id.underlying)
+            if seg:
+                return seg
         exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else "NSE"
         return _UPSTOX_SEGMENT.get(exchange, "NSE_EQ")
 
     def instrument_key(self, instrument_id: InstrumentId) -> str:
-        try:
-            return self._resolver.resolve_ref(instrument_id).require("instrument_key")
-        except KeyError:
-            pass
-        # Bare index symbols (NIFTY, BANKNIFTY, ...) and IDX-prefixed forms
-        # resolve via the shared index map — mirrors DhanWire.get_index_entry.
-        from plugins.brokers.common.index_map import index_upstox_key, is_index
+        # Only the spot index itself resolves from the shared registry — a
+        # derivative on an index (NFO:NIFTY:…) must hit the instrument master.
+        from plugins.brokers.common.index_map import index_upstox_key, is_pure_index
 
-        exchange = instrument_id.value.split(":")[0] if ":" in instrument_id.value else ""
-        symbol = instrument_id.value.split(":", 1)[1] if ":" in instrument_id.value else instrument_id.value
-        if exchange in ("IDX", "INDEX") or is_index(symbol):
-            key = index_upstox_key(symbol)
+        if is_pure_index(instrument_id):
+            key = index_upstox_key(instrument_id.underlying)
             if key is not None:
                 return key
-        # No NSE:-prefix passthrough here: returning the canonical string itself
-        # as a fake instrument_key would leak an unmapped id straight into an
-        # Upstox API call — the instrument master not being loaded must raise,
-        # not silently produce a wrong-shaped wire id.
-        raise KeyError(f"no Upstox instrument_key for {instrument_id.value}")
+        return self._resolver.resolve_ref(instrument_id).require("instrument_key")
 
     def register_key(
         self,

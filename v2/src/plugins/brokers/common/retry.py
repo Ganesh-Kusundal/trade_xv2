@@ -56,7 +56,6 @@ class RetryableHttpClient:
         **kwargs: Any,
     ) -> tuple[int, Any]:
         last_exception: Exception | None = None
-        last_status: int | None = None
 
         for attempt in range(self._config.max_retries + 1):
             try:
@@ -64,7 +63,6 @@ class RetryableHttpClient:
 
                 # Check if status is retryable
                 if status in self._config.retryable_status:
-                    last_status = status
                     if attempt < self._config.max_retries:
                         delay = self._calc_delay(attempt)
                         time.sleep(delay)

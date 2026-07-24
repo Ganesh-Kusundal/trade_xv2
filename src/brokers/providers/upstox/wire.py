@@ -18,7 +18,6 @@ from brokers.providers.upstox.adapters import (
 )
 from brokers.providers.upstox.adapters.market_data_gateway import MarketDataGateway
 from brokers.providers.upstox.adapters.order_gateway import OrderGateway
-from brokers.providers.upstox.adapters.portfolio_gateway import PortfolioGateway
 from brokers.providers.upstox.adapters.streaming_gateway import StreamingGateway
 from brokers.providers.upstox.broker import UpstoxBroker
 from brokers.providers.upstox.capabilities import upstox_capabilities
@@ -99,7 +98,6 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter, BrokerAdapter):
             self._stream_manager,
             self._data_gw._resolve_instrument_key,
         )
-        self._portfolio_gw = PortfolioGateway(self._portfolio)
 
         from domain.options.gateway_facade import GatewayOptionsFacade
 
@@ -237,13 +235,13 @@ class UpstoxWireAdapter(BatchFetchMixin, BaseWireAdapter, BrokerAdapter):
         return self._stream_gw.stream_depth(symbol, exchange, levels=levels, on_depth=on_depth, depth_type=depth_type)
 
     def funds(self) -> Balance:
-        return self._portfolio_gw.funds()
+        return self._portfolio.get_funds()
 
     def positions(self) -> list[Position]:
-        return self._portfolio_gw.positions()
+        return self._portfolio.get_positions()
 
     def holdings(self) -> list[Holding]:
-        return self._portfolio_gw.holdings()
+        return self._portfolio.get_holdings()
 
     @property
     def extended(self) -> Any:

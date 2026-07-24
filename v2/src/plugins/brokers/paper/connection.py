@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from domain.entities import Account, Instrument, Order, Position, Quote
+from domain.entities import Instrument, Order, Position, Quote
 from domain.ports.types import BrokerSnapshot
 from domain.value_objects import AccountId, InstrumentId, Money, Price, Quantity
 from plugins.brokers.common.constants import DEFAULT_CURRENCY, PAPER_STARTING_CASH

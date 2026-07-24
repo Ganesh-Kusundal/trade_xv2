@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from domain.commands import PlaceOrderCommand
 from domain.enums import OrderSide, OrderType, ProductType, TimeInForce
-from domain.value_objects import CorrelationId, InstrumentId, Price, Quantity
+from domain.value_objects import CorrelationId, InstrumentId, Quantity
 
 
 def test_product_type_values() -> None:

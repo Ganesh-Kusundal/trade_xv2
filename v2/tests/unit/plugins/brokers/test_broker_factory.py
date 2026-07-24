@@ -5,7 +5,6 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
 
 from config.schema import AppConfig, Environment
 from domain.enums import BrokerId

@@ -9,9 +9,8 @@ from uuid import uuid4
 import pytest
 
 from domain.commands import PlaceOrderCommand
-from domain.entities import Account, MarketDepth, Order, Position
+from domain.entities import Account, MarketDepth
 from domain.enums import (
-    BrokerId,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -20,7 +19,6 @@ from domain.enums import (
 from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.types import BrokerSnapshot
 from domain.value_objects import (
-    AccountId,
     CorrelationId,
     InstrumentId,
     Money,

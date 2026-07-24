@@ -1,7 +1,7 @@
 """Message bus infrastructure."""
 
 from infrastructure.message_bus.bus import DeadLetter, MessageBus, MessageBusMetrics, Subscription
-from infrastructure.message_bus.log import InMemoryMessageLog, MessageLog
+from infrastructure.message_bus.log import InMemoryMessageLog, MessageLog, SQLiteMessageLog
 
 __all__ = [
     "DeadLetter",
@@ -9,5 +9,6 @@ __all__ = [
     "MessageBus",
     "MessageBusMetrics",
     "MessageLog",
+    "SQLiteMessageLog",
     "Subscription",
 ]

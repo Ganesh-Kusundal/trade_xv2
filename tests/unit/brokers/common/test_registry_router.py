@@ -6,7 +6,7 @@ from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
 from brokers.providers.dhan.config.capabilities import dhan_capabilities
 from brokers.providers.upstox.capabilities import upstox_capabilities
-from domain.errors import BrokerUnavailableError, RoutingError
+from domain.exceptions import BrokerUnavailableError, RoutingError
 from domain.models.routing import BrokerHealthSnapshot, OperationKind, RoutingRequest
 from domain.policies.source_selection import auto_dual_broker_policy, default_dhan_only_policy
 from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway

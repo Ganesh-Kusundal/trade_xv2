@@ -5,17 +5,13 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 
-from application.risk.context import RiskCheckResult, RiskContext
+from application.risk.context import RiskContext
 from application.risk.risk_manager import RiskManager
 from application.risk.rules import (
     DailyLossRule,
     NotionalRule,
-    OrderRateRule,
     OrderSizeRule,
-    PositionLimitRule,
-    RiskRulesEngine,
 )
 from domain.commands import PlaceOrderCommand
 from domain.entities import Position

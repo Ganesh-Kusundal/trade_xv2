@@ -4,15 +4,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Protocol
 from uuid import uuid4
 
-import pytest
 
 from application.analytics.feature_pipeline import EnrichedBar, FeaturePipeline
+from application.strategy.strategy_engine import StrategyEngine
 from domain.commands import PlaceOrderCommand
 from domain.entities import Bar, Quote
-from domain.enums import OrderSide, OrderType, SignalDirection, TimeInForce
+from domain.enums import OrderSide, OrderType, TimeInForce
 from domain.events import Message, OrderFilled
 from domain.ports.types import StartEvent, StopEvent
 from domain.value_objects import (
@@ -142,13 +141,6 @@ class OrderingStrategy:
 
     def on_event(self, event: Message) -> None:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Import StrategyEngine from application layer
-# ---------------------------------------------------------------------------
-
-from application.strategy.strategy_engine import StrategyEngine
 
 
 # ---------------------------------------------------------------------------

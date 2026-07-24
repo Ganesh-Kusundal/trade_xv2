@@ -357,7 +357,7 @@ class TestReadPathTypedErrors:
 
     def test_dhan_get_order_raises_broker_error_on_transport_failure(self) -> None:
         from brokers.providers.dhan.wire import DhanWireAdapter
-        from domain.errors import BrokerError
+        from domain.exceptions import BrokerError
 
         gw = DhanWireAdapter.__new__(DhanWireAdapter)
 
@@ -410,7 +410,7 @@ class TestTransportErrorMapping:
 
     def test_map_transport_exception_classifies_network(self) -> None:
         from brokers.common.transport_errors import map_transport_exception
-        from domain.errors import NetworkError
+        from domain.exceptions import NetworkError
 
         try:
             import requests

@@ -10,6 +10,7 @@ from domain.enums import BrokerId, Environment
 class MessageBusConfig(BaseModel):
     max_queue_size: int = 10_000
     persistent_log: bool = False
+    persistent_log_path: str = "./data/message_log.sqlite"
 
 
 class RiskConfig(BaseModel):
