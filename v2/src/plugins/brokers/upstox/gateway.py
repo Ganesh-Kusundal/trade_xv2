@@ -8,7 +8,7 @@ from typing import Any
 
 from domain.commands import PlaceOrderCommand
 from domain.entities import Account, Bar, Instrument, MarketDepth, Order, Position, Quote
-from domain.enums import AssetClass, ExchangeId
+from domain.enums import AssetClass
 from domain.value_objects import InstrumentId, OrderId, Price, TimeFrame
 from plugins.brokers.common.capabilities import BrokerCapabilities
 from plugins.brokers.common.extensions import BrokerExtensions
@@ -24,7 +24,12 @@ UPSTOX_CAPABILITIES = BrokerCapabilities(
     supports_stop_order=True,
     supports_modify=True,
     supports_cancel=True,
-    supported_asset_classes=frozenset({AssetClass.EQUITY, AssetClass.DERIVATIVE}),
+    # Reflects the real wire surface (verified in upstox/wire.py + adapters):
+    # NSE/BSE equity+derivatives, NFO/BFO F&O, MCX commodity futures/options,
+    # NCD_FO currency. Historical + live market data supported for all.
+    supported_asset_classes=frozenset(
+        {AssetClass.EQUITY, AssetClass.DERIVATIVE, AssetClass.COMMODITY, AssetClass.CURRENCY}
+    ),
 )
 
 
@@ -51,6 +56,16 @@ class UpstoxGateway:
 
     def connect(self) -> None:
         self.connection.connect()
+        # Proactive first-load: warm the instrument master on connect so the
+        # first ltp()/quote()/order call never pays the download latency.
+        # Run off the caller thread — a cold cache means a ~28 MB Dhan
+        # CSV (or 3.6 MB Upstox gz) download that must NOT block
+        # connect() in a live trading loop. The lazy ensure_fresh() on each
+        # data/order method still blocks if a caller needs symbols before the
+        # background warm-load finishes (same as before).
+        import threading
+
+        threading.Thread(target=self.ensure_fresh, daemon=True).start()
 
     def authenticate(self) -> bool:
         return self.connection.authenticate()
@@ -61,13 +76,26 @@ class UpstoxGateway:
     def disconnect(self) -> None:
         self.close()
 
+    def ensure_fresh(self, *, force_refresh: bool = False) -> None:
+        """Lazy auto-load of the instrument master on first use.
+
+        The gateway triggers the complete.json download/registration the first
+        time any market-data or order method is called, so callers never have
+        to remember to call ``load_instruments()`` manually. The connection's
+        own lock makes this safe to call on every request.
+        """
+        self.connection.ensure_fresh(force_refresh=force_refresh)
+
     def get_quote(self, instrument_id: InstrumentId) -> Quote:
+        self.ensure_fresh()
         return self.connection.market_data.get_quote(instrument_id)
 
     def ltp(self, instrument_id: InstrumentId) -> Price:
+        self.ensure_fresh()
         return self.connection.market_data.get_ltp(instrument_id)
 
     def depth(self, instrument_id: InstrumentId) -> MarketDepth:
+        self.ensure_fresh()
         return self.connection.market_data.get_depth(instrument_id)
 
     def history(
@@ -77,9 +105,11 @@ class UpstoxGateway:
         start: datetime,
         end: datetime,
     ) -> list[Bar]:
+        self.ensure_fresh()
         return self.connection.market_data.get_history(instrument_id, timeframe, start, end)
 
     def place_order(self, command: PlaceOrderCommand) -> OrderId:
+        self.ensure_fresh()
         if not self.connection.config.allow_live_orders:
             raise RuntimeError(
                 "Live orders disabled; set UpstoxConfig.allow_live_orders=True "
