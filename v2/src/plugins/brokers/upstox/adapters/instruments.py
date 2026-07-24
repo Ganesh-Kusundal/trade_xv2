@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import gzip
-import io
 import json
 import logging
 import os
@@ -16,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 
 from domain.entities import Instrument
 from domain.enums import AssetClass, ExchangeId, InstrumentType, OptionType
-from domain.value_objects import InstrumentId
 from plugins.brokers.upstox.instrument_adapter import to_instrument_id
 from plugins.brokers.upstox.wire import UpstoxWire
 
@@ -73,6 +71,21 @@ _SEG_ITYPE: dict[str, InstrumentType] = {
     "BSE_INDEX": InstrumentType.INDEX,
 }
 
+# The real Upstox master carries an explicit instrument_type field —
+# precise where the segment alone is ambiguous (NSE_FO covers both FUTIDX
+# and OPTIDX). Segment-level _SEG_ITYPE stays as the fallback.
+_ITYPE_MAP: dict[str, InstrumentType] = {
+    "FUTIDX": InstrumentType.FUTURE,
+    "FUTSTK": InstrumentType.FUTURE,
+    "FUTCOM": InstrumentType.FUTURE,
+    "FUTCUR": InstrumentType.FUTURE,
+    "OPTIDX": InstrumentType.OPTION,
+    "OPTSTK": InstrumentType.OPTION,
+    "OPTCOM": InstrumentType.OPTION,
+    "OPTFUT": InstrumentType.OPTION,
+    "OPTCUR": InstrumentType.OPTION,
+}
+
 
 class UpstoxInstrumentAdapter:
     def __init__(self, transport: BaseTransport, wire: UpstoxWire | None = None) -> None:
@@ -80,14 +93,14 @@ class UpstoxInstrumentAdapter:
         self._wire = wire or UpstoxWire()
         self._by_id: dict[str, Instrument] = {}
 
-    def load_instruments(self) -> list[Instrument]:
+    def load_instruments(self, *, force_refresh: bool = False) -> list[Instrument]:
         try:
-            return self._load_with_cache()
+            return self._load_with_cache(force_refresh=force_refresh)
         except Exception as exc:
             logger.error("Upstox instrument load failed: %s", exc)
             raise
 
-    def _load_with_cache(self) -> list[Instrument]:
+    def _load_with_cache(self, *, force_refresh: bool = False) -> list[Instrument]:
         cache_dir = _RUNTIME_DIR
         cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -96,20 +109,25 @@ class UpstoxInstrumentAdapter:
 
         self._cleanup_old_cache(cache_dir)
 
-        # Check cache freshness
-        force_refresh = False
-        if cache_path.exists() and cache_path.stat().st_size > 0:
-            try:
-                mtime = datetime.fromtimestamp(cache_path.stat().st_mtime, tz=timezone.utc)
-                cache_age_hours = (datetime.now(timezone.utc) - mtime).total_seconds() / 3600.0
-                if cache_age_hours > _INSTRUMENT_CACHE_TTL_HOURS:
-                    logger.info("Cache age %.1fh > %.1fh, refreshing", cache_age_hours, _INSTRUMENT_CACHE_TTL_HOURS)
-                    force_refresh = True
-            except Exception:
-                force_refresh = True
+        # A caller-requested force (e.g. the daily scheduler) bypasses the
+        # TTL gate entirely — re-download even when the cache is fresh.
+        if force_refresh:
+            force_redownload = True
+        else:
+            force_redownload = False
+            # Check cache freshness
+            if cache_path.exists() and cache_path.stat().st_size > 0:
+                try:
+                    mtime = datetime.fromtimestamp(cache_path.stat().st_mtime, tz=timezone.utc)
+                    cache_age_hours = (datetime.now(timezone.utc) - mtime).total_seconds() / 3600.0
+                    if cache_age_hours > _INSTRUMENT_CACHE_TTL_HOURS:
+                        logger.info("Cache age %.1fh > %.1fh, refreshing", cache_age_hours, _INSTRUMENT_CACHE_TTL_HOURS)
+                        force_redownload = True
+                except Exception:
+                    force_redownload = True
 
         rows: list[dict] | None = None
-        if not force_refresh and cache_path.exists() and cache_path.stat().st_size > 0:
+        if not force_redownload and cache_path.exists() and cache_path.stat().st_size > 0:
             logger.info("Loading Upstox instruments from cache: %s", cache_path)
             try:
                 candidate = self._decode_json_gz(cache_path.read_bytes())
@@ -203,6 +221,10 @@ class UpstoxInstrumentAdapter:
         exch = _SEG_EXCH.get(segment, ExchangeId.NSE)
         asset_class = _SEG_ASSET.get(segment, AssetClass.EQUITY)
         instrument_type = _SEG_ITYPE.get(segment, InstrumentType.EQUITY)
+        # The row's explicit instrument_type beats the segment-level guess.
+        raw_itype = str(row.get("instrument_type") or "").upper()
+        if raw_itype in _ITYPE_MAP:
+            instrument_type = _ITYPE_MAP[raw_itype]
 
         # G10: Strip -EQ suffix from equity symbols to match src convention
         display_symbol = symbol

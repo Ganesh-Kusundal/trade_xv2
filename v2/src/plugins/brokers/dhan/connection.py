@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -11,6 +12,7 @@ from plugins.brokers.common.liveness import ConnectionLiveness
 from plugins.brokers.common.rate_limit import limiter_from_profile
 from plugins.brokers.common.retry import RetryConfig
 from plugins.brokers.common.token_lifecycle import TokenRefreshScheduler
+from plugins.brokers.common.master_lifecycle import InstrumentRefreshScheduler
 from plugins.brokers.common.transport import BaseTransport, HttpTransport
 from plugins.brokers.dhan.adapters import (
     DhanInstrumentAdapter,
@@ -42,6 +44,9 @@ class DhanConnection(ConnectionLiveness):
             broadcast=self._tokens._broadcast,
             interval_seconds=300.0,
         )
+        # Daily instrument-master refresh (tokenless CDN; best-effort). Starts
+        # with connect(); keeps the on-disk cache fresh without a gateway call.
+        self._instrument_scheduler = InstrumentRefreshScheduler("dhan", self)
         # Rate limits sourced from RateLimitProfile when provided;
         # limiter_from_profile falls back to the DHAN table constants otherwise.
         self._limiter = limiter_from_profile("dhan", rate_limit_profile)
@@ -89,6 +94,8 @@ class DhanConnection(ConnectionLiveness):
         self._connected = False
         self._authenticated = False
         self._last_auth_error: Exception | None = None
+        self._instruments_loaded = False
+        self._instruments_lock = threading.Lock()
 
     def _reauth_on_401(self) -> bool:
         """Called by HttpTransport on HTTP 401/403. Force-refresh token once."""
@@ -101,6 +108,7 @@ class DhanConnection(ConnectionLiveness):
     def connect(self) -> None:
         self._connected = True
         self._scheduler.start()
+        self._instrument_scheduler.start()
 
     def authenticate(self) -> bool:
         try:
@@ -132,12 +140,30 @@ class DhanConnection(ConnectionLiveness):
 
     def disconnect(self) -> None:
         self._scheduler.stop()
+        self._instrument_scheduler.stop()
         self.streaming.close()
         self._connected = False
         self._authenticated = False
 
     def load_instruments(self) -> None:
         self.instruments.load_instruments()
+
+    def ensure_fresh(self, *, force_refresh: bool = False) -> None:
+        """Lazy single-flight instrument load — safe to call on every gateway call.
+
+        The first call (or any call with ``force_refresh=True``) downloads and
+        registers the scrip master; subsequent calls are no-ops until the daily
+        scheduler passes ``force_refresh=True``. Guarded by a lock so concurrent
+        first calls don't double-download.
+        """
+        if not force_refresh and self._instruments_loaded:
+            return
+        with self._instruments_lock:
+            # Re-check under lock: a racing thread may have loaded while we waited.
+            if not force_refresh and self._instruments_loaded:
+                return
+            self.instruments.load_instruments(force_refresh=force_refresh)
+            self._instruments_loaded = True
 
     def mass_status(self) -> BrokerSnapshot:
         return BrokerSnapshot(

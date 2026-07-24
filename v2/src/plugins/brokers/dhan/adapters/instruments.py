@@ -53,20 +53,21 @@ _SEGMENT_MAP: dict[tuple[str, str], ExchangeId] = {
     ("NSE", "M"): ExchangeId.NSE_COMM,
 }
 
+# Real Dhan scrip-master SEM_INSTRUMENT_NAME vocabulary (verified against the
+# live CSV: OPTSTK 108k, OPTFUT 46k, OPTCUR 24k, EQUITY 23k, OPTIDX 17k,
+# FUTSTK 1.3k, FUTCUR 290, INDEX 191, FUTCOM 144, FUTIDX 35).
 _INSTRUMENT_TYPE_MAP: dict[str, InstrumentType] = {
-    "EQ": InstrumentType.EQUITY,
-    "FUT": InstrumentType.FUTURE,
+    "EQUITY": InstrumentType.EQUITY,
     "FUTIDX": InstrumentType.FUTURE,
     "FUTSTK": InstrumentType.FUTURE,
     "FUTCOM": InstrumentType.FUTURE,
     "FUTCUR": InstrumentType.FUTURE,
-    "OPT": InstrumentType.OPTION,
     "OPTIDX": InstrumentType.OPTION,
     "OPTSTK": InstrumentType.OPTION,
     "OPTCOM": InstrumentType.OPTION,
     "OPTFUT": InstrumentType.OPTION,
     "OPTCUR": InstrumentType.OPTION,
-    "ID": InstrumentType.INDEX,
+    "INDEX": InstrumentType.INDEX,
     "BE": InstrumentType.EQUITY,
     "BOND": InstrumentType.EQUITY,
 }
@@ -85,8 +86,8 @@ class DhanInstrumentAdapter:
         self._wire = wire or DhanWire()
         self._by_id: dict[str, Instrument] = {}
 
-    def load_instruments(self) -> list[Instrument]:
-        instruments = self.load_from_csv()
+    def load_instruments(self, *, force_refresh: bool = False) -> list[Instrument]:
+        instruments = self.load_from_csv(force_refresh=force_refresh)
         # Register index instruments from the hardcoded index map
         self._register_indices()
         return instruments
@@ -112,7 +113,7 @@ class DhanInstrumentAdapter:
                 symbol=symbol,
                 exchange=exchange.value,
                 instrument_type="INDEX",
-                canonical_symbol=entry.canonical_name if hasattr(entry, "canonical_name") else None,
+                canonical_symbol=entry.canonical_name,
             )
             if iid.value not in self._by_id:
                 inst = Instrument(
@@ -125,7 +126,7 @@ class DhanInstrumentAdapter:
                 )
                 self._by_id[iid.value] = inst
 
-    def load_from_csv(self) -> list[Instrument]:
+    def load_from_csv(self, *, force_refresh: bool = False) -> list[Instrument]:
         cache_dir = _RUNTIME_DIR
         cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -134,19 +135,24 @@ class DhanInstrumentAdapter:
 
         self._cleanup_old_cache(cache_dir)
 
-        force_refresh = False
-        if cache_path.exists() and cache_path.stat().st_size > 0:
-            try:
-                mtime = datetime.fromtimestamp(cache_path.stat().st_mtime, tz=timezone.utc)
-                cache_age_hours = (datetime.now(timezone.utc) - mtime).total_seconds() / 3600.0
-                if cache_age_hours > _INSTRUMENT_CACHE_TTL_HOURS:
-                    logger.info("Cache age %.1fh > %.1fh, refreshing", cache_age_hours, _INSTRUMENT_CACHE_TTL_HOURS)
-                    force_refresh = True
-            except Exception:
-                force_refresh = True
+        # A caller-requested force (e.g. the daily scheduler) bypasses the
+        # TTL gate entirely — re-download even when the cache is fresh.
+        if force_refresh:
+            force_redownload = True
+        else:
+            force_redownload = False
+            if cache_path.exists() and cache_path.stat().st_size > 0:
+                try:
+                    mtime = datetime.fromtimestamp(cache_path.stat().st_mtime, tz=timezone.utc)
+                    cache_age_hours = (datetime.now(timezone.utc) - mtime).total_seconds() / 3600.0
+                    if cache_age_hours > _INSTRUMENT_CACHE_TTL_HOURS:
+                        logger.info("Cache age %.1fh > %.1fh, refreshing", cache_age_hours, _INSTRUMENT_CACHE_TTL_HOURS)
+                        force_redownload = True
+                except Exception:
+                    force_redownload = True
 
         csv_content = None
-        if not force_refresh and cache_path.exists() and cache_path.stat().st_size > 0:
+        if not force_redownload and cache_path.exists() and cache_path.stat().st_size > 0:
             logger.info("Loading instruments from cache: %s", cache_path)
             try:
                 candidate = cache_path.read_text(encoding="utf-8")
@@ -262,6 +268,10 @@ class DhanInstrumentAdapter:
                 strike = Decimal(strike_str)
             except (ValueError, TypeError):
                 pass
+        # ponytail: futures/currency rows carry a -0.01 sentinel — never a real
+        # strike, so drop it (matches the Upstox adapter's filter).
+        if strike is not None and strike <= 0:
+            strike = None
 
         option_type = _OPTION_TYPE_MAP.get(option_type_str) if option_type_str and option_type_str != "XX" else None
 
@@ -319,7 +329,6 @@ class DhanInstrumentAdapter:
         strike_str = (row.get("STRIKE_PRICE") or "").strip()
         option_type_str = (row.get("OPTION_TYPE") or "").strip().upper()
         security_id = (row.get("SECURITY_ID") or "").strip()
-        display_name = (row.get("DISPLAY_NAME") or "").strip()
 
         trading_symbol = symbol_name
         if expiry_str:
