@@ -111,12 +111,20 @@ class SQLiteMessageLog:
             cls = globals().get(cls_name) or getattr(__import__("domain.events", fromlist=[cls_name]), cls_name, None)
         except ImportError:
             cls = None
+        msg_data = data["data"]
+        # Parse datetime fields back to datetime objects
+        for key, value in msg_data.items():
+            if isinstance(value, str) and key.endswith(("_at", "_time", "timestamp")):
+                try:
+                    msg_data[key] = datetime.fromisoformat(value)
+                except ValueError:
+                    pass
         if cls is None:
             class DynamicMessage:
                 def __init__(self, **kwargs):
                     self.__dict__.update(kwargs)
-            return DynamicMessage(**data["data"])
-        return cls(**data["data"])
+            return DynamicMessage(**msg_data)
+        return cls(**msg_data)
 
     def append(self, message: object) -> None:
         timestamp = getattr(message, "timestamp", datetime.now(UTC))

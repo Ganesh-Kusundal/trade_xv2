@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,6 +24,38 @@ jobs:
           else
             echo "ruff not available — skip"
           fi
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
       - name: Test
         run: PYTHONPATH=src python -m pytest tests/ -q
+        working-directory: .
+
+  determinism:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Determinism Tests (Parity)
+        run: PYTHONPATH=src python -m pytest tests/parity/ -v -m parity
+        working-directory: .
+      - name: Replay Engine Determinism
+        run: PYTHONPATH=src python -m pytest tests/component/test_replay_engine.py tests/component/test_message_log_replay.py -v
         working-directory: .
